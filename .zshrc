@@ -29,7 +29,7 @@ export PATH="/usr/local/opt/curl/bin:$PATH"
 export GOPATH="${HOME}/go"
 export GOROOT="$(brew --prefix golang)/libexec"
 export PATH="$PATH:${GOPATH}/bin:${GOROOT}/bin"
- 
+
 test -d "${GOPATH}" || mkdir "${GOPATH}"
 test -d "${GOPATH}/src/github.com" || mkdir -p "${GOPATH}/src/github.com"
 
@@ -40,7 +40,7 @@ alias zshconfig="code ~/.zshrc"
 alias brewup="brew update && brew upgrade && brew cleanup"
 alias yat="bat -l yaml"
 
-gi() { 
+gi() {
 	curl -L -s "https://www.gitignore.io/api/$@"
 }
 
@@ -58,8 +58,13 @@ if [[ -f $HOME/.travis/travis.sh ]]; then
 fi
 
 # Private credentials
-if [[ -f $HOME/.zshrc.private ]]; then
-    source $HOME/.zshrc.private
+if [[ -f $HOME/.private ]]; then
+    source $HOME/.private
+fi
+
+# Extra configurations
+if [[ -f $HOME/.extras ]]; then
+    source $HOME/.extras
 fi
 
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.

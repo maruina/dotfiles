@@ -41,7 +41,7 @@ alias brewup="brew update && brew upgrade && brew cleanup"
 alias yat="bat -l yaml"
 
 gi() {
-	curl -L -s "https://www.gitignore.io/api/$@"
+    curl -L -s "https://www.gitignore.io/api/$@"
 }
 
 git-update-fork() {

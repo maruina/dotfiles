@@ -10,13 +10,13 @@
 
     # Show the diff between the latest commit and the current state
     d = !"git diff-index --quiet HEAD -- || clear; git --no-pager diff --patch-with-stat"
-    
+
     # Commit all changes
     ca = !git add -A && git commit -av
 
     # Switch to a branch, creating it if necessary
     go = "!f() { git checkout -b \"$1\" 2> /dev/null || git checkout \"$1\"; }; f"
-    
+
     # Show verbose output about tags, branches or remotes
     tags = tag -l
     branches = branch -a
@@ -27,7 +27,7 @@
 
     # Amend the currently staged files to the latest commit
     amend = commit --amend --reuse-message=HEAD
-    
+
     # Find branches containing commit
     fb = "!f() { git branch -a --contains $1; }; f"
 
@@ -43,7 +43,7 @@
     # Remove branches that have already been merged with master
     # a.k.a. ‘delete merged’
     dm = "!git branch --merged | grep -v '\\*' | xargs -n 1 git branch -d"
-    
+
     # Merge GitHub pull request on top of the current branch or,
     # if a branch name is specified, on top of the specified branch
     mpr = "!f() { \
@@ -61,7 +61,7 @@
     }; f"
 [push]
     # https://git-scm.com/docs/git-config#git-config-pushdefault
-    default = simple
+    default = current
     # Make `git push` push relevant annotated tags when pushing branches out.
     followTags = true
 [core]

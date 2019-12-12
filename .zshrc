@@ -33,6 +33,10 @@ export PATH="$PATH:${GOPATH}/bin:${GOROOT}/bin"
 test -d "${GOPATH}" || mkdir "${GOPATH}"
 test -d "${GOPATH}/src/github.com" || mkdir -p "${GOPATH}/src/github.com"
 
+# Ruby with RVM to PATH for scripting.
+export PATH="${PATH}:${HOME}/.rvm/bin"
+test -f "${HOME}/.rvm/scripts/rvm" && source "${HOME}/.rvm/scripts/rvm"
+
 # AWS
 export AWS_REGION="eu-west-1"
 

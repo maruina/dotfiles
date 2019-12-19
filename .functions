@@ -1,0 +1,23 @@
+gi() {
+    curl -L -s "https://www.gitignore.io/api/$@"
+}
+
+git-update-fork() {
+    git fetch upstream && git checkout master && git merge upstream/master
+}
+
+python3-env() {
+    python3 -m venv .env
+}
+
+kap() {
+    docker run -t --rm -v "$(pwd):/src:delegated" deepmind/kapitan
+}
+
+docker-rm-stopped() {
+    docker rm "$(docker ps -a -q)"
+}
+
+docker-rm-images() {
+    docker rmi "$(docker images -a -q)"
+}

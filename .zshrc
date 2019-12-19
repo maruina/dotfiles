@@ -40,22 +40,6 @@ test -f "${HOME}/.rvm/scripts/rvm" && source "${HOME}/.rvm/scripts/rvm"
 # AWS
 export AWS_REGION="eu-west-1"
 
-alias zshconfig="code ~/.zshrc"
-alias brewup="brew update && brew upgrade && brew cleanup"
-alias yat="bat -l yaml"
-
-gi() {
-    curl -L -s "https://www.gitignore.io/api/$@"
-}
-
-git-update-fork() {
-    git fetch upstream && git checkout master && git merge upstream/master
-}
-
-python3-env() {
-    python3 -m venv .env
-}
-
 # added by travis gem
 if [[ -f $HOME/.travis/travis.sh ]]; then
     source $HOME/.travis/travis.sh
@@ -74,6 +58,11 @@ fi
 # Aliases
 if [[ -f $HOME/.aliases ]]; then
     source $HOME/.aliases
+fi
+
+# Functions
+if [[ -f $HOME/.functions ]]; then
+    source $HOME/.functions
 fi
 
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.

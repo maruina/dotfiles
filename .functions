@@ -6,6 +6,14 @@ git-update-fork() {
     git fetch upstream && git checkout master && git merge upstream/master
 }
 
+git-set-upstream() {
+    if [ "$#" -eq 1 ]; then
+        git remote add upstream "$1"
+    else
+        echo "Usage: git-set-upstream https://github.com/ORIGINAL_OWNER/ORIGINAL_REPOSITORY.git"
+    fi
+}
+
 python3-env() {
     python3 -m venv .env
 }

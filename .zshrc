@@ -52,6 +52,9 @@ test -d "${GOPATH}/src/github.com" || mkdir -p "${GOPATH}/src/github.com"
 export PATH="${PATH}:${HOME}/.rvm/bin"
 test -f "${HOME}/.rvm/scripts/rvm" && source "${HOME}/.rvm/scripts/rvm"
 
+# https://github.com/kubernetes-sigs/krew
+export PATH="${KREW_ROOT:-$HOME/.krew}/bin:$PATH"
+
 # AWS
 export AWS_REGION="eu-west-1"
 

@@ -7,7 +7,7 @@ git-update-fork() {
 }
 
 git-set-upstream() {
-    if [ "$#" -eq 1 ]; then
+    if [[ "$#" -eq 1 ]]; then
         git remote add upstream "$1"
     else
         echo "Usage: git-set-upstream https://github.com/ORIGINAL_OWNER/ORIGINAL_REPOSITORY.git"
@@ -31,7 +31,7 @@ docker-rm-images() {
 }
 
 aws-get-latest-al2() {
-    if [ "$#" -eq 1 ]; then
+    if [[ "$#" -eq 1 ]]; then
         local regions=($1)
     else
         local regions=(eu-west-1 eu-central-1 ap-southeast-1 ap-northeast-1)

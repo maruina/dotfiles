@@ -41,16 +41,19 @@ export PATH="/usr/local/bin:$HOME/bin:$PATH"
 export PATH="/usr/local/opt/curl/bin:$PATH"
 
 # GO
-export GOPATH="${HOME}/go"
+export GOPATH="$HOME/go"
 export GOROOT="$(brew --prefix golang)/libexec"
-export PATH="$PATH:${GOPATH}/bin:${GOROOT}/bin"
+export PATH="$PATH:$GOPATH/bin:$GOROOT/bin"
 
-test -d "${GOPATH}" || mkdir "${GOPATH}"
-test -d "${GOPATH}/src/github.com" || mkdir -p "${GOPATH}/src/github.com"
+test -d "$GOPATH" || mkdir "$GOPATH"
+test -d "$GOPATH/src/github.com" || mkdir -p "$GOPATH/src/github.com"
+
+# Rust
+export PATH="$PATH:$HOME/.cargo/bin"
 
 # Ruby with RVM to PATH for scripting.
-export PATH="${PATH}:${HOME}/.rvm/bin"
-test -f "${HOME}/.rvm/scripts/rvm" && source "${HOME}/.rvm/scripts/rvm"
+export PATH="$PATH:$HOME/.rvm/bin"
+test -f "$HOME/.rvm/scripts/rvm" && source "$HOME/.rvm/scripts/rvm"
 
 # https://github.com/kubernetes-sigs/krew
 export PATH="${KREW_ROOT:-$HOME/.krew}/bin:$PATH"

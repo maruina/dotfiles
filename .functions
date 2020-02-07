@@ -42,3 +42,7 @@ aws-get-latest-al2() {
         echo "Region: $r\nAMI: $ami"
     done
 }
+
+p10k-update() {
+    git -C $ZSH_CUSTOM/themes/powerlevel10k pull
+}

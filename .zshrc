@@ -61,6 +61,9 @@ export PATH="${KREW_ROOT:-$HOME/.krew}/bin:$PATH"
 # AWS
 export AWS_REGION="eu-west-1"
 
+# pyenv
+eval "$(pyenv init -)"
+
 # added by travis gem
 if [[ -f $HOME/.travis/travis.sh ]]; then
     source $HOME/.travis/travis.sh

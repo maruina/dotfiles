@@ -4,3 +4,12 @@ alias ....="cd ../../.."
 alias zshconfig="code ~/.zshrc"
 alias brewup="brew update && brew upgrade && brew cleanup"
 alias yat="bat -l yaml"
+
+# Markdown files
+alias -s md=code
+
+# JSON files
+alias -s json=code
+
+# Python files
+alias -s py=code

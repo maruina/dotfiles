@@ -46,3 +46,10 @@ aws-get-latest-al2() {
 p10k-update() {
     git -C $ZSH_CUSTOM/themes/powerlevel10k pull
 }
+
+qc35-reset() {
+    sudo launchctl stop com.apple.blued
+    sleep 5
+    sudo launchctl start com.apple.blued
+    sudo kill -9 `ps ax|grep 'coreaudio[a-z]' | awk '{print $1}'`
+}

@@ -19,7 +19,7 @@ python3-env() {
 }
 
 kap() {
-    docker run -t --rm -v "$(pwd):/src:delegated" deepmind/kapitan "$@"
+    docker run -t --rm -v "$(pwd):/src:delegated" deepmind/kapitan:0.27.4 "$@"
 }
 
 docker-rm-stopped() {

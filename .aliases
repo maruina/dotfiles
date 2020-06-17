@@ -15,4 +15,4 @@ alias -s json=code
 alias -s py=code
 
 # Istio
-alias -q istioDebug="-c istio-proxy -- curl -XPOST -s -o /dev/null http://localhost:15000/logging?level=debug"
+alias -g istioDebug="-c istio-proxy -- curl -XPOST -s -o /dev/null http://localhost:15000/logging?level=debug"

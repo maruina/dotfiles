@@ -53,3 +53,33 @@ qc35-reset() {
     sudo launchctl start com.apple.blued
     sudo kill -9 `ps ax|grep 'coreaudio[a-z]' | awk '{print $1}'`
 }
+
+kind-ecr-registry() {
+
+    if [[ "$#" -ne 2 ]]; then
+        echo "Insufficient arguments, got $*"
+        echo "Usage: kind-ecr-registry <ACCOUNT> <REGION>"
+        echo "Example: kind-ecr-registry 426038483100 eu-west-1"
+        return 1
+    fi
+
+    local current_context=$(kubectl config current-context)
+    local account=$1
+    local region=$2
+    local secret_name=${region}-ecr-registry
+    local email=foo@example.com
+
+    if [[ "kind-kind" == "${current_context}" ]]; then
+        local token=$(aws ecr --region="${region}" get-authorization-token --output json | jq -r '.authorizationData[].authorizationToken' | base64 -d | cut -d: -f2)
+        kubectl delete secret --ignore-not-found "${secret_name}"
+        kubectl create secret docker-registry "${secret_name}" \
+            --docker-server="https://${account}.dkr.ecr.${region}.amazonaws.com"\
+            --docker-username=AWS \
+            --docker-password="${token}" \
+            --docker-email="${email}"
+        echo "Secret ${secret_name} created for cluster ${current_context}"
+    else
+        echo "Not using a kind cluster"
+        return 1
+    fi
+}

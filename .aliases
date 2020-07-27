@@ -10,9 +10,3 @@ alias -s md=code
 
 # JSON files
 alias -s json=code
-
-# Python files
-alias -s py=code
-
-# Istio
-alias -g istioDebug="-c istio-proxy -- curl -XPOST -s -o /dev/null http://localhost:15000/logging?level=debug"

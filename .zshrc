@@ -66,6 +66,9 @@ export PATH="$HOME/.pyenv/bin:$PATH"
 eval "$(pyenv init -)"
 pyenv virtualenvwrapper
 
+# AWS Session Manager
+export PATH="$PATH:/usr/local/sessionmanagerplugin/bin"
+
 # added by travis gem
 if [[ -f $HOME/.travis/travis.sh ]]; then
     source $HOME/.travis/travis.sh

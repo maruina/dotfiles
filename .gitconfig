@@ -90,3 +90,9 @@
 [merge]
     # Include summaries of merged commits in newly created merge commit messages
     log = true
+[user]
+	name = Matteo Ruina
+	email = matteo.ruina@gmail.com
+	signingkey = 40C215DED70C2AABEA14BA0F8F558D438714A98F
+[commit]
+	gpgsign = true

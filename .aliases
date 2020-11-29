@@ -10,3 +10,6 @@ alias -s md=code
 
 # JSON files
 alias -s json=code
+
+# VSCode to fix picking up env vars from zshconfig
+alias code="open -a 'Visual Studio Code'"

@@ -69,10 +69,8 @@ pyenv virtualenvwrapper
 # AWS Session Manager
 export PATH="$PATH:/usr/local/sessionmanagerplugin/bin"
 
-# added by travis gem
-if [[ -f $HOME/.travis/travis.sh ]]; then
-    source $HOME/.travis/travis.sh
-fi
+# Kubebuilder
+export PATH=$PATH:/usr/local/kubebuilder/bin 
 
 # Private credentials
 if [[ -f $HOME/.private ]]; then

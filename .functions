@@ -83,3 +83,7 @@ kind-ecr-registry() {
         return 1
     fi
 }
+
+pman() { 
+    man -t "$@" | open -f -a Preview
+}

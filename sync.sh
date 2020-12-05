@@ -7,7 +7,7 @@ sync() {
         --exclude "sync.sh" \
         --exclude "README.md" \
         --exclude ".pre-commit-config.yaml" \
-        -avh \
+        -avhI \
         --no-perms \
         . "${HOME}"
 }

@@ -96,3 +96,5 @@
 	signingkey = 40C215DED70C2AABEA14BA0F8F558D438714A98F
 [commit]
 	gpgsign = true
+[format]
+    signOff = true

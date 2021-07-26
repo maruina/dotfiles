@@ -19,7 +19,7 @@ ZSH_THEME=powerlevel10k/powerlevel10k
 # Custom plugins may be added to ~/.oh-my-zsh/custom/plugins/
 # Example format: plugins=(rails git textmate ruby lighthouse)
 # Add wisely, as too many plugins slow down shell startup.
-plugins=(git git-extras aws osx kubectl fzf helm)
+plugins=(git git-extras aws osx kubectl fzf helm pyenv)
 
 # See https://docs.brew.sh/Shell-Completion#configuring-completions-in-zsh
 if type brew &>/dev/null; then
@@ -86,6 +86,9 @@ test -d "$GOPATH/src/github.com" || mkdir -p "$GOPATH/src/github.com"
 # Rust
 export PATH="$PATH:$HOME/.cargo/bin"
 
+# Pyenv
+export PATH="$(pyenv root)/shims:$PATH"
+
 # Ruby with RVM to PATH for scripting.
 export PATH="$PATH:$HOME/.rvm/bin"
 test -f "$HOME/.rvm/scripts/rvm" && source "$HOME/.rvm/scripts/rvm"
@@ -95,11 +98,6 @@ export PATH="${KREW_ROOT:-$HOME/.krew}/bin:$PATH"
 
 # AWS
 export AWS_REGION="eu-west-1"
-
-# pyenv
-export PATH="$HOME/.pyenv/bin:$PATH"
-eval "$(pyenv init -)"
-pyenv virtualenvwrapper
 
 # AWS Session Manager
 export PATH="$PATH:/usr/local/sessionmanagerplugin/bin"

@@ -11,5 +11,8 @@ alias -s md=code
 # JSON files
 alias -s json=code
 
+# Kubectl
+alias k=kubectl
+
 # VSCode to fix picking up env vars from zshconfig
 alias code="open -a 'Visual Studio Code'"

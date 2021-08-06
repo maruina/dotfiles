@@ -1,10 +1,3 @@
-# Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
-# Initialization code that may require console input (password prompts, [y/n]
-# confirmations, etc.) must go above this block, everything else may go below.
-if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
-  source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
-fi
-
 #!/bin/zsh
 # Path to your oh-my-zsh installation.
 export ZSH=$HOME/.oh-my-zsh
@@ -19,7 +12,7 @@ ZSH_THEME=powerlevel10k/powerlevel10k
 # Custom plugins may be added to ~/.oh-my-zsh/custom/plugins/
 # Example format: plugins=(rails git textmate ruby lighthouse)
 # Add wisely, as too many plugins slow down shell startup.
-plugins=(git git-extras aws osx kubectl fzf helm pyenv)
+plugins=(git git-extras osx)
 
 # See https://docs.brew.sh/Shell-Completion#configuring-completions-in-zsh
 if type brew &>/dev/null; then
@@ -50,21 +43,6 @@ setopt hash_list_all
 
 # https://stackoverflow.com/a/14900496/8514646
 bindkey '^i' expand-or-complete-prefix
-# by category
-# https://old.reddit.com/r/zsh/comments/6l797o/organizing_co mpletions_by_category/
-# https://github.com/sorinionescu/prezto/blob/master/modules/completion/init.zsh#L60
-zstyle ':completion:*:*:*:*:*' menu select
-zstyle ':completion:*:matches' group 'yes'
-zstyle ':completion:*:options' description 'yes'
-zstyle ':completion:*:options' auto-description '%d'
-zstyle ':completion:*:corrections' format ' %F{green}-- %d (errors: %e) --%f'
-zstyle ':completion:*:descriptions' format ' %F{yellow}-- %d --%f'
-zstyle ':completion:*:messages' format ' %F{purple} -- %d -- %f'
-zstyle ':completion:*:warnings' format ' %F{red}-- no matches found --%f'
-zstyle ':completion:*:default' list-prompt '%S%M matches%s'
-zstyle ':completion:*' format ' %F{yellow}-- %d --%f'
-zstyle ':completion:*' group-name ''
-zstyle ':completion:*' verbose yes
 
 # Fix locale issues
 export LC_CTYPE="en_US.UTF-8"
@@ -128,10 +106,8 @@ fi
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
 
-# zsh-syntax-highlighting
-source /usr/local/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
-
 # zsh-vi-mode
+ZVM_VI_ESCAPE_BINDKEY=jj
 source /usr/local/opt/zsh-vi-mode/share/zsh-vi-mode/zsh-vi-mode.plugin.zsh
 
 # k alias autocomplete

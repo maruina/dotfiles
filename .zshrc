@@ -14,14 +14,6 @@ ZSH_THEME=powerlevel10k/powerlevel10k
 # Add wisely, as too many plugins slow down shell startup.
 plugins=(git git-extras osx)
 
-# See https://docs.brew.sh/Shell-Completion#configuring-completions-in-zsh
-if type brew &>/dev/null; then
-    FPATH=$(brew --prefix)/share/zsh/site-functions:$FPATH
-
-    autoload -Uz compinit
-    compinit
-fi
-
 source $ZSH/oh-my-zsh.sh
 
 # History
@@ -106,9 +98,19 @@ fi
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
 
+# zsh-syntax-highlighting
+source /usr/local/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+
 # zsh-vi-mode
 ZVM_VI_ESCAPE_BINDKEY=jj
 source /usr/local/opt/zsh-vi-mode/share/zsh-vi-mode/zsh-vi-mode.plugin.zsh
 
 # k alias autocomplete
+source <(kubectl completion zsh)
 complete -F __start_kubectl k
+
+# zoxide
+eval "$(zoxide init zsh)"
+
+# zsh-autocomplete
+source $HOME/.oh-my-zsh/custom/plugins/zsh-autocomplete/zsh-autocomplete.plugin.zsh

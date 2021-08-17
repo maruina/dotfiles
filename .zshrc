@@ -112,5 +112,5 @@ complete -F __start_kubectl k
 # zoxide
 eval "$(zoxide init zsh)"
 
-# zsh-autocomplete
-source $HOME/.oh-my-zsh/custom/plugins/zsh-autocomplete/zsh-autocomplete.plugin.zsh
+# Helm
+source <(helm completion zsh)

@@ -58,6 +58,8 @@ export PATH="$PATH:$HOME/.cargo/bin"
 
 # Pyenv
 export PATH="$(pyenv root)/shims:$PATH"
+eval "$(pyenv init -)"
+eval "$(pyenv virtualenv-init -)"
 
 # Ruby with RVM to PATH for scripting.
 export PATH="$PATH:$HOME/.rvm/bin"

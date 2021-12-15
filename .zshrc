@@ -37,6 +37,7 @@ setopt hash_list_all
 bindkey '^i' expand-or-complete-prefix
 
 # Fix locale issues
+export LANG="en_US.UTF-8"
 export LC_CTYPE="en_US.UTF-8"
 
 # User PATH

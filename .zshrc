@@ -2,12 +2,6 @@
 # Path to your oh-my-zsh installation.
 export ZSH=$HOME/.oh-my-zsh
 
-# Set name of the theme to load.
-# Look in ~/.oh-my-zsh/themes/
-# Optionally, if you set this to "random", it'll load a random theme each
-# time that oh-my-zsh is loaded.
-ZSH_THEME=powerlevel10k/powerlevel10k
-
 # Which plugins would you like to load? (plugins can be found in ~/.oh-my-zsh/plugins/*)
 # Custom plugins may be added to ~/.oh-my-zsh/custom/plugins/
 # Example format: plugins=(rails git textmate ruby lighthouse)
@@ -32,6 +26,15 @@ setopt HIST_REDUCE_BLANKS        # Remove superfluous blanks before recording en
 setopt HIST_VERIFY               # Don't execute immediately upon history expansion.
 # tab completion
 setopt hash_list_all
+
+# https://docs.brew.sh/Shell-Completion
+if type brew &>/dev/null
+then
+  FPATH="$(brew --prefix)/share/zsh/site-functions:${FPATH}"
+
+  autoload -Uz compinit
+  compinit
+fi
 
 # https://stackoverflow.com/a/14900496/8514646
 bindkey '^i' expand-or-complete-prefix
@@ -58,9 +61,9 @@ test -d "$GOPATH/src/github.com" || mkdir -p "$GOPATH/src/github.com"
 export PATH="$PATH:$HOME/.cargo/bin"
 
 # Pyenv
-export PATH="$(pyenv root)/shims:$PATH"
-eval "$(pyenv init -)"
-eval "$(pyenv virtualenv-init -)"
+# export PATH="$(pyenv root)/shims:$PATH"
+# eval "$(pyenv init -)"
+# eval "$(pyenv virtualenv-init -)"
 
 # Ruby with RVM to PATH for scripting.
 export PATH="$PATH:$HOME/.rvm/bin"
@@ -70,7 +73,13 @@ test -f "$HOME/.rvm/scripts/rvm" && source "$HOME/.rvm/scripts/rvm"
 export PATH="${KREW_ROOT:-$HOME/.krew}/bin:$PATH"
 
 # AWS
-export AWS_REGION="eu-west-1"
+# https://stackoverflow.com/questions/60122188/how-to-turn-off-the-pager-for-aws-cli-return-value
+export AWS_PAGER=""
+# store key in the login keychain instead of aws-vault managing a hidden keychain
+export AWS_VAULT_KEYCHAIN_NAME=login
+# tweak session times so you dont have to re-enter passwords every 5min
+export AWS_SESSION_TTL=24h
+export AWS_ASSUME_ROLE_TTL=24h
 
 # AWS Session Manager
 export PATH="$PATH:/usr/local/sessionmanagerplugin/bin"
@@ -98,12 +107,6 @@ if [[ -f $HOME/.functions ]]; then
     source $HOME/.functions
 fi
 
-# To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
-[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
-
-# zsh-syntax-highlighting
-source /usr/local/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
-
 # k alias autocomplete
 source <(kubectl completion zsh)
 complete -F __start_kubectl k
@@ -113,3 +116,18 @@ eval "$(zoxide init zsh)"
 
 # Helm
 source <(helm completion zsh)
+
+# kubectl krew
+export PATH="${KREW_ROOT:-$HOME/.krew}/bin:$PATH"
+
+# FZF
+[ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
+
+source /usr/local/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+
+# Atuin
+eval "$(atuin init zsh)"
+
+# https://starship.rs/
+eval "$(starship init zsh)"
+

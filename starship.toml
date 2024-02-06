@@ -8,17 +8,23 @@ add_newline = true
 [character] # The name of the module we are configuring is 'character'
 success_symbol = '[➜](bold green)' # The 'success_symbol' segment is being set to '➜' with the color 'bold green'
 
-# Disable the package module, hiding it from the prompt completely
-[package]
-disabled = true
-
 [git_branch]
+disabled = false
 
 [git_commit]
+disabled = false
 
 [git_state]
 format = '[\($state( $progress_current of $progress_total)\)]($style) '
 cherry_pick = '[🍒 PICKING](bold red)'
+disabled = false
 
-[golang]
-format = 'via [🏎💨 $version](bold cyan) '
+[status]
+style = 'bg:blue'
+format = '[$status]($style) '
+map_symbol = true
+disabled = false
+
+# Disable the package module, hiding it from the prompt completely
+[package]
+disabled = true

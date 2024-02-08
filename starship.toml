@@ -28,3 +28,24 @@ disabled = false
 # Disable the package module, hiding it from the prompt completely
 [package]
 disabled = true
+
+[gcloud]
+disabled = true
+
+[ruby]
+disabled = true
+
+[kubernetes]
+format = '[$context \($namespace\)]($style) '
+disabled = false
+contexts = [
+  {context_pattern = ".*staging.*", style = "bold green"},
+  {context_pattern = ".*prod.*", style = "bold red"},
+  {context_pattern = ".*ddbuild.*", style = "bold red"},
+]
+
+[docker_context]
+disabled = true
+
+[golang]
+disabled = true

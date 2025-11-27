@@ -1,0 +1,62 @@
+# Get editor completions based on the config schema
+"$schema" = 'https://starship.rs/config-schema.json'
+
+# Inserts a blank line between shell prompts
+add_newline = true
+
+# Timeout for commands executed by starship (in milliseconds).
+command_timeout = 2000
+
+# Replace the '❯' symbol in the prompt with '➜'
+[character] # The name of the module we are configuring is 'character'
+success_symbol = '[➜](bold green)' # The 'success_symbol' segment is being set to '➜' with the color 'bold green'
+
+[git_branch]
+disabled = false
+
+[git_commit]
+disabled = false
+
+[git_state]
+format = '[\($state( $progress_current of $progress_total)\)]($style) '
+cherry_pick = '[🍒 PICKING](bold red)'
+disabled = false
+
+[status]
+style = 'bg:blue'
+format = '[$status]($style) '
+map_symbol = true
+disabled = false
+
+# Disable the package module, hiding it from the prompt completely
+[package]
+disabled = true
+
+[gcloud]
+disabled = true
+
+[ruby]
+disabled = true
+
+[nodejs]
+disabled = true
+
+[kubernetes]
+format = '[$context \($namespace\)]($style) '
+disabled = false
+contexts = [
+  {context_pattern = "stormeagle.*|arbok.*|chillpenguin.*|charcadet.*|throh.*|elysium.*|empoleon-a.*|genesect.*|muk.*|porygon.*|sasquatch.*|snowver.*|stingchameleon.*", style = "bold green"},
+  {context_pattern = ".*staging.*", style = "bold yellow"},
+  {context_pattern = ".*prod.*", style = "bold red"},
+  {context_pattern = ".*ddbuild.*", style = "bold red"},
+  {context_pattern = ".*us1.release.mgmt.dog.*", style = "bold red"},
+]
+
+[docker_context]
+disabled = true
+
+[golang]
+disabled = true
+
+[terraform]
+disabled = true

@@ -8,6 +8,8 @@ end
 # Created by `pipx` on 2025-11-26 18:06:51
 set PATH $PATH /Users/matteo.ruina/.local/bin
 starship init fish | source
+
+{{- if eq .profile "work" }}
 # BEGIN ANSIBLE MANAGED BLOCK
 # Load homebrew shell variables
 eval "$(/opt/homebrew/bin/brew shellenv)"
@@ -62,6 +64,7 @@ export GONOSUMDB=github.com/DataDog,go.ddbuild.io
 export GOPRIVATE=
 export GOPROXY="https://depot-read-api-go.us1.ddbuild.io/magicmirror/magicmirror/@current/|https://depot-read-api-go.us1.ddbuild.io/magicmirror/magicmirror/@current/|https://depot-read-api-go.us1.ddbuild.io/magicmirror/testing/@current/"
 # END ANSIBLE MANAGED BLOCK
+{{- end }}
 
 # ASDF configuration code
 if test -z $ASDF_DATA_DIR

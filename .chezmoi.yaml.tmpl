@@ -1,5 +1,5 @@
 {{ $email := promptStringOnce . "email" "Enter email address" -}}
-{{ $signingkey := promptStringOnce . "signingKey" "Enter Github SSH signing key" -}}
+{{ $signingKey := promptStringOnce . "signingKey" "Enter Github SSH signing key" -}}
 {{ $profile := promptStringOnce . "profile" "Enter profile"}}
 
 editor:
@@ -7,4 +7,4 @@ editor:
 data:
   email: {{ $email | quote }}
   profile: {{ $profile | quote }}
-  signingkey: {{ $signingkey | quote }}
+  signingKey: {{ $signingKey | quote }}

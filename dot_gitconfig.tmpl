@@ -3,7 +3,8 @@
 [user]
 	name = Matteo Ruina
 	email = {{ .chezmoi.email }}
-        signingKey = {{ .chezmoi.signingKey }}
+    signingKey = {{ .chezmoi.signingKey }}
+
 {{- if eq .chezmoi.profile "personal" }}
 [commit]
 	gpgsign = true
@@ -11,7 +12,6 @@
     signOff = true
 [gpg]
     format = ssh
-
 [gpg "ssh"]
     program = "/Applications/1Password.app/Contents/MacOS/op-ssh-sign"
 {{- end }}

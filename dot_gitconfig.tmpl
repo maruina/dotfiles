@@ -2,10 +2,10 @@
 	defaultBranch = main
 [user]
 	name = Matteo Ruina
-	email = {{ .chezmoi.email }}
-    signingKey = {{ .chezmoi.signingKey }}
+	email = {{ .email }}
+    signingKey = {{ .signingKey }}
 
-{{- if eq .chezmoi.profile "personal" }}
+{{- if eq .profile "personal" }}
 [commit]
 	gpgsign = true
 [format]

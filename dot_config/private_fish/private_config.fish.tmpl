@@ -9,7 +9,7 @@ end
 set PATH $PATH /Users/matteo.ruina/.local/bin
 starship init fish | source
 
-{{- if eq .chezmoi.profile "work" }}
+{{- if eq .profile "work" }}
 # BEGIN ANSIBLE MANAGED BLOCK
 # Load homebrew shell variables
 eval "$(/opt/homebrew/bin/brew shellenv)"

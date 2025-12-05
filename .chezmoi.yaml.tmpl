@@ -1,7 +1,9 @@
-{{ $email := promptStringOnce . "email" "What is your email address" -}}
+{{ $email := promptStringOnce . "email" "Enter email address" -}}
+{{ $signingkey := promptStringOnce . "signingKey" "Enter Github SSH signing key" -}}
 
 editor:
   command: "hx"
 data:
   email: {{ $email | quote }}
-  profile: {{ promptChoice "What type of setup do you want" (list "personal" "work") | quote }}
+  profile: {{ promptChoice "Enter profile" (list "personal" "work") | quote }}
+  signingkey: {{ $signingkey | quote }}

@@ -1,2 +1,7 @@
+{{ $email := promptStringOnce . "email" "What is your email address" -}}
+
+editor:
+  command: "hx"
 data:
+  email: {{ $email | quote }}
   profile: {{ promptChoice "What type of setup do you want" (list "personal" "work") | quote }}

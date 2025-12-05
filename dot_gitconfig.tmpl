@@ -1,0 +1,17 @@
+[init]
+	defaultBranch = main
+[user]
+	name = Matteo Ruina
+	email = {{ .chezmoi.email }}
+        signingKey = {{ .chezmoi.signingKey }}
+{{- if eq .chezmoi.profile "personal" }}
+[commit]
+	gpgsign = true
+[format]
+    signOff = true
+[gpg]
+    format = ssh
+
+[gpg "ssh"]
+    program = "/Applications/1Password.app/Contents/MacOS/op-ssh-sign"
+{{- end }}

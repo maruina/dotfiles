@@ -5,5 +5,5 @@ editor:
   command: "hx"
 data:
   email: {{ $email | quote }}
-  profile: {{ promptChoice "Enter profile" (list "personal" "work") | quote }}
+  profile: {{ promptChoiceOnce "Enter profile" (list "personal" "work") | quote }}
   signingkey: {{ $signingkey | quote }}

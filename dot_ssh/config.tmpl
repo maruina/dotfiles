@@ -12,3 +12,22 @@ ServerAliveInterval 30
 Host i-* mi-*
     ProxyCommand sh -c "aws ssm start-session --target %h --document-name AWS-StartSSHSession --parameters 'portNumber=%p'"
 {{- end }}
+{{- if eq .profile "personal" }}
+Host *
+  IdentityAgent "~/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"
+
+Host tavore
+    HostName 172.16.0.6
+    Port 22
+    User ruio
+
+Host tamber
+    HostName 188.166.174.166
+    Port 22
+    User tamber
+
+Host hass
+    HostName 172.16.0.14
+    Port 22
+    User hassio
+{{- end }}

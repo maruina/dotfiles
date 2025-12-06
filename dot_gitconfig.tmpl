@@ -1,17 +1,114 @@
+[alias]
+    mainbranch = "!git remote show origin | sed -n '/HEAD branch/s/.*: //p'"
+
+    # https://stackoverflow.com/questions/15316601/in-what-cases-could-git-pull-be-harmful
+    up = "!git remote update -p; git merge --ff-only @{u}"
+
+    # View abbreviated SHA, description, and history graph of the latest 20 commits
+    l = log --pretty=oneline -n 30 --graph --abbrev-commit
+
+    # View the current working tree status using the short format
+    s = status -s
+
+    # Show verbose output about tags, branches or remotes
+    tags = tag -l
+    branches = branch -a
+    remotes = remote -v
+
+    # Amend the currently staged files to the latest commit
+    amend = commit --amend --reuse-message=HEAD
+
+    # Find branches containing commit
+    fb = "!f() { git branch -a --contains $1; }; f"
+
+    # Find tags containing commit
+    ft = "!f() { git describe --always --contains $1; }; f"
+
+    # Find commits by source code
+    fc = "!f() { git log --pretty=format:'%C(yellow)%h  %Cblue%ad  %Creset%s%Cgreen  [%cn] %Cred%d' --decorate --date=short -S$1; }; f"
+
+    # Find commits by commit message
+    fm = "!f() { git log --pretty=format:'%C(yellow)%h  %Cblue%ad  %Creset%s%Cgreen  [%cn] %Cred%d' --decorate --date=short --grep=$1; }; f"
+
+    # Remove branches that have already been merged with master
+    # a.k.a. ‘delete merged’
+    dm = "!git branch --merged | grep -v '\\*' | xargs -n 1 git branch -d"
+
+    gone = "!f() { git fetch --all --prune; git branch -vv | awk '/: gone]/{print $1}' | xargs git branch -D; }; f"
+
+[push]
+    # https://git-scm.com/docs/git-config#git-config-pushdefault
+    default = current
+    # Make `git push` push relevant annotated tags when pushing branches out.
+    followTags = true
+
+[core]
+    whitespace = space-before-tab,-indent-with-non-tab,trailing-space
+    # Make `git rebase` safer on macOS
+    # More info: <http://www.git-tower.com/blog/make-git-rebase-safe-on-osx/>
+    trustctime = false
+
+    # Prevent showing files whose names contain non-ASCII symbols as unversioned.
+    # http://michael-kuehnel.de/git/2014/11/21/git-mac-osx-and-german-umlaute.html
+    precomposeunicode = false
+
+    # Speed up commands involving untracked files such as `git status`.
+    # https://git-scm.com/docs/git-update-index#_untracked_cache
+    untrackedCache = true
+    {{- if eq .profile "work" }}
+	hooksPath = /usr/local/dd/global_hooks
+    {{- end }}
+	excludesfile = {{ .chezmoi.homeDir }}/.gitignore
+
+[color]
+    ui = auto
+
+[pull]
+    rebase = true
+    ff = only
+
+[apply]
+    # Detect whitespace errors when applying a patch
+    whitespace = fix
+
+[merge]
+    # Include summaries of merged commits in newly created merge commit messages
+    log = true
+    conflictstyle = diff3
+
 [init]
 	defaultBranch = main
+
 [user]
 	name = Matteo Ruina
 	email = {{ .email }}
     signingKey = {{ .signingKey }}
 
-{{- if eq .profile "personal" }}
+[diff]
+    external = difft
+
+[url "git@github.com:"]
+	insteadOf = https://github.com/
+
+[fetch]
+	prune = true
+
 [commit]
 	gpgsign = true
+
+[gpg]
+	format = ssh
+
+[init]
+	defaultBranch = main
+
+[merge "mergiraf"]
+    name = mergiraf
+    driver = mergiraf merge --git %O %A %B -s %S -x %X -y %Y -p %P
+
+{{- if eq .profile "personal" }}
 [format]
     signOff = true
-[gpg]
-    format = ssh
 [gpg "ssh"]
     program = "/Applications/1Password.app/Contents/MacOS/op-ssh-sign"
 {{- end }}

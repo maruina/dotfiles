@@ -6,7 +6,7 @@ if status is-interactive
 end
 
 # Created by `pipx` on 2025-11-26 18:06:51
-set PATH $PATH /Users/matteo.ruina/.local/bin
+set PATH $PATH {{ .chezmoi.homeDir }}/.local/bin
 starship init fish | source
 
 {{- if eq .profile "work" }}

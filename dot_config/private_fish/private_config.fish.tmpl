@@ -65,6 +65,12 @@ export GOPRIVATE=
 export GOPROXY="https://depot-read-api-go.us1.ddbuild.io/magicmirror/magicmirror/@current/|https://depot-read-api-go.us1.ddbuild.io/magicmirror/magicmirror/@current/|https://depot-read-api-go.us1.ddbuild.io/magicmirror/testing/@current/"
 # END ANSIBLE MANAGED BLOCK
 {{- end }}
+{{- if eq .profile "personal" }}
+set --export --universal GOROOT (go env GOROOT)
+set --export --universal GOPATH (go env GOPATH)
+set --export --universal GOBIN (go env GOBIN)
+set --export --universal PATH $PATH $GOBIN $GOROOT/bin
+{{- end }}
 
 # ASDF configuration code
 if test -z $ASDF_DATA_DIR

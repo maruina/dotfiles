@@ -2,7 +2,7 @@
 {{ $signingKey := promptStringOnce . "signingKey" "Enter Github SSH signing key" -}}
 {{ $profile := promptStringOnce . "profile" "Enter profile"}}
 
-editor:
+edit:
   command: "hx"
 data:
   email: {{ $email | quote }}

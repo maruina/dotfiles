@@ -1,0 +1,28 @@
+{{- if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+set -eufo pipefail
+
+brew bundle --file=/dev/stdin <<EOF
+brew "starship"
+brew "ripgrep"
+brew "gsed"
+brew "wget"
+brew "gpg"
+brew "asdf"
+brew "gawk"
+brew "crane"
+brew "difftastic"
+brew "stern"
+brew "mergiraf"
+brew "git"
+brew "jq"
+brew "gh"
+brew "fzf"
+brew "helix"
+{{- if eq .profile "work" }}
+brew "computectl"
+brew "meetingbar"
+cask "claude-code"
+{{- end }}
+EOF
+{{ end -}}

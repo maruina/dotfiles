@@ -24,8 +24,6 @@ brew "wget"
 brew "xz"
 brew "yq"
 {{- if eq .profile "work" }}
-brew "computectl"
-brew "meetingbar"
 cask "claude-code"
 {{- end }}
 {{- if eq .profile "personal" }}

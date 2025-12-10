@@ -31,3 +31,8 @@ brew "siderolabs/tap/talosctl"
 {{- end }}
 EOF
 {{ end -}}
+
+{{- if eq .profile "work" }}
+brew install orcactl
+brew install computectl
+{{- end }}

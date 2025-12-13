@@ -74,6 +74,9 @@ set -x PATH $PATH $GOBIN $GOPATH/bin
 set -gx OPENROUTER_API_KEY '{{ onepasswordRead "op://Private/OpenRouter/claude-code-router-api-key" }}'
 set -gx ANTHROPIC_BASE_URL "http://127.0.0.1:3456"
 set -gx ANTHROPIC_AUTH_TOKEN '{{ onepasswordRead "op://Private/OpenRouter/claude-code-router-api-key" }}'
+
+set -gx KUBECONFIG $HOME/go/src/malazan.xyz/talos/kubeconfig
+set -gx TALOSCONFIG $HOME/go/src/malazan.xyz/talos/_out/talosconfig
 {{- end }}
 
 # ASDF configuration code

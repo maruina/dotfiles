@@ -1,0 +1,31 @@
+{
+  "LOG": true,
+  "LOG_LEVEL": "info",
+  "API_TIMEOUT_MS": 600000,
+  "OPENROUTER_API_KEY": "$OPENROUTER_API_KEY",
+  "Providers": [
+    {
+      "name": "openrouter",
+      "api_base_url": "https://openrouter.ai/api/v1/chat/completions",
+      "api_key": "$OPENROUTER_API_KEY",
+      "models": [
+        "anthropic/claude-sonnet-4.5",
+        "deepseek/deepseek-v3.2",
+        "google/gemini-2.5-flash",
+        "openai/o4-mini",
+        "x-ai/grok-code-fast-1"
+      ],
+      "transformer": {
+        "use": ["openrouter"]
+      }
+    }
+  ],
+  "Router": {
+    "default": "openrouter,x-ai/grok-code-fast-1",
+    "background": "openrouter,deepseek/deepseek-v3.2",
+    "think": "openrouter,google/gemini-2.5-flash",
+    "longContext": "openrouter,anthropic/claude-sonnet-4.5",
+    "webSearch": "openrouter,openai/o4-mini:online",
+    "longContextThreshold": 60000
+  }
+}

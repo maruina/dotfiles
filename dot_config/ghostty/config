@@ -1,3 +1,4 @@
 font-size = 15
 font-family = "MesloLGS NF"
 keybind = shift+enter=text:\x1b\r
+theme = catppuccin-frappe

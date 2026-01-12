@@ -77,9 +77,9 @@ set -x GOPATH (go env GOPATH)
 set -x GOBIN (go env GOBIN)
 set -x PATH $PATH $GOBIN $GOPATH/bin
 
-set -gx OPENROUTER_API_KEY '{{ onepasswordRead "op://Private/OpenRouter/claude-code-router-api-key" }}'
+set -gx OPENROUTER_API_KEY '{{ onepasswordRead "op://Private/OpenRouter/openrouter-api-key" }}'
 set -gx ANTHROPIC_BASE_URL "http://127.0.0.1:3456"
-set -gx ANTHROPIC_AUTH_TOKEN '{{ onepasswordRead "op://Private/OpenRouter/claude-code-router-api-key" }}'
+set -gx ANTHROPIC_AUTH_TOKEN '{{ onepasswordRead "op://Private/OpenRouter/openrouter-api-key" }}'
 
 set -gx KUBECONFIG $HOME/.kube/config
 set -gx TALOSCONFIG $HOME/.talos/config

@@ -64,6 +64,12 @@ export GONOSUMDB=github.com/DataDog,go.ddbuild.io
 export GOPRIVATE=
 export GOPROXY="https://depot-read-api-go.us1.ddbuild.io/magicmirror/magicmirror/@current/|https://depot-read-api-go.us1.ddbuild.io/magicmirror/magicmirror/@current/|https://depot-read-api-go.us1.ddbuild.io/magicmirror/testing/@current/"
 # END ANSIBLE MANAGED BLOCK
+
+# Claude Code environment variables
+set -x CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR 1
+set -x CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY 1
+set -x CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC 1
+set -x IS_DEMO 1
 {{- end }}
 {{- if eq .profile "personal" }}
 set -x GOROOT (go env GOROOT)

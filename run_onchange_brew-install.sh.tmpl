@@ -30,6 +30,7 @@ cask "claude-code"
 {{- end }}
 {{- if eq .profile "personal" }}
 brew "siderolabs/tap/talosctl"
+brew "sops"
 {{- end }}
 EOF
 {{ end -}}

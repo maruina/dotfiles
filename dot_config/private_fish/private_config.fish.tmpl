@@ -83,6 +83,8 @@ set -gx ANTHROPIC_AUTH_TOKEN '{{ onepasswordRead "op://Private/OpenRouter/openro
 
 set -gx KUBECONFIG $HOME/.kube/config
 set -gx TALOSCONFIG $HOME/.talos/config
+
+set -gx SSH_AUTH_SOCK "$HOME/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"
 {{- end }}
 
 # ASDF configuration code

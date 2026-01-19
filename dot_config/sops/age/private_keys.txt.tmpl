@@ -1,3 +1,5 @@
+{{- if eq .profile "personal" }}
 # created: 2026-01-17T16:22:59+01:00
 # public key: age18246wx40l2jcsdyca7z6ra93czhk5eaza2pwpg0jgtndg7s0xuxq5pe57z
 {{ onepasswordRead "op://Private/Age/malazan-xyz-private-key" }}
+{{- end }}

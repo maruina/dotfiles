@@ -26,14 +26,14 @@ brew "xz"
 brew "yq"
 brew "zoxide"
 brew "helm"
+brew "siderolabs/tap/talosctl"
+brew "sops"
+brew "fluxcd/tap/flux"
 {{- if eq .profile "work" }}
 cask "claude-code"
 {{- end }}
 {{- if eq .profile "personal" }}
-brew "siderolabs/tap/talosctl"
-brew "sops"
 brew "talhelper"
-brew "fluxcd/tap/flux"
 {{- end }}
 EOF
 {{ end -}}

@@ -87,6 +87,9 @@ set -gx TALOSCONFIG $HOME/.talos/config
 set -gx SSH_AUTH_SOCK "$HOME/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"
 {{- end }}
 
+# Set age key location for SOPS
+set -gx SOPS_AGE_KEY_FILE ~/.config/sops/age/key.txt
+
 # ASDF configuration code
 if test -z $ASDF_DATA_DIR
     set _asdf_shims "$HOME/.asdf/shims"

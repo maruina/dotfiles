@@ -3,3 +3,8 @@
 # public key: age18246wx40l2jcsdyca7z6ra93czhk5eaza2pwpg0jgtndg7s0xuxq5pe57z
 {{ onepasswordRead "op://Private/Age/malazan-xyz-private-key" }}
 {{- end }}
+{{- if eq .profile "work" }}
+# created: 2026-02-05T16:04:52+01:00
+# public key: age1gusx8zqg6gz0wrr757v2grjnf4z2fgsya8rhx8xr3y86s7s9w5js5x7anc
+{{ onepasswordRead "op://Employee/SOPS-malazan/private-key" }}
+{{- end }}

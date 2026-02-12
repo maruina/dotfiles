@@ -49,14 +49,21 @@ function __kctx_reset --description "Reset session kubeconfig to no current-cont
         echo "kctx: session kubeconfig not initialized" >&2
         return 1
     end
-    # Set current-context to a non-existent sentinel. Because the session
-    # file is first in KUBECONFIG, this wins the merge and kubectl fails
-    # with "context not found" until you explicitly switch with kctx.
+    # Set current-context to a sentinel that points to an unreachable cluster.
+    # The context/cluster entries exist so tools like Starship can resolve the
+    # name without warnings, but kubectl fails fast on any real operation.
     echo 'apiVersion: v1
 kind: Config
 current-context: no-context
-clusters: []
-contexts: []
+clusters:
+- cluster:
+    server: https://127.0.0.1:0
+  name: no-cluster
+contexts:
+- context:
+    cluster: no-cluster
+    user: ""
+  name: no-context
 users: []
 preferences: {}' >$KUBECONFIG_SESSION
     or begin

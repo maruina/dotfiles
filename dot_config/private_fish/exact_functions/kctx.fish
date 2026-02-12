@@ -20,6 +20,10 @@ function __kctx_init --description "Initialize per-shell kubeconfig isolation"
     # Prepended to KUBECONFIG so it wins the merge for current-context,
     # while ~/.kube/config provides clusters/contexts/users.
     set -gx KUBECONFIG_SESSION (mktemp -t "kubeconfig.XXXXXX")
+    or begin
+        echo "kctx: failed to create session kubeconfig tempfile" >&2
+        return 1
+    end
     __kctx_reset
 
     if set -q KUBECONFIG; and test -n "$KUBECONFIG"
@@ -40,6 +44,10 @@ function __kctx_init --description "Initialize per-shell kubeconfig isolation"
 end
 
 function __kctx_reset --description "Reset session kubeconfig to no current-context"
+    if not set -q KUBECONFIG_SESSION; or test -z "$KUBECONFIG_SESSION"
+        echo "kctx: session kubeconfig not initialized" >&2
+        return 1
+    end
     # Set current-context to a non-existent sentinel. Because the session
     # file is first in KUBECONFIG, this wins the merge and kubectl fails
     # with "context not found" until you explicitly switch with kctx.
@@ -50,6 +58,10 @@ clusters: []
 contexts: []
 users: []
 preferences: {}' >$KUBECONFIG_SESSION
+    or begin
+        echo "kctx: failed to write session kubeconfig to $KUBECONFIG_SESSION" >&2
+        return 1
+    end
 end
 
 function kctx --description "Switch kubectl context (isolated per shell)"
@@ -57,9 +69,10 @@ function kctx --description "Switch kubectl context (isolated per shell)"
     __kctx_init
 
     if test "$argv[1]" = --reset
-        __kctx_reset
-        echo "Session kubeconfig reset. No current context set."
-        return 0
+        if __kctx_reset
+            echo "Session kubeconfig reset. No current context set."
+        end
+        return $status
     else if test (count $argv) -eq 0
         # No arguments: use fzf if available, otherwise show current context
         if type -q fzf
@@ -105,4 +118,4 @@ end
 complete -c kctx -f -a "(kubectl config get-contexts -o name 2>/dev/null)"
 complete -c kctx -f -s h -l help -d "Show help"
 complete -c kctx -f -a "-" -d "Switch to previous context"
-complete -c kctx -f -l reset -d "Reset session kubeconfig from ~/.kube/config"
+complete -c kctx -f -l reset -d "Clear current context for this shell session"

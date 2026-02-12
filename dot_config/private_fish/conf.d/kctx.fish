@@ -62,9 +62,12 @@ clusters:
 contexts:
 - context:
     cluster: no-cluster
-    user: ""
+    user: no-user
   name: no-context
-users: []
+users:
+- name: no-user
+  user:
+    token: no-token
 preferences: {}' >$KUBECONFIG_SESSION
     or begin
         echo "kctx: failed to write session kubeconfig to $KUBECONFIG_SESSION" >&2

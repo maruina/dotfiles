@@ -10,20 +10,18 @@ function __kctx_init --description "Initialize per-shell kubeconfig isolation"
         return 0
     end
 
-    # Create a temporary kubeconfig for this shell session
+    # Ensure ~/.kube/config exists
+    if not test -e ~/.kube/config
+        mkdir -p ~/.kube
+        touch ~/.kube/config
+    end
+
+    # Create a minimal session kubeconfig that only overrides current-context.
+    # Prepended to KUBECONFIG so it wins the merge for current-context,
+    # while ~/.kube/config provides clusters/contexts/users.
     set -gx KUBECONFIG_SESSION (mktemp -t "kubeconfig.XXXXXX")
+    __kctx_reset
 
-    # Initialize with minimal valid config structure
-    echo 'apiVersion: v1
-kind: Config
-current-context: ""
-clusters: []
-contexts: []
-users: []
-preferences: {}' >$KUBECONFIG_SESSION
-
-    # Prepend to KUBECONFIG (session file takes precedence for writes,
-    # but all configs are merged for reads)
     if set -q KUBECONFIG; and test -n "$KUBECONFIG"
         set -gx KUBECONFIG "$KUBECONFIG_SESSION:$KUBECONFIG"
     else
@@ -41,11 +39,28 @@ preferences: {}' >$KUBECONFIG_SESSION
     end
 end
 
+function __kctx_reset --description "Reset session kubeconfig to no current-context"
+    # Set current-context to a non-existent sentinel. Because the session
+    # file is first in KUBECONFIG, this wins the merge and kubectl fails
+    # with "context not found" until you explicitly switch with kctx.
+    echo 'apiVersion: v1
+kind: Config
+current-context: no-context
+clusters: []
+contexts: []
+users: []
+preferences: {}' >$KUBECONFIG_SESSION
+end
+
 function kctx --description "Switch kubectl context (isolated per shell)"
     # Initialize per-shell kubeconfig on first use
     __kctx_init
 
-    if test (count $argv) -eq 0
+    if test "$argv[1]" = --reset
+        __kctx_reset
+        echo "Session kubeconfig reset. No current context set."
+        return 0
+    else if test (count $argv) -eq 0
         # No arguments: use fzf if available, otherwise show current context
         if type -q fzf
             set -l selected (kubectl config get-contexts -o name 2>/dev/null | fzf --height=40% --reverse --prompt="Switch context: ")
@@ -90,3 +105,4 @@ end
 complete -c kctx -f -a "(kubectl config get-contexts -o name 2>/dev/null)"
 complete -c kctx -f -s h -l help -d "Show help"
 complete -c kctx -f -a "-" -d "Switch to previous context"
+complete -c kctx -f -l reset -d "Reset session kubeconfig from ~/.kube/config"

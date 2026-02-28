@@ -1,0 +1,51 @@
+// Zed settings
+//
+// For information on how to configure Zed, see the Zed
+// documentation: https://zed.dev/docs/configuring-zed
+//
+// To see all of Zed's default settings without changing your
+// custom settings, run `zed: open default settings` from the
+// command palette (cmd-shift-p / ctrl-shift-p)
+
+{
+{{- if eq .profile "personal" }}
+  "agent": {
+    "tool_permissions": {
+      "tools": {
+        "edit_file": {
+          "always_allow": [
+            {
+              "pattern": "^talos/",
+            },
+          ],
+        },
+      },
+    },
+    "default_model": {
+      "provider": "openrouter",
+      "model": "openrouter/auto",
+    },
+    "model_parameters": [],
+  },
+{{- end }}
+  "indent_guides": {
+    "background_coloring": "indent_aware",
+    "coloring": "indent_aware",
+  },
+  "icon_theme": "Catppuccin Frappé",
+  "buffer_font_family": ".ZedMono",
+  "base_keymap": "VSCode",
+  "ui_font_size": 16,
+  "buffer_font_size": 16.0,
+  "theme": "Catppuccin Frappé",
+  "lsp": {
+    "yaml-language-server": {
+      "settings": {
+        "yaml": {
+          "multipleDocuments": true,
+        },
+      },
+    },
+  },
+  "languages": { "HTML": { "format_on_save": "off" } },
+}

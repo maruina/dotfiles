@@ -98,5 +98,8 @@ if not contains $_asdf_shims $PATH
 end
 set --erase _asdf_shims
 
+# Add obsidian CLI
+fish_add_path /Applications/Obsidian.app/Contents/MacOS
+
 # Zoxide
 zoxide init fish | source

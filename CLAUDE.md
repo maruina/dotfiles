@@ -1,62 +1,30 @@
-# Chezmoi Dotfiles
+# Dotfiles (chezmoi)
 
-Personal dotfiles managed with [chezmoi](https://www.chezmoi.io/).
+Chezmoi source directory. Edit files here, never in `$HOME`. Apply with `chezmoi apply`, preview with `chezmoi diff`.
 
-## Repository Structure
+## Critical Rules
 
-This is a chezmoi source directory. Files here are templates/sources that chezmoi applies to `$HOME`.
+- **Never edit target files** (`~/.config/...`). Always edit the chezmoi source.
+- **Secrets via 1Password only**: `onepasswordRead "op://vault/item/field"`. Never hardcode secrets.
+- **Template suffix** (`.tmpl`): Go `text/template` syntax. Key variables: `.profile` (`work`|`personal`), `.email`, `.signingKey`, `.chezmoi.os`.
+- **Profile-conditional blocks**: `{{- if eq .profile "work" -}}` for work-only config (Datadog devtools, global git hooks, pyenv/rbenv). `personal` profile for personal signing keys, API config.
 
-- `dot_config/` → `~/.config/` (XDG config)
-- `dot_ssh/` → `~/.ssh/`
-- `dot_gitconfig.tmpl` → `~/.gitconfig`
-- `run_onchange_brew-install.sh.tmpl` — Homebrew package installer (runs on content change)
-- `.chezmoi.yaml.tmpl` — chezmoi config with interactive prompts
+## File Naming
 
-## Chezmoi Conventions
-
-**File prefixes** (applied by chezmoi, not literal filenames):
-- `dot_` → leading `.`
-- `private_` → `0600` permissions
-- `exact_` → directory managed exactly (untracked files removed)
-- `run_onchange_` → script runs when file hash changes
-
-**Templates** (`.tmpl` suffix): Use Go `text/template` syntax with chezmoi functions.
-
-**Key template variables** (defined via `promptStringOnce` in `.chezmoi.yaml.tmpl`):
-- `.profile` — `work` or `personal`
-- `.email`, `.signingKey`
-- `.chezmoi.os`, `.chezmoi.homeDir`
-
-**Secrets**: Retrieved at apply time via `onepasswordRead "op://vault/item/field"`. Never committed.
+Chezmoi prefixes map to target filesystem:
+- `dot_` → `.`, `private_` → `0600`, `exact_` → removes untracked files in dir, `run_onchange_` → runs script when content hash changes.
 
 ## Shell
 
-Fish shell. All shell scripts and functions use Fish syntax.
+Fish shell exclusively. All scripts and functions use Fish syntax.
+- Main config: `dot_config/private_fish/private_config.fish.tmpl`
+- Auto-loaded: `dot_config/private_fish/conf.d/`
+- Functions: `dot_config/private_fish/exact_functions/` (`exact_` prefix — stale functions are removed)
 
-- `dot_config/private_fish/private_config.fish.tmpl` — main config
-- `dot_config/private_fish/conf.d/` — auto-loaded snippets
-- `dot_config/private_fish/exact_functions/` — custom functions (`exact_` removes stale functions)
+## Packages
 
-## Profiles
-
-Two profiles with conditional blocks (`{{- if eq .profile "work" -}}`):
-- **work** — Datadog devtools, global git hooks, pyenv/rbenv, AWS SSM proxy
-- **personal** — personal signing keys, OpenRouter/Anthropic API config
+Homebrew packages declared in `run_onchange_brew-install.sh.tmpl`. Add new packages there, not via `brew install`.
 
 ## Key Tools
 
-- **Helix** (`hx`) — editor, Catppuccin Frappe theme
-- **Ghostty** — terminal
-- **Starship** — prompt
-- **1Password** — secrets and SSH agent
-- **SOPS + Age** — encryption
-- **Kubernetes** — custom `kctx` function for per-shell context isolation
-- **Homebrew** — packages declared in `run_onchange_brew-install.sh.tmpl`
-
-## Making Changes
-
-1. Edit source files in this repo (not target files in `$HOME`).
-2. Use `.tmpl` suffix and Go template syntax for conditional/dynamic content.
-3. Use `private_` prefix for files containing secrets or sensitive paths.
-4. Add new brew packages to `run_onchange_brew-install.sh.tmpl`.
-5. Apply with `chezmoi apply` or test with `chezmoi diff`.
+Helix (`hx`) editor, Ghostty terminal, Starship prompt, 1Password (secrets + SSH agent), SOPS + Age (encryption), Kubernetes (`kctx` for per-shell context isolation).

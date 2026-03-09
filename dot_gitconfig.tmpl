@@ -34,7 +34,7 @@
     # a.k.a. ‘delete merged’
     dm = "!git branch --merged | grep -v '\\*' | xargs -n 1 git branch -d"
 
-    gone = "!f() { git fetch --all --prune; git branch -vv | awk '/: gone]/{print $1}' | xargs git branch -D; }; f"
+    gone = "!f() { git fetch --all --prune; git branch -vv | awk '/: gone]/{gsub(/^[+* ]+/,\"\"); print $1}' | xargs git branch -D; }; f"
 
 [push]
     # https://git-scm.com/docs/git-config#git-config-pushdefault

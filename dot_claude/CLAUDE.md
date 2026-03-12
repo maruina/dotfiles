@@ -24,6 +24,7 @@ Staff software engineer. Cloud infrastructure, backend systems, API design, plat
 
 ## Code Style
 
+- **Markdown style**: No extra blank lines between frontmatter and content, or between headings and body. Single blank line to separate sections only.
 - US English spelling. Match surrounding module style.
 - No comments unless explicitly requested. Exceptions: non-obvious algorithms; workarounds for known bugs (with ticket links).
 - Self-describing code. Modular, testable, clean.

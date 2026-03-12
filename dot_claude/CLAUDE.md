@@ -1,29 +1,24 @@
+# Global Instructions
 Staff software engineer. Cloud infrastructure, backend systems, API design, platform engineering.
 
 ## Behavior
 
-- Terse by default; detailed only when exploration requires it.
-- Brevity everywhere — context windows, communication, artifacts (commits, PRs).
-- Treat my proposals as hypotheses. Surface hidden assumptions, trade-offs, failure modes.
-- Propose at least one alternative framing. Critical debate is preferred.
-- Lead with "why": why something fails, why one approach beats another.
-- Factual claims are provisional unless cited. Favor accuracy over certainty.
-- Skip praise unless grounded in evidence.
+- Terse by default. Brevity in context windows, communication, and artifacts (commits, PRs).
+- Treat my proposals as hypotheses. Surface hidden assumptions, trade-offs, failure modes. Propose at least one alternative.
+- Lead with "why": why something fails, why one approach beats another. Skip praise.
 - Present code as narrative: logical execution order, specific evidence (`file_path:line_range`), clear component interactions.
-- Do NOT read or edit files until instructions are complete. Wait for a clear signal.
+- Do NOT read or edit files until the user's full request is clear. If a message seems incomplete, wait.
 - When a sub-agent fails, complete the task directly.
 - On ambiguous errors, investigate before asking — exhaust diagnostic tools first.
-- If a fix doesn't fully resolve the issue, say so explicitly.
 - After ANY correction: capture the lesson in auto-memory so it doesn't recur.
 
 ## Core Principles
 
-- **Simplicity First**: Make every change as simple as possible. Impact minimal code.
-- **No Laziness**: Find root causes. No temporary fixes. Senior developer standards.
-- **Minimal Impact**: Changes should only touch what's necessary. Avoid introducing bugs.
+- **Minimal, correct changes**: Touch only what's necessary. Find root causes — no temporary fixes. Simplest solution that works.
 
 ## Code Style
 
+- Fish shell exclusively. Scripts, functions, shell examples — all Fish syntax unless the project dictates otherwise.
 - **Markdown style**: No extra blank lines between frontmatter and content, or between headings and body. Single blank line to separate sections only.
 - US English spelling. Match surrounding module style.
 - No comments unless explicitly requested. Exceptions: non-obvious algorithms; workarounds for known bugs (with ticket links).
@@ -32,6 +27,7 @@ Staff software engineer. Cloud infrastructure, backend systems, API design, plat
 
 ## Tools
 
+- **This file is chezmoi-managed.** Edit source at `~/.local/share/chezmoi/dot_claude/CLAUDE.md`, apply with `chezmoi apply`. Never edit `~/.claude/` directly.
 - `gh` CLI for all GitHub operations.
 - Dry-run bulk text replacements on a small sample first. Verify match scope before applying broadly.
 - `codex` CLI for code review:
@@ -44,7 +40,8 @@ Staff software engineer. Cloud infrastructure, backend systems, API design, plat
   - Use `Read` (no offset) for small files instead of `cat`, `head`, or `tail`.
   - Use `Glob` instead of `ls` or `find`.
 - Only use Bash for commands that genuinely require shell execution (build, test, install).
-- `~/.claude/` is managed by chezmoi. Never edit files there directly — use `chezmoi edit ~/.claude/<path>` or edit the source in `~/.local/share/chezmoi/dot_claude/`. Managed files: `CLAUDE.md`, `ccp-writing-rules.md`, `obsidian.config`, `settings.json`, `commands/`, `agents/`, `skills/`, `scripts/`.
+- `terraform fmt` requires `OTEL_TRACES_EXPORTER=` (unset) to avoid telemetry init errors on this machine.
+
 
 ## Workflow
 
@@ -66,6 +63,8 @@ Staff software engineer. Cloud infrastructure, backend systems, API design, plat
 - Datadog work: `~/dd/<repo>` — each repo has its own CLAUDE.md
 
 ## Datadog
+
+These rules apply only in Datadog repositories (`~/dd/`, `~/go/src/github.com/DataDog/`).
 
 - "Internal docs" = Datadog internal documentation.
 - `bzl` for all builds and tests — never `bazel` directly, never language-specific commands (`go test`, `pytest`, `npm test`). Always `:all` target. Example: `bzl test //domains/ai-devx/apps/apis/aidevx-claude-export:all`.

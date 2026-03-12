@@ -130,7 +130,11 @@ If no → skip. If yes:
    - If they pick a repo file → run `/claude-md-management:revise-claude-md`
    - Keep additions concise — one line per concept
 
-## Step 5: Cleanup
+## Step 5: Revise CLAUDE.md
+
+Run `/claude-md-management:revise-claude-md` to audit and propose improvements to CLAUDE.md files in the current repo based on patterns observed during this session.
+
+## Step 6: Cleanup
 
 Delete `~/.claude/session-scratchpad.md` if it exists — it was consumed.
 

@@ -2,3 +2,14 @@ font-size = 15
 font-family = "MesloLGS NF"
 keybind = shift+enter=text:\x1b\r
 theme = catppuccin-frappe
+# Opacity for unfocused splits (0.0 to 1.0)
+unfocused-split-opacity = 1.0
+
+# Fill color for unfocused splits
+unfocused-split-fill = #1e1e2e
+
+# Divider color between splits
+split-divider-color = #45475a
+
+# Number of lines to keep in scrollback buffer
+scrollback-limit = 10000

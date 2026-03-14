@@ -11,6 +11,7 @@ Staff software engineer. Cloud infrastructure, backend systems, API design, plat
 - When a sub-agent fails, complete the task directly.
 - On ambiguous errors, investigate before asking — exhaust diagnostic tools first.
 - After ANY correction: capture the lesson in auto-memory so it doesn't recur.
+- Do not start work the user hasn't requested. If given specific PR feedback to address, implement only what's asked — don't add extra commits, start migrations, or expand scope without explicit approval.
 
 ## Core Principles
 
@@ -24,6 +25,7 @@ Staff software engineer. Cloud infrastructure, backend systems, API design, plat
 - No comments unless explicitly requested. Exceptions: non-obvious algorithms; workarounds for known bugs (with ticket links).
 - Self-describing code. Modular, testable, clean.
 - Follow existing observability patterns (logs/tracing).
+- **Mermaid diagrams**: Avoid special characters (parentheses, brackets, quotes) in node labels. Use simple alphanumeric labels and test syntax before committing. GitHub rendering is strict.
 
 ## Tools
 
@@ -50,11 +52,13 @@ Staff software engineer. Cloud infrastructure, backend systems, API design, plat
 - Use subagents liberally: one task per subagent, keep main context clean.
 - Never mark a task complete without proving it works (tests, logs, diff).
 - For non-trivial changes: pause and ask "is there a more elegant way?" Skip for obvious fixes.
+- **Git worktrees**: Always check out the requested branch — never offer to remove the worktree. Confirm the correct branch name before pushing. Never use absolute paths in shared config files (CLAUDE.md, skills).
 
 ## Obsidian
 
 - Personal vault at `~/Documents/main`. Weekly snippets go to `Datadog/Snippets/Week of <DD-MM-YYYY>.md`.
 - See `~/Documents/main/CLAUDE.md` for CLI usage, gotchas, and conventions.
+- To overwrite an existing file: `obsidian create path="<path>.md" overwrite content="..."`. There is no `write` or `edit` command.
 
 ## Repos
 

@@ -106,7 +106,7 @@ If there IS a PR:
 6. Use the Atlassian MCP tools (`getTransitionsForJiraIssue`, then `transitionJiraIssue`) to make the transition. If the ticket is already in the target status, skip.
 7. Check existing comments on the ticket (`getJiraIssue` with comments). Only add a comment linking to the PR if one doesn't already exist for this PR URL — avoid duplicate comments across sessions.
 
-## Step 4: Capture learnings
+## Step 4: Capture learnings and revise CLAUDE.md
 
 Review the session and **propose** learnings that might be worth saving. Consider:
 - Bash commands or build patterns discovered
@@ -116,7 +116,7 @@ Review the session and **propose** learnings that might be worth saving. Conside
 
 Present the proposed learnings as a short list and ask: **"Any of these worth saving, or anything else to add?"**
 
-If no → skip. If yes:
+If no → skip to cleanup. If yes:
 
 1. **Scan for CLAUDE.md files** in the current repo: `find . -name "CLAUDE.md" -o -name ".claude.local.md" -maxdepth 3 2>/dev/null`
 2. **Ask the user where the learning should go**, presenting the available options:
@@ -127,14 +127,10 @@ If no → skip. If yes:
    - "Create a new `CLAUDE.md`" — if none exists and the learning is repo-specific
 3. **Apply** based on their choice:
    - If they pick `~/.claude/CLAUDE.md` → edit it directly
-   - If they pick a repo file → run `/claude-md-management:revise-claude-md`
+   - If they pick a repo file → run `/claude-md-management:revise-claude-md` with the approved learnings included, so it applies them alongside any broader audit suggestions in a single pass
    - Keep additions concise — one line per concept
 
-## Step 5: Revise CLAUDE.md
-
-Run `/claude-md-management:revise-claude-md` to audit and propose improvements to CLAUDE.md files in the current repo based on patterns observed during this session.
-
-## Step 6: Cleanup
+## Step 5: Cleanup
 
 Delete `~/.claude/session-scratchpad.md` if it exists — it was consumed.
 

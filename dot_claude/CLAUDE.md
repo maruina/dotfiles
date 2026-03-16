@@ -22,7 +22,7 @@ Staff software engineer. Cloud infrastructure, backend systems, API design, plat
 - Fish shell exclusively. Scripts, functions, shell examples — all Fish syntax unless the project dictates otherwise.
 - **Markdown style**: No extra blank lines between frontmatter and content, or between headings and body. Single blank line to separate sections only.
 - US English spelling. Match surrounding module style.
-- No comments unless explicitly requested. Exceptions: non-obvious algorithms; workarounds for known bugs (with ticket links).
+- Comments should not duplicate the code. Dispel confusion, don't cause it. Valid reasons: explain unidiomatic code, clarify non-obvious behavior, document bug-fix context (with ticket links), explain workarounds. Never restate what the code already says.
 - Self-describing code. Modular, testable, clean.
 - Follow existing observability patterns (logs/tracing).
 - **Mermaid diagrams**: Avoid special characters (parentheses, brackets, quotes) in node labels. Use simple alphanumeric labels and test syntax before committing. GitHub rendering is strict.

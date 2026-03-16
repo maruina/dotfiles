@@ -6,7 +6,9 @@
     "DISABLE_NON_ESSENTIAL_MODEL_CALLS": "1",
     "DISABLE_TELEMETRY": "1",
     "USE_BUILTIN_RIPGREP": "0",
-    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "claude-opus-4-6[1m]",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "claude-sonnet-4-6[1m]"
   },
   "permissions": {
     "allow": [
@@ -318,7 +320,7 @@
     ],
     "defaultMode": "acceptEdits"
   },
-  "model": "opus",
+  "model": "opusplan",
   "hooks": {
     "PreCompact": [
       {
@@ -327,6 +329,17 @@
           {
             "type": "prompt",
             "prompt": "Context is about to be compacted. Before it happens, write a concise session scratchpad to ~/.claude/session-scratchpad.md capturing: 1) What project/workstream we worked on 2) Key outcomes (PRs created/merged, tickets, dashboards, notebooks) with URLs 3) Any unfinished work or next steps 4) Jira ticket IDs involved. Keep it brief — bullet points only. This file will be read by /end-of-session after compaction to reconstruct context."
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/matteo.ruina/.claude/hooks/rtk-rewrite.sh"
           }
         ]
       }
@@ -361,7 +374,8 @@
     "obsidian@obsidian-skills": true,
     "code-reliability@datadog-claude-plugins": true,
     "permissions-setup@mrlee-plugins": true,
-    "gopls-lsp@claude-plugins-official": true
+    "gopls-lsp@claude-plugins-official": true,
+    "slack@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "obsidian-skills": {
@@ -373,5 +387,6 @@
   },
   "gitCommitMessage": {
     "includeClaudeAttribution": false
-  }
+  },
+  "effortLevel": "high"
 }

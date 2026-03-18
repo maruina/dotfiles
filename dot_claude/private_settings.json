@@ -8,7 +8,8 @@
     "USE_BUILTIN_RIPGREP": "0",
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
     "ANTHROPIC_DEFAULT_OPUS_MODEL": "claude-opus-4-6[1m]",
-    "ANTHROPIC_DEFAULT_SONNET_MODEL": "claude-sonnet-4-6[1m]"
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "claude-sonnet-4-6[1m]",
+    "ENABLE_TOOL_SEARCH": "true"
   },
   "permissions": {
     "allow": [
@@ -314,11 +315,7 @@
       "Bash(cd /Users/matteo.ruina/go/src/github.com/maruina/malazan.xyz--impl-audit && npx renovate-config-validator renovate.js 2>&1)",
       "Bash(cd /Users/matteo.ruina/go/src/github.com/maruina/malazan.xyz--impl-audit && npx -y renovate --platform=local 2>&1 | tail -5 || npx -y -- renovate-config-validator@latest renovate.js 2>&1 || echo \"Trying node direct...\" && node -e \"const c = require\\('./renovate.js'\\); console.log\\('Config loaded OK. customManagers:', c.customManagers.length\\)\" 2>&1)",
       "Bash(cd /Users/matteo.ruina/go/src/github.com/maruina/malazan.xyz--impl-audit/terraform/datadog && OTEL_TRACES_EXPORTER= tofu validate 2>&1)"
-    ],
-    "deny": [
-      "mcp__datadog-mcp__*"
-    ],
-    "defaultMode": "acceptEdits"
+    ]
   },
   "model": "opusplan",
   "hooks": {

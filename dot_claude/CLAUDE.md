@@ -48,11 +48,12 @@ Staff software engineer. Cloud infrastructure, backend systems, API design, plat
 ## Workflow
 
 - Enter plan mode for ANY non-trivial task (3+ steps or architectural decisions).
+- Before researching the codebase, read any architecture or design docs first (Confluence, Notion, internal wikis). Codebase research fills in the gaps; docs establish the intended design.
 - If something goes sideways, STOP and re-plan — don't keep pushing.
 - Use subagents liberally: one task per subagent, keep main context clean.
 - Never mark a task complete without proving it works (tests, logs, diff).
 - For non-trivial changes: pause and ask "is there a more elegant way?" Skip for obvious fixes.
-- **Git worktrees**: Always check out the requested branch — never offer to remove the worktree. Confirm the correct branch name before pushing. Never use absolute paths in shared config files (CLAUDE.md, skills).
+- **Git worktrees**: Always check out the requested branch — never offer to remove the worktree. Confirm the correct branch name before pushing. Never use absolute paths in shared config files (CLAUDE.md, skills). After creating a worktree, fetch and rebase onto origin/main if local HEAD is behind — `git worktree add` branches from local HEAD, not the remote.
 
 ## Obsidian
 

@@ -335,7 +335,6 @@
   },
   "enabledPlugins": {
     "go-code-reviewer@datadog-claude-plugins": true,
-    "atlassian-remote-mcp@datadog-claude-plugins": true,
     "redblue@datadog-claude-plugins": true,
     "dd@datadog-claude-plugins": true,
     "marketplace-auto-update@datadog-claude-plugins": true,
@@ -358,7 +357,9 @@
     "code-reliability@datadog-claude-plugins": true,
     "permissions-setup@mrlee-plugins": true,
     "gopls-lsp@claude-plugins-official": true,
-    "slack@claude-plugins-official": true
+    "slack@claude-plugins-official": true,
+    "codex@openai-codex": true,
+    "deveng@datadog-claude-plugins": true
   },
   "extraKnownMarketplaces": {
     "obsidian-skills": {
@@ -366,10 +367,16 @@
         "source": "github",
         "repo": "kepano/obsidian-skills"
       }
+    },
+    "openai-codex": {
+      "source": {
+        "source": "github",
+        "repo": "openai/codex-plugin-cc"
+      }
     }
   },
+  "effortLevel": "high",
   "gitCommitMessage": {
     "includeClaudeAttribution": false
-  },
-  "effortLevel": "high"
+  }
 }

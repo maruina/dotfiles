@@ -7,4 +7,4 @@ theme = catppuccin-frappe
 unfocused-split-opacity = 1.0
 
 # Number of lines to keep in scrollback buffer
-scrollback-limit = 30000000
+scrollback-limit = 300000000

@@ -57,7 +57,7 @@ Staff software engineer. Cloud infrastructure, backend systems, API design, plat
 
 ## Obsidian
 
-- Personal vault at `~/Documents/main`. Weekly snippets go to `Datadog/Snippets/Week of <DD-MM-YYYY>.md`.
+- Personal vault at `~/Documents/main`. Weekly snippets go to `Datadog/Snippets/Week of <YYYY-MM-DD>.md`.
 - See `~/Documents/main/CLAUDE.md` for CLI usage, gotchas, and conventions.
 - To overwrite an existing file: `obsidian create path="<path>.md" overwrite content="..."`. There is no `write` or `edit` command.
 

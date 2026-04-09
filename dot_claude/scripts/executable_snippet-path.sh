@@ -3,8 +3,8 @@
 #
 # Usage: bash snippet-path.sh
 # Output (two lines):
-#   /absolute/path/to/Week of DD-MM-YYYY.md
-#   Datadog/Snippets/Week of DD-MM-YYYY
+#   /absolute/path/to/Week of YYYY-MM-DD.md
+#   Datadog/Snippets/Week of YYYY-MM-DD
 set -euo pipefail
 
 CONFIG_FILE="$HOME/.claude/obsidian.config"
@@ -34,9 +34,9 @@ if [ -z "$VAULT_PATH" ] || [ -z "$SNIPPETS_DIR" ]; then
 fi
 
 if [ "$(date +%u)" = "1" ]; then
-  MONDAY=$(date "+%d-%m-%Y")
+  MONDAY=$(date "+%Y-%m-%d")
 else
-  MONDAY=$(date -d "last monday" "+%d-%m-%Y" 2>/dev/null || date -v-monday -j "+%d-%m-%Y" 2>/dev/null || date "+%d-%m-%Y")
+  MONDAY=$(date -d "last monday" "+%Y-%m-%d" 2>/dev/null || date -v-monday -j "+%Y-%m-%d" 2>/dev/null || date "+%Y-%m-%d")
 fi
 
 WEEK_NAME="Week of $MONDAY"

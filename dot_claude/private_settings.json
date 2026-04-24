@@ -365,6 +365,7 @@
       }
     }
   },
+  "autoCompactEnabled": false,
   "effortLevel": "high",
   "gitCommitMessage": {
     "includeClaudeAttribution": false

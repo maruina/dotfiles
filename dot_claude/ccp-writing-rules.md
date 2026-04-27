@@ -12,6 +12,7 @@ These rules govern the structure and content of PLAN.md files. Both `/ccp-plan` 
 - **No file lists** — "Files to Create" and "Files to Modify" are implementation details for `/ccp-implement`. The plan reviewer cares about *what* and *why*, not which files to touch.
 - **No boilerplate** — skip scheme registration, BUILD.bazel contents, codegen markers, snapshot commands, and similar mechanical details. These are implementation-phase concerns.
 - **No Steps section** — do not add a `## Steps`, `## Implementation Steps`, or any numbered implementation sequence. The plan describes WHAT to build and WHY. `/ccp-implement` handles HOW.
+- **Risks & Mitigations contains only runtime and operational risks** — things that could fail in production, cause data loss, or have blast radius. Do NOT add items phrased as "verify X before merging", "confirm Y exists", or "check if Z is a dep" — those are research tasks. Look them up before writing the plan.
 - **No implementation details** — codegen steps, snapshot commands, build verification steps, specific command sequences, directory structure setup, and file scaffolding belong to `/ccp-implement`, not the plan.
 - **No "future plan" sections** — stay focused on current scope. No "First Absorption Candidates", context for future tickets, or roadmap items.
 - **No "Review Notes" section** — the updated plan stands on its own after reconciliation.

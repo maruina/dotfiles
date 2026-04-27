@@ -160,6 +160,7 @@ $ARGUMENTS
     - Write `$ARTIFACT_DIR/PLAN.md` using this template
     - **Do NOT add a Steps or Implementation Steps section.** The plan ends at WHAT and WHY. `/ccp-implement` handles HOW.
     - **One code snippet only** — in Key Design. No other inline code anywhere in the plan.
+    - **Risks & Mitigations contains only runtime/operational risks.** Do NOT write "verify X before merging", "confirm Y exists", or "check if Z is a dep" — those are research tasks. If something is unknown, look it up in RESEARCH.md or grep for it. If it is still unknown after research, it is an Open Question, not a Risk.
 
     ---
 

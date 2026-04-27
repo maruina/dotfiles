@@ -99,6 +99,8 @@ $ARGUMENTS
    > - **computectl CLI**: which CLA subcommands need new flags, behaviors, or CR interactions
    > - **Test patterns**: `cluster_controller_test.go`, `cluster_controller_rms_test.go`, `cluster_webhook_test.go` — helpers to reuse
    >
+   > **Before marking anything as an open question**: grep for every identifier, type, function, or constant the ticket mentions. If it already exists in the codebase, report the file:line — do not leave it as "check if X exists". Open questions are for genuine design decisions with multiple valid options, not for facts that can be verified by searching.
+   >
    > Return structured findings with file:line references. Do NOT use SendMessage.
 
 10. **Write findings** to `$ARTIFACT_DIR/RESEARCH.md`. This file is NOT committed.

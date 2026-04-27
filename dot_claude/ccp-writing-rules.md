@@ -11,6 +11,7 @@ These rules govern the structure and content of PLAN.md files. Both `/ccp-plan` 
 - **No other inline code** — everything outside the core artifact is described in prose. No boilerplate code (scheme registration, helper functions, codegen output).
 - **No file lists** — "Files to Create" and "Files to Modify" are implementation details for `/ccp-implement`. The plan reviewer cares about *what* and *why*, not which files to touch.
 - **No boilerplate** — skip scheme registration, BUILD.bazel contents, codegen markers, snapshot commands, and similar mechanical details. These are implementation-phase concerns.
+- **No Steps section** — do not add a `## Steps`, `## Implementation Steps`, or any numbered implementation sequence. The plan describes WHAT to build and WHY. `/ccp-implement` handles HOW.
 - **No implementation details** — codegen steps, snapshot commands, build verification steps, specific command sequences, directory structure setup, and file scaffolding belong to `/ccp-implement`, not the plan.
 - **No "future plan" sections** — stay focused on current scope. No "First Absorption Candidates", context for future tickets, or roadmap items.
 - **No "Review Notes" section** — the updated plan stands on its own after reconciliation.

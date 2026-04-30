@@ -1,0 +1,75 @@
+import type { AssistantMessage } from "@mariozechner/pi-ai";
+import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
+
+function formatTokens(tokens: number): string {
+	if (tokens < 1_000) return `${tokens}`;
+	if (tokens < 1_000_000) return `${(tokens / 1_000).toFixed(1)}k`;
+	return `${(tokens / 1_000_000).toFixed(1)}m`;
+}
+
+function shortModel(id?: string): string {
+	if (!id) return "no model";
+	return id
+		.replace(/^anthropic\//, "")
+		.replace(/^openai\//, "")
+		.replace(/^google\//, "")
+		.replace(/^claude-/, "")
+		.replace(/^gpt-/, "gpt ");
+}
+
+function sandboxStatus(): string | undefined {
+	if (process.env.SHADOWFAX_INDICATOR === "0") return undefined;
+	if (!process.env.NONO_CAP_FILE) return undefined;
+	return "🐎 Shadowfax";
+}
+
+export default function (pi: ExtensionAPI) {
+	pi.on("session_start", async (_event, ctx) => {
+		ctx.ui.setFooter((tui, theme, footerData) => {
+			const unsubscribe = footerData.onBranchChange(() => tui.requestRender());
+
+			return {
+				dispose: unsubscribe,
+				invalidate() {},
+				render(width: number): string[] {
+					let input = 0;
+					let output = 0;
+					let cost = 0;
+
+					for (const entry of ctx.sessionManager.getBranch()) {
+						if (entry.type !== "message" || entry.message.role !== "assistant") continue;
+						const message = entry.message as AssistantMessage;
+						input += message.usage?.input ?? 0;
+						output += message.usage?.output ?? 0;
+						cost += message.usage?.cost?.total ?? 0;
+					}
+
+					const usage = ctx.getContextUsage();
+					const context = usage ? `${formatTokens(usage.tokens)} ctx` : "ctx n/a";
+					const branch = footerData.getGitBranch();
+					const sandbox = sandboxStatus();
+
+					const leftParts = [
+						branch ? `⎇ ${branch}` : "⎇ no git",
+						shortModel(ctx.model?.id),
+					];
+
+					const rightParts = [
+						context,
+						`↑${formatTokens(input)}`,
+						`↓${formatTokens(output)}`,
+						`$${cost.toFixed(3)}`,
+						sandbox,
+					].filter(Boolean);
+
+					const left = theme.fg("accent", leftParts.join("  "));
+					const right = theme.fg("dim", rightParts.join("  "));
+					const padding = " ".repeat(Math.max(1, width - visibleWidth(left) - visibleWidth(right)));
+
+					return [truncateToWidth(left + padding + right, width, "")];
+				},
+			};
+		});
+	});
+}

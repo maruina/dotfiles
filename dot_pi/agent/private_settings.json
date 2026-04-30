@@ -1,0 +1,6 @@
+{
+  "lastChangelogVersion": "0.70.6",
+  "defaultProvider": "datadog-ai-gateway",
+  "defaultModel": "anthropic/claude-sonnet-4-6",
+  "defaultThinkingLevel": "medium"
+}

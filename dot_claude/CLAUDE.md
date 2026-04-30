@@ -77,3 +77,4 @@ These rules apply only in Datadog repositories (`~/dd/`, `~/go/src/github.com/Da
 - `datadog-systems-researcher` for internal system questions (private repos, internal tools, processes). `web-researcher` for external tech research and Datadog public docs.
 - GitLab CI logs: query `*:COMMIT_SHA @ci.is_failure:true` on Datadog prod MCP, then iterate. Never fetch from gitlab.com (no access).
 - GitHub: `gh` only; never WebFetch repos (no access). PR reviews: `gh pr view --json reviews,comments,reviewDecision,reviewRequests`.
+- AWS CLI: always pass `--profile exec-sso-<account-name>-compute-admin`. If the account name is unknown, look it up from the account ID in `~/.aws/config`.

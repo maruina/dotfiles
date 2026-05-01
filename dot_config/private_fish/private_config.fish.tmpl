@@ -68,6 +68,8 @@ export GOPROXY="https://depot-read-api-go.us1.ddbuild.io/magicmirror/magicmirror
 # Confluence API settings
 set -gx CONFLUENCE_EMAIL matteo.ruina@datadoghq.com
 set -gx CONFLUENCE_API_TOKEN '{{ onepasswordRead "op://Employee/Confluence API tokens/personal" }}'
+# Tavily agentic web search
+set -gx TAVILY_API_KEY '{{ onepasswordRead "op://Employee/Tavily/api-key" }}'
 {{- end }}
 {{- if eq .profile "personal" }}
 set -x GOROOT (go env GOROOT)
@@ -77,6 +79,9 @@ set -x PATH $PATH $GOBIN $GOPATH/bin
 
 set -gx OPENROUTER_API_KEY '{{ onepasswordRead "op://Private/OpenRouter/openrouter-api-key" }}'
 set -gx SSH_AUTH_SOCK "$HOME/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"
+
+# Tavily agentic web search
+set -gx TAVILY_API_KEY '{{ onepasswordRead "op://Private/Tavily/api-key" }}'
 {{- end }}
 
 # Set age key location for SOPS

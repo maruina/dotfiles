@@ -8,6 +8,14 @@ function formatTokens(tokens: number): string {
 	return `${(tokens / 1_000_000).toFixed(1)}m`;
 }
 
+function formatContext(usage: { tokens: number | null; contextWindow: number; percent: number | null } | undefined): string {
+	if (!usage || usage.tokens === null) return "ctx n/a";
+	const percent = usage.percent ?? (usage.contextWindow > 0 ? (usage.tokens / usage.contextWindow) * 100 : null);
+	if (percent === null) return `${formatTokens(usage.tokens)} ctx`;
+	const left = Math.max(0, 100 - percent);
+	return `${percent.toFixed(0)}% ctx · ${left.toFixed(0)}% left`;
+}
+
 function shortModel(id?: string): string {
 	if (!id) return "no model";
 	return id
@@ -51,8 +59,7 @@ export default function (pi: ExtensionAPI) {
 						cost += message.usage?.cost?.total ?? 0;
 					}
 
-					const usage = ctx.getContextUsage();
-					const context = usage ? `${formatTokens(usage.tokens)} ctx` : "ctx n/a";
+					const context = formatContext(ctx.getContextUsage());
 					const branch = footerData.getGitBranch();
 					const dir = process.cwd().split("/").pop() || "";
 					const sandbox = sandboxStatus();

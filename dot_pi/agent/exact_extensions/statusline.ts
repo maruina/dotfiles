@@ -35,7 +35,7 @@ export default function (pi: ExtensionAPI) {
 			return {
 				dispose() {
 					unsubBranch();
-					unsubThinking();
+					if (typeof unsubThinking === "function") unsubThinking();
 				},
 				invalidate() {},
 				render(width: number): string[] {

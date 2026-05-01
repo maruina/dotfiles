@@ -1,3 +1,4 @@
+{{- if eq .profile "work" -}}
 {
   "providers": {
     "datadog-ai-gateway": {
@@ -62,3 +63,12 @@
     }
   }
 }
+{{- else if eq .profile "personal" -}}
+{
+  "providers": {}
+}
+{{- else -}}
+{
+  "providers": {}
+}
+{{- end }}

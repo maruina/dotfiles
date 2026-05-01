@@ -27,10 +27,16 @@ function sandboxStatus(): string | undefined {
 export default function (pi: ExtensionAPI) {
 	pi.on("session_start", async (_event, ctx) => {
 		ctx.ui.setFooter((tui, theme, footerData) => {
-			const unsubscribe = footerData.onBranchChange(() => tui.requestRender());
+			const unsubBranch = footerData.onBranchChange(() => tui.requestRender());
+			const unsubThinking = pi.on("thinking_level_select", async () => {
+				tui.requestRender();
+			});
 
 			return {
-				dispose: unsubscribe,
+				dispose() {
+					unsubBranch();
+					unsubThinking();
+				},
 				invalidate() {},
 				render(width: number): string[] {
 					let input = 0;
@@ -50,10 +56,12 @@ export default function (pi: ExtensionAPI) {
 					const branch = footerData.getGitBranch();
 					const sandbox = sandboxStatus();
 
+					const thinking = pi.getThinkingLevel();
 					const leftParts = [
 						branch ? `⎇ ${branch}` : "⎇ no git",
 						shortModel(ctx.model?.id),
-					];
+						thinking !== "off" ? thinking : undefined,
+					].filter(Boolean);
 
 					const rightParts = [
 						context,

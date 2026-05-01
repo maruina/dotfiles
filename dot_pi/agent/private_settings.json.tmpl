@@ -1,0 +1,19 @@
+{{- if eq .profile "work" -}}
+{
+  "lastChangelogVersion": "0.71.0",
+  "defaultProvider": "datadog-ai-gateway-anthropic",
+  "defaultModel": "anthropic/claude-sonnet-4-6",
+  "defaultThinkingLevel": "medium",
+  "enabledModels": [
+    "datadog-ai-gateway-anthropic/anthropic/claude-sonnet-4-6",
+    "datadog-ai-gateway-anthropic/anthropic/claude-opus-4-7",
+    "datadog-ai-gateway/openai/gpt-5.3-codex",
+    "datadog-ai-gateway/google/gemini-3.1-pro-preview"
+  ]
+}
+{{- else -}}
+{
+  "lastChangelogVersion": "0.71.0",
+  "defaultThinkingLevel": "medium"
+}
+{{- end }}

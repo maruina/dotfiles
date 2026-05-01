@@ -42,6 +42,17 @@ Staff software engineer. Cloud infrastructure, backend systems, API design, plat
 
 Applies only under `~/dd/` or `~/go/src/github.com/DataDog/`.
 
+### AI Gateway
+List available models on the staging AI gateway:
+```fish
+set TOKEN (ddtool auth token rapid-ai-platform --datacenter us1.staging.dog)
+curl -sS 'https://ai-gateway.us1.staging.dog/v1/models' \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'source: aip-dev' \
+  -H 'org-id: 2' | jq -r '.data[].id'
+```
+Model IDs are prefixed by provider: `openai/`, `anthropic/`, `google/`, `gemini/`, `bedrock/`, `bedrock-anthropic/`, `datadoginternal/`. Use the full ID (e.g. `openai/gpt-5.5`) when referencing models.
+
 - "Internal docs" means Datadog internal documentation.
 - Use `bzl` for builds and tests, not `bazel` directly.
 - Prefer `:all` targets: e.g. `bzl test //path/to/package:all`.

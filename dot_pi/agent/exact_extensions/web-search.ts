@@ -1,49 +1,64 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { Type } from "typebox";
+import { StringEnum } from "@mariozechner/pi-ai";
+
+function getApiKey(): string {
+  const key = process.env.TAVILY_API_KEY;
+  if (!key) throw new Error("TAVILY_API_KEY environment variable is not set");
+  return key;
+}
 
 export default function (pi: ExtensionAPI) {
-  pi.on("session_start", async (_event, ctx) => {
-    ctx.toolManager.addTool({
-      name: "tavily_api",
-      description: "Tavily AI professional-grade research and web scraping tool covering search, extraction, crawling, mapping, and research tasks.",
-      parameters: {
-        type: "object",
-        properties: {
-          capability: {
-            type: "string",
-            enum: ["search", "extract", "crawl", "map", "research"],
-            description: "The Tavily function to execute."
-          },
-          query: { type: "string", description: "Search query for 'search' or 'research'." },
-          urls: { type: "array", items: { type: "string" }, description: "Target URLs for 'extract', 'crawl', or 'map'." }
-        },
-        required: ["capability"]
-      },
-      execute: async (args: any) => {
-        const apiKey = await pi.onepassword.read("op://Private/Tavily/api-key");
-        
-        // Research is essentially a specialized search in the Tavily API
-        const endpoint = args.capability === "research" ? "search" : args.capability;
-        
-        const body: any = { api_key: apiKey };
-        if (args.query) body.query = args.query;
-        if (args.urls) body.urls = args.urls;
-        
-        // Advanced configurations
-        if (args.capability === "research") body.search_depth = "advanced";
-        if (args.capability === "search") body.search_depth = "basic";
+  pi.registerTool({
+    name: "tavily_api",
+    label: "Tavily Web Search",
+    description:
+      "Tavily AI web search and content extraction. Use for current events, documentation lookups, and research tasks that require live web data.",
+    promptSnippet: "Search the web, extract content from URLs, or conduct deep research via Tavily",
+    parameters: Type.Object({
+      capability: StringEnum(["search", "extract", "crawl", "map", "research"] as const, {
+        description:
+          "search: keyword/semantic web search. extract: fetch and parse specific URLs. crawl: follow links from seed URLs. map: discover URL structure. research: deep multi-step search.",
+      }),
+      query: Type.Optional(
+        Type.String({ description: "Search query. Required for 'search' and 'research'." })
+      ),
+      urls: Type.Optional(
+        Type.Array(Type.String(), {
+          description: "Target URLs. Required for 'extract', 'crawl', and 'map'.",
+        })
+      ),
+    }),
 
-        const response = await fetch(`https://api.tavily.com/${endpoint}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
+    async execute(toolCallId, params, signal) {
+      const apiKey = getApiKey();
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`Tavily ${args.capability} failed (${response.status}): ${errorText}`);
-        }
-        return JSON.stringify(await response.json());
+      // Tavily uses /search endpoint for both search and research modes
+      const endpoint = params.capability === "research" ? "search" : params.capability;
+
+      const body: Record<string, unknown> = { api_key: apiKey };
+      if (params.query) body.query = params.query;
+      if (params.urls) body.urls = params.urls;
+      if (params.capability === "research") body.search_depth = "advanced";
+      if (params.capability === "search") body.search_depth = "basic";
+
+      const response = await fetch(`https://api.tavily.com/${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Tavily ${params.capability} failed (${response.status}): ${errorText}`);
       }
-    });
+
+      const data = await response.json();
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
+        details: { capability: params.capability, query: params.query, urls: params.urls },
+      };
+    },
   });
 }

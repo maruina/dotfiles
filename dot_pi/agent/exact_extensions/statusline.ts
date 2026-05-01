@@ -54,10 +54,12 @@ export default function (pi: ExtensionAPI) {
 					const usage = ctx.getContextUsage();
 					const context = usage ? `${formatTokens(usage.tokens)} ctx` : "ctx n/a";
 					const branch = footerData.getGitBranch();
+					const dir = process.cwd().split("/").pop() || "";
 					const sandbox = sandboxStatus();
 
 					const thinking = pi.getThinkingLevel();
 					const leftParts = [
+						dir ? `📁 ${dir}` : undefined,
 						branch ? `⎇ ${branch}` : "⎇ no git",
 						shortModel(ctx.model?.id),
 						thinking !== "off" ? thinking : undefined,

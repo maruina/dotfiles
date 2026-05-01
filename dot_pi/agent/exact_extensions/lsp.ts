@@ -3,14 +3,19 @@
 import { Type } from "@mariozechner/pi-ai";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { createHash } from "node:crypto";
+import { accessSync, constants, existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { basename, delimiter, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { cwd as cwdFn } from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const REQUEST_TIMEOUT_MS = 30_000;
+const SHUTDOWN_TIMEOUT_MS = 2_000;
+const DIAGNOSTICS_WAIT_MS = 750;
 const STDERR_LIMIT = 16_384;
 const LOCATION_PREVIEW_LIMIT = 3;
+const POSITION_SNAP_MAX_DISTANCE = 32;
+const POSITION_SNAP_MAX_CANDIDATES = 8;
 
 type JsonRpcId = number | string;
 interface JsonRpcRequest { jsonrpc: "2.0"; id: JsonRpcId; method: string; params?: unknown }
@@ -34,6 +39,7 @@ interface TextEdit { range: Range; newText: string }
 interface WorkspaceEdit { changes?: Record<string, TextEdit[]>; documentChanges?: unknown[] }
 interface LspState { workspaceRoots: Record<string, string>; serverVersions?: Record<string, string> }
 interface ToolLocation { path: string; line: number; column: number; preview?: string }
+interface OpenDocumentState { version: number; mtimeMs: number; size: number; textHash: string }
 interface ServerConfig { id: string; label: string; command: string; args: string[]; extensions: string[]; rootMarkers: string[]; initializationOptions?: unknown; languageId(filePath: string): string; packageContext?(filePath: string, workspaceRoot: string, symbols: DocumentSymbol[], diagnostics: Map<string, Diagnostic[]>): unknown }
 
 const SERVER_CONFIGS: ServerConfig[] = [
@@ -48,9 +54,11 @@ class LspClient {
   private pending = new Map<JsonRpcId, { resolve: (value: unknown) => void; reject: (reason: Error) => void; timer: NodeJS.Timeout }>();
   private buffer = Buffer.alloc(0);
   private initialized = false;
-  private openDocuments = new Set<string>();
+  private capabilities: Record<string, unknown> = {};
+  private openDocuments = new Map<string, OpenDocumentState>();
   private stderr = "";
   private diagnosticsByUri = new Map<string, Diagnostic[]>();
+  private diagnosticsWaiters = new Map<string, Set<() => void>>();
 
   constructor(private workspaceRoot: string, private config: ServerConfig, private commandPath: string) { this.workspaceRoot = resolve(workspaceRoot); }
 
@@ -77,35 +85,47 @@ class LspClient {
       if (this.buffer.length < bodyStart + contentLength) return;
       const body = this.buffer.subarray(bodyStart, bodyStart + contentLength).toString("utf8");
       this.buffer = this.buffer.subarray(bodyStart + contentLength);
-      try { this.onMessage(JSON.parse(body) as JsonRpcMessage); } catch { /* ignore malformed server message */ }
+      try { this.onMessage(JSON.parse(body) as JsonRpcMessage); } catch (err) { this.recordStderr(`Malformed LSP message: ${err instanceof Error ? err.message : String(err)}\n`); }
     }
   }
   private onMessage(msg: JsonRpcMessage) {
+    if ("method" in msg) {
+      if (msg.method === "textDocument/publishDiagnostics") {
+        const params = msg.params as { uri?: string; diagnostics?: Diagnostic[] } | undefined;
+        if (params?.uri) {
+          this.diagnosticsByUri.set(params.uri, params.diagnostics ?? []);
+          this.resolveDiagnosticsWaiters(params.uri);
+        }
+      } else if ("id" in msg && msg.id !== undefined) this.handleServerRequest(msg as JsonRpcRequest);
+      return;
+    }
     if ("id" in msg && msg.id !== undefined) {
       const pending = this.pending.get(msg.id);
       if (!pending) return;
       clearTimeout(pending.timer); this.pending.delete(msg.id);
-      if ("error" in msg && msg.error) pending.reject(new Error(msg.error.message));
+      if ("error" in msg && msg.error) pending.reject(new Error(`${msg.error.code}: ${msg.error.message}${msg.error.data ? ` ${JSON.stringify(msg.error.data)}` : ""}`));
       else pending.resolve((msg as JsonRpcResponse).result);
-      return;
-    }
-    if ("method" in msg && msg.method === "textDocument/publishDiagnostics") {
-      const params = msg.params as { uri?: string; diagnostics?: Diagnostic[] } | undefined;
-      if (params?.uri) this.diagnosticsByUri.set(params.uri, params.diagnostics ?? []);
     }
   }
-  private send(msg: JsonRpcRequest | JsonRpcNotification) {
+  private handleServerRequest(req: JsonRpcRequest) {
+    if (req.method === "workspace/configuration") { const items = (req.params as { items?: unknown[] } | undefined)?.items; return this.send({ jsonrpc: "2.0", id: req.id, result: Array.isArray(items) ? items.map(() => null) : [] }); }
+    if (req.method === "client/registerCapability" || req.method === "window/showMessageRequest") return this.send({ jsonrpc: "2.0", id: req.id, result: null });
+    if (req.method === "workspace/applyEdit") return this.send({ jsonrpc: "2.0", id: req.id, result: { applied: false, failureReason: "pi LSP extension previews edits but does not apply workspace edits" } });
+    this.send({ jsonrpc: "2.0", id: req.id, error: { code: -32601, message: `Unsupported server request: ${req.method}` } });
+  }
+  private resolveDiagnosticsWaiters(uri: string) { const waiters = this.diagnosticsWaiters.get(uri); if (!waiters) return; this.diagnosticsWaiters.delete(uri); for (const resolve of waiters) resolve(); }
+  private send(msg: JsonRpcRequest | JsonRpcResponse | JsonRpcNotification) {
     if (!this.process || this.exited) throw new Error(`${this.config.label} LSP is not running`);
     const body = JSON.stringify(msg);
     this.process.stdin.write(`Content-Length: ${Buffer.byteLength(body, "utf8")}\r\n\r\n${body}`);
   }
-  private request<T>(method: string, params?: unknown, signal?: AbortSignal): Promise<T> {
+  private request<T>(method: string, params?: unknown, signal?: AbortSignal, timeoutMs = REQUEST_TIMEOUT_MS): Promise<T> {
     const id = ++this.messageId;
     const req: JsonRpcRequest = { jsonrpc: "2.0", id, method };
     if (params !== undefined) req.params = params;
     return new Promise((resolve, reject) => {
       const cleanupAbort = () => signal?.removeEventListener("abort", onAbort);
-      const timer = setTimeout(() => { cleanupAbort(); this.pending.delete(id); reject(new Error(`${method} timed out after ${REQUEST_TIMEOUT_MS}ms${this.stderr ? `\n${this.stderr}` : ""}`)); }, REQUEST_TIMEOUT_MS);
+      const timer = setTimeout(() => { cleanupAbort(); this.pending.delete(id); reject(new Error(`${method} timed out after ${timeoutMs}ms${this.stderr ? `\n${this.stderr}` : ""}`)); }, timeoutMs);
       const onAbort = () => { clearTimeout(timer); cleanupAbort(); this.pending.delete(id); reject(new Error(`${method} cancelled`)); };
       if (signal?.aborted) return onAbort();
       signal?.addEventListener("abort", onAbort, { once: true });
@@ -118,40 +138,109 @@ class LspClient {
       processId: process.pid,
       rootUri: pathToFileURL(this.workspaceRoot).href,
       workspaceFolders: [{ uri: pathToFileURL(this.workspaceRoot).href, name: basename(this.workspaceRoot) }],
-      capabilities: { general: { positionEncodings: ["utf-16"] }, textDocument: { synchronization: { didOpen: true, didClose: true }, hover: { contentFormat: ["plaintext", "markdown"] }, definition: { linkSupport: false }, typeDefinition: { linkSupport: false }, implementation: { linkSupport: false }, references: {}, publishDiagnostics: { relatedInformation: true }, documentSymbol: { hierarchicalDocumentSymbolSupport: true }, callHierarchy: { dynamicRegistration: false }, codeAction: { dynamicRegistration: false, codeActionLiteralSupport: { codeActionKind: { valueSet: ["quickfix", "source", "source.organizeImports", "refactor", "refactor.rewrite"] } } } }, workspace: { workspaceFolders: true, symbol: {}, applyEdit: false } },
+      capabilities: { general: { positionEncodings: ["utf-16"] }, textDocument: { synchronization: { didOpen: true, didChange: true, didClose: true }, hover: { contentFormat: ["plaintext", "markdown"] }, definition: { linkSupport: false }, typeDefinition: { linkSupport: false }, implementation: { linkSupport: false }, references: {}, publishDiagnostics: { relatedInformation: true }, documentSymbol: { hierarchicalDocumentSymbolSupport: true }, callHierarchy: { dynamicRegistration: false }, codeAction: { dynamicRegistration: false, codeActionLiteralSupport: { codeActionKind: { valueSet: ["quickfix", "source", "source.organizeImports", "refactor", "refactor.rewrite"] } } } }, workspace: { workspaceFolders: true, symbol: {}, applyEdit: false } },
       initializationOptions: this.config.initializationOptions,
     });
+    this.capabilities = result.capabilities ?? {};
     this.send({ jsonrpc: "2.0", method: "initialized", params: {} });
     this.initialized = true;
     return result;
   }
-  async openDocument(filePath: string) {
+  async openDocument(filePath: string) { await this.syncDocument(filePath); }
+  private async syncDocument(filePath: string): Promise<string> {
     const uri = pathToFileURL(filePath).href;
-    if (this.openDocuments.has(uri)) return;
-    this.send({ jsonrpc: "2.0", method: "textDocument/didOpen", params: { textDocument: { uri, languageId: this.config.languageId(filePath), version: 1, text: readFileSync(filePath, "utf8") } } });
-    this.openDocuments.add(uri);
+    const stat = statSync(filePath);
+    const text = readFileSync(filePath, "utf8");
+    const textHash = createHash("sha256").update(text).digest("hex");
+    const existing = this.openDocuments.get(uri);
+    if (!existing) {
+      this.send({ jsonrpc: "2.0", method: "textDocument/didOpen", params: { textDocument: { uri, languageId: this.config.languageId(filePath), version: 1, text } } });
+      this.openDocuments.set(uri, { version: 1, mtimeMs: stat.mtimeMs, size: stat.size, textHash });
+      return uri;
+    }
+    if (existing.textHash !== textHash) {
+      const version = existing.version + 1;
+      this.send({ jsonrpc: "2.0", method: "textDocument/didChange", params: { textDocument: { uri, version }, contentChanges: [{ text }] } });
+      this.openDocuments.set(uri, { version, mtimeMs: stat.mtimeMs, size: stat.size, textHash });
+    } else if (existing.mtimeMs !== stat.mtimeMs || existing.size !== stat.size) {
+      this.openDocuments.set(uri, { ...existing, mtimeMs: stat.mtimeMs, size: stat.size });
+    }
+    return uri;
   }
-  private async locations(method: string, filePath: string, line: number, character: number, signal?: AbortSignal): Promise<Location[]> { await this.openDocument(filePath); return normalizeLocations(await this.request<Location | Location[] | LocationLink[] | null>(method, { textDocument: { uri: pathToFileURL(filePath).href }, position: toLspPosition(line, character) }, signal)); }
-  goToDefinition(filePath: string, line: number, character: number, signal?: AbortSignal) { return this.locations("textDocument/definition", filePath, line, character, signal); }
-  typeDefinition(filePath: string, line: number, character: number, signal?: AbortSignal) { return this.locations("textDocument/typeDefinition", filePath, line, character, signal); }
-  implementation(filePath: string, line: number, character: number, signal?: AbortSignal) { return this.locations("textDocument/implementation", filePath, line, character, signal); }
-  async findReferences(filePath: string, line: number, character: number, signal?: AbortSignal): Promise<Location[]> { await this.openDocument(filePath); return await this.request<Location[] | null>("textDocument/references", { textDocument: { uri: pathToFileURL(filePath).href }, position: toLspPosition(line, character), context: { includeDeclaration: true } }, signal) ?? []; }
-  async hover(filePath: string, line: number, character: number, signal?: AbortSignal): Promise<string> { await this.openDocument(filePath); const result = await this.request<Hover | null>("textDocument/hover", { textDocument: { uri: pathToFileURL(filePath).href }, position: toLspPosition(line, character) }, signal); return result ? extractHoverContent(result.contents) : ""; }
-  async documentSymbols(filePath: string, signal?: AbortSignal): Promise<DocumentSymbol[]> { await this.openDocument(filePath); return normalizeDocumentSymbols(await this.request<DocumentSymbol[] | SymbolInformation[] | null>("textDocument/documentSymbol", { textDocument: { uri: pathToFileURL(filePath).href } }, signal) ?? []); }
-  async workspaceSymbols(query: string, signal?: AbortSignal): Promise<SymbolInformation[]> { return await this.request<SymbolInformation[] | null>("workspace/symbol", { query }, signal) ?? []; }
-  async prepareCallHierarchy(filePath: string, line: number, character: number, signal?: AbortSignal): Promise<CallHierarchyItem[]> { await this.openDocument(filePath); return await this.request<CallHierarchyItem[] | null>("textDocument/prepareCallHierarchy", { textDocument: { uri: pathToFileURL(filePath).href }, position: toLspPosition(line, character) }, signal) ?? []; }
-  async incomingCalls(item: CallHierarchyItem, signal?: AbortSignal): Promise<CallHierarchyIncomingCall[]> { return await this.request<CallHierarchyIncomingCall[] | null>("callHierarchy/incomingCalls", { item }, signal) ?? []; }
-  async outgoingCalls(item: CallHierarchyItem, signal?: AbortSignal): Promise<CallHierarchyOutgoingCall[]> { return await this.request<CallHierarchyOutgoingCall[] | null>("callHierarchy/outgoingCalls", { item }, signal) ?? []; }
-  async codeActions(filePath: string, range: Range, diagnostics: Diagnostic[], signal?: AbortSignal): Promise<CodeAction[]> { await this.openDocument(filePath); return await this.request<CodeAction[] | null>("textDocument/codeAction", { textDocument: { uri: pathToFileURL(filePath).href }, range, context: { diagnostics } }, signal) ?? []; }
+  private capability(path: string): unknown { return path.split(".").reduce<unknown>((value, key) => value && typeof value === "object" ? (value as Record<string, unknown>)[key] : undefined, this.capabilities); }
+  private hasCapability(path: string): boolean { return Boolean(this.capability(path)); }
+  private async locations(method: string, capability: string, filePath: string, line: number, character: number, signal?: AbortSignal): Promise<Location[]> { if (!this.hasCapability(capability)) return []; const uri = await this.syncDocument(filePath); for (const position of lspPositionCandidates(filePath, line, character)) { const locations = normalizeLocations(await this.request<Location | Location[] | LocationLink[] | null>(method, { textDocument: { uri }, position }, signal)); if (locations.length) return locations; } return []; }
+  goToDefinition(filePath: string, line: number, character: number, signal?: AbortSignal) { return this.locations("textDocument/definition", "definitionProvider", filePath, line, character, signal); }
+  typeDefinition(filePath: string, line: number, character: number, signal?: AbortSignal) { return this.locations("textDocument/typeDefinition", "typeDefinitionProvider", filePath, line, character, signal); }
+  implementation(filePath: string, line: number, character: number, signal?: AbortSignal) { return this.locations("textDocument/implementation", "implementationProvider", filePath, line, character, signal); }
+  async findReferences(filePath: string, line: number, character: number, signal?: AbortSignal): Promise<Location[]> { if (!this.hasCapability("referencesProvider")) return []; const uri = await this.syncDocument(filePath); for (const position of lspPositionCandidates(filePath, line, character)) { const locations = await this.request<Location[] | null>("textDocument/references", { textDocument: { uri }, position, context: { includeDeclaration: true } }, signal) ?? []; if (locations.length) return locations; } return []; }
+  async hover(filePath: string, line: number, character: number, signal?: AbortSignal): Promise<string> { if (!this.hasCapability("hoverProvider")) return ""; const uri = await this.syncDocument(filePath); for (const position of lspPositionCandidates(filePath, line, character)) { const result = await this.request<Hover | null>("textDocument/hover", { textDocument: { uri }, position }, signal); const text = result ? extractHoverContent(result.contents) : ""; if (text) return text; } return ""; }
+  async documentSymbols(filePath: string, signal?: AbortSignal): Promise<DocumentSymbol[]> { if (!this.hasCapability("documentSymbolProvider")) return []; const uri = await this.syncDocument(filePath); return normalizeDocumentSymbols(await this.request<DocumentSymbol[] | SymbolInformation[] | null>("textDocument/documentSymbol", { textDocument: { uri } }, signal) ?? []); }
+  async workspaceSymbols(query: string, signal?: AbortSignal): Promise<SymbolInformation[]> { if (!this.hasCapability("workspaceSymbolProvider")) return []; return await this.request<SymbolInformation[] | null>("workspace/symbol", { query }, signal) ?? []; }
+  async prepareCallHierarchy(filePath: string, line: number, character: number, signal?: AbortSignal): Promise<CallHierarchyItem[]> { if (!this.hasCapability("callHierarchyProvider")) return []; const uri = await this.syncDocument(filePath); for (const position of lspPositionCandidates(filePath, line, character)) { const items = await this.request<CallHierarchyItem[] | null>("textDocument/prepareCallHierarchy", { textDocument: { uri }, position }, signal) ?? []; if (items.length) return items; } return []; }
+  async incomingCalls(item: CallHierarchyItem, signal?: AbortSignal): Promise<CallHierarchyIncomingCall[]> { if (!this.hasCapability("callHierarchyProvider")) return []; return await this.request<CallHierarchyIncomingCall[] | null>("callHierarchy/incomingCalls", { item }, signal) ?? []; }
+  async outgoingCalls(item: CallHierarchyItem, signal?: AbortSignal): Promise<CallHierarchyOutgoingCall[]> { if (!this.hasCapability("callHierarchyProvider")) return []; return await this.request<CallHierarchyOutgoingCall[] | null>("callHierarchy/outgoingCalls", { item }, signal) ?? []; }
+  async codeActions(filePath: string, range: Range, diagnostics: Diagnostic[], signal?: AbortSignal): Promise<CodeAction[]> { if (!this.hasCapability("codeActionProvider")) return []; const uri = await this.syncDocument(filePath); return await this.request<CodeAction[] | null>("textDocument/codeAction", { textDocument: { uri }, range, context: { diagnostics } }, signal) ?? []; }
+  async waitForDiagnostics(filePath: string, timeoutMs = DIAGNOSTICS_WAIT_MS) { const uri = pathToFileURL(filePath).href; if (this.diagnosticsByUri.has(uri)) return; await new Promise<void>((resolve) => { const waiters = this.diagnosticsWaiters.get(uri) ?? new Set<() => void>(); let timer: NodeJS.Timeout; const done = () => { clearTimeout(timer); waiters.delete(done); if (waiters.size === 0 && this.diagnosticsWaiters.get(uri) === waiters) this.diagnosticsWaiters.delete(uri); resolve(); }; timer = setTimeout(done, timeoutMs); waiters.add(done); this.diagnosticsWaiters.set(uri, waiters); }); }
   diagnostics(filePath?: string): Map<string, Diagnostic[]> { const out = new Map<string, Diagnostic[]>(); for (const [uri, diagnostics] of this.diagnosticsByUri) { const path = uriToPath(uri); if (!filePath || path === filePath) out.set(path, diagnostics); } return out; }
-  async shutdown() { if (!this.process) return; try { await this.request("shutdown"); this.send({ jsonrpc: "2.0", method: "exit" }); } catch { /* server may already be gone */ } this.process.kill(); this.process = null; this.initialized = false; this.openDocuments.clear(); this.failAll(new Error("LSP client shut down")); }
+  async shutdown() { if (!this.process) return; try { await this.request("shutdown", undefined, undefined, SHUTDOWN_TIMEOUT_MS); this.send({ jsonrpc: "2.0", method: "exit" }); } catch { /* server may already be gone */ } this.process.kill(); this.process = null; this.initialized = false; this.openDocuments.clear(); this.failAll(new Error("LSP client shut down")); }
   private failAll(err: Error) { for (const [, p] of this.pending) p.reject(err); this.pending.clear(); }
   get isRunning() { return this.process !== null && !this.exited && this.process.exitCode === null; }
   get isInitialized() { return this.initialized; }
 }
 
-function toLspPosition(line: number, character: number): Position { if (line < 1 || character < 1) throw new Error("line and column must be >= 1; column is a 1-indexed UTF-16 offset"); return { line: line - 1, character: character - 1 }; }
-function positionInRange(pos: Position, range: Range): boolean { return comparePosition(range.start, pos) <= 0 && comparePosition(pos, range.end) <= 0; }
+function toLspPosition(line: number, character: number): Position { if (!Number.isInteger(line) || !Number.isInteger(character) || line < 1 || character < 1) throw new Error("line and column must be positive integers; column is a 1-indexed UTF-16 offset"); return { line: line - 1, character: character - 1 }; }
+function lspPositionCandidates(filePath: string, line: number, column: number): Position[] {
+  const original = toLspPosition(line, column);
+  try {
+    const textLine = readFileSync(filePath, "utf8").split(/\r?\n/)[line - 1] ?? "";
+    const target = Math.min(Math.max(column - 1, 0), textLine.length);
+    const spans: Array<{ start: number; end: number; distance: number; position: Position }> = [];
+    for (let i = 0; i < textLine.length;) {
+      if (!isIdentifierChar(textLine[i])) { i++; continue; }
+      const start = i;
+      while (i < textLine.length && isIdentifierChar(textLine[i])) i++;
+      const end = i;
+      const distance = spanDistance(target, start, end);
+      spans.push({ start, end, distance, position: { line: line - 1, character: Math.min(Math.max(target, start), end - 1) } });
+    }
+    const seen = new Set<string>([`${original.line}:${original.character}`]);
+    const add = (positions: Position[], span: { position: Position }) => { const key = `${span.position.line}:${span.position.character}`; if (!seen.has(key)) { seen.add(key); positions.push(span.position); } };
+    const selectorSpans = selectorCandidateSpans(textLine, spans, target);
+    const snapped: Position[] = [];
+    for (const span of selectorSpans) add(snapped, span);
+    for (const span of spans.filter((s) => s.distance <= POSITION_SNAP_MAX_DISTANCE).sort((a, b) => a.distance - b.distance || a.start - b.start)) add(snapped, span);
+    const originalIsIdentifier = isIdentifierChar(textLine[target]);
+    return originalIsIdentifier ? [original, ...snapped.slice(0, POSITION_SNAP_MAX_CANDIDATES - 1)] : [...snapped.slice(0, POSITION_SNAP_MAX_CANDIDATES - 1), original];
+  } catch { return [original]; }
+}
+function selectorCandidateSpans(textLine: string, spans: Array<{ start: number; end: number; distance: number; position: Position }>, target: number) {
+  const chains: Array<{ distance: number; spans: typeof spans }> = [];
+  for (let i = 0; i < spans.length; i++) {
+    const chain = [spans[i]];
+    for (let j = i + 1; j < spans.length; j++) {
+      const separator = textLine.slice(chain[chain.length - 1].end, spans[j].start);
+      if (separator !== "." && separator !== "?.") break;
+      chain.push(spans[j]);
+    }
+    if (chain.length > 1) {
+      const distance = spanDistance(target, chain[0].start, chain[chain.length - 1].end);
+      if (distance <= POSITION_SNAP_MAX_DISTANCE) chains.push({ distance, spans: orderSelectorChain(chain, target) });
+    }
+  }
+  return chains.sort((a, b) => a.distance - b.distance || a.spans[0].start - b.spans[0].start).flatMap((c) => c.spans);
+}
+function orderSelectorChain<T extends { start: number; end: number }>(chain: T[], target: number): T[] {
+  const containing = chain.findIndex((s) => target >= s.start && target < s.end);
+  if (containing >= 0) return [chain[containing], ...chain.slice(containing + 1), ...chain.slice(0, containing)];
+  const next = chain.findIndex((s) => target < s.start);
+  if (next <= 0) return [...chain.slice(1), chain[0]];
+  if (next > 0) return [chain[next], ...chain.slice(next + 1), ...chain.slice(0, next).reverse()];
+  return [...chain].reverse();
+}
+function spanDistance(target: number, start: number, end: number): number { return target < start ? start - target : target >= end ? target - end + 1 : 0; }
+function isIdentifierChar(ch: string | undefined): boolean { return Boolean(ch && /[A-Za-z0-9_$]/.test(ch)); }
+function positionInRange(pos: Position, range: Range): boolean { return comparePosition(range.start, pos) <= 0 && comparePosition(pos, range.end) < 0; }
 function comparePosition(a: Position, b: Position): number { return a.line === b.line ? a.character - b.character : a.line - b.line; }
 function rangeSize(range: Range): number { return (range.end.line - range.start.line) * 100_000 + (range.end.character - range.start.character); }
 function uriToPath(uri: string): string { try { return fileURLToPath(uri); } catch { return uri; } }
@@ -159,9 +248,9 @@ function extractHoverContent(contents: Hover["contents"]): string { if (typeof c
 function relativePath(path: string, workspaceRoot: string): string { if (!isAbsolute(path)) return path; const rel = relative(workspaceRoot, path); return rel && !rel.startsWith("..") && rel !== ".." && !isAbsolute(rel) ? `.${sep}${rel}` : path; }
 function formatLocation(loc: Location, workspaceRoot: string): string { return `${relativePath(uriToPath(loc.uri), workspaceRoot)}:${loc.range.start.line + 1}:${loc.range.start.character + 1}`; }
 function resolvePath(input: string, workspaceRoot: string): string { return isAbsolute(input) ? input : resolve(workspaceRoot, input); }
-function findExecutable(command: string): string | null { for (const dir of (process.env.PATH || "").split(":")) for (const ext of process.platform === "win32" ? [".exe", ".cmd", ""] : [""]) { const p = join(dir, command + ext); try { if (statSync(p).isFile()) return p; } catch { /* not found */ } } return null; }
+function findExecutable(command: string): string | null { for (const dir of (process.env.PATH || "").split(delimiter).filter(Boolean)) for (const ext of process.platform === "win32" ? [".exe", ".cmd", ""] : [""]) { const p = join(dir, command + ext); try { if (statSync(p).isFile()) { if (process.platform !== "win32") accessSync(p, constants.X_OK); return p; } } catch { /* not found */ } } return null; }
 function configForFile(filePath: string): ServerConfig | undefined { const ext = extname(filePath); return SERVER_CONFIGS.find((c) => c.extensions.includes(ext)); }
-function findWorkspaceRoot(start: string, config: ServerConfig): string { let dir = resolve(existsSync(start) && statSync(start).isFile() ? dirname(start) : start); while (true) { if (config.rootMarkers.some((m) => existsSync(join(dir, m)))) return dir; const parent = dirname(dir); if (parent === dir) return resolve(start); dir = parent; } }
+function findWorkspaceRoot(start: string, config: ServerConfig): string { const resolved = resolve(start); const initial = existsSync(resolved) && statSync(resolved).isFile() ? dirname(resolved) : !existsSync(resolved) && extname(resolved) ? dirname(resolved) : resolved; let dir = initial; while (true) { if (config.rootMarkers.some((m) => existsSync(join(dir, m)))) return dir; const parent = dirname(dir); if (parent === dir) return initial; dir = parent; } }
 function normalizeLocations(result: Location | Location[] | LocationLink[] | null): Location[] { if (!result) return []; const values = Array.isArray(result) ? result : [result]; return values.map((v) => "targetUri" in v ? { uri: v.targetUri, range: v.targetSelectionRange ?? v.targetRange } : v); }
 function normalizeDocumentSymbols(symbols: DocumentSymbol[] | SymbolInformation[]): DocumentSymbol[] { return symbols.map((s) => "selectionRange" in s ? s : { name: s.name, kind: s.kind, range: s.location.range, selectionRange: s.location.range }); }
 function flattenSymbols(symbols: DocumentSymbol[]): DocumentSymbol[] { return symbols.flatMap((s) => [s, ...flattenSymbols(s.children ?? [])]); }
@@ -185,7 +274,7 @@ export default function lspExtension(pi: ExtensionAPI) {
   const workspaceRoots = new Map<string, string>();
   const serverVersions = new Map<string, string>();
 
-  pi.on("session_start", async (_event, ctx) => { for (const entry of ctx.sessionManager.getBranch()) if (entry.type === "custom" && entry.customType === "lsp-state") { const data = entry.data as LspState | undefined; for (const [k, v] of Object.entries(data?.workspaceRoots ?? {})) workspaceRoots.set(k, v); for (const [k, v] of Object.entries(data?.serverVersions ?? {})) serverVersions.set(k, v); } });
+  pi.on("session_start", async (_event, ctx) => { for (const entry of ctx.sessionManager.getBranch()) if (entry.type === "custom" && entry.customType === "lsp-state") { const data = entry.data as LspState | undefined; for (const [k, v] of Object.entries(data?.workspaceRoots ?? {})) if (typeof k === "string" && typeof v === "string") workspaceRoots.set(k, v); for (const [k, v] of Object.entries(data?.serverVersions ?? {})) if (typeof k === "string" && typeof v === "string") serverVersions.set(k, v); } });
   pi.on("session_shutdown", async () => { await Promise.all([...clients.values()].map((c) => c.shutdown().catch(() => undefined))); });
   function persistState() { pi.appendEntry<LspState>("lsp-state", { workspaceRoots: Object.fromEntries(workspaceRoots), serverVersions: Object.fromEntries(serverVersions) }); }
   function resolveFile(file: string) { const abs = resolvePath(file, cwdFn()); if (!existsSync(abs)) throw new Error(`file does not exist: ${abs}`); const config = configForFile(abs); if (!config) throw new Error(`unsupported file type: ${abs}`); const root = workspaceRoots.get(config.id) ?? findWorkspaceRoot(abs, config); return { filePath: abs, config, root }; }
@@ -202,7 +291,7 @@ export default function lspExtension(pi: ExtensionAPI) {
   pi.registerTool({ name: "lsp_document_symbols", label: "Document Symbols", description: "List all symbols in a file using its language server.", parameters: Type.Object({ file: Type.String() }), async execute(_id, params, signal) { try { const { client, filePath } = await fileClient(params.file); const symbols = await client.documentSymbols(filePath, signal); return symbols.length ? { content: [{ type: "text", text: `Symbols in ${params.file}:\n${formatSymbols(symbols).join("\n")}` }], details: { symbols: flattenSymbols(symbols).map((s) => ({ name: s.name, kind: symbolKindName(s.kind), range: rangeToDetails(s.range) })) } } : { content: [{ type: "text", text: `No symbols found in ${params.file}` }], details: { symbols: [] } }; } catch (err) { return errorResult("lsp_document_symbols", err); } } });
   pi.registerTool({ name: "lsp_enclosing_symbol", label: "Enclosing Symbol", description: "Return the smallest symbol containing a file position.", parameters: Type.Object({ file: Type.String(), line: Type.Integer(), column: Type.Integer() }), async execute(_id, params, signal) { try { const { client, filePath } = await fileClient(params.file); const symbol = findEnclosingSymbol(await client.documentSymbols(filePath, signal), params.line, params.column); return symbol ? { content: [{ type: "text", text: `Enclosing symbol: ${formatSymbol(symbol)}` }], details: { name: symbol.name, kind: symbolKindName(symbol.kind), range: rangeToDetails(symbol.range), selectionRange: rangeToDetails(symbol.selectionRange) } } : { content: [{ type: "text", text: `No enclosing symbol found at ${params.file}:${params.line}:${params.column}` }], details: {} }; } catch (err) { return errorResult("lsp_enclosing_symbol", err); } } });
   pi.registerTool({ name: "lsp_workspace_symbols", label: "Workspace Symbols", description: "Search symbols across the language workspace inferred from an optional file.", parameters: Type.Object({ query: Type.String(), file: Type.Optional(Type.String()) }), async execute(_id, params, signal) { try { const target = params.file ? resolveFile(params.file) : { config: SERVER_CONFIGS[0], root: workspaceRoots.get("go") ?? findWorkspaceRoot(cwdFn(), SERVER_CONFIGS[0]) }; const client = await ensureClient(target.config, target.root); const symbols = await client.workspaceSymbols(params.query, signal); const shown = symbols.slice(0, 50); return symbols.length ? { content: [{ type: "text", text: `Workspace symbols matching "${params.query}" (${symbols.length} found, showing first ${shown.length}):\n${shown.map((s) => `${symbolKindName(s.kind)} ${s.name}${s.containerName ? ` (${s.containerName})` : ""} — ${relativePath(uriToPath(s.location.uri), target.root)}:${s.location.range.start.line + 1}`).join("\n")}` }], details: { symbols: shown.map((s) => ({ name: s.name, kind: symbolKindName(s.kind), path: uriToPath(s.location.uri), line: s.location.range.start.line + 1, preview: linePreview(uriToPath(s.location.uri), s.location.range.start.line + 1, 1) })) } } : { content: [{ type: "text", text: `No workspace symbols found matching "${params.query}"` }], details: { symbols: [] } }; } catch (err) { return errorResult("lsp_workspace_symbols", err); } } });
-  pi.registerTool({ name: "lsp_diagnostics", label: "Diagnostics", description: "Return diagnostics collected from opened files. Pass file to choose language/root.", parameters: Type.Object({ file: Type.Optional(Type.String()) }), async execute(_id, params) { try { if (params.file) { const { client, filePath, root } = await fileClient(params.file); await client.openDocument(filePath); const map = client.diagnostics(filePath); const items = [...map.entries()].flatMap(([path, diagnostics]) => diagnostics.map((diagnostic) => ({ path, diagnostic }))); return items.length ? { content: [{ type: "text", text: `Diagnostics (${items.length}):\n${formatDiagnostics(items, root).join("\n")}` }], details: { diagnostics: diagnosticsDetails(map) } } : { content: [{ type: "text", text: `No diagnostics for ${params.file}` }], details: { diagnostics: [] } }; } const all = [...clients.entries()].flatMap(([key, c]) => [...c.diagnostics().entries()].map(([path, diagnostics]) => ({ key, path, diagnostics }))); return { content: [{ type: "text", text: all.length ? all.flatMap(({ path, diagnostics }) => diagnostics.map((d) => `${path}:${d.range.start.line + 1}:${d.range.start.character + 1} ${d.message}`)).join("\n") : "No diagnostics collected. Open files with LSP tools first." }], details: { diagnostics: all } }; } catch (err) { return errorResult("lsp_diagnostics", err); } } });
+  pi.registerTool({ name: "lsp_diagnostics", label: "Diagnostics", description: "Return diagnostics collected from opened files. Pass file to choose language/root.", parameters: Type.Object({ file: Type.Optional(Type.String()) }), async execute(_id, params) { try { if (params.file) { const { client, filePath, root } = await fileClient(params.file); await client.openDocument(filePath); await client.waitForDiagnostics(filePath); const map = client.diagnostics(filePath); const items = [...map.entries()].flatMap(([path, diagnostics]) => diagnostics.map((diagnostic) => ({ path, diagnostic }))); return items.length ? { content: [{ type: "text", text: `Diagnostics (${items.length}):\n${formatDiagnostics(items, root).join("\n")}` }], details: { diagnostics: diagnosticsDetails(map) } } : { content: [{ type: "text", text: `No diagnostics for ${params.file}` }], details: { diagnostics: [] } }; } const all = [...clients.entries()].flatMap(([key, c]) => [...c.diagnostics().entries()].map(([path, diagnostics]) => ({ key, path, diagnostics }))); return { content: [{ type: "text", text: all.length ? all.flatMap(({ path, diagnostics }) => diagnostics.map((d) => `${path}:${d.range.start.line + 1}:${d.range.start.character + 1} ${d.message}`)).join("\n") : "No diagnostics collected. Open files with LSP tools first." }], details: { diagnostics: all } }; } catch (err) { return errorResult("lsp_diagnostics", err); } } });
   pi.registerTool({ name: "lsp_prepare_edit_context", label: "Prepare Edit Context", description: "Collect hover, definition, enclosing symbol, document symbols, diagnostics, package context, and optional references for a position.", parameters: Type.Object({ file: Type.String(), line: Type.Integer(), column: Type.Integer(), includeReferences: Type.Optional(Type.Boolean()), includeDiagnostics: Type.Optional(Type.Boolean()) }), async execute(_id, params, signal) { try { const { client, filePath, root, config } = await fileClient(params.file); const [hover, definitions, symbols] = await Promise.all([client.hover(filePath, params.line, params.column, signal), client.goToDefinition(filePath, params.line, params.column, signal), client.documentSymbols(filePath, signal)]); const references = params.includeReferences ? await client.findReferences(filePath, params.line, params.column, signal) : []; const diagnostics = params.includeDiagnostics === false ? new Map<string, Diagnostic[]>() : client.diagnostics(filePath); const enclosing = findEnclosingSymbol(symbols, params.line, params.column); const pkg = config.packageContext?.(filePath, root, symbols, diagnostics); const text = [`Language: ${config.label}`, `Hover:\n${hover || "none"}`, `Definition:\n${definitions.map((loc) => formatLocation(loc, root)).join("\n") || "none"}`, `Enclosing:\n${enclosing ? formatSymbol(enclosing) : "none"}`, `References: ${references.length}`, `Diagnostics: ${diagnosticsDetails(diagnostics).length}`].join("\n\n"); return { content: [{ type: "text", text }], details: { language: config.id, hover, definitions: locationsDetails(definitions), enclosing: enclosing ? { name: enclosing.name, kind: symbolKindName(enclosing.kind), range: rangeToDetails(enclosing.range) } : null, references: locationsDetails(references), diagnostics: diagnosticsDetails(diagnostics), package: pkg, symbols: flattenSymbols(symbols).map((s) => ({ name: s.name, kind: symbolKindName(s.kind), range: rangeToDetails(s.range) })) } }; } catch (err) { return errorResult("lsp_prepare_edit_context", err); } } });
   pi.registerTool({ name: "lsp_incoming_calls", label: "Incoming Calls", description: "Find callers of the symbol at a position.", parameters: Type.Object({ file: Type.String(), line: Type.Integer(), column: Type.Integer() }), async execute(_id, params, signal) { try { const { client, filePath, root } = await fileClient(params.file); const items = await client.prepareCallHierarchy(filePath, params.line, params.column, signal); const calls = items.length ? await client.incomingCalls(items[0], signal) : []; return calls.length ? { content: [{ type: "text", text: `Incoming calls (${calls.length}):\n${calls.map((call) => `${call.from.name} — ${formatLocation({ uri: call.from.uri, range: call.from.selectionRange }, root)}`).join("\n")}` }], details: { calls } } : { content: [{ type: "text", text: `No incoming calls found at ${params.file}:${params.line}:${params.column}` }], details: { calls: [] } }; } catch (err) { return errorResult("lsp_incoming_calls", err); } } });
   pi.registerTool({ name: "lsp_outgoing_calls", label: "Outgoing Calls", description: "Find calls made by the symbol at a position.", parameters: Type.Object({ file: Type.String(), line: Type.Integer(), column: Type.Integer() }), async execute(_id, params, signal) { try { const { client, filePath, root } = await fileClient(params.file); const items = await client.prepareCallHierarchy(filePath, params.line, params.column, signal); const calls = items.length ? await client.outgoingCalls(items[0], signal) : []; return calls.length ? { content: [{ type: "text", text: `Outgoing calls (${calls.length}):\n${calls.map((call) => `${call.to.name} — ${formatLocation({ uri: call.to.uri, range: call.to.selectionRange }, root)}`).join("\n")}` }], details: { calls } } : { content: [{ type: "text", text: `No outgoing calls found at ${params.file}:${params.line}:${params.column}` }], details: { calls: [] } }; } catch (err) { return errorResult("lsp_outgoing_calls", err); } } });

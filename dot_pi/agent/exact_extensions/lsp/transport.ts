@@ -7,6 +7,11 @@ import { DIAGNOSTICS_WAIT_MS, REQUEST_TIMEOUT_MS, SHUTDOWN_TIMEOUT_MS, STDERR_LI
 import { lspPositionCandidates, normalizeDocumentSymbols, normalizeLocations, uriToPath } from "./utils";
 
 function extractHoverContent(contents: Hover["contents"]): string { if (typeof contents === "string") return contents; if (Array.isArray(contents)) return contents.map((c) => typeof c === "string" ? c : c.value).filter(Boolean).join("\n\n"); return contents.value; }
+function settingForSection(settings: unknown, section: string | undefined): unknown {
+  if (!section) return settings ?? null;
+  const value = section.split(".").reduce<unknown>((current, key) => current && typeof current === "object" ? (current as Record<string, unknown>)[key] : undefined, settings);
+  return value ?? null;
+}
 
 export class LspClient {
   private process: ChildProcessWithoutNullStreams | null = null;
@@ -70,7 +75,7 @@ export class LspClient {
     }
   }
   private handleServerRequest(req: JsonRpcRequest) {
-    if (req.method === "workspace/configuration") { const items = (req.params as { items?: unknown[] } | undefined)?.items; return this.send({ jsonrpc: "2.0", id: req.id, result: Array.isArray(items) ? items.map(() => null) : [] }); }
+    if (req.method === "workspace/configuration") { const items = (req.params as { items?: Array<{ section?: string }> } | undefined)?.items; return this.send({ jsonrpc: "2.0", id: req.id, result: Array.isArray(items) ? items.map((item) => settingForSection(this.config.settings, item.section)) : [] }); }
     if (req.method === "client/registerCapability" || req.method === "window/showMessageRequest") return this.send({ jsonrpc: "2.0", id: req.id, result: null });
     if (req.method === "workspace/applyEdit") return this.send({ jsonrpc: "2.0", id: req.id, result: { applied: false, failureReason: "pi LSP extension previews edits but does not apply workspace edits" } });
     this.send({ jsonrpc: "2.0", id: req.id, error: { code: -32601, message: `Unsupported server request: ${req.method}` } });

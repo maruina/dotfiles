@@ -18,14 +18,15 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../../.
 const jiti = createJiti(`${repoRoot}/`);
 
 const utils = jiti("./dot_pi/agent/exact_extensions/lsp/utils.ts");
+const servers = jiti("./dot_pi/agent/exact_extensions/lsp/servers.ts");
 const transport = jiti("./dot_pi/agent/exact_extensions/lsp/transport.ts");
 const entry = jiti("./dot_pi/agent/exact_extensions/lsp.ts");
 
 function tempDir() { return mkdtempSync(join(tmpdir(), "pi-lsp-test-")); }
 
-function fakeClient() {
+function fakeClient(config = { id: "x", label: "X", command: "x", args: [], extensions: [], rootMarkers: [], languageId: () => "x" }) {
   const writes = [];
-  const client = new transport.LspClient(process.cwd(), { id: "x", label: "X", command: "x", args: [], extensions: [], rootMarkers: [], languageId: () => "x" }, "/bin/false");
+  const client = new transport.LspClient(process.cwd(), config, "/bin/false");
   client.process = { stdin: { write: (text) => writes.push(text) }, exitCode: null };
   return { client, writes };
 }
@@ -123,6 +124,33 @@ test("workspace root discovery and path containment are project scoped", () => {
   assert.equal(utils.findWorkspaceRoot(fileB, config), projectB);
   assert.equal(utils.isInsidePath(fileA, projectA), true);
   assert.equal(utils.isInsidePath(fileB, projectA), false);
+});
+
+test("routes Helm chart files before generic YAML files", () => {
+  const dir = tempDir();
+  const chart = join(dir, "chart");
+  const templates = join(chart, "templates");
+  const other = join(dir, "other");
+  mkdirSync(templates, { recursive: true });
+  mkdirSync(other, { recursive: true });
+  writeFileSync(join(chart, "Chart.yaml"), "apiVersion: v2\nname: demo\nversion: 0.1.0\n");
+  writeFileSync(join(chart, "values.yaml"), "replicaCount: 1\n");
+  writeFileSync(join(templates, "deployment.yaml"), "apiVersion: apps/v1\nkind: Deployment\n");
+  writeFileSync(join(other, "deployment.yaml"), "apiVersion: apps/v1\nkind: Deployment\n");
+
+  assert.equal(utils.configForFile(join(chart, "Chart.yaml"), servers.SERVER_CONFIGS).id, "helm");
+  assert.equal(utils.configForFile(join(chart, "values.yaml"), servers.SERVER_CONFIGS).id, "helm");
+  assert.equal(utils.configForFile(join(templates, "deployment.yaml"), servers.SERVER_CONFIGS).id, "helm");
+  assert.equal(utils.configForFile(join(other, "deployment.yaml"), servers.SERVER_CONFIGS).id, "yaml");
+});
+
+test("workspace configuration returns server settings by section", () => {
+  const { client, writes } = fakeClient({ id: "yaml", label: "YAML", command: "yaml-language-server", args: [], extensions: [".yaml"], rootMarkers: [], settings: { yaml: { validate: true }, nested: { value: 1 } }, languageId: () => "yaml" });
+
+  client.handleServerRequest({ jsonrpc: "2.0", id: 1, method: "workspace/configuration", params: { items: [{ section: "yaml" }, { section: "nested.value" }, { section: "missing" }] } });
+
+  const response = rpcBodies(writes)[0];
+  assert.deepEqual(response.result, [{ validate: true }, 1, null]);
 });
 
 test("normalizes LocationLink results to Locations", () => {

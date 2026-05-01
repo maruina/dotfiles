@@ -1,0 +1,3 @@
+{{- if ne .profile "work" }}
+.pi/agent/skills/end-of-session
+{{- end }}

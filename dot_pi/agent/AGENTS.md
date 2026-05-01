@@ -20,6 +20,8 @@ Staff software engineer. Cloud infrastructure, backend systems, API design, plat
 - Prove changes work before marking a task complete — with tests, logs, command output, or a diff.
 - For non-trivial changes, pause and ask whether a more elegant solution exists.
 - Match the repository's workflow, build system, and style.
+- Branch names: use `maruina/jira-ticket` when a Jira ticket exists, otherwise `maruina/branch-name`.
+- Commit messages: use Conventional Commits.
 
 ## Code Style
 

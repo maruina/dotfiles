@@ -1,3 +1,6 @@
+{{- /* Profile-based pi agent models configuration */ -}}
+{{- /* Work profile: Datadog AI Gateway models only */ -}}
+{{- /* Personal profile: OpenRouter models only */ -}}
 {{- if eq .profile "work" -}}
 {
   "providers": {
@@ -63,12 +66,46 @@
     }
   }
 }
-{{- else if eq .profile "personal" -}}
-{
-  "providers": {}
-}
 {{- else -}}
 {
-  "providers": {}
+  "providers": {
+    "openrouter": {
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "api": "openai-completions",
+      "apiKey": "{{ onepasswordRead "op://Private/OpenRouter/openrouter-api-key" }}",
+      "models": [
+        {
+          "id": "deepseek/deepseek-v3.2",
+          "name": "DeepSeek V3.2",
+          "reasoning": true
+        },
+        {
+          "id": "deepseek/deepseek-r1",
+          "name": "DeepSeek R1",
+          "reasoning": true
+        },
+        {
+          "id": "anthropic/claude-3.7-sonnet",
+          "name": "Claude 3.7 Sonnet",
+          "reasoning": true
+        },
+        {
+          "id": "anthropic/claude-3.5-haiku",
+          "name": "Claude 3.5 Haiku",
+          "reasoning": true
+        },
+        {
+          "id": "openai/o3-mini-high",
+          "name": "O3 Mini High",
+          "reasoning": true
+        },
+        {
+          "id": "openai/gpt-4o-mini",
+          "name": "GPT-4o Mini",
+          "reasoning": false
+        }
+      ]
+    }
+  }
 }
 {{- end }}

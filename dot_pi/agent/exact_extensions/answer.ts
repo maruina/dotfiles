@@ -44,6 +44,11 @@ interface ExtractionResult {
   questions: ExtractedQuestion[];
 }
 
+type ExtractionOutcome =
+  | { status: "ok"; result: ExtractionResult }
+  | { status: "error"; message: string }
+  | { status: "cancelled" };
+
 const SYSTEM_PROMPT = `You are a question extractor. Given text from a conversation, extract any questions that need answering.
 
 Output a JSON object with this structure:
@@ -76,59 +81,59 @@ Example output:
   ]
 }`;
 
-const CODEX_MODEL_ID = "gpt-5.3";
-const HAIKU_MODEL_ID = "claude-haiku-4-5";
+const EXTRACTION_MODEL_PREFERENCES = [
+  ["datadog-ai-gateway", "openai/gpt-5.3-codex"],
+  ["datadog-ai-gateway", "openai/gpt-5.5"],
+  ["datadog-ai-gateway-anthropic", "anthropic/claude-haiku-4-5-20251001"],
+  ["openai-codex", "gpt-5.3"],
+  ["anthropic", "claude-haiku-4-5"],
+] as const;
 
 /**
- * Prefer GPT-5.3 for extraction when available, otherwise fallback to haiku or the current model.
+ * Prefer models configured in this pi install, otherwise fallback to the current model.
  */
 async function selectExtractionModel(
   currentModel: Model<Api>,
   modelRegistry: ModelRegistry,
 ): Promise<Model<Api>> {
-  const codexModel = modelRegistry.find("openai-codex", CODEX_MODEL_ID);
-  if (codexModel) {
-    const auth = await modelRegistry.getApiKeyAndHeaders(codexModel);
-    if (auth.ok) {
-      return codexModel;
-    }
+  for (const [provider, modelId] of EXTRACTION_MODEL_PREFERENCES) {
+    const model = modelRegistry.find(provider, modelId);
+    if (!model) continue;
+
+    const auth = await modelRegistry.getApiKeyAndHeaders(model);
+    if (auth.ok) return model;
   }
 
-  const haikuModel = modelRegistry.find("anthropic", HAIKU_MODEL_ID);
-  if (!haikuModel) {
-    return currentModel;
-  }
-
-  const auth = await modelRegistry.getApiKeyAndHeaders(haikuModel);
-  if (!auth.ok) {
-    return currentModel;
-  }
-
-  return haikuModel;
+  return currentModel;
 }
 
 /**
  * Parse the JSON response from the LLM
  */
 function parseExtractionResult(text: string): ExtractionResult | null {
-  try {
-    // Try to find JSON in the response (it might be wrapped in markdown code blocks)
-    let jsonStr = text;
+  const candidates = [text];
 
-    // Remove markdown code block if present
-    const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (jsonMatch) {
-      jsonStr = jsonMatch[1].trim();
-    }
+  const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (codeBlockMatch) candidates.unshift(codeBlockMatch[1].trim());
 
-    const parsed = JSON.parse(jsonStr);
-    if (parsed && Array.isArray(parsed.questions)) {
-      return parsed as ExtractionResult;
-    }
-    return null;
-  } catch {
-    return null;
+  const firstBrace = text.indexOf("{");
+  const lastBrace = text.lastIndexOf("}");
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    candidates.push(text.slice(firstBrace, lastBrace + 1));
   }
+
+  for (const jsonStr of candidates) {
+    try {
+      const parsed = JSON.parse(jsonStr.trim());
+      if (parsed && Array.isArray(parsed.questions)) {
+        return parsed as ExtractionResult;
+      }
+    } catch {
+      // Try next candidate.
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -478,16 +483,16 @@ export default function (pi: ExtensionAPI) {
     );
 
     // Run extraction with loader UI
-    const extractionResult = await ctx.ui.custom<ExtractionResult | null>(
+    const extractionOutcome = await ctx.ui.custom<ExtractionOutcome>(
       (tui, theme, _kb, done) => {
         const loader = new BorderedLoader(
           tui,
           theme,
-          `Extracting questions using ${extractionModel.id}...`,
+          `Extracting questions using ${extractionModel.provider}/${extractionModel.id}...`,
         );
-        loader.onAbort = () => done(null);
+        loader.onAbort = () => done({ status: "cancelled" });
 
-        const doExtract = async () => {
+        const doExtract = async (): Promise<ExtractionOutcome> => {
           const auth =
             await ctx.modelRegistry.getApiKeyAndHeaders(extractionModel);
           if (!auth.ok) {
@@ -506,11 +511,12 @@ export default function (pi: ExtensionAPI) {
               apiKey: auth.apiKey,
               headers: auth.headers,
               signal: loader.signal,
+              reasoning: "off",
             },
           );
 
           if (response.stopReason === "aborted") {
-            return null;
+            return { status: "cancelled" };
           }
 
           const responseText = response.content
@@ -520,22 +526,40 @@ export default function (pi: ExtensionAPI) {
             .map((c) => c.text)
             .join("\n");
 
-          return parseExtractionResult(responseText);
+          const result = parseExtractionResult(responseText);
+          if (!result) {
+            return {
+              status: "error",
+              message: `model returned unparsable JSON (stopReason=${response.stopReason})`,
+            };
+          }
+          return { status: "ok", result };
         };
 
         doExtract()
           .then(done)
-          .catch(() => done(null));
+          .catch((error) =>
+            done({
+              status: "error",
+              message: error instanceof Error ? error.message : String(error),
+            }),
+          );
 
         return loader;
       },
     );
 
-    if (extractionResult === null) {
+    if (extractionOutcome.status === "cancelled") {
       ctx.ui.notify("Cancelled", "info");
       return;
     }
 
+    if (extractionOutcome.status === "error") {
+      ctx.ui.notify(`Question extraction failed: ${extractionOutcome.message}`, "error");
+      return;
+    }
+
+    const extractionResult = extractionOutcome.result;
     if (extractionResult.questions.length === 0) {
       ctx.ui.notify("No questions found in the last message", "info");
       return;

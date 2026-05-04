@@ -16,36 +16,41 @@ Setup and auth:
 python3 ~/.pi/agent/skills/slack-mcp/scripts/slack-mcp-auth.py
 ```
 
+Use the Slack-only config to avoid resolving unrelated Datadog MCP environment variables:
+```fish
+set -l SLACK_MCP_CONFIG ~/.config/mcp/slack_mcp_servers.json
+```
+
 Discovery:
 ```fish
-MCP_STRICT_ENV=false mcp-cli info slack
-MCP_STRICT_ENV=false mcp-cli info slack slack_search_public_and_private
-MCP_STRICT_ENV=false mcp-cli info slack slack_read_channel
-MCP_STRICT_ENV=false mcp-cli info slack slack_read_thread
+mcp-cli -c $SLACK_MCP_CONFIG info slack
+mcp-cli -c $SLACK_MCP_CONFIG info slack slack_search_public_and_private
+mcp-cli -c $SLACK_MCP_CONFIG info slack slack_read_channel
+mcp-cli -c $SLACK_MCP_CONFIG info slack slack_read_thread
 ```
 
 Common read-only calls:
 ```fish
-MCP_STRICT_ENV=false mcp-cli call slack slack_search_public_and_private '{
+mcp-cli -c $SLACK_MCP_CONFIG call slack slack_search_public_and_private '{
   "query": "search terms",
   "limit": 10,
   "include_context": true,
   "response_format": "markdown"
 }'
 
-MCP_STRICT_ENV=false mcp-cli call slack slack_search_channels '{
+mcp-cli -c $SLACK_MCP_CONFIG call slack slack_search_channels '{
   "query": "channel-name",
   "limit": 10,
   "response_format": "markdown"
 }'
 
-MCP_STRICT_ENV=false mcp-cli call slack slack_read_channel '{
+mcp-cli -c $SLACK_MCP_CONFIG call slack slack_read_channel '{
   "channel_id": "CHANNEL_ID",
   "limit": 20,
   "response_format": "markdown"
 }'
 
-MCP_STRICT_ENV=false mcp-cli call slack slack_read_thread '{
+mcp-cli -c $SLACK_MCP_CONFIG call slack slack_read_thread '{
   "channel_id": "CHANNEL_ID",
   "message_ts": "MESSAGE_TS",
   "limit": 50,
@@ -55,7 +60,7 @@ MCP_STRICT_ENV=false mcp-cli call slack slack_read_thread '{
 
 Write calls require explicit user approval:
 ```fish
-MCP_STRICT_ENV=false mcp-cli call slack slack_send_message_draft '{
+mcp-cli -c $SLACK_MCP_CONFIG call slack slack_send_message_draft '{
   "channel_id": "CHANNEL_ID",
   "message": "draft text"
 }'

@@ -1,0 +1,70 @@
+---
+description: Uses Slack MCP through mcp-cli and a local Python stdio proxy backed by Claude Code's macOS keychain token. Use when searching Slack messages, reading channels or threads, finding users/channels, or explicitly sending Slack messages.
+---
+# Slack MCP
+Use `mcp-cli` to access Datadog Slack through the `slack` MCP server.
+
+Config:
+- Server: `slack`
+- Endpoint: `https://mcp.slack.com/mcp`
+- Proxy: `~/.pi/agent/skills/slack-mcp/scripts/slack-mcp-proxy.py`
+- Auth: macOS keychain service `Claude Code-credentials`, account `$(whoami)`
+- Client ID: `1601185624273.8899143856786`
+
+Setup and auth:
+```fish
+python3 ~/.pi/agent/skills/slack-mcp/scripts/slack-mcp-auth.py
+```
+
+Discovery:
+```fish
+MCP_STRICT_ENV=false mcp-cli info slack
+MCP_STRICT_ENV=false mcp-cli info slack slack_search_public_and_private
+MCP_STRICT_ENV=false mcp-cli info slack slack_read_channel
+MCP_STRICT_ENV=false mcp-cli info slack slack_read_thread
+```
+
+Common read-only calls:
+```fish
+MCP_STRICT_ENV=false mcp-cli call slack slack_search_public_and_private '{
+  "query": "search terms",
+  "limit": 10,
+  "include_context": true,
+  "response_format": "markdown"
+}'
+
+MCP_STRICT_ENV=false mcp-cli call slack slack_search_channels '{
+  "query": "channel-name",
+  "limit": 10,
+  "response_format": "markdown"
+}'
+
+MCP_STRICT_ENV=false mcp-cli call slack slack_read_channel '{
+  "channel_id": "CHANNEL_ID",
+  "limit": 20,
+  "response_format": "markdown"
+}'
+
+MCP_STRICT_ENV=false mcp-cli call slack slack_read_thread '{
+  "channel_id": "CHANNEL_ID",
+  "message_ts": "MESSAGE_TS",
+  "limit": 50,
+  "response_format": "markdown"
+}'
+```
+
+Write calls require explicit user approval:
+```fish
+MCP_STRICT_ENV=false mcp-cli call slack slack_send_message_draft '{
+  "channel_id": "CHANNEL_ID",
+  "message": "draft text"
+}'
+```
+
+Rules:
+- Prefer read-only tools: search, read channel, read thread, read user profile.
+- Do not send, schedule, create, update, or react unless the user explicitly asks.
+- Prefer `slack_send_message_draft` over `slack_send_message` when drafting is enough.
+- Slack MCP uses the user's normal Slack permissions and all access may be logged.
+- Do not print or persist Slack access or refresh tokens.
+- If auth fails, rerun `slack-mcp-auth.py` and retry.

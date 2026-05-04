@@ -30,7 +30,7 @@ export class LspClient {
   constructor(private workspaceRoot: string, private config: ServerConfig, private commandPath: string) { this.workspaceRoot = resolve(workspaceRoot); }
 
   async start(): Promise<InitializeResult> {
-    this.process = spawn(this.commandPath, this.config.args, { cwd: this.workspaceRoot, env: { ...process.env, GOPATH: process.env.GOPATH || "" } });
+    this.process = spawn(this.commandPath, this.config.args, { cwd: this.workspaceRoot, env: { ...process.env, ...(this.config.env ?? {}), GOPATH: process.env.GOPATH || "" } });
     this.exited = false;
     this.process.stdout.on("data", (chunk: Buffer) => this.onData(chunk));
     this.process.stderr.on("data", (chunk: Buffer) => this.recordStderr(chunk.toString("utf8")));

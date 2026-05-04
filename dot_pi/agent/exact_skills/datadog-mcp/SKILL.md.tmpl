@@ -1,0 +1,82 @@
+{{ if eq .profile "work" -}}
+---
+description: Uses Datadog MCP through mcp-cli and dd-auth to query Datadog metrics, logs, traces, monitors, dashboards, services, incidents, and notebooks. Use when the user asks to inspect Datadog data, especially for cluster, datacenter, service, or Kubernetes investigations.
+---
+# Datadog MCP
+Use `mcp-cli` with `dd-auth` to access Datadog MCP.
+
+Config:
+- Config file: `~/.config/mcp/mcp_servers.json`
+- MCP URL: `https://mcp.datadoghq.com/api/unstable/mcp-server/mcp`
+- Prod server: `datadog-prod`
+- Staging server: `datadog-staging`
+
+Auth and routing:
+- Prod org2: `dd-auth --domain app.datadoghq.com -- ...`
+- Staging org 197728 ddstaging: `dd-auth --domain ddstaging.datadoghq.com -- ...`
+- The MCP URL is the same for prod and staging; `dd-auth --domain` selects the Datadog org.
+
+Choose prod vs staging from the cluster/datacenter name:
+- Use staging for cluster/datacenter names containing staging indicators, especially:
+  - `*.staging.dog`
+  - `*.ddbuild.staging.dog`
+  - `stormeagle.us1.staging.dog`
+- Use prod for production cluster/datacenter names, especially:
+  - `*.prod.dog`
+  - `*.ddbuild.io`
+  - `app.datadoghq.com` links
+- If the environment is ambiguous, ask before querying.
+
+Discovery:
+```fish
+MCP_NO_DAEMON=1 dd-auth --domain app.datadoghq.com -- mcp-cli info datadog-prod
+MCP_NO_DAEMON=1 dd-auth --domain ddstaging.datadoghq.com -- mcp-cli info datadog-staging
+MCP_NO_DAEMON=1 dd-auth --domain app.datadoghq.com -- mcp-cli info datadog-prod search_datadog_logs
+MCP_NO_DAEMON=1 dd-auth --domain app.datadoghq.com -- mcp-cli info datadog-prod get_datadog_metric
+```
+
+Common prod calls:
+```fish
+MCP_NO_DAEMON=1 dd-auth --domain app.datadoghq.com -- mcp-cli call datadog-prod search_datadog_logs '{
+  "query": "service:my-service",
+  "from": "now-15m",
+  "to": "now",
+  "max_tokens": 4000,
+  "telemetry": {"dd_mcp_source": "pi"}
+}'
+
+MCP_NO_DAEMON=1 dd-auth --domain app.datadoghq.com -- mcp-cli call datadog-prod get_datadog_metric '{
+  "queries": [{"name": "query1", "data_source": "metrics", "query": "avg:system.cpu.user{*}"}],
+  "from": "now-15m",
+  "to": "now",
+  "max_tokens": 4000,
+  "telemetry": {"dd_mcp_source": "pi"}
+}'
+```
+
+Common staging calls:
+```fish
+MCP_NO_DAEMON=1 dd-auth --domain ddstaging.datadoghq.com -- mcp-cli call datadog-staging search_datadog_logs '{
+  "query": "kube_cluster_name:stormeagle.us1.staging.dog",
+  "from": "now-15m",
+  "to": "now",
+  "max_tokens": 4000,
+  "telemetry": {"dd_mcp_source": "pi"}
+}'
+
+MCP_NO_DAEMON=1 dd-auth --domain ddstaging.datadoghq.com -- mcp-cli call datadog-staging search_datadog_metrics '{
+  "tag_filter": "kube_cluster_name:stormeagle.us1.staging.dog",
+  "max_tokens": 4000,
+  "telemetry": {"dd_mcp_source": "pi"}
+}'
+```
+
+Rules:
+- Prefer read-only tools.
+- Do not create or edit notebooks or dashboards unless explicitly asked.
+- Use narrow time windows first, usually `now-15m` to `now` or the user-provided incident window.
+- Include `max_tokens` on search/aggregate calls.
+- Include telemetry: `{"dd_mcp_source": "pi"}`.
+- Use stdin/heredocs for complex JSON to avoid shell quoting issues.
+- Never print or persist `DD_API_KEY` or `DD_APP_KEY`.
+{{- end }}

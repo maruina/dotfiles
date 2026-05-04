@@ -1,0 +1,54 @@
+{{ if eq .profile "work" -}}
+---
+description: Uses Atlassian MCP through mcp-cli to read and search Datadog Jira and Confluence. Use when the user asks about Jira issues, Confluence pages, internal Datadog docs, Atlassian search, or documentation stored in datadoghq.atlassian.net.
+---
+# Atlassian MCP
+Use `mcp-cli` to access Datadog Atlassian through the `atlassian` MCP server.
+
+Config:
+- Server: `atlassian`
+- Cloud ID: `66c05bee-f5ff-4718-b6fc-81351e5ef659`
+- Config file: `~/.config/mcp/mcp_servers.json`
+- Transport: `npx -y mcp-remote https://mcp.atlassian.com/v1/mcp`
+
+Discovery:
+```fish
+mcp-cli info atlassian
+mcp-cli info atlassian searchConfluenceUsingCql
+mcp-cli info atlassian searchJiraIssuesUsingJql
+```
+
+Common calls:
+```fish
+mcp-cli call atlassian getAccessibleAtlassianResources '{}'
+
+mcp-cli call atlassian searchConfluenceUsingCql '{
+  "cloudId": "66c05bee-f5ff-4718-b6fc-81351e5ef659",
+  "cql": "text ~ \"query\"",
+  "limit": 10
+}'
+
+mcp-cli call atlassian getConfluencePage '{
+  "cloudId": "66c05bee-f5ff-4718-b6fc-81351e5ef659",
+  "pageId": "PAGE_ID",
+  "contentFormat": "markdown"
+}'
+
+mcp-cli call atlassian searchJiraIssuesUsingJql '{
+  "cloudId": "66c05bee-f5ff-4718-b6fc-81351e5ef659",
+  "jql": "project = ABC AND text ~ \"query\"",
+  "maxResults": 10
+}'
+
+mcp-cli call atlassian getJiraIssue '{
+  "cloudId": "66c05bee-f5ff-4718-b6fc-81351e5ef659",
+  "issueIdOrKey": "ABC-123",
+  "responseContentFormat": "markdown"
+}'
+```
+
+Rules:
+- Prefer read-only tools.
+- Do not create, update, comment, transition, or edit unless the user explicitly asks.
+- Use stdin/heredocs for complex JSON to avoid shell quoting issues.
+{{- end }}

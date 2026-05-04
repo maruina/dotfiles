@@ -101,6 +101,11 @@ if not contains $_asdf_shims $PATH
 end
 set --erase _asdf_shims
 
+{{- if eq .profile "work" }}
+# Add bun global binaries
+fish_add_path "{{ .chezmoi.homeDir }}/.bun/bin"
+{{- end }}
+
 # Add obsidian CLI
 fish_add_path /Applications/Obsidian.app/Contents/MacOS
 

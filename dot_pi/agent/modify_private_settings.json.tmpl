@@ -1,0 +1,18 @@
+#!/bin/sh
+# Chezmoi owns stable pi settings only. Pi owns runtime fields such as
+# lastChangelogVersion, defaultProvider, defaultModel, and defaultThinkingLevel.
+set -eu
+
+input=$(cat)
+if [ -z "$input" ]; then
+  input='{}'
+fi
+
+{{- if eq .profile "work" }}
+printf '%s\n' "$input" | jq '.skills = [
+  "/Users/matteo.ruina/.claude/plugins/marketplaces/datadog-claude-plugins/compute/skills",
+  "/Users/matteo.ruina/.claude/plugins/marketplaces/datadog-claude-plugins/compute-support/skills"
+]'
+{{- else }}
+printf '%s\n' "$input" | jq '.'
+{{- end }}

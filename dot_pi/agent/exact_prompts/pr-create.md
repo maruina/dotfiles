@@ -124,9 +124,20 @@ gh pr edit <number> --body "..."
 
 Title format: `[TICKET] type(scope): subject` where type is `feat`, `fix`, `refactor`, or `docs`. Omit the ticket prefix if there is no linked ticket.
 
-## Phase 8: Report
+## Phase 8: Trigger Codex review
+
+After creating the PR, always comment on the PR to trigger Codex review:
+
+```fish
+gh pr comment <number-or-url> --body "@codex review"
+```
+
+If the PR already existed and Phase 7 only updated it, do not post a duplicate Codex review comment unless the user explicitly asks.
+
+## Phase 9: Report
 
 Print:
 - PR URL
+- Whether the `@codex review` comment was posted
 - The reviewer guide table as a compact summary
 - Any rebasing that was done and the backup branch name if applicable

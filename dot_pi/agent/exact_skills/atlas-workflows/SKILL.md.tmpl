@@ -1,0 +1,195 @@
+{{ if eq .profile "work" -}}
+---
+description: Investigates Datadog Atlas and Temporal workflow executions from Atlas or Temporal URLs. Use when the user asks about Atlas workflow status, failures, history, input, child workflows, activity failures, or provides atlas.ddbuild.io or temporal.ddbuild.io workflow links.
+---
+# Atlas Workflows
+Use the `atlas` CLI to inspect Datadog Atlas workflow executions.
+
+## When to use
+Use this skill when the user provides or asks about:
+- `https://atlas.ddbuild.io/namespaces/<namespace>/workflows/<workflow-id>/<run-id>/history`
+- `https://temporal.ddbuild.io/namespaces/<namespace>/workflows/<workflow-id>/<run-id>`
+- Atlas workflow status, failure reason, input, history, child workflows, or activity failures.
+
+## URL parsing
+Parse URLs with this path shape:
+
+```text
+/namespaces/<namespace>/workflows/<workflow-id>/<run-id>[/history]
+```
+
+Extract:
+- `namespace`
+- `workflow-id`
+- `run-id`
+- host, to infer environment when possible
+
+Example:
+
+```text
+https://atlas.ddbuild.io/namespaces/default/workflows/019df427-c144-7892-93c1-dfa809fe5c4b_44/019df427-d3a3-7401-b231-09da96462c45/history
+```
+
+Parsed:
+
+```text
+namespace=default
+workflow-id=019df427-c144-7892-93c1-dfa809fe5c4b_44
+run-id=019df427-d3a3-7401-b231-09da96462c45
+```
+
+## Find the Atlas target
+If the user gives an explicit context/domain, use it.
+
+For `atlas.ddbuild.io` or `temporal.ddbuild.io`, start with classic contexts. `prod` often backs ddbuild workflow URLs even when the workflow operates on staging clusters.
+
+```fish
+atlas context list
+```
+
+Try contexts in this order unless evidence suggests otherwise:
+
+```text
+prod
+staging
+dev
+```
+
+A quick existence probe:
+
+```fish
+atlas workflow input \
+  -c <context> \
+  -w '<workflow-id>' \
+  -r '<run-id>' \
+  --non-interactive
+```
+
+If the workflow is domain-based, use the domain form instead:
+
+```fish
+atlas workflow input \
+  --domain <domain> \
+  --datacenter <datacenter> \
+  --partition <partition> \
+  -w '<workflow-id>' \
+  -r '<run-id>' \
+  --non-interactive
+```
+
+Common domain datacenters include `us1.ddbuild.io`, `us1.staging.dog`, `us1.prod.dog`, `eu1.prod.dog`, and `eu1.staging.dog`. Ask when domain or datacenter cannot be inferred.
+
+## Inspect status and failure tree
+Prefer table output for status/failure analysis. It gives a compact tree of workflows, child workflows, activities, failures, task queue, and UI links.
+
+Classic context:
+
+```fish
+atlas workflow watch \
+  -c <context> \
+  -w '<workflow-id>' \
+  -r '<run-id>' \
+  --all \
+  --non-interactive
+```
+
+Domain-based:
+
+```fish
+atlas workflow watch \
+  --domain <domain> \
+  --datacenter <datacenter> \
+  --partition <partition> \
+  -w '<workflow-id>' \
+  -r '<run-id>' \
+  --all \
+  --non-interactive
+```
+
+Use `--depth <n>` to limit large trees:
+
+```fish
+atlas workflow watch -c <context> -w '<workflow-id>' -r '<run-id>' --depth 2 --all --non-interactive
+```
+
+Avoid `--output jsonl` for first-pass failure analysis unless a structured stream is required; it can be noisy/repetitive for large workflows.
+
+## Fetch input and output
+Input:
+
+```fish
+atlas workflow input -c <context> -w '<workflow-id>' -r '<run-id>' --non-interactive | jq
+```
+
+Output, if completed:
+
+```fish
+atlas workflow output -c <context> -w '<workflow-id>' -r '<run-id>' --non-interactive | jq
+```
+
+## Fetch raw Temporal history
+Use raw history for replay tests, event-level debugging, or payload extraction. It can be large; save to a file or summarize with `jq`.
+
+Classic context:
+
+```fish
+atlas --context <context> -- \
+  temporal workflow show \
+    --workflow-id '<workflow-id>' \
+    --run-id '<run-id>' \
+    --namespace '<namespace>' \
+    --output json > workflow_history.json
+```
+
+Domain-based:
+
+```fish
+atlas --domain <domain> --datacenter <datacenter> --partition <partition> -- \
+  temporal workflow show \
+    --workflow-id '<workflow-id>' \
+    --run-id '<run-id>' \
+    --namespace '<namespace>' \
+    --output json > workflow_history.json
+```
+
+Summarize events:
+
+```fish
+jq -r '.history.events[] | [.eventId, .eventType] | @tsv' workflow_history.json | head -100
+```
+
+## Fetch event payload
+Find an event ID from `atlas workflow watch` or raw history, then:
+
+```fish
+atlas workflow payload \
+  -c <context> \
+  -w '<workflow-id>' \
+  -r '<run-id>' \
+  --event-id <event-id> \
+  --non-interactive | jq
+```
+
+## Answer format
+When answering workflow status questions, include:
+- status: completed, running, failed, canceled, timed out, or not found
+- context/domain used
+- workflow type, workflow ID, run ID, task queue
+- input, if relevant and safe
+- concise failure chain from top-level workflow to the root failing child/activity
+- retry state and whether the failure is retryable, when visible
+- next useful command or investigation target
+
+For failures, lead with the cause. Example pattern:
+
+```text
+Status: failed.
+Why: <top-level workflow> failed while <phase/action>. The failure chain is <child workflow/activity> -> <root error>. The root visible error is <message>; retry state is <state>.
+```
+
+## Safety and scope
+- Read-only by default. Do not cancel, terminate, signal, or start workflows unless explicitly asked.
+- Do not paste huge raw histories into chat. Summarize or write them to a temp file.
+- If auth prompts appear, tell the user to complete Atlas/ddtool auth and retry.
+- If multiple contexts match or environment is ambiguous, ask before drawing conclusions.
+{{ end -}}

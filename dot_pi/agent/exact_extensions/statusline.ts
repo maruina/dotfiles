@@ -26,6 +26,33 @@ function shortModel(id?: string): string {
 		.replace(/^gpt-/, "gpt ");
 }
 
+function modelCapabilities(model: unknown): string {
+	const m = model as { reasoning?: boolean; thinkingLevelMap?: Record<string, string | null | undefined>; input?: string[] } | undefined;
+	const parts: string[] = [];
+
+	if (m?.reasoning) {
+		const labels = [
+			["minimal", "Mi"],
+			["low", "L"],
+			["medium", "Me"],
+			["high", "H"],
+			["xhigh", "X"],
+		] as const;
+		const levels = labels.filter(([level]) => m.thinkingLevelMap?.[level] !== null).map(([, label]) => label);
+		if (levels.length > 0) parts.push(`T:${levels.join("/")}`);
+	}
+
+	if (m?.input?.includes("image")) parts.push("I");
+	return parts.join(" ");
+}
+
+function modelStatus(model: unknown): string {
+	const m = model as { id?: string; name?: string } | undefined;
+	const label = m?.name ?? shortModel(m?.id);
+	const capabilities = modelCapabilities(model);
+	return [label, capabilities].filter(Boolean).join(" ");
+}
+
 function sandboxStatus(): string | undefined {
 	if (process.env.SHADOWFAX_INDICATOR === "0") return undefined;
 	if (!process.env.NONO_CAP_FILE) return undefined;
@@ -68,7 +95,7 @@ export default function (pi: ExtensionAPI) {
 					const leftParts = [
 						dir ? `📁 ${dir}` : undefined,
 						branch ? `⎇ ${branch}` : "⎇ no git",
-						shortModel(ctx.model?.id),
+						modelStatus(ctx.model),
 						thinking !== "off" ? thinking : undefined,
 					].filter(Boolean);
 

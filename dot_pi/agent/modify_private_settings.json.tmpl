@@ -9,10 +9,19 @@ if [ -z "$input" ]; then
 fi
 
 {{- if eq .profile "work" }}
-printf '%s\n' "$input" | jq '.skills = [
-  "/Users/matteo.ruina/.claude/plugins/marketplaces/datadog-claude-plugins/compute/skills",
-  "/Users/matteo.ruina/.claude/plugins/marketplaces/datadog-claude-plugins/compute-support/skills"
-]'
+printf '%s\n' "$input" | jq '
+  .skills = [
+    "/Users/matteo.ruina/.claude/plugins/marketplaces/datadog-claude-plugins/compute/skills",
+    "/Users/matteo.ruina/.claude/plugins/marketplaces/datadog-claude-plugins/compute-support/skills"
+  ] |
+  del(.extensions.files) |
+  .extensionSettings.files.diffEditor = "zed" |
+  .extensionSettings.files.externalEditor = "zed"
+'
 {{- else }}
-printf '%s\n' "$input" | jq '.'
+printf '%s\n' "$input" | jq '
+  del(.extensions.files) |
+  .extensionSettings.files.diffEditor = "zed" |
+  .extensionSettings.files.externalEditor = "zed"
+'
 {{- end }}

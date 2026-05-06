@@ -1,0 +1,130 @@
+{{ if eq .profile "work" -}}
+---
+name: gitlab-ci-errors
+description: Finds failing GitLab CI jobs for a Datadog PR and fetches their logs with glab. Use when a user gives a GitHub PR, branch, commit, or asks for CI errors, failed jobs, GitLab logs, or why a Datadog PR CI job failed. Covers Datadog glab authentication via ddtool auth gitlab project-token.
+---
+# GitLab CI Errors
+Use this skill to identify failing CI jobs on a Datadog PR and fetch actionable logs from GitLab CI using `glab`.
+
+Why: Datadog GitLab is self-hosted and uses custom auth, so stock `glab` often fails unless `GITLAB_HOST` and `GITLAB_TOKEN` are injected from `ddtool`.
+
+## Prerequisites
+Check tools before starting:
+```bash
+command -v gh
+command -v glab
+command -v ddtool
+command -v jq
+```
+If `glab` is missing, install it with `brew install glab`. If `ddtool` is missing, install it with `brew install datadog/tap/ddtool`.
+
+## Inputs
+Accept any of:
+- GitHub PR URL: `https://github.com/DataDog/<repo>/pull/<num>`
+- Current local branch with an open PR
+- Commit SHA or branch name
+- A GitLab job URL or job ID
+
+## Authentication
+For every DataDog repo, get a project token and run `glab` against Datadog GitLab:
+```bash
+owner=DataDog
+repo=<repo>
+token=$(ddtool auth gitlab project-token "$owner" "$repo")
+GITLAB_HOST=gitlab.ddbuild.io GITLAB_TOKEN="$token" glab --repo "$owner/$repo" <args>
+```
+Do not ask the user for a token. Do not persist the token in shell config unless the user asks.
+
+## Workflow
+### 1. Resolve the PR and repository
+If the user gives a GitHub PR URL:
+```bash
+pr_url='<url>'
+owner=$(echo "$pr_url" | sed -E 's#https://github.com/([^/]+)/([^/]+)/pull/([0-9]+).*#\1#')
+repo=$(echo "$pr_url" | sed -E 's#https://github.com/([^/]+)/([^/]+)/pull/([0-9]+).*#\2#')
+pr_number=$(echo "$pr_url" | sed -E 's#https://github.com/([^/]+)/([^/]+)/pull/([0-9]+).*#\3#')
+```
+Otherwise, from a local checkout:
+```bash
+owner=$(gh repo view --json owner -q .owner.login)
+repo=$(gh repo view --json name -q .name)
+pr_number=$(gh pr view --json number -q .number 2>/dev/null || true)
+```
+If no PR is found, resolve by commit:
+```bash
+commit_sha=$(git rev-parse HEAD)
+name_with_owner=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+pr_number=$(gh api "repos/${name_with_owner}/commits/${commit_sha}/pulls" --jq '.[0].number')
+```
+
+### 2. Find failed checks and GitLab links
+Use GitHub as the index because Datadog PRs expose CI checks there:
+```bash
+gh pr checks "$pr_number" --repo "$owner/$repo" --json name,state,link,startedAt,completedAt,bucket \
+  --jq '.[] | select(.state == "FAILURE" or .state == "ERROR" or .state == "CANCELLED") | [.name,.state,.link] | @tsv'
+```
+Classify links:
+- GitLab job: `https://gitlab.ddbuild.io/DataDog/<repo>/-/jobs/<job_id>`
+- Mosaic DDCI request: `https://mosaic.us1.ddbuild.io/change-request/<request_id>` or `/request/<request_id>?...taskExecutionId=<job_id>`
+- GitHub Actions: `https://github.com/...` (use `gh run view --log-failed`, not `glab`)
+
+For Mosaic links, extract IDs:
+```bash
+request_id=$(echo "$link" | sed -E 's#.*/request/([0-9]+).*#\1#')
+job_id=$(echo "$link" | sed -nE 's#.*[?&]taskExecutionId=([0-9]+).*#\1#p')
+pipeline_id=$(echo "$link" | sed -nE 's#.*[?&]pipelineId=([0-9]+).*#\1#p')
+```
+
+### 3. Fetch logs for GitLab jobs
+Extract `job_id` from the check link and run:
+```bash
+token=$(ddtool auth gitlab project-token "$owner" "$repo")
+GITLAB_HOST=gitlab.ddbuild.io GITLAB_TOKEN="$token" \
+  glab --repo "$owner/$repo" ci trace "$job_id"
+```
+If `glab ci trace` is unavailable in the installed version, fall back to GitLab API through `glab api`:
+```bash
+project_path=$(python3 - <<'PY'
+import urllib.parse, os
+print(urllib.parse.quote(os.environ['OWNER'] + '/' + os.environ['REPO'], safe=''))
+PY
+)
+GITLAB_HOST=gitlab.ddbuild.io GITLAB_TOKEN="$token" \
+  glab --repo "$owner/$repo" api "projects/${project_path}/jobs/${job_id}/trace"
+```
+
+### 4. Fetch failed jobs from a pipeline or Mosaic request
+If a GitLab pipeline ID is available:
+```bash
+GITLAB_HOST=gitlab.ddbuild.io GITLAB_TOKEN="$token" \
+  glab --repo "$owner/$repo" ci view "$pipeline_id"
+```
+Then fetch each failed job trace as above.
+
+If the Mosaic link includes `taskExecutionId`, that value is the GitLab native `job_id`; fetch it directly with `glab ci trace` or the DDCI helper.
+
+If only the Mosaic DDCI request is available, use the existing universal DDCI helper first because it maps request tasks to GitLab native job IDs:
+```bash
+${CLAUDE_PLUGIN_ROOT}/skills/fetch-ci-results/scripts/get_ddci_logs.sh --list-failed <request_id>
+${CLAUDE_PLUGIN_ROOT}/skills/fetch-ci-results/scripts/get_ddci_logs.sh <job_id> <request_id> --summary
+```
+Use `glab` after that if you need the raw GitLab trace for the same `job_id`.
+
+### 5. Analyze logs
+For each failed job, report:
+- job name, status, and link
+- first clear failing command/test/error
+- file path and line number when present
+- likely root cause, with quoted log evidence
+- whether the failure looks flaky or deterministic
+- next action: fix, retry, or ask for ownership/context
+
+Keep the output concise. Prefer the last 200-400 relevant log lines over dumping full traces.
+
+## Error handling
+- `401`, `403`, or `Unauthorized`: rerun `ddtool auth gitlab project-token DataDog <repo>` and verify repository access.
+- `gitlab.com` host errors: set `GITLAB_HOST=gitlab.ddbuild.io`.
+- `glab` cannot infer repo: always pass `--repo DataDog/<repo>`.
+- DDCI API timeout: likely AppGate VPN is disconnected; ask the user to connect VPN and retry.
+- No failed checks: report that CI is green or still running; include pending/running checks if relevant.
+{{- end }}

@@ -29,15 +29,15 @@ Choose prod vs staging from the cluster/datacenter name:
 
 Discovery:
 ```fish
-MCP_NO_DAEMON=1 dd-auth --domain app.datadoghq.com -- mcp-cli info datadog-prod
-MCP_NO_DAEMON=1 dd-auth --domain ddstaging.datadoghq.com -- mcp-cli info datadog-staging
-MCP_NO_DAEMON=1 dd-auth --domain app.datadoghq.com -- mcp-cli info datadog-prod search_datadog_logs
-MCP_NO_DAEMON=1 dd-auth --domain app.datadoghq.com -- mcp-cli info datadog-prod get_datadog_metric
+dd-auth --domain app.datadoghq.com -- mcp-cli info datadog-prod
+dd-auth --domain ddstaging.datadoghq.com -- mcp-cli info datadog-staging
+dd-auth --domain app.datadoghq.com -- mcp-cli info datadog-prod search_datadog_logs
+dd-auth --domain app.datadoghq.com -- mcp-cli info datadog-prod get_datadog_metric
 ```
 
 Common prod calls:
 ```fish
-MCP_NO_DAEMON=1 dd-auth --domain app.datadoghq.com -- mcp-cli call datadog-prod search_datadog_logs '{
+dd-auth --domain app.datadoghq.com -- mcp-cli call datadog-prod search_datadog_logs '{
   "query": "service:my-service",
   "from": "now-15m",
   "to": "now",
@@ -45,7 +45,7 @@ MCP_NO_DAEMON=1 dd-auth --domain app.datadoghq.com -- mcp-cli call datadog-prod 
   "telemetry": {"dd_mcp_source": "pi"}
 }'
 
-MCP_NO_DAEMON=1 dd-auth --domain app.datadoghq.com -- mcp-cli call datadog-prod get_datadog_metric '{
+dd-auth --domain app.datadoghq.com -- mcp-cli call datadog-prod get_datadog_metric '{
   "queries": [{"name": "query1", "data_source": "metrics", "query": "avg:system.cpu.user{*}"}],
   "from": "now-15m",
   "to": "now",
@@ -56,7 +56,7 @@ MCP_NO_DAEMON=1 dd-auth --domain app.datadoghq.com -- mcp-cli call datadog-prod 
 
 Common staging calls:
 ```fish
-MCP_NO_DAEMON=1 dd-auth --domain ddstaging.datadoghq.com -- mcp-cli call datadog-staging search_datadog_logs '{
+dd-auth --domain ddstaging.datadoghq.com -- mcp-cli call datadog-staging search_datadog_logs '{
   "query": "kube_cluster_name:stormeagle.us1.staging.dog",
   "from": "now-15m",
   "to": "now",
@@ -64,7 +64,7 @@ MCP_NO_DAEMON=1 dd-auth --domain ddstaging.datadoghq.com -- mcp-cli call datadog
   "telemetry": {"dd_mcp_source": "pi"}
 }'
 
-MCP_NO_DAEMON=1 dd-auth --domain ddstaging.datadoghq.com -- mcp-cli call datadog-staging search_datadog_metrics '{
+dd-auth --domain ddstaging.datadoghq.com -- mcp-cli call datadog-staging search_datadog_metrics '{
   "tag_filter": "kube_cluster_name:stormeagle.us1.staging.dog",
   "max_tokens": 4000,
   "telemetry": {"dd_mcp_source": "pi"}

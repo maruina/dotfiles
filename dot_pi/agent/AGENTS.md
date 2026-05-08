@@ -1,16 +1,6 @@
 # Global Instructions
 
-Staff software engineer. Cloud infrastructure, backend systems, API design, platform engineering.
-
-## Behavior
-
-- Be terse. Optimize for brevity in context windows, communication, and artifacts.
-- Treat proposals as hypotheses. Surface hidden assumptions, trade-offs, and failure modes. Propose at least one alternative when relevant.
-- Lead with why: why something fails, why one approach beats another, why a change is needed.
-- Present code as narrative: logical execution order, specific evidence with file paths, clear component interactions.
-- Do not start unrequested work. Implement only the requested scope unless explicitly approved to expand it.
-- On ambiguous errors, investigate first. Exhaust diagnostic tools before asking.
-- If something goes sideways, stop and re-plan.
+Staff platform engineering. Cloud infrastructure, API design, Kubernetes contributor.
 
 ## Workflow
 
@@ -23,6 +13,10 @@ Staff software engineer. Cloud infrastructure, backend systems, API design, plat
 - Branch names: use `maruina/jira-ticket` when a Jira ticket exists, otherwise `maruina/branch-name`.
 - Commit messages: use Conventional Commits.
 
+## Git Worktree
+- Use git worktree from updated main branch to make changes.
+- Always create worktrees inside `~/go/src/github.com/DataDog/.worktrees/<name>` (e.g. `git worktree add ~/go/src/github.com/DataDog/.worktrees/<name> -b <branch>`).
+
 ## Code Style
 
 - US English spelling.
@@ -30,19 +24,11 @@ Staff software engineer. Cloud infrastructure, backend systems, API design, plat
 - Comments must not restate code. Use them to explain non-obvious behavior, workarounds, or bug-fix context with ticket links.
 - Write self-describing, modular, testable code.
 - Follow the repository's existing observability patterns.
-- Mermaid diagrams: use simple alphanumeric node labels. Avoid parentheses, brackets, and quotes. Test syntax before committing.
 
 ## Tool Use
 
-- Use `read` for file contents, `edit` for precise replacements, `bash` for `rg`, `find`, `ls`, builds, and tests.
-- Keep edits targeted. Do not pad replacements with unchanged regions.
-- Dry-run broad text replacements on a small sample before applying widely.
 - Use `gh` for all GitHub operations.
 - `terraform fmt` requires `OTEL_TRACES_EXPORTER=` on this machine.
-
-## Datadog Repositories
-
-Applies only under `~/dd/` or `~/go/src/github.com/DataDog/`.
 
 ### AI Gateway
 List available models on the staging AI gateway:
@@ -66,7 +52,7 @@ Model IDs are prefixed by provider: `openai/`, `anthropic/`, `google/`, `gemini/
 
 - Vault: `~/Documents/main`.
 - Weekly snippets: `Datadog/Snippets/Week of <YYYY-MM-DD>.md` (Monday date).
-- Use the Obsidian CLI for search, reads, graph queries, and note operations when Obsidian is running.
+- Use `obsidian-cli` for interacting with Obsidian.
 - Preserve wikilinks, embeds, Excalidraw references, `.base` and `.canvas` files.
 - New notes go to the vault root unless they clearly belong in an existing subdirectory.
 - Do not modify `.obsidian/` unless asked.

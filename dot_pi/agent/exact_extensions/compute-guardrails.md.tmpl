@@ -1,3 +1,4 @@
+{{- if eq .profile "work" -}}
 # compute-guardrails
 
 A pi extension that blocks destructive shell commands before they run.
@@ -236,3 +237,4 @@ Any command that **creates, mutates, deletes, or opens a shell** on live infrast
 | Pattern | Reason |
 |---|---|
 | `rm -r` / `rm -rf` | recursive filesystem delete |
+{{- end }}

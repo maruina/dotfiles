@@ -314,6 +314,7 @@ function findDeniedOperation(command: string): DenyRecord | null {
 // ---------------------------------------------------------------------------
 
 export default function (pi: ExtensionAPI) {
+{{ if eq .profile "work" }}
   let enabled = true;
 
   pi.registerCommand("compute-guardrails-off", {
@@ -351,4 +352,5 @@ export default function (pi: ExtensionAPI) {
       reason: `[compute-guardrails] blocked: \`${subLabel}\` — ${hit.reason}. Run this command manually in a terminal if you need it.`,
     };
   });
+{{ end }}
 }

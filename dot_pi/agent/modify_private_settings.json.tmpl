@@ -11,8 +11,8 @@ fi
 {{- if eq .profile "work" }}
 printf '%s\n' "$input" | jq '
   .skills = [
-    "/Users/matteo.ruina/.claude/plugins/marketplaces/datadog-claude-plugins/compute/skills",
-    "/Users/matteo.ruina/.claude/plugins/marketplaces/datadog-claude-plugins/compute-support/skills"
+    "/Users/matteo.ruina/dd/claude-marketplace/compute/skills",
+    "/Users/matteo.ruina/dd/claude-marketplace/compute-support/skills"
   ] |
   del(.extensions.files) |
   .extensionSettings.files.diffEditor = "zed" |

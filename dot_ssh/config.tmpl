@@ -10,6 +10,11 @@ ServerAliveInterval 30
     IdentityFile ~/.ssh/id_rsa
     StrictHostKeyChecking no
 
+Host github-dd
+  Hostname github.com
+  User git
+  IdentityAgent "~/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"
+
 Host i-* mi-*
     ProxyCommand sh -c "aws ssm start-session --target %h --document-name AWS-StartSSHSession --parameters 'portNumber=%p'"
 {{- end }}

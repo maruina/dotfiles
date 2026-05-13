@@ -1,0 +1,238 @@
+# compute-guardrails
+
+A pi extension that blocks destructive shell commands before they run.
+
+Covers `kubectl`, `ddtool`, `helm`, `aws`, and `rm -r`. All other commands pass through silently.
+
+## Principle
+
+Read-only operations (`get`, `describe`, `list`, `logs`, `diff`, …) are always allowed.
+Any command that **creates, mutates, deletes, or opens a shell** on live infrastructure is blocked and must be run manually in a terminal.
+
+## Controls
+
+| Action | How |
+|---|---|
+| Disable for one session | `pi --no-extensions` |
+| Disable for a project | Add `{ "extensions": ["!**/compute-guardrails*"] }` to `.pi/settings.json` |
+| Disable in-session | `/compute-guardrails-off` (active until `/reload` or restart) |
+
+## Blocked commands
+
+### kubectl
+
+| Command | Reason |
+|---|---|
+| `kubectl annotate` | adds/removes annotations |
+| `kubectl apply` | applies resource manifests |
+| `kubectl attach` | attaches to a running container |
+| `kubectl auth reconcile` | writes RBAC rules |
+| `kubectl autoscale` | creates/updates HPA configuration |
+| `kubectl certificate` | approves or denies CSRs |
+| `kubectl config delete` | removes a kubeconfig entry |
+| `kubectl config rename` | renames a kubeconfig context |
+| `kubectl config set` | mutates kubeconfig fields |
+| `kubectl config unset` | unsets kubeconfig fields |
+| `kubectl config use` | switches the active kubeconfig context |
+| `kubectl cordon` | marks a node unschedulable |
+| `kubectl cp` | copies files into or out of a container |
+| `kubectl create` | creates resources |
+| `kubectl debug` | spawns a debug container |
+| `kubectl delete` | deletes resources |
+| `kubectl drain` | drains a node; evicts workloads |
+| `kubectl edit` | opens an editor to modify a resource |
+| `kubectl exec` | executes arbitrary commands in a container |
+| `kubectl expose` | creates a Service resource |
+| `kubectl label` | adds/removes labels |
+| `kubectl patch` | mutates resource fields |
+| `kubectl port-forward` | opens a network tunnel to a pod |
+| `kubectl proxy` | opens an API proxy |
+| `kubectl replace` | replaces resources |
+| `kubectl rollout pause` | pauses a workload rollout |
+| `kubectl rollout restart` | restarts workload pods |
+| `kubectl rollout resume` | resumes a workload rollout |
+| `kubectl rollout undo` | rolls a workload back to a prior revision |
+| `kubectl run` | creates and runs a pod |
+| `kubectl scale` | changes replica count |
+| `kubectl set` | mutates fields on resources (image, env, etc.) |
+| `kubectl taint` | adds/removes node taints |
+| `kubectl uncordon` | marks a node schedulable |
+
+### ddtool
+
+| Command | Reason |
+|---|---|
+| `ddtool clusters add-workloads` | attaches workloads to a cluster |
+| `ddtool clusters remove-workloads` | detaches workloads from a cluster |
+| `ddtool cordons create` | creates a cordon |
+| `ddtool cordons delete` | deletes a cordon |
+| `ddtool cordons update` | updates a cordon |
+| `ddtool namespaces create` | creates a namespace record |
+| `ddtool namespaces delete` | deletes a namespace record |
+| `ddtool namespaces update` | updates a namespace record |
+| `ddtool workload-groups add-namespaces` | adds namespaces to a workload group |
+| `ddtool workload-groups create` | creates a workload group |
+| `ddtool workload-groups delete` | deletes a workload group |
+| `ddtool workload-groups remove-namespaces` | removes namespaces from a workload group |
+
+### helm
+
+| Command | Reason |
+|---|---|
+| `helm delete` | removes a release |
+| `helm install` | installs a release |
+| `helm repo add` | adds a chart repo |
+| `helm repo remove` | removes a chart repo |
+| `helm repo update` | updates chart repo index |
+| `helm rollback` | rolls a release back to a prior revision |
+| `helm uninstall` | removes a release |
+| `helm upgrade` | upgrades an existing release |
+
+### aws ec2
+
+| Command | Reason |
+|---|---|
+| `aws ec2 run-instances` | launches EC2 instances |
+| `aws ec2 start-instances` | starts stopped EC2 instances |
+| `aws ec2 stop-instances` | stops running EC2 instances |
+| `aws ec2 reboot-instances` | reboots EC2 instances |
+| `aws ec2 terminate-instances` | permanently terminates EC2 instances |
+| `aws ec2 modify-instance-attribute` | mutates instance attributes |
+| `aws ec2 modify-instance-metadata-options` | mutates instance metadata options |
+| `aws ec2 modify-network-interface-attribute` | mutates network interface attributes |
+| `aws ec2 modify-subnet-attribute` | mutates subnet attributes |
+| `aws ec2 modify-vpc-attribute` | mutates VPC attributes |
+| `aws ec2 modify-security-group-rules` | mutates security group rules |
+| `aws ec2 authorize-security-group-ingress` | adds inbound security group rules |
+| `aws ec2 authorize-security-group-egress` | adds outbound security group rules |
+| `aws ec2 revoke-security-group-ingress` | removes inbound security group rules |
+| `aws ec2 revoke-security-group-egress` | removes outbound security group rules |
+| `aws ec2 create-security-group` | creates a security group |
+| `aws ec2 delete-security-group` | deletes a security group |
+| `aws ec2 attach-volume` | attaches an EBS volume to an instance |
+| `aws ec2 detach-volume` | detaches an EBS volume from an instance |
+| `aws ec2 delete-volume` | deletes an EBS volume |
+| `aws ec2 delete-snapshot` | deletes an EBS snapshot |
+| `aws ec2 create-route` | creates a route table entry |
+| `aws ec2 delete-route` | deletes a route table entry |
+| `aws ec2 replace-route` | replaces a route table entry |
+| `aws ec2 create-internet-gateway` | creates an internet gateway |
+| `aws ec2 attach-internet-gateway` | attaches an internet gateway to a VPC |
+| `aws ec2 detach-internet-gateway` | detaches an internet gateway from a VPC |
+| `aws ec2 delete-internet-gateway` | deletes an internet gateway |
+| `aws ec2 delete-nat-gateway` | deletes a NAT gateway |
+| `aws ec2 delete-key-pair` | deletes an EC2 key pair |
+| `aws ec2 deregister-image` | deregisters an AMI |
+
+### aws eks
+
+| Command | Reason |
+|---|---|
+| `aws eks create-cluster` | creates an EKS cluster |
+| `aws eks delete-cluster` | deletes an EKS cluster |
+| `aws eks update-cluster-config` | mutates EKS cluster configuration |
+| `aws eks update-cluster-version` | upgrades the EKS control plane |
+| `aws eks create-nodegroup` | creates an EKS managed nodegroup |
+| `aws eks delete-nodegroup` | deletes an EKS managed nodegroup |
+| `aws eks update-nodegroup-config` | mutates nodegroup configuration (desired/min/max) |
+| `aws eks update-nodegroup-version` | upgrades nodegroup AMI version |
+| `aws eks create-fargate-profile` | creates a Fargate profile |
+| `aws eks delete-fargate-profile` | deletes a Fargate profile |
+| `aws eks create-addon` | installs an EKS addon |
+| `aws eks delete-addon` | removes an EKS addon |
+| `aws eks update-addon` | updates an EKS addon |
+| `aws eks update-kubeconfig` | mutates local kubeconfig with cluster credentials |
+
+### aws autoscaling
+
+| Command | Reason |
+|---|---|
+| `aws autoscaling create-auto-scaling-group` | creates an Auto Scaling Group |
+| `aws autoscaling delete-auto-scaling-group` | deletes an Auto Scaling Group |
+| `aws autoscaling update-auto-scaling-group` | mutates ASG configuration (min/max/desired) |
+| `aws autoscaling set-desired-capacity` | directly sets ASG desired capacity |
+| `aws autoscaling terminate-instance-in-auto-scaling-group` | terminates a specific instance in an ASG |
+| `aws autoscaling detach-instances` | removes instances from an ASG |
+| `aws autoscaling suspend-processes` | suspends ASG scaling/health processes |
+| `aws autoscaling resume-processes` | resumes ASG scaling/health processes |
+| `aws autoscaling put-scaling-policy` | creates or updates an ASG scaling policy |
+| `aws autoscaling delete-policy` | deletes an ASG scaling policy |
+| `aws autoscaling set-instance-health` | overrides instance health state in an ASG |
+| `aws autoscaling set-instance-protection` | enables/disables scale-in protection on instances |
+
+### aws iam
+
+| Command | Reason |
+|---|---|
+| `aws iam create-role` | creates an IAM role |
+| `aws iam delete-role` | deletes an IAM role |
+| `aws iam update-role` | mutates an IAM role |
+| `aws iam attach-role-policy` | attaches a managed policy to a role |
+| `aws iam detach-role-policy` | detaches a managed policy from a role |
+| `aws iam put-role-policy` | creates/replaces an inline role policy |
+| `aws iam delete-role-policy` | deletes an inline role policy |
+| `aws iam update-assume-role-policy` | replaces a role's trust policy |
+| `aws iam create-policy` | creates an IAM managed policy |
+| `aws iam delete-policy` | deletes an IAM managed policy |
+| `aws iam create-policy-version` | creates a new managed policy version |
+| `aws iam create-user` | creates an IAM user |
+| `aws iam delete-user` | deletes an IAM user |
+| `aws iam attach-user-policy` | attaches a managed policy to a user |
+| `aws iam detach-user-policy` | detaches a managed policy from a user |
+| `aws iam put-user-policy` | creates/replaces an inline user policy |
+| `aws iam create-access-key` | creates an IAM access key |
+| `aws iam delete-access-key` | deletes an IAM access key |
+| `aws iam create-service-linked-role` | creates an IAM service-linked role |
+| `aws iam delete-service-linked-role` | deletes an IAM service-linked role |
+
+### aws s3 / s3api
+
+| Command | Reason |
+|---|---|
+| `aws s3 rm` | deletes S3 objects or prefixes |
+| `aws s3 mv` | moves S3 objects (copy + delete) |
+| `aws s3 cp` | copies files into or out of S3 |
+| `aws s3 sync` | syncs files into or out of S3 (may delete objects) |
+| `aws s3 rb` | removes an S3 bucket |
+| `aws s3 mb` | creates an S3 bucket |
+| `aws s3api create-bucket` | creates an S3 bucket |
+| `aws s3api delete-bucket` | deletes an S3 bucket |
+| `aws s3api delete-object` | deletes an S3 object |
+| `aws s3api delete-objects` | bulk-deletes S3 objects |
+| `aws s3api put-bucket-policy` | replaces an S3 bucket policy |
+| `aws s3api delete-bucket-policy` | removes an S3 bucket policy |
+| `aws s3api put-public-access-block` | modifies S3 public access block settings |
+| `aws s3api delete-public-access-block` | removes S3 public access block settings |
+| `aws s3api put-bucket-versioning` | enables/suspends S3 bucket versioning |
+| `aws s3api put-bucket-lifecycle-configuration` | sets S3 lifecycle rules |
+| `aws s3api put-object` | uploads an object to S3 |
+
+### aws ssm
+
+| Command | Reason |
+|---|---|
+| `aws ssm send-command` | runs arbitrary commands on managed instances |
+| `aws ssm start-session` | opens an interactive shell session on a managed instance |
+| `aws ssm put-parameter` | creates or overwrites an SSM Parameter Store value |
+| `aws ssm delete-parameter` | deletes an SSM Parameter Store value |
+| `aws ssm delete-parameters` | bulk-deletes SSM Parameter Store values |
+| `aws ssm start-automation-execution` | starts an SSM Automation runbook |
+| `aws ssm stop-automation-execution` | stops a running SSM Automation execution |
+
+### aws secretsmanager
+
+| Command | Reason |
+|---|---|
+| `aws secretsmanager create-secret` | creates a Secrets Manager secret |
+| `aws secretsmanager delete-secret` | deletes a Secrets Manager secret |
+| `aws secretsmanager put-secret-value` | overwrites a secret value |
+| `aws secretsmanager update-secret` | mutates a Secrets Manager secret |
+| `aws secretsmanager rotate-secret` | triggers immediate secret rotation |
+| `aws secretsmanager put-resource-policy` | replaces a secret's resource-based policy |
+| `aws secretsmanager delete-resource-policy` | removes a secret's resource-based policy |
+
+### rm
+
+| Pattern | Reason |
+|---|---|
+| `rm -r` / `rm -rf` | recursive filesystem delete |

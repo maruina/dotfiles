@@ -32,26 +32,60 @@ Also read any `CLAUDE.md` or `AGENTS.md` in the repo root and in the packages be
 For each changed file group (implementation, tests, config, generated):
 
 - Read the full diff for each non-generated file.
-- Identify the logical topics — a topic is a self-contained concern a reviewer can evaluate independently (e.g. "CRD API field", "webhook logic", "reconciler update").
+- Identify the smallest independent review topics. A topic is a self-contained concern a reviewer can evaluate independently (e.g. "CRD API field", "webhook logic", "reconciler update").
+- Do not collapse separate topics just because they were implemented in one session or one commit.
+- For each topic, note:
+  - topic name
+  - files
+  - why the topic exists
+  - whether the topic needs its own commit
 - Note any linked tickets, existing issues, or related PRs mentioned in commit messages.
 
 ## Phase 3: Group commits by topic
 
-Determine whether the current commits are already organized by topic (one logical concern per commit) or are tangled (many small fix/review iterations mixed together).
+Create one commit per logical review topic before creating or updating the PR.
 
-**If tangled** (more than ~5 commits mixing topics), ask:
+A topic is a change set that a reviewer can evaluate independently. Examples:
+- API/schema change
+- controller or workflow behavior
+- cloud-provider implementation
+- generated code
+- tests
+- documentation
 
-> The branch has N commits mixing multiple topics. Should I rebase them into one commit per topic before creating the PR? This makes the reviewer guide more useful.
+Rules:
+- Do not leave all changes in one commit if they span multiple topics.
+- Do not preserve fixup, formatting-only, or review-iteration commits.
+- Do not include unrelated untracked files.
+- Keep generated files in the same commit as the source file that generated them, unless the generated output is large enough to deserve its own clearly named commit.
+- If there is only one topic, create one commit.
+- If there are multiple topics, create one commit per topic in review order.
+
+Before rewriting commits, print the proposed commit plan:
+
+| # | Topic | Files | Commit message |
+|---|-------|-------|----------------|
+| 1 | ... | ... | ... |
+
+Then ask:
+
+> Should I rewrite the branch into this one-commit-per-topic structure before creating the PR?
 
 If yes, rebase following this pattern:
 1. `git branch backup/(git branch --show-current)-pre-rebase` (safety net)
 2. `set base (git merge-base HEAD origin/main)`
 3. `git reset --soft $base && git reset HEAD` (unstage all, working tree intact)
-4. For each topic in logical review order: `git add <topic-files> && git commit -m "..."`
-5. Verify: `git status` clean, `git diff backup/...(branch)-pre-rebase..HEAD` shows only intentional changes.
+4. For each topic in logical review order:
+   - `git add <topic-files>`
+   - `git commit -m "<commit message>"`
+5. Verify:
+   - `git status --short` has no tracked changes
+   - `git diff backup/(git branch --show-current)-pre-rebase..HEAD` contains only intentional changes
 6. `git push --force-with-lease origin (git branch --show-current)`
 
-**If already organized**, proceed to Phase 4 without rebasing.
+If no:
+- Keep the current commit structure.
+- In the PR body, group the reviewer guide by topic, not by commit.
 
 ## Phase 4: Push if needed
 
@@ -106,6 +140,7 @@ weren't needed or where coverage already exists.
 
 - Topic name: short noun phrase (e.g. "CRD API", "Webhook", "Reconciler")
 - Commit: 8-char SHA as clickable link to GitHub commit URL
+- If the user declined rebasing and commits do not map cleanly to topics, use `mixed commits` in the Commit column and explain the topic boundaries in **What to look for per commit**.
 - Files: only the most important files, not the full list
 
 ## Phase 7: Create or update the PR

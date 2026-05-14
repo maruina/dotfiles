@@ -1,16 +1,16 @@
-{{- /* Profile-based pi agent models configuration */ -}}
-{{- /* Work profile: Datadog AI Gateway models only */ -}}
-{{- /* Personal profile: OpenRouter models only */ -}}
-{{- if eq .profile "work" -}}
 {
   "providers": {
     "ai-gw-openai": {
-      "baseUrl": "https://ai-gateway.us1.staging.dog/v1",
-      "api": "openai-completions",
-      "apiKey": "!ddtool auth token rapid-ai-platform --datacenter us1.staging.dog",
+      "baseUrl": "https://ai-gateway.us1.prod.dog/v1",
+      "api": "openai-responses",
+      "apiKey": "!sh -c \"ddtool auth token rapid-ai-platform --datacenter us1.prod.dog 2>/dev/null | grep -E '^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$' | head -1\"",
       "headers": {
-        "source": "aip-dev",
-        "org-id": "2"
+        "source": "pi",
+        "org-id": "2",
+        "x-llmo-force-redaction": "true",
+        "x-dd-tag-ml_app": "pi",
+        "x-dd-tag-dd.user_email": "matteo.ruina@datadoghq.com",
+        "x-dd-tag-dd.team": "unknown"
       },
       "models": [
         {
@@ -18,7 +18,10 @@
           "name": "GPT-5.5 Pro (OpenAI)",
           "api": "openai-responses",
           "reasoning": true,
-          "input": ["text", "image"],
+          "input": [
+            "text",
+            "image"
+          ],
           "contextWindow": 400000,
           "maxTokens": 128000
         },
@@ -27,7 +30,10 @@
           "name": "GPT-5.5 (OpenAI)",
           "api": "openai-responses",
           "reasoning": true,
-          "input": ["text", "image"],
+          "input": [
+            "text",
+            "image"
+          ],
           "contextWindow": 400000,
           "maxTokens": 128000
         },
@@ -36,7 +42,10 @@
           "name": "GPT-5.4 (OpenAI)",
           "api": "openai-responses",
           "reasoning": true,
-          "input": ["text", "image"],
+          "input": [
+            "text",
+            "image"
+          ],
           "contextWindow": 400000,
           "maxTokens": 128000
         },
@@ -45,7 +54,10 @@
           "name": "GPT-5.3 Codex (OpenAI)",
           "api": "openai-responses",
           "reasoning": true,
-          "input": ["text", "image"],
+          "input": [
+            "text",
+            "image"
+          ],
           "contextWindow": 400000,
           "maxTokens": 128000
         },
@@ -54,7 +66,10 @@
           "name": "GPT-5.2 Codex (OpenAI)",
           "api": "openai-responses",
           "reasoning": true,
-          "input": ["text", "image"],
+          "input": [
+            "text",
+            "image"
+          ],
           "contextWindow": 400000,
           "maxTokens": 128000
         },
@@ -63,19 +78,26 @@
           "name": "GPT-5.2 (OpenAI)",
           "api": "openai-responses",
           "reasoning": true,
-          "input": ["text", "image"],
+          "input": [
+            "text",
+            "image"
+          ],
           "contextWindow": 400000,
           "maxTokens": 128000
         }
       ]
     },
     "ai-gw-google": {
-      "baseUrl": "https://ai-gateway.us1.staging.dog/v1",
-      "api": "openai-completions",
-      "apiKey": "!ddtool auth token rapid-ai-platform --datacenter us1.staging.dog",
+      "baseUrl": "https://ai-gateway.us1.prod.dog/v1",
+      "api": "openai-responses",
+      "apiKey": "!sh -c \"ddtool auth token rapid-ai-platform --datacenter us1.prod.dog 2>/dev/null | grep -E '^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$' | head -1\"",
       "headers": {
-        "source": "aip-dev",
-        "org-id": "2"
+        "source": "pi",
+        "org-id": "2",
+        "x-llmo-force-redaction": "true",
+        "x-dd-tag-ml_app": "pi",
+        "x-dd-tag-dd.user_email": "matteo.ruina@datadoghq.com",
+        "x-dd-tag-dd.team": "unknown"
       },
       "models": [
         {
@@ -83,7 +105,10 @@
           "name": "Gemini 3.1 Pro Preview (Google)",
           "api": "openai-completions",
           "reasoning": true,
-          "input": ["text", "image"],
+          "input": [
+            "text",
+            "image"
+          ],
           "contextWindow": 1048576,
           "maxTokens": 65536
         },
@@ -92,7 +117,10 @@
           "name": "Gemini 3 Pro Preview (Google)",
           "api": "openai-completions",
           "reasoning": true,
-          "input": ["text", "image"],
+          "input": [
+            "text",
+            "image"
+          ],
           "contextWindow": 1048576,
           "maxTokens": 65536
         },
@@ -101,131 +129,121 @@
           "name": "Gemini 3 Flash Preview (Google)",
           "api": "openai-completions",
           "reasoning": true,
-          "input": ["text", "image"],
+          "input": [
+            "text",
+            "image"
+          ],
           "contextWindow": 1048576,
           "maxTokens": 65536
         }
       ]
     },
     "ai-gw-anthropic-200k": {
-      "baseUrl": "https://ai-gateway.us1.staging.dog/v1",
-      "api": "openai-completions",
-      "apiKey": "!ddtool auth token rapid-ai-platform --datacenter us1.staging.dog",
+      "baseUrl": "https://ai-gateway.us1.prod.dog",
+      "api": "anthropic-messages",
+      "apiKey": "!sh -c \"ddtool auth token rapid-ai-platform --datacenter us1.prod.dog 2>/dev/null | grep -E '^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$' | head -1\"",
       "headers": {
-        "source": "aip-dev",
-        "org-id": "2"
+        "source": "pi",
+        "org-id": "2",
+        "x-llmo-force-redaction": "true",
+        "x-dd-tag-ml_app": "pi",
+        "x-dd-tag-dd.user_email": "matteo.ruina@datadoghq.com",
+        "x-dd-tag-dd.team": "unknown",
+        "provider": "anthropic"
       },
       "models": [
         {
           "id": "anthropic/claude-opus-4-7",
           "name": "Claude Opus 4.7 (AI Gateway, 200k)",
-          "api": "openai-completions",
+          "api": "anthropic-messages",
           "reasoning": true,
-          "input": ["text", "image"],
+          "input": [
+            "text",
+            "image"
+          ],
           "contextWindow": 200000,
           "maxTokens": 16384
         },
         {
           "id": "anthropic/claude-sonnet-4-6",
           "name": "Claude Sonnet 4.6 (AI Gateway, 200k)",
-          "api": "openai-completions",
+          "api": "anthropic-messages",
           "reasoning": true,
-          "input": ["text", "image"],
+          "input": [
+            "text",
+            "image"
+          ],
           "contextWindow": 200000,
           "maxTokens": 16384
         },
         {
           "id": "anthropic/claude-opus-4-6",
           "name": "Claude Opus 4.6 (AI Gateway, 200k)",
-          "api": "openai-completions",
+          "api": "anthropic-messages",
           "reasoning": true,
-          "input": ["text", "image"],
+          "input": [
+            "text",
+            "image"
+          ],
           "contextWindow": 200000,
           "maxTokens": 16384
         }
-      ]
+      ],
+      "authHeader": true
     },
     "ai-gw-anthropic-1m": {
-      "baseUrl": "https://ai-gateway.us1.staging.dog/v1",
-      "api": "openai-completions",
-      "apiKey": "!ddtool auth token rapid-ai-platform --datacenter us1.staging.dog",
+      "baseUrl": "https://ai-gateway.us1.prod.dog",
+      "api": "anthropic-messages",
+      "apiKey": "!sh -c \"ddtool auth token rapid-ai-platform --datacenter us1.prod.dog 2>/dev/null | grep -E '^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$' | head -1\"",
       "headers": {
-        "source": "aip-dev",
+        "source": "pi",
         "org-id": "2",
-        "anthropic-beta": "context-1m-2025-08-07"
+        "anthropic-beta": "context-1m-2025-08-07",
+        "x-llmo-force-redaction": "true",
+        "x-dd-tag-ml_app": "pi",
+        "x-dd-tag-dd.user_email": "matteo.ruina@datadoghq.com",
+        "x-dd-tag-dd.team": "unknown",
+        "provider": "anthropic"
       },
       "models": [
         {
           "id": "anthropic/claude-opus-4-7",
           "name": "Claude Opus 4.7 (AI Gateway, 1M)",
-          "api": "openai-completions",
+          "api": "anthropic-messages",
           "reasoning": true,
-          "input": ["text", "image"],
+          "input": [
+            "text",
+            "image"
+          ],
           "contextWindow": 1000000,
           "maxTokens": 16384
         },
         {
           "id": "anthropic/claude-sonnet-4-6",
           "name": "Claude Sonnet 4.6 (AI Gateway, 1M)",
-          "api": "openai-completions",
+          "api": "anthropic-messages",
           "reasoning": true,
-          "input": ["text", "image"],
+          "input": [
+            "text",
+            "image"
+          ],
           "contextWindow": 1000000,
           "maxTokens": 16384
         },
         {
           "id": "anthropic/claude-opus-4-6",
           "name": "Claude Opus 4.6 (AI Gateway, 1M)",
-          "api": "openai-completions",
+          "api": "anthropic-messages",
           "reasoning": true,
-          "input": ["text", "image"],
+          "input": [
+            "text",
+            "image"
+          ],
           "contextWindow": 1000000,
           "maxTokens": 16384
         }
-      ]
+      ],
+      "authHeader": true
     }
   }
 }
-{{- else -}}
-{
-  "providers": {
-    "openrouter": {
-      "baseUrl": "https://openrouter.ai/api/v1",
-      "api": "openai-completions",
-      "apiKey": "{{ onepasswordRead "op://Private/OpenRouter/openrouter-api-key" }}",
-      "models": [
-        {
-          "id": "deepseek/deepseek-v3.2",
-          "name": "DeepSeek V3.2",
-          "reasoning": true
-        },
-        {
-          "id": "deepseek/deepseek-r1",
-          "name": "DeepSeek R1",
-          "reasoning": true
-        },
-        {
-          "id": "anthropic/claude-3.7-sonnet",
-          "name": "Claude 3.7 Sonnet",
-          "reasoning": true
-        },
-        {
-          "id": "anthropic/claude-3.5-haiku",
-          "name": "Claude 3.5 Haiku",
-          "reasoning": true
-        },
-        {
-          "id": "openai/o3-mini-high",
-          "name": "O3 Mini High",
-          "reasoning": true
-        },
-        {
-          "id": "openai/gpt-4o-mini",
-          "name": "GPT-4o Mini",
-          "reasoning": false
-        }
-      ]
-    }
-  }
-}
-{{- end }}

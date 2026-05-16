@@ -80,6 +80,9 @@ set -x PATH $PATH $GOBIN $GOPATH/bin
 set -gx OPENROUTER_API_KEY '{{ onepasswordRead "op://Private/OpenRouter/openrouter-api-key" }}'
 set -gx SSH_AUTH_SOCK "$HOME/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"
 
+# Required for pup CLI
+set -gx DD_SITE datadoghq.eu
+
 # Tavily agentic web search
 set -gx TAVILY_API_KEY '{{ onepasswordRead "op://Private/Tavily/api-key" }}'
 {{- end }}

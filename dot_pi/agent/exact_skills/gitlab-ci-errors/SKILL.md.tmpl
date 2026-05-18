@@ -1,7 +1,6 @@
-{{ if eq .profile "work" -}}
 ---
 name: gitlab-ci-errors
-description: Finds failing GitLab CI jobs for a Datadog PR and fetches their logs with glab. Use when a user gives a GitHub PR, branch, commit, or asks for CI errors, failed jobs, GitLab logs, or why a Datadog PR CI job failed. Covers Datadog glab authentication via ddtool auth gitlab project-token.
+description: Finds failing GitLab CI jobs for a Datadog PR and fetches their logs with glab. Use when a user gives a GitHub PR, branch, commit, or asks for CI errors, failed jobs, GitLab logs, or why a Datadog PR CI job failed. Covers Datadog glab authentication via ddtool auth gitlab project-token. Can also retry failed jobs and show CI Visibility failure summaries.
 ---
 # GitLab CI Errors
 Use this skill to identify failing CI jobs on a Datadog PR and fetch actionable logs from GitLab CI using `glab`.
@@ -56,6 +55,14 @@ commit_sha=$(git rev-parse HEAD)
 name_with_owner=$(gh repo view --json nameWithOwner -q .nameWithOwner)
 pr_number=$(gh api "repos/${name_with_owner}/commits/${commit_sha}/pulls" --jq '.[0].number')
 ```
+If `pr_number` is still empty (e.g. a merged commit with no open PR), find the DDCI request directly from commit status:
+```bash
+commit_sha=$(git rev-parse HEAD)
+name_with_owner=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+gh api "repos/${name_with_owner}/commits/${commit_sha}/statuses" \
+  --jq '.[] | select(.context == "DDCI Task Sourcing") | .target_url'
+```
+The URL is `https://mosaic.us1.ddbuild.io/change-request/<request_id>`. Extract `request_id` and skip to step 4.
 
 ### 2. Find failed checks and GitLab links
 Use GitHub as the index because Datadog PRs expose CI checks there:
@@ -103,14 +110,33 @@ Then fetch each failed job trace as above.
 
 If the Mosaic link includes `taskExecutionId`, that value is the GitLab native `job_id`; fetch it directly with `glab ci trace` or the DDCI helper.
 
-If only the Mosaic DDCI request is available, use the existing universal DDCI helper first because it maps request tasks to GitLab native job IDs:
+If only the Mosaic DDCI request is available, use the DDCI helper to map request tasks to GitLab native job IDs:
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/skills/fetch-ci-results/scripts/get_ddci_logs.sh --list-failed <request_id>
+```
+Output is tab-separated: `job_id`, `job_name`, `status`, `failure_reason`.
+
+Fetch logs with an AI-generated failure summary (uses the CI Visibility log-summarization endpoint):
+```bash
 ${CLAUDE_PLUGIN_ROOT}/skills/fetch-ci-results/scripts/get_ddci_logs.sh <job_id> <request_id> --summary
 ```
+The `--summary` output includes task name, status, failure reason, and a human-readable CI Visibility summary written to stderr before the raw log lines.
+
 Use `glab` after that if you need the raw GitLab trace for the same `job_id`.
 
-### 5. Analyze logs
+### 5. Retry a failed job
+
+If the failure looks flaky or the user asks to retry, use the DDCI retry script:
+```bash
+${CLAUDE_PLUGIN_ROOT}/skills/fetch-ci-results/scripts/retry_ddci_job.sh <job_id> [request_id]
+```
+The script locates the internal `task_id` from the request status, then calls:
+```
+POST /internal/v1/requests/{request_id}/tasks/{task_id}/execution/{job_id}/retry
+```
+On success it prints the new `task_execution_id`. Pass `request_id` explicitly when you have it to avoid auto-discovery overhead.
+
+### 6. Analyze logs
 For each failed job, report:
 - job name, status, and link
 - first clear failing command/test/error
@@ -127,4 +153,3 @@ Keep the output concise. Prefer the last 200-400 relevant log lines over dumping
 - `glab` cannot infer repo: always pass `--repo DataDog/<repo>`.
 - DDCI API timeout: likely AppGate VPN is disconnected; ask the user to connect VPN and retry.
 - No failed checks: report that CI is green or still running; include pending/running checks if relevant.
-{{- end }}

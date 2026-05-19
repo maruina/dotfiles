@@ -32,8 +32,16 @@ Also read any `CLAUDE.md` or `AGENTS.md` in the repo root and in the packages be
 For each changed file group (implementation, tests, config, generated):
 
 - Read the full diff for each non-generated file.
-- Identify the smallest independent review topics. A topic is a self-contained concern a reviewer can evaluate independently (e.g. "CRD API field", "webhook logic", "reconciler update").
+- Identify the smallest independent review topics by reviewer concern, not by incident, user request, shared symptom, implementation session, or current commit shape.
+- A topic is one independently reviewable code concern. If two changes live in different subsystems, have different failure modes, or require different reviewer questions, they are separate topics even if they fix the same incident.
+- Examples: "API server error classification", "AWS resource idempotency", "Temporal activity timeout", "CRD API field", "webhook logic", "reconciler update", "generated code".
+- Do not collapse separate topics under broad labels like "cleanup hardening", "decommission reliability", or "bug fix".
 - Do not collapse separate topics just because they were implemented in one session or one commit.
+- Before finalizing topics, run this sanity check for each topic:
+  - Does this topic touch one subsystem or mechanism?
+  - Would a reviewer validate it with one focused question?
+  - Could this topic be reverted independently without reverting unrelated behavior?
+- If any answer is "no", split the topic.
 - For each topic, note:
   - topic name
   - files
@@ -45,10 +53,13 @@ For each changed file group (implementation, tests, config, generated):
 
 Create one commit per logical review topic before creating or updating the PR.
 
-A topic is a change set that a reviewer can evaluate independently. Examples:
+A topic is a change set that a reviewer can evaluate independently. Define topics by mechanism and reviewer question, not by shared incident or broad goal. Examples:
 - API/schema change
+- API server error classification
 - controller or workflow behavior
 - cloud-provider implementation
+- cloud resource idempotency
+- Temporal activity timeout
 - generated code
 - tests
 - documentation
@@ -138,9 +149,11 @@ weren't needed or where coverage already exists.
 |---|-------|--------|-------|
 | 1 | <topic name> | [short-sha](full-github-url) | `file1.go`, `file2.go` |
 
+- Use one row per logical topic, not one row per commit.
 - Topic name: short noun phrase (e.g. "CRD API", "Webhook", "Reconciler")
 - Commit: 8-char SHA as clickable link to GitHub commit URL
-- If the user declined rebasing and commits do not map cleanly to topics, use `mixed commits` in the Commit column and explain the topic boundaries in **What to look for per commit**.
+- If one commit contains multiple topics and the user declined rebasing, include multiple rows that link to the same commit.
+- If commits do not map cleanly to topics, use `mixed commits` in the Commit column and explain the topic boundaries in **What to look for per commit**.
 - Files: only the most important files, not the full list
 
 ## Phase 7: Create or update the PR

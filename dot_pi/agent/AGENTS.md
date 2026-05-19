@@ -65,25 +65,6 @@ For multi-step work, use a brief plan:
 - Use `gh` for GitHub operations.
 - Run `terraform fmt` with `OTEL_TRACES_EXPORTER=`.
 
-### AI Gateway
-
-List available models on staging:
-```fish
-set TOKEN (ddtool auth token rapid-ai-platform --datacenter us1.staging.dog)
-curl -sS 'https://ai-gateway.us1.staging.dog/v1/models' \
-  -H "Authorization: Bearer $TOKEN" \
-  -H 'source: aip-dev' \
-  -H 'org-id: 2' | jq -r '.data[].id'
-```
-
-- Model IDs are provider-prefixed (`openai/`, `anthropic/`, `google/`, `gemini/`, `bedrock/`, `bedrock-anthropic/`, `datadoginternal/`). Use full IDs (for example, `openai/gpt-5.5`).
-- “Internal docs” means Datadog internal documentation.
-- Use `bzl` (not `bazel`) for builds/tests.
-- Prefer `:all` targets (for example, `bzl test //path/to/package:all`).
-- Use Atlassian MCP for Jira/Confluence context.
-- Use Datadog MCP for logs, metrics, traces, CI, incidents, and dashboards.
-- AWS CLI: pass `--profile exec-sso-<account-name>-compute-admin`; map unknown account names via `~/.aws/config`.
-
 ## Obsidian
 
 - Vault: `~/Documents/main`.

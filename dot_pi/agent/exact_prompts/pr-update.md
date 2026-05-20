@@ -1,0 +1,115 @@
+---
+description: Update an existing PR description after code or review-feedback changes
+argument-hint: "[context]"
+---
+
+# PR Update
+
+Arguments: $ARGUMENTS
+
+Update the current branch's existing GitHub PR description. This is for refreshing an already-created PR after addressing feedback or changing implementation details.
+
+Assume this command may be run multiple times on the same PR. Make the update idempotent: preserve useful existing content, replace stale generated sections instead of appending duplicates, and keep only one `## Changes since last review` section.
+
+Do not create a new PR.
+Do not rewrite commits.
+Do not force-push.
+Do not post `@codex review` unless the user explicitly asks.
+Do not change the PR title unless the user explicitly asks.
+
+## Phase 1: Gather PR and branch context
+
+Run:
+
+```fish
+gh pr view --json number,title,body,baseRefName,url
+```
+
+Set the base branch from `.baseRefName`.
+
+Then gather:
+
+```fish
+git log --oneline origin/$base..HEAD
+git diff --stat origin/$base..HEAD
+git diff --name-only origin/$base..HEAD
+```
+
+Also inspect recent commits and changed files enough to understand the current final state of the PR.
+
+If `$ARGUMENTS` is non-empty, treat it as user-provided context about what changed or what reviewer feedback was addressed.
+
+## Phase 2: Understand the existing PR body
+
+Read the existing PR body.
+
+Identify:
+- what is still accurate
+- what is stale
+- what changed since the PR was created or last updated
+- what reviewer feedback appears to have been addressed
+- what tests were added or rerun
+
+Preserve the existing PR structure when possible.
+
+Because this command may run repeatedly:
+- Do not append a second copy of any section.
+- Replace existing generated sections in place.
+- Keep hand-written details that are still accurate.
+- Remove outdated review-response bullets instead of accumulating a historical changelog.
+- If the existing `## Changes since last review` section is stale, replace it with the latest meaningful review-response summary.
+
+## Phase 3: Draft the updated PR body
+
+Use this structure unless the existing PR body uses a clearly intentional different structure:
+
+```markdown
+## What
+
+One sentence describing the current final state of the PR.
+
+## Why
+
+Two to four sentences explaining why this change exists.
+
+## Reviewer guide
+
+| # | Topic | Commit | Files |
+|---|-------|--------|-------|
+| 1 | <topic name> | [short-sha](full-github-url) | `file1.go`, `file2.go` |
+
+**What to look for per commit:**
+- **<Topic>** — specific things to verify or scrutinize
+
+## Changes since last review
+
+- ...
+
+## Tests
+
+- ...
+```
+
+Only include `## Changes since last review` if there are meaningful review-response changes or the user provided context in `$ARGUMENTS`.
+
+The `## Changes since last review` section should describe the latest review-response state, not every historical invocation of this command.
+
+Keep the description concise. Avoid duplicating commit messages.
+
+## Phase 4: Apply the update
+
+Write the proposed body to a temporary file.
+
+Then run:
+
+```fish
+gh pr edit <number> --body-file <temp-file>
+```
+
+## Phase 5: Report
+
+Print:
+- PR URL
+- sections changed
+- whether `Changes since last review` was added, updated, removed, or left unchanged
+- any assumptions made

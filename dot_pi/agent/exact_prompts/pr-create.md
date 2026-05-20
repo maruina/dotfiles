@@ -167,18 +167,14 @@ weren't needed or where coverage already exists.
 - If commits do not map cleanly to topics, use `mixed commits` in the Commit column and explain the topic boundaries in **What to look for per commit**.
 - Files: only the most important files, not the full list
 
-## Phase 7: Create or update the PR
+## Phase 7: Create the PR
 
-If no PR exists:
+If a PR already exists, stop and tell the user to run `/pr-update` instead. Do not update existing PRs from this command.
+
+Create the PR:
 
 ```fish
 gh pr create --title "<type>(<scope>): <subject>" --body "..."
-```
-
-If PR already exists (detected in Phase 1):
-
-```fish
-gh pr edit <number> --body "..."
 ```
 
 Title format: `[TICKET] type(scope): subject` where type is `feat`, `fix`, `refactor`, or `docs`. Omit the ticket prefix if there is no linked ticket.
@@ -190,8 +186,6 @@ After creating the PR, always comment on the PR to trigger Codex review:
 ```fish
 gh pr comment <number-or-url> --body "@codex review"
 ```
-
-If the PR already existed and Phase 7 only updated it, do not post a duplicate Codex review comment unless the user explicitly asks.
 
 ## Phase 9: Report
 

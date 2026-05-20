@@ -1,196 +1,169 @@
 ---
-description: Create a PR with structured description (What/Why/Reviewer guide/Tests) and per-topic commits
-argument-hint: [--base <branch>] [context]
+description: Create a new GitHub PR with a structured description and reviewer guide
+argument-hint: "[--base <branch>] [context]"
 ---
 
 # PR Create
 
 Arguments: $ARGUMENTS
 
-Interpret `--base <branch>` as the base branch. If the user does not pass `--base`, use `main`.
-Treat all other arguments as task context, not as a branch name.
+Create a new GitHub PR for the current branch.
 
-You are a meticulous technical writer who also knows the codebase deeply. Before writing a single word, load the rewrite principles — they govern every sentence you produce.
+Use this command only for initial PR creation. If a PR already exists for this branch, stop and tell the user to run `/pr-update` instead.
 
-## Phase 0: Load writing principles
+Interpret `--base <branch>` as the base branch. If the user does not pass `--base`, use `main`. Treat all other arguments as task context.
 
-Load the `rewrite` skill now. Use its principles as a style guide for everything you write in this command. Do not output anything yet.
+Do not update an existing PR.
+Do not post duplicate review-trigger comments.
 
 ## Phase 1: Gather context
 
-Run in parallel:
+Parse arguments and set `base`.
+
+Run:
 
 ```fish
-set args $ARGUMENTS
-set base main
-for i in (seq (count $args))
-    if test "$args[$i]" = "--base"
-        set next (math $i + 1)
-        set base $args[$next]
-    end
-end
-
 git log --oneline origin/$base..HEAD
 git diff --stat origin/$base..HEAD
 git diff --name-only origin/$base..HEAD
-gh pr view --json title,body,number 2>/dev/null; or echo "no PR yet"
+gh pr view --json number,url,title,body 2>/dev/null; or echo "no PR yet"
 ```
 
-Also read any `CLAUDE.md` or `AGENTS.md` in the repo root and in the packages being changed — they may define required PR structure or context.
+Also read any `CLAUDE.md` or `AGENTS.md` files in the repository root and in changed package directories.
 
-## Phase 2: Understand what changed
+If `gh pr view` finds an existing PR, stop and tell the user to run `/pr-update`.
 
-For each changed file group (implementation, tests, config, generated):
+## Phase 2: Understand the changes
 
-- Read the full diff for each non-generated file.
-- Identify the smallest independent review topics by reviewer concern, not by incident, user request, shared symptom, implementation session, or current commit shape.
-- A topic is one independently reviewable code concern. If two changes live in different subsystems, have different failure modes, or require different reviewer questions, they are separate topics even if they fix the same incident.
-- Examples: "API server error classification", "AWS resource idempotency", "Temporal activity timeout", "CRD API field", "webhook logic", "reconciler update", "generated code".
-- Do not collapse separate topics under broad labels like "cleanup hardening", "decommission reliability", or "bug fix".
-- Do not collapse separate topics just because they were implemented in one session or one commit.
-- Before finalizing topics, run this sanity check for each topic:
-  - Does this topic touch one subsystem or mechanism?
-  - Would a reviewer validate it with one focused question?
-  - Could this topic be reverted independently without reverting unrelated behavior?
-- If any answer is "no", split the topic.
-- For each topic, note:
-  - topic name
-  - files
-  - why the topic exists
-  - whether the topic needs its own commit
-- Note any linked tickets, existing issues, or related PRs mentioned in commit messages.
+Inspect the changed files and diffs enough to explain the PR accurately.
 
-## Phase 3: Group commits by topic
+For each meaningful change, identify:
+- the review topic
+- the files involved
+- why the change exists
+- what a reviewer should verify
+- what tests cover it
 
-Create one commit per logical review topic before creating or updating the PR.
+Use narrow review topics. A topic should map to one subsystem, mechanism, or reviewer question. Split broad topics like "cleanup", "hardening", or "bug fix" into smaller reviewable topics when needed.
 
-A topic is a change set that a reviewer can evaluate independently. Define topics by mechanism and reviewer question, not by shared incident or broad goal. Examples:
-- API/schema change
-- API server error classification
-- controller or workflow behavior
-- cloud-provider implementation
-- cloud resource idempotency
-- Temporal activity timeout
-- generated code
-- tests
-- documentation
+Ignore generated files unless they are important to review. Mention generated files only when they matter.
 
-Rules:
-- Do not leave all changes in one commit if they span multiple topics.
-- Do not preserve fixup, formatting-only, or review-iteration commits.
-- Do not include unrelated untracked files.
-- Keep generated files in the same commit as the source file that generated them, unless the generated output is large enough to deserve its own clearly named commit.
-- If there is only one topic, create one commit.
-- If there are multiple topics, create one commit per topic in review order.
+## Phase 3: Check commit structure
 
-Before rewriting commits, print the proposed commit plan:
+Compare the current commits with the review topics.
 
+If the branch has multiple tangled commits that do not match the review topics, propose a one-commit-per-topic plan:
+
+```markdown
 | # | Topic | Files | Commit message |
 |---|-------|-------|----------------|
 | 1 | ... | ... | ... |
+```
 
-Then ask:
+Ask the user before rewriting commits:
 
 > Should I rewrite the branch into this one-commit-per-topic structure before creating the PR?
 
-If yes, rebase following this pattern:
-1. `git branch backup/(git branch --show-current)-pre-rebase` (safety net)
-2. `set base (git merge-base HEAD origin/main)`
-3. `git reset --soft $base && git reset HEAD` (unstage all, working tree intact)
-4. For each topic in logical review order:
-   - `git add <topic-files>`
-   - `git commit -m "<commit message>"`
-5. Verify:
-   - `git status --short` has no tracked changes
-   - `git diff backup/(git branch --show-current)-pre-rebase..HEAD` contains only intentional changes
-6. `git push --force-with-lease origin (git branch --show-current)`
+If the user agrees:
+1. Create a backup branch named `backup/<current-branch>-pre-rebase`.
+2. Reset softly to the merge base with `origin/$base`.
+3. Create one commit per topic in review order.
+4. Verify the working tree is clean.
+5. Verify the diff from the backup branch contains only intentional changes.
+6. Push with `--force-with-lease`.
 
-If no:
-- Keep the current commit structure.
-- In the PR body, group the reviewer guide by topic, not by commit.
+If the user declines, keep the current commit structure and make the reviewer guide topic-based anyway.
 
-## Phase 4: Push if needed
+## Phase 4: Push the branch
+
+Push the current branch if needed:
 
 ```fish
 git push -u origin (git branch --show-current)
 ```
 
-## Phase 5: Collect commit SHAs and links
+## Phase 5: Collect commit links
+
+Run:
 
 ```fish
 set repo (gh repo view --json nameWithOwner -q .nameWithOwner)
 git log --format="%H %s" origin/$base..HEAD
 ```
 
-For each commit, build a GitHub URL: `https://github.com/$repo/commit/$SHA`
+For each commit, build a link:
 
-## Phase 6: Draft the PR description
-
-Write the description guided by the rewrite principles loaded in Phase 0. Apply them actively — not as a post-pass.
-
-### Structure
-
+```text
+https://github.com/$repo/commit/$sha
 ```
+
+## Phase 6: Draft the PR title and body
+
+Use this title format:
+
+```text
+[TICKET] type(scope): subject
+```
+
+Omit `[TICKET]` if there is no linked ticket. Use one of these types unless another type is clearly better:
+- `feat`
+- `fix`
+- `refactor`
+- `docs`
+- `test`
+- `chore`
+
+Draft the PR body with this structure:
+
+```markdown
 ## What
 
-One sentence. The artifact and the action: what was built or changed.
+One sentence describing the final state of the PR.
 
 ## Why
 
-Two to four sentences. The problem this solves. Why now. Links to tickets, incidents, or issues.
-Write as if returning to this code in 9 months with no context — the reader must understand why
-this change exists, not just what it does.
+Two to four sentences explaining why this change exists. Include relevant tickets, incidents, issues, or reviewer context. Write this so someone can understand the motivation months later.
 
 ## Reviewer guide
 
-<table — see below>
+| # | Topic | Commit | Files |
+|---|-------|--------|-------|
+| 1 | <topic name> | [short-sha](full-url) | `file1.go`, `file2.go` |
 
 **What to look for per commit:**
-- **<Topic>** — specific things to verify or scrutinize
+- **<Topic>** - specific things to verify or scrutinize
 
 ## Tests
 
-Bullet list. What tests were added, what scenarios they cover, and — if no tests — why they
-weren't needed or where coverage already exists.
+- Test command or scenario covered.
+- If no tests were added or run, explain why.
 ```
 
-### Reviewer guide table
-
-| # | Topic | Commit | Files |
-|---|-------|--------|-------|
-| 1 | <topic name> | [short-sha](full-github-url) | `file1.go`, `file2.go` |
-
-- Use one row per logical topic, not one row per commit.
-- Topic name: short noun phrase (e.g. "CRD API", "Webhook", "Reconciler")
-- Commit: 8-char SHA as clickable link to GitHub commit URL
-- If one commit contains multiple topics and the user declined rebasing, include multiple rows that link to the same commit.
-- If commits do not map cleanly to topics, use `mixed commits` in the Commit column and explain the topic boundaries in **What to look for per commit**.
-- Files: only the most important files, not the full list
+Keep the body concise and specific. Do not duplicate commit messages.
 
 ## Phase 7: Create the PR
-
-If a PR already exists, stop and tell the user to run `/pr-update` instead. Do not update existing PRs from this command.
 
 Create the PR:
 
 ```fish
-gh pr create --title "<type>(<scope>): <subject>" --body "..."
+gh pr create --title "<title>" --body-file <temp-file>
 ```
 
-Title format: `[TICKET] type(scope): subject` where type is `feat`, `fix`, `refactor`, or `docs`. Omit the ticket prefix if there is no linked ticket.
+Capture the PR URL.
 
 ## Phase 8: Trigger Codex review
 
-After creating the PR, always comment on the PR to trigger Codex review:
+After creating the PR, post one Codex review trigger comment:
 
 ```fish
-gh pr comment <number-or-url> --body "@codex review"
+gh pr comment <pr-url> --body "@codex review"
 ```
 
 ## Phase 9: Report
 
 Print:
 - PR URL
-- Whether the `@codex review` comment was posted
-- The reviewer guide table as a compact summary
-- Any rebasing that was done and the backup branch name if applicable
+- whether the Codex review comment was posted
+- the reviewer guide table as a compact summary
+- any commit rewriting performed
+- the backup branch name, if one was created

@@ -1,11 +1,14 @@
 ---
 description: Create a PR with structured description (What/Why/Reviewer guide/Tests) and per-topic commits
-argument-hint: [base branch, defaults to main]
+argument-hint: [--base <branch>] [context]
 ---
 
 # PR Create
 
-Base branch: $ARGUMENTS (default: main)
+Arguments: $ARGUMENTS
+
+Interpret `--base <branch>` as the base branch. If the user does not pass `--base`, use `main`.
+Treat all other arguments as task context, not as a branch name.
 
 You are a meticulous technical writer who also knows the codebase deeply. Before writing a single word, load the rewrite principles — they govern every sentence you produce.
 
@@ -18,7 +21,15 @@ Load the `rewrite` skill now. Use its principles as a style guide for everything
 Run in parallel:
 
 ```fish
-set base (test -n "$ARGUMENTS" && echo "$ARGUMENTS" || echo "main")
+set args $ARGUMENTS
+set base main
+for i in (seq (count $args))
+    if test "$args[$i]" = "--base"
+        set next (math $i + 1)
+        set base $args[$next]
+    end
+end
+
 git log --oneline origin/$base..HEAD
 git diff --stat origin/$base..HEAD
 git diff --name-only origin/$base..HEAD

@@ -1,0 +1,12 @@
+#!/bin/bash
+set -eufo pipefail
+
+# package-lock.json hash: {{ include "dot_pi/agent/package-lock.json" | sha256sum }}
+
+if ! command -v npm >/dev/null 2>&1; then
+  echo "npm is required to install pi agent dependencies" >&2
+  exit 1
+fi
+
+cd "${HOME}/.pi/agent"
+npm install --no-fund --no-audit

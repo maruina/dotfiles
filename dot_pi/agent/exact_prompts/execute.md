@@ -33,7 +33,7 @@ Follow the approved plan closely once it passes review. Deviate only for reposit
 
 1. Read the plan from `$1` completely.
 2. Inspect repository guidance and enough codebase context to validate the plan: relevant `AGENTS.md` files, project shape, package boundaries, files named by the plan, tests, build commands, and current git branch/status.
-3. Load required execution skills before starting. Use the plan, codebase context, and task types to identify them. Prefer specific skills over general ones.
+3. Load execution skills proactively before starting. Read skills explicitly named in the plan, infer additional skills from affected files and tasks, prefer specific skills over general ones, read supporting files referenced by loaded skills. If you discover a new domain during execution, pause and load the relevant skill. If no available skill applies, say so briefly in the review and proceed with repository guidance.
 4. Review the plan critically before implementation:
    - Are any files, commands, types, functions, or test names missing or inconsistent?
    - Do the tasks match the current codebase state?
@@ -44,7 +44,7 @@ Follow the approved plan closely once it passes review. Deviate only for reposit
 6. If there are no concerns, execute tasks in order.
 7. For each task, update the plan checkboxes as work progresses:
    - mark the current step/task in progress when starting it
-   - follow the step exactly
+   - follow the step closely
    - run the verification exactly as specified, or explain why an equivalent command is necessary before running it
    - mark the step/task complete only after verification passes
 8. Complete the plan's docs and future-agent guidance task, including every required `AGENTS.md` inspection.
@@ -53,19 +53,7 @@ Follow the approved plan closely once it passes review. Deviate only for reposit
 
 The terminal state is implemented, verified changes, with the plan updated to show completed work.
 
-## Skill Loading
 
-Load execution skills proactively, not only when errors occur.
-
-Before editing files:
-
-- read skills explicitly named in the plan
-- infer additional skills from affected files and tasks
-- prefer the most specific skill over a general one
-- read supporting files referenced by loaded skills
-- if you discover a new domain, pause and load the relevant skill
-
-If no available skill applies, say so briefly in the review and proceed with repository guidance.
 
 ## Task Execution Rules
 

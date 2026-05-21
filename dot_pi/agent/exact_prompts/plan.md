@@ -40,7 +40,7 @@ Be convinced, not compliant. If the design is not ready to plan from, say so dir
    - Go implementation details: `go-best-practices`, unless a more specific skill supersedes it
    - Datadog compute or operational workflows: relevant compute skills
 4. Check scope. If the spec covers multiple independent subsystems, stop and suggest separate plans, one per subsystem, unless the spec already decomposes them into independently testable deliverables.
-5. Map the file structure before tasks: exact files to create/modify, responsibilities, boundaries, and tests.
+5. Map the file structure before tasks (see File Structure below).
 6. Write the implementation plan to `plans/<jira-ticket-or-feature-name>/plan.md`, using the same directory as the design when appropriate.
 7. Self-review the plan and fix issues inline.
 8. Report: `Plan complete and saved to plans/<jira-ticket-or-feature-name>/plan.md`.
@@ -79,39 +79,41 @@ Use this structure for every task. Adapt language and commands to the repository
 ### Task N: [Component Name]
 
 **Files:**
-- Create: `exact/path/to/file.py`
-- Modify: `exact/path/to/existing.py:123-145`
-- Test: `tests/exact/path/to/test.py`
+- Create: `exact/path/to/file.go`
+- Modify: `exact/path/to/existing.go:123-145`
+- Test: `exact/path/to/file_test.go`
 
 - [ ] **Step 1: Write the failing test**
 
-```python
-def test_specific_behavior():
-    result = function(input)
-    assert result == expected
+```go
+func TestSpecificBehavior(t *testing.T) {
+    result := Function(input)
+    assert.Equal(t, expected, result)
+}
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pytest tests/path/test.py::test_name -v`
-Expected: FAIL with `function not defined`
+Run: `go test ./path/to/... -run TestSpecificBehavior -v`
+Expected: FAIL — `undefined: Function`
 
 - [ ] **Step 3: Write minimal implementation**
 
-```python
-def function(input):
+```go
+func Function(input InputType) OutputType {
     return expected
+}
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pytest tests/path/test.py::test_name -v`
+Run: `go test ./path/to/... -run TestSpecificBehavior -v`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add tests/path/test.py src/path/file.py
+git add path/to/file.go path/to/file_test.go
 git commit -m "feat: add specific feature"
 ```
 ````

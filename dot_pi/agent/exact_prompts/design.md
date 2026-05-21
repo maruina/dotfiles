@@ -1,5 +1,5 @@
 ---
-description: Turn an idea into an approved design/spec before implementation
+description: Turn an idea into an approved design spec before implementation
 argument-hint: "<idea>"
 ---
 
@@ -40,8 +40,8 @@ Push back on unclear goals, unsafe assumptions, missing rollback, weak observabi
 2. Assess scope; decompose multi-subsystem projects.
 3. Ask clarifying questions one at a time.
 4. Propose 2-3 approaches with trade-offs and a recommendation.
-5. Present the design and get approval.
-6. Run the pre-mortem and operability gate; revise until convinced.
+5. Run the pre-mortem and operability gate; revise until convinced.
+6. Present the design and get approval.
 7. Write the design spec to `plans/<jira-ticket-or-feature-name>/design.md`.
 8. Self-review the spec.
 9. Ask the user to review the written spec.
@@ -130,7 +130,7 @@ Before asking for approval, argue against the design. Explain what you would do 
 
 ## Spec
 
-After design approval, write the spec to `plans/<jira-ticket-or-feature-name>/design.md`. If there is no Jira ticket, use a concise feature name.
+After finalizing the design, write the spec to `plans/<jira-ticket-or-feature-name>/design.md`. If there is no Jira ticket, use a concise feature name.
 
 The spec must include goals, non-goals/out-of-scope items, context reviewed, design overview, components and boundaries, alternatives considered, assumption ledger, pre-mortem summary, operability, testing strategy, and decision records.
 

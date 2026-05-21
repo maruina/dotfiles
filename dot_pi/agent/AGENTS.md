@@ -49,8 +49,11 @@ For multi-step work, use a brief plan:
 ## Git Worktree
 
 - Start from an updated `main`.
-- Create worktrees under `~/go/src/github.com/DataDog/.worktrees/<name>`.
-- Example: `git worktree add ~/go/src/github.com/DataDog/.worktrees/<name> -b <branch>`.
+- Create Datadog worktrees under `~/go/src/github.com/DataDog/.worktrees/<name>`.
+
+## Dynamic Context
+
+A hidden `user-context` extension injects current repo, branch, PR, Jira-key, worktree, and recent-file context. Treat it as hints; follow explicit user instructions and repository guidance first.
 
 ## Code Style
 

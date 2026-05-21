@@ -13,6 +13,12 @@ Extra instructions:
 
 Create a comprehensive implementation plan from the approved design spec. If `$1` is missing, ask for the design path and stop.
 
+Lifecycle:
+
+1. `/design` turns an idea into an approved design spec.
+2. `/plan` turns an approved design spec into an approved implementation plan.
+3. `/execute` turns an approved implementation plan into verified changes.
+
 <HARD-GATE>
 Do not write implementation code, scaffold application files, modify files outside `plans/<jira-ticket-or-feature-name>/plan.md`, or take implementation action. This command creates the plan only.
 </HARD-GATE>
@@ -27,7 +33,7 @@ Be convinced, not compliant. If the design is not ready to plan from, say so dir
 
 1. Read the design spec from `$1` completely.
 2. Inspect enough codebase context to make the plan concrete: guidance files, project shape, package boundaries, entry points, tests, build commands, and relevant existing patterns.
-3. Load every relevant skill before writing the plan. Examples:
+3. Load relevant planning skills before writing the plan. Prefer specific skills over general ones. Examples:
    - Kubernetes controllers or controller-runtime: `k8s-controller-dev`
    - Kubernetes APIs, CRDs, versions, validation, conversion, status: `k8s-api-design`
    - CLI commands, flags, output, prompts, errors: `cli-best-practices`
@@ -43,14 +49,7 @@ The terminal state is a saved implementation plan, not implementation.
 
 ## File Structure
 
-Before defining tasks, map out which files will be created or modified and what each one is responsible for. This is where decomposition decisions get locked in.
-
-- Design units with clear boundaries and well-defined interfaces.
-- Give each file one clear responsibility.
-- Prefer smaller, focused files over large files that do too much.
-- Keep files that change together near each other.
-- Split by responsibility, not by technical layer.
-- Follow existing patterns. If the codebase uses large files, do not unilaterally restructure. If a file being modified has grown unwieldy, a focused split can be part of the plan.
+Before defining tasks, map the files to create or modify, each file's responsibility, boundaries, and tests. Follow existing patterns. Prefer focused files when the repository style allows it, but do not restructure unrelated code.
 
 Use this structure to decompose tasks. Each task should produce self-contained changes that make sense independently.
 
@@ -119,13 +118,11 @@ git commit -m "feat: add specific feature"
 
 Each step should be one 2-5 minute action: write a test, run it, implement minimal code, run tests, or commit. Break up tasks until each step is small and independently understandable.
 
-Every code, test, and commit step must include exact paths, exact commands, complete code blocks, expected output, and a Conventional Commit message where applicable.
+Include exact paths, commands, expected outcomes, and Conventional Commit messages where applicable. Include code snippets when they remove ambiguity. Do not invent large code blocks that are better derived from the codebase during execution.
 
 ## Required Documentation and Agent-Knowledge Task
 
-Every plan MUST include a final task for docs and future-agent guidance.
-
-That task must require the implementer to inspect each item below and either update it or record why no update is needed:
+Every plan MUST include a final task for docs and future-agent guidance. That task must require the implementer to inspect each item below and either update it or record why no update is needed:
 
 - user-facing documentation
 - developer documentation
@@ -153,7 +150,7 @@ Every step must contain the actual content an engineer needs. These are plan fai
 - `handle edge cases`
 - `Write tests for the above` without actual test code
 - `Similar to Task N`
-- steps that describe what to do without showing how when code is needed
+- steps that describe what to do without enough detail to execute safely
 - references to types, functions, methods, commands, or files not defined in any task or existing in the repo
 
 ## Self-Review

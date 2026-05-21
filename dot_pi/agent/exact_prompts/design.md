@@ -3,13 +3,19 @@ description: Turn an idea into an approved design/spec before implementation
 argument-hint: "<idea>"
 ---
 
-# Brainstorming Ideas Into Designs
+# Designing Ideas Into Specs
 
 Idea:
 
 > $ARGUMENTS
 
-Help turn the idea into an approved design/spec through collaborative dialogue.
+Help turn the idea into an approved design spec through collaborative dialogue.
+
+Lifecycle:
+
+1. `/design` turns an idea into an approved design spec.
+2. `/plan` turns an approved design spec into an approved implementation plan.
+3. `/execute` turns an approved implementation plan into verified changes.
 
 <HARD-GATE>
 Do not write code, scaffold, modify files other than the spec, or take implementation action until the design is approved. This applies to every project, even simple ones.
@@ -30,18 +36,18 @@ Push back on unclear goals, unsafe assumptions, missing rollback, weak observabi
 
 ## Flow
 
-1. Explore context and load relevant skills.
+1. Explore context and load relevant design skills.
 2. Assess scope; decompose multi-subsystem projects.
 3. Ask clarifying questions one at a time.
 4. Propose 2-3 approaches with trade-offs and a recommendation.
 5. Present the design and get approval.
 6. Run the pre-mortem and operability gate; revise until convinced.
-7. Write the spec to `plans/<jira-ticket-or-feature-name>/design.md`.
+7. Write the design spec to `plans/<jira-ticket-or-feature-name>/design.md`.
 8. Self-review the spec.
 9. Ask the user to review the written spec.
-10. After approval, invoke only the `rewrite` skill to create an implementation plan.
+10. After written spec approval, hand off to `/plan`.
 
-The terminal state is an implementation plan, not implementation.
+The terminal state is an approved design spec, not implementation.
 
 Scale the depth of each step to the risk and complexity of the idea, but do not skip gates.
 
@@ -49,12 +55,12 @@ Scale the depth of each step to the risk and complexity of the idea, but do not 
 
 Before designing:
 
-- identify project shape: language, package boundaries, test/build commands, entry points, guidance files
-- map the target area: files, tests, configs, dependencies, callers/callees, public interfaces, ownership boundaries
+- identify project shape: language, package boundaries, test/build commands, entry points, and guidance files
+- map the target area: files, tests, configs, dependencies, public interfaces, and ownership boundaries
 - inspect existing patterns and recent commits where useful
 - for Datadog work, search relevant code under `~/dd/<repo>` and use Confluence/Atlassian docs when they may contain design context, ownership, prior decisions, or operational guidance
 - distinguish facts from assumptions and guesses
-- inspect available skills and load relevant domain/design skills before proposing approaches; do not load implementation-only skills before design approval
+- load relevant design skills before proposing approaches; do not load implementation-only skills before design approval
 
 If visual, layout, or architecture questions are likely, offer a visual companion in its own message before detailed questions.
 
@@ -80,7 +86,7 @@ Record important decisions with alternatives, rationale, risks, mitigations, and
 
 ## Assumptions
 
-Maintain an assumption ledger during brainstorming and in the final spec:
+Maintain an assumption ledger during design and in the final spec:
 
 - assumption
 - why we believe it
@@ -91,21 +97,17 @@ Do not proceed if the design depends on an unvalidated high-risk assumption.
 
 ## Pre-mortem
 
-Before finalizing the design, ask:
+Before finalizing, ask:
 
-> Imagine it is 3 months from now and this project failed spectacularly, caused an incident, missed the goal, or became painful to maintain. Why did it fail?
+> Imagine it is 3 months from now and this project failed, caused an incident, missed the goal, or became painful to maintain. Why?
 
-Classify findings:
+Classify verified risks:
 
-- **Tiger** — clear threat that will hurt us if not addressed
-- **Paper tiger** — looks threatening, but mitigations or scope make it acceptable
+- **Tiger** — real threat that blocks progress until mitigated or explicitly accepted
+- **Paper tiger** — plausible concern already addressed by scope or mitigation
 - **Elephant** — uncomfortable concern that is easy to avoid discussing
 
-Use two passes: generate potential risks, then verify before flagging. Do not label something a tiger based on pattern matching alone.
-
-For each tiger, include risk, severity, category, evidence, missing mitigation checked, and suggested mitigation. If you cannot name the missing mitigation with evidence, it is not a verified tiger.
-
-Avoid speculative noise. State assumptions and confidence. High-severity tigers block progress unless mitigated or explicitly accepted. After adding mitigations, re-run a quick pre-mortem.
+For each tiger, record risk, severity, evidence, missing mitigation, and proposed mitigation. Do not flag speculative risks as tigers. After adding mitigations, re-run a quick pre-mortem.
 
 ## Operability gate
 
@@ -128,7 +130,7 @@ Before asking for approval, argue against the design. Explain what you would do 
 
 ## Spec
 
-After approval, write the spec to `plans/<jira-ticket-or-feature-name>/design.md`. If there is no Jira ticket, use a concise feature name.
+After design approval, write the spec to `plans/<jira-ticket-or-feature-name>/design.md`. If there is no Jira ticket, use a concise feature name.
 
 The spec must include goals, non-goals/out-of-scope items, context reviewed, design overview, components and boundaries, alternatives considered, assumption ledger, pre-mortem summary, operability, testing strategy, and decision records.
 
@@ -148,6 +150,6 @@ Wait for approval. If the user requests changes, update the spec and repeat self
 
 Only after written spec approval:
 
-- invoke the `rewrite` skill to create a detailed implementation plan
-- do not invoke any other skill
+- hand off to `/plan` to create the implementation plan
+- use the `rewrite` skill only to improve clarity, consistency, and concision of the spec or handoff
 - do not start implementation unless explicitly asked after plan approval

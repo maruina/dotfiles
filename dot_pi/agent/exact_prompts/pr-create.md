@@ -11,14 +11,14 @@ Create a new GitHub PR for the current branch.
 
 Use this command only for initial PR creation. If a PR already exists for this branch, stop and tell the user to run `/pr-update` instead.
 
-Interpret `--base <branch>` as the base branch. If the user does not pass `--base`, use `main`. Treat all other arguments as task context.
+Interpret `--base <branch>` as the base branch. If the user does not pass `--base`, use `main`. Interpret `--draft` as creating the PR in draft mode. Treat all other arguments as task context.
 
 Do not update an existing PR.
 Do not post duplicate review-trigger comments.
 
 ## Phase 1: Gather context
 
-Parse arguments and set `base`.
+Parse arguments and set `base` and `draft`.
 
 Run:
 
@@ -146,7 +146,7 @@ Keep the body concise and specific. Do not duplicate commit messages.
 Create the PR:
 
 ```fish
-gh pr create --title "<title>" --body-file <temp-file>
+gh pr create --title "<title>" --body-file <temp-file> # add --draft if draft mode was requested
 ```
 
 Capture the PR URL.

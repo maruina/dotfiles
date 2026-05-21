@@ -95,8 +95,10 @@ Keep the plan file as the progress ledger:
 
 ## Completion Handoff
 
-After all tasks are complete, all verifications pass, and `git status` has been inspected, say exactly:
+After all tasks are complete, all verifications pass, and `git status` has been inspected:
+
+1. Summarize changed files, verification commands run, and any follow-up items.
+2. Run `/pr-create --draft` to open a draft PR for the branch. Always create as draft; the user will mark it ready for review when appropriate.
+3. Say exactly:
 
 > I finished implementing the plan
-
-Then summarize changed files, verification commands run, and any follow-up items.

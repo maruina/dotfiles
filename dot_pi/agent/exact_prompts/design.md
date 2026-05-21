@@ -57,6 +57,7 @@ Before designing:
 
 - identify project shape: language, package boundaries, test/build commands, entry points, and guidance files
 - map the target area: files, tests, configs, dependencies, public interfaces, and ownership boundaries
+- verify how target systems validate or constrain their inputs (schemas, type checks, required fields, allowed keys) before proposing to pass new data through them
 - inspect existing patterns and recent commits where useful
 - for Datadog work, search relevant code under `~/dd/<repo>` and use Confluence/Atlassian docs when they may contain design context, ownership, prior decisions, or operational guidance
 - distinguish facts from assumptions and guesses
@@ -103,9 +104,9 @@ Before finalizing, ask:
 
 Classify verified risks:
 
-- **Tiger** — real threat that blocks progress until mitigated or explicitly accepted
-- **Paper tiger** — plausible concern already addressed by scope or mitigation
-- **Elephant** — uncomfortable concern that is easy to avoid discussing
+- **Tiger** (blocking risk) — real threat that blocks progress until mitigated or explicitly accepted
+- **Paper tiger** (addressed concern) — plausible concern already addressed by scope or mitigation
+- **Elephant** (avoided truth) — uncomfortable concern that is easy to avoid discussing
 
 For each tiger, record risk, severity, evidence, missing mitigation, and proposed mitigation. Do not flag speculative risks as tigers. After adding mitigations, re-run a quick pre-mortem.
 

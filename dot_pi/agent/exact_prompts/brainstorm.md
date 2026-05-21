@@ -52,6 +52,7 @@ Before designing:
 - identify project shape: language, package boundaries, test/build commands, entry points, guidance files
 - map the target area: files, tests, configs, dependencies, callers/callees, public interfaces, ownership boundaries
 - inspect existing patterns and recent commits where useful
+- for Datadog work, search relevant code under `~/dd/<repo>` and use Confluence/Atlassian docs when they may contain design context, ownership, prior decisions, or operational guidance
 - distinguish facts from assumptions and guesses
 - inspect available skills and load relevant domain/design skills before proposing approaches; do not load implementation-only skills before design approval
 

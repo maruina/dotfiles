@@ -25,7 +25,7 @@ export function registerLspExtension(pi: ExtensionAPI) {
   const sourcePrefix = resolvePath("dot_pi/agent/exact_extensions", cwdFn());
 
   pi.on("session_start", async (_event, ctx) => { for (const entry of ctx.sessionManager.getBranch()) if (entry.type === "custom" && entry.customType === "lsp-state") { const data = entry.data as LspState | undefined; for (const [k, v] of Object.entries(data?.workspaceRoots ?? {})) if (typeof k === "string" && typeof v === "string") workspaceRoots.set(k, v); for (const [k, v] of Object.entries(data?.serverVersions ?? {})) if (typeof k === "string" && typeof v === "string") serverVersions.set(k, v); } });
-  pi.on("tool_execution_start", async (event) => { if (lspToolNames.has(event.toolName)) { ensureToolStats(event.toolName).calls++; toolStarts.set(event.toolCallId, Date.now()); } });
+  pi.on("tool_execution_start", async (event) => { if (lspToolNames.has(event.toolName)) { ensureToolStats(event.toolName).calls++; toolStarts.set(event.toolCallId, Date.now()); } else recordFollowedLocation(event.toolName, event.args); });
   pi.on("tool_result", async (event) => { if (lspToolNames.has(event.toolName)) recordLspResult(event.toolName, event.isError, event.content, event.details); else recordFollowedLocation(event.toolName, event.input); });
   pi.on("tool_execution_end", async (event) => { if (lspToolNames.has(event.toolName)) { const started = toolStarts.get(event.toolCallId); if (started) ensureToolStats(event.toolName).totalMs += Date.now() - started; toolStarts.delete(event.toolCallId); } });
   pi.on("session_shutdown", async () => { persistMetrics(); await Promise.all([...clients.values()].map((c) => c.shutdown().catch(() => undefined))); });

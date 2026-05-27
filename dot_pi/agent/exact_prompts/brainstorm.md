@@ -152,5 +152,5 @@ Wait for approval. If the user requests changes, update the spec and repeat self
 Only after written spec approval:
 
 - hand off to `/plan` to create the implementation plan
-- use the `rewrite` skill only to improve clarity, consistency, and concision of the spec or handoff
+- use the `write` skill only to improve clarity, consistency, and concision of the spec or handoff
 - do not start implementation unless explicitly asked after plan approval

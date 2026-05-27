@@ -1,11 +1,11 @@
 ---
-name: rewrite
-description: Rewrite and edit text for clarity, concision, and precision using Eva Parish's editing principles
+name: write
+description: Write, rewrite, and edit text for clarity, concision, and precision using Eva Parish's editing principles. Use whenever drafting or editing prose, docs, comments, PR descriptions, plans, specs, messages, or user-facing text.
 ---
 
-# Rewrite
+# Write
 
-Apply these editing principles (from Eva Parish's "How I Edit") to rewrite text. The goal is always: **say exactly what you mean** and **remove all unnecessary words**.
+Apply these writing and editing principles (from Eva Parish's "How I Edit") whenever drafting or rewriting text. The goal is always: **say exactly what you mean** and **remove all unnecessary words**.
 
 ## Process
 
@@ -79,4 +79,4 @@ Say exactly what you mean instead of relying on idioms, business jargon, or slan
 
 ## Output format
 
-When rewriting, produce the revised text directly. If the changes are substantial, add a brief summary of what changed and why after the rewritten text.
+When writing or rewriting, produce the revised text directly. If the changes are substantial, add a brief summary of what changed and why after the rewritten text.

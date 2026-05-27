@@ -16,7 +16,8 @@ Do not edit files. Investigate first, then report findings with concrete evidenc
 Look for:
 
 - Duplicative code that should be common
-- Abstractions that are too much or too little
+- Abstractions that are too much or too little, including thin wrappers, identity layers, and unclear type boundaries
+- Structural complexity that should be deleted rather than rearranged: ad-hoc branching, special cases, misplaced feature logic, giant files, or spaghetti control flow
 - Race conditions and concurrency issues, especially CRDT/sync behavior
 - Edge cases and off-by-one errors
 - Error handling gaps
@@ -35,8 +36,9 @@ Also argue against the design: explain what you would do differently, why, and t
 1. Identify the project shape: language, package boundaries, test/build commands, entry points, and relevant guidance files.
 2. Map the target area: core files, tests, dependencies, callers, and ownership boundaries.
 3. Review from multiple angles: correctness, concurrency, security, performance, API/UX, tests, and maintainability.
-4. Validate high-confidence findings with code references, tests, type information, or command output where practical.
-5. Avoid speculative noise. If a concern depends on an assumption, state the assumption and confidence.
+4. Prefer structural findings over low-value nits: identify where deleting indirection, moving logic to the canonical layer, making state explicit, or splitting oversized files would simplify the system.
+5. Validate high-confidence findings with code references, tests, type information, or command output where practical.
+6. Avoid speculative noise. If a concern depends on an assumption, state the assumption and confidence.
 
 ## Output format
 

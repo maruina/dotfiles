@@ -49,7 +49,8 @@ Follow the approved plan closely once it passes review. Deviate only for reposit
    - mark the step/task complete only after verification passes
 8. Complete the plan's docs and future-agent guidance task, including every required `AGENTS.md` inspection.
 9. Run the plan's final verification commands and inspect `git status`.
-10. Report completion using the exact handoff phrase below.
+10. Use the `/pr-create --draft` prompt template to open a draft PR for the branch.
+11. Report completion using the exact handoff phrase below.
 
 The terminal state is implemented, verified changes, with the plan updated to show completed work.
 
@@ -98,7 +99,8 @@ Keep the plan file as the progress ledger:
 After all tasks are complete, all verifications pass, and `git status` has been inspected:
 
 1. Summarize changed files, verification commands run, and any follow-up items.
-2. Run `/pr-create --draft` to open a draft PR for the branch. Always create as draft; the user will mark it ready for review when appropriate.
-3. Say exactly:
+2. Run `/pr-create --draft` by following the `/pr-create` prompt template. Always create as draft; the user will mark it ready for review when appropriate.
+3. If an approved plan includes its own PR creation command, use `/pr-create --draft` instead unless the user explicitly approved the custom command.
+4. Say exactly:
 
 > I finished implementing the plan

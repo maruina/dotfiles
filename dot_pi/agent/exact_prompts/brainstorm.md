@@ -79,6 +79,15 @@ Prefer the most boring correct solution. Justify new infrastructure, abstraction
 
 Design isolated units with clear purpose, explicit interfaces, understood dependencies, and independent tests.
 
+For CI, shell, release, or operational automation, decide the tooling and implementation shape explicitly:
+
+- Prefer existing repository or platform CLIs over raw HTTP calls. For GitHub operations, prefer `gh` when available; use `curl` only when no suitable CLI exists, the CLI is unavailable in the target runtime, or raw HTTP behavior is required.
+- If tool availability is unknown, make it an explicit assumption with a validation step.
+- Prefer readable scripts over long inline CI commands. CI YAML should orchestrate jobs; scripts should contain procedural logic.
+- Put logic in a script when it has branching, loops, retries, temp files, cleanup, multi-line error handling, or user-facing remediation text. Inline CI commands are acceptable for one or two simple commands.
+- When proposing a script, name the script path, inputs, outputs, failure behavior, and how to test it.
+- If choosing raw HTTP over a CLI, or inline CI logic over a script, explain why that choice is safer or simpler.
+
 Review from multiple angles: correctness, concurrency, security, performance, API/UX, tests, maintainability, and operations.
 
 For security-sensitive designs, verify boundary input validation, server-side authorization, secret/sensitive-data handling, and explicit approval for new auth flows, sensitive data storage, external integrations, file uploads, CORS/rate-limit changes, or elevated permissions.

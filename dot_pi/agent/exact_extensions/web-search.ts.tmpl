@@ -14,6 +14,11 @@ function getApiKey(): string {
   return key;
 }
 {{ if eq .profile "work" }}
+const TOOL_NAME = "codex";
+const TOOL_LABEL = "Codex Web Search";
+const TOOL_DESCRIPTION =
+  "Codex-backed web search and content extraction. Use for current events, documentation lookups, and research tasks that require live web data.";
+const TOOL_PROMPT_SNIPPET = "Search the web, extract content from URLs, or conduct deep research via Codex";
 const DEFAULT_CODEX_MODEL = "gpt-5.4-mini";
 const DEFAULT_CODEX_REASONING_EFFORT = "low";
 
@@ -108,11 +113,16 @@ async function runCodex(params: WebSearchParams, signal: AbortSignal) {
 {{ end }}
 export default function (pi: ExtensionAPI) {
   pi.registerTool({
-    name: "tavily_api",
+{{ if eq .profile "work" }}    name: TOOL_NAME,
+    label: TOOL_LABEL,
+    description: TOOL_DESCRIPTION,
+    promptSnippet: TOOL_PROMPT_SNIPPET,
+{{ else }}    name: "tavily_api",
     label: "Tavily Web Search",
     description:
       "Tavily AI web search and content extraction. Use for current events, documentation lookups, and research tasks that require live web data.",
     promptSnippet: "Search the web, extract content from URLs, or conduct deep research via Tavily",
+{{ end }}
     parameters: Type.Object({
       capability: StringEnum(["search", "extract", "crawl", "map", "research"] as const, {
         description:

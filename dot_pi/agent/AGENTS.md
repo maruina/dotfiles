@@ -67,6 +67,7 @@ A hidden `user-context` extension injects current repo, branch, PR, Jira-key, wo
 
 - Use `gh` for GitHub operations.
 - Run `terraform fmt` with `OTEL_TRACES_EXPORTER=`.
+- When showing shell commands intended for copy/paste or shell history, prefer single-line commands over backslash-continued multi-line snippets unless readability requires multiple lines.
 
 ## Obsidian
 

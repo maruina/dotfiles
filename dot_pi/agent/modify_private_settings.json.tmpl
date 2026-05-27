@@ -8,30 +8,20 @@ if [ -z "$input" ]; then
   input='{}'
 fi
 
-{{- if eq .profile "work" }}
 printf '%s\n' "$input" | jq '
+{{- if eq .profile "work" }}
   .skills = [
     "/Users/matteo.ruina/dd/claude-marketplace/compute/skills",
     "/Users/matteo.ruina/dd/claude-marketplace/compute-support/skills"
   ] |
-  del(.extensions.files) |
-  .extensionSettings.files.diffEditor = "zed" |
-  .extensionSettings.files.externalEditor = "zed" |
   .packages = [
     "../../go/src/github.com/DataDog/datadog-pi-packages/packages/refresh-models",
     "../../go/src/github.com/DataDog/datadog-pi-packages/packages/confluence-adf"
   ] |
-  .theme = "catppuccin-frappe"
-'
-{{- else }}
-printf '%s\n' "$input" | jq '
-  del(.extensions.files) |
-  .extensionSettings.files.diffEditor = "zed" |
-  .extensionSettings.files.externalEditor = "zed" |
-  .packages = [
-    "../../go/src/github.com/DataDog/datadog-pi-packages/packages/refresh-models",
-    "../../go/src/github.com/DataDog/datadog-pi-packages/packages/confluence-adf"
-  ] |
-  .theme = "catppuccin-frappe"
-'
 {{- end }}
+  del(.extensions.files) |
+  .extensionSettings.files.diffEditor = "zed" |
+  .extensionSettings.files.externalEditor = "zed" |
+  .theme = "catppuccin-frappe" |
+  .markdown.codeBlockIndent = ""
+'

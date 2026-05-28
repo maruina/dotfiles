@@ -9,7 +9,7 @@ Arguments: $ARGUMENTS
 
 Update the current branch's existing GitHub PR description. This is for refreshing an already-created PR after addressing feedback or changing implementation details.
 
-Assume this command may be run multiple times on the same PR. Make the update idempotent: preserve useful existing content, replace stale generated sections instead of appending duplicates, and keep only one `## Changes since last review` section.
+Assume this command may be run multiple times on the same PR. Make the update idempotent: preserve useful existing content, replace stale generated sections instead of appending duplicates, and keep only one `## Lessons learned` section.
 
 Do not create a new PR.
 Do not rewrite commits.
@@ -57,7 +57,8 @@ Because this command may run repeatedly:
 - Replace existing generated sections in place.
 - Keep hand-written details that are still accurate.
 - Remove outdated review-response bullets instead of accumulating a historical changelog.
-- If the existing `## Changes since last review` section is stale, replace it with the latest meaningful review-response summary.
+- If the existing `## Changes since last review` section exists, replace it with `## Lessons learned` when there is useful reviewer context to share; otherwise remove it.
+- If the existing `## Lessons learned` section is stale, replace it with the latest meaningful lessons.
 
 ## Phase 3: Draft the updated PR body
 
@@ -81,7 +82,7 @@ Two to four sentences explaining why this change exists.
 **What to look for per commit:**
 - **<Topic>** — specific things to verify or scrutinize
 
-## Changes since last review
+## Lessons learned
 
 - ...
 
@@ -90,9 +91,9 @@ Two to four sentences explaining why this change exists.
 - ...
 ```
 
-Only include `## Changes since last review` if there are meaningful review-response changes or the user provided context in `$ARGUMENTS`.
+Only include `## Lessons learned` if the PR scope grew beyond the original plan, review found an interesting failure mode, agentic/self-review materially changed the implementation, or the user provided context in `$ARGUMENTS`.
 
-The `## Changes since last review` section should describe the latest review-response state, not every historical invocation of this command.
+The `## Lessons learned` section should explain reviewer-relevant insights, not provide a historical changelog. Use it for scope changes, surprising real-world failure modes, validation discoveries, or tradeoffs worth sharing with reviewers.
 
 Keep the description concise. Avoid duplicating commit messages.
 
@@ -111,5 +112,5 @@ gh pr edit <number> --body-file <temp-file>
 Print:
 - PR URL
 - sections changed
-- whether `Changes since last review` was added, updated, removed, or left unchanged
+- whether `Lessons learned` was added, updated, removed, or left unchanged
 - any assumptions made

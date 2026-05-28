@@ -43,6 +43,7 @@ For each meaningful change, identify:
 - why the change exists
 - what a reviewer should verify
 - what tests cover it
+- any lessons worth sharing with reviewers: scope that grew beyond the original plan, interesting failure modes found during self or agentic review, surprising validation results, or non-obvious tradeoffs
 
 Use narrow review topics. A topic should map to one subsystem, mechanism, or reviewer question. Split broad topics like "cleanup", "hardening", or "bug fix" into smaller reviewable topics when needed.
 
@@ -133,13 +134,18 @@ Two to four sentences explaining why this change exists. Include relevant ticket
 **What to look for per commit:**
 - **<Topic>** - specific things to verify or scrutinize
 
+## Lessons learned
+
+- Optional. Include only if scope grew beyond the original plan, review found an interesting failure mode, agentic/self-review materially changed the implementation, or there is a tradeoff worth sharing with reviewers.
+- Explain reviewer-relevant insights, not a historical changelog.
+
 ## Tests
 
 - Test command or scenario covered.
 - If no tests were added or run, explain why.
 ```
 
-Keep the body concise and specific. Do not duplicate commit messages.
+Omit `## Lessons learned` when there is nothing meaningful to share. Keep the body concise and specific. Do not duplicate commit messages.
 
 ## Phase 7: Create the PR
 

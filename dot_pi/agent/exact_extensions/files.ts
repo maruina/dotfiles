@@ -1,8 +1,8 @@
 /**
  * Files Extension
  *
- * /files command lists files in the current git tree (plus session-referenced files)
- * and offers quick actions like reveal, open, edit, or diff.
+ * /files command lists session-edited files, git status files, and session-referenced
+ * files first, and offers quick actions like reveal, open, edit, or diff.
  */
 
 import { spawnSync } from "node:child_process";
@@ -536,11 +536,9 @@ const buildFileEntries = async (
     : new Map<string, GitStatusEntry>();
 
   let trackedSet = new Set<string>();
-  let gitFiles: Array<{ canonicalPath: string; isDirectory: boolean }> = [];
   if (gitRoot) {
     const gitListing = await getGitFiles(pi, gitRoot);
     trackedSet = gitListing.tracked;
-    gitFiles = gitListing.files;
   }
 
   const fileMap = new Map<string, FileEntry>();
@@ -586,18 +584,6 @@ const buildFileEntries = async (
       lastTimestamp: data.lastTimestamp ?? 0,
     });
   };
-
-  for (const file of gitFiles) {
-    upsertFile({
-      canonicalPath: file.canonicalPath,
-      resolvedPath: file.canonicalPath,
-      isDirectory: file.isDirectory,
-      exists: true,
-      status: statusMap.get(file.canonicalPath)?.status,
-      inRepo: true,
-      isTracked: trackedSet.has(file.canonicalPath),
-    });
-  }
 
   for (const [canonicalPath, statusEntry] of statusMap.entries()) {
     if (fileMap.has(canonicalPath)) {
@@ -667,6 +653,9 @@ const buildFileEntries = async (
   }
 
   const files = Array.from(fileMap.values()).sort((a, b) => {
+    if (a.hasSessionChange !== b.hasSessionChange) {
+      return a.hasSessionChange ? -1 : 1;
+    }
     const aDirty = Boolean(a.status);
     const bDirty = Boolean(b.status);
     if (aDirty !== bDirty) {
@@ -674,9 +663,6 @@ const buildFileEntries = async (
     }
     if (a.inRepo !== b.inRepo) {
       return a.inRepo ? -1 : 1;
-    }
-    if (a.hasSessionChange !== b.hasSessionChange) {
-      return a.hasSessionChange ? -1 : 1;
     }
     if (a.lastTimestamp !== b.lastTimestamp) {
       return b.lastTimestamp - a.lastTimestamp;
@@ -1232,7 +1218,7 @@ const runFileBrowser = async (
 
 export default function (pi: ExtensionAPI): void {
   pi.registerCommand("files", {
-    description: "Browse files with git status and session references",
+    description: "Browse edited, changed, and referenced files",
     handler: async (_args, ctx) => {
       await runFileBrowser(pi, ctx);
     },

@@ -484,44 +484,46 @@ const getGitStatusMap = async (
   return statusMap;
 };
 
-const getGitFiles = async (
+const getTrackedGitFiles = async (
   pi: ExtensionAPI,
   gitRoot: string,
-): Promise<{
-  tracked: Set<string>;
-  files: Array<{ canonicalPath: string; isDirectory: boolean }>;
-}> => {
+  paths: string[],
+): Promise<Set<string>> => {
   const tracked = new Set<string>();
-  const files: Array<{ canonicalPath: string; isDirectory: boolean }> = [];
-
-  const trackedResult = await pi.exec("git", ["ls-files", "-z"], {
-    cwd: gitRoot,
-  });
-  if (trackedResult.code === 0 && trackedResult.stdout) {
-    for (const relativePath of splitNullSeparated(trackedResult.stdout)) {
-      const resolvedPath = path.resolve(gitRoot, relativePath);
-      const canonical = toCanonicalPath(resolvedPath);
-      if (!canonical) continue;
-      tracked.add(canonical.canonicalPath);
-      files.push(canonical);
-    }
+  if (paths.length === 0) {
+    return tracked;
   }
 
-  const untrackedResult = await pi.exec(
+  const relativePaths = paths
+    .map((filePath) => path.relative(gitRoot, filePath))
+    .filter(
+      (relativePath) =>
+        relativePath &&
+        !relativePath.startsWith("..") &&
+        !path.isAbsolute(relativePath),
+    )
+    .map((relativePath) => `:(literal)${relativePath}`);
+  if (relativePaths.length === 0) {
+    return tracked;
+  }
+
+  const result = await pi.exec(
     "git",
-    ["ls-files", "-z", "--others", "--exclude-standard"],
+    ["ls-files", "-z", "--", ...relativePaths],
     { cwd: gitRoot },
   );
-  if (untrackedResult.code === 0 && untrackedResult.stdout) {
-    for (const relativePath of splitNullSeparated(untrackedResult.stdout)) {
-      const resolvedPath = path.resolve(gitRoot, relativePath);
-      const canonical = toCanonicalPath(resolvedPath);
-      if (!canonical) continue;
-      files.push(canonical);
+  if (result.code !== 0 || !result.stdout) {
+    return tracked;
+  }
+
+  for (const relativePath of splitNullSeparated(result.stdout)) {
+    const canonical = toCanonicalPath(path.resolve(gitRoot, relativePath));
+    if (canonical) {
+      tracked.add(canonical.canonicalPath);
     }
   }
 
-  return { tracked, files };
+  return tracked;
 };
 
 const buildFileEntries = async (
@@ -534,12 +536,6 @@ const buildFileEntries = async (
   const statusMap = gitRoot
     ? await getGitStatusMap(pi, gitRoot)
     : new Map<string, GitStatusEntry>();
-
-  let trackedSet = new Set<string>();
-  if (gitRoot) {
-    const gitListing = await getGitFiles(pi, gitRoot);
-    trackedSet = gitListing.tracked;
-  }
 
   const fileMap = new Map<string, FileEntry>();
 
@@ -602,7 +598,7 @@ const buildFileEntries = async (
       exists: statusEntry.exists,
       status: statusEntry.status,
       inRepo,
-      isTracked: trackedSet.has(canonicalPath) || statusEntry.status !== "??",
+      isTracked: statusEntry.status !== "??",
     });
   }
 
@@ -625,7 +621,6 @@ const buildFileEntries = async (
       exists: true,
       status: statusMap.get(canonical.canonicalPath)?.status,
       inRepo,
-      isTracked: trackedSet.has(canonical.canonicalPath),
       isReferenced: true,
     });
   }
@@ -646,10 +641,22 @@ const buildFileEntries = async (
       exists: true,
       status: statusMap.get(canonical.canonicalPath)?.status,
       inRepo,
-      isTracked: trackedSet.has(canonical.canonicalPath),
       hasSessionChange: true,
       lastTimestamp: change.lastTimestamp,
     });
+  }
+
+  if (gitRoot) {
+    const trackedSet = await getTrackedGitFiles(
+      pi,
+      gitRoot,
+      Array.from(fileMap.keys()),
+    );
+    for (const [canonicalPath, file] of fileMap.entries()) {
+      if (trackedSet.has(canonicalPath) || (file.status && file.status !== "??")) {
+        fileMap.set(canonicalPath, { ...file, isTracked: true });
+      }
+    }
   }
 
   const files = Array.from(fileMap.values()).sort((a, b) => {

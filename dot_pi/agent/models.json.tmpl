@@ -171,6 +171,24 @@
       },
       "models": [
         {
+          "id": "anthropic/claude-opus-4-8",
+          "name": "Claude Opus 4.8 (AI Gateway, 200k)",
+          "api": "anthropic-messages",
+          "reasoning": true,
+          "input": [
+            "text",
+            "image"
+          ],
+          "contextWindow": 200000,
+          "maxTokens": 128000,
+          "thinkingLevelMap": {
+            "xhigh": "xhigh"
+          },
+          "compat": {
+            "forceAdaptiveThinking": true
+          }
+        },
+        {
           "id": "anthropic/claude-opus-4-7",
           "name": "Claude Opus 4.7 (AI Gateway, 200k)",
           "api": "anthropic-messages",
@@ -233,6 +251,24 @@
         "provider": "anthropic"
       },
       "models": [
+        {
+          "id": "anthropic/claude-opus-4-8",
+          "name": "Claude Opus 4.8 (AI Gateway, 1M)",
+          "api": "anthropic-messages",
+          "reasoning": true,
+          "input": [
+            "text",
+            "image"
+          ],
+          "contextWindow": 1000000,
+          "maxTokens": 128000,
+          "thinkingLevelMap": {
+            "xhigh": "xhigh"
+          },
+          "compat": {
+            "forceAdaptiveThinking": true
+          }
+        },
         {
           "id": "anthropic/claude-opus-4-7",
           "name": "Claude Opus 4.7 (AI Gateway, 1M)",

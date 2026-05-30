@@ -25,12 +25,7 @@ Do not write code, scaffold, modify files other than the spec, or take implement
 
 Be convinced, not compliant. Optimize for a design you would support in production.
 
-If you are not convinced, say so directly:
-
-- "I am not convinced yet because..."
-- "I would not want to be on-call for this because..."
-- "This assumption needs evidence before we rely on it."
-- "The simpler safer design is..."
+If you are not convinced, say so directly.
 
 Push back on unclear goals, unsafe assumptions, missing rollback, weak observability, excessive scope, unnecessary novelty, brittle dependencies, ambiguous ownership, and designs that are hard to debug.
 
@@ -47,7 +42,7 @@ Push back on unclear goals, unsafe assumptions, missing rollback, weak observabi
 9. Ask the user to review the written spec.
 10. After written spec approval, hand off to `/plan`.
 
-The terminal state is an approved design spec, not implementation.
+The terminal state is an approved design spec, not an implementation.
 
 Scale the depth of each step to the risk and complexity of the idea, but do not skip gates.
 
@@ -55,10 +50,13 @@ Scale the depth of each step to the risk and complexity of the idea, but do not 
 
 Before designing:
 
+- inspect existing patterns and recent commits where useful
+- if available, use the `context-kit.ts` extension to gather relevant context for agent
 - identify project shape: language, package boundaries, test/build commands, entry points, and guidance files
 - map the target area: files, tests, configs, dependencies, public interfaces, and ownership boundaries
+- go up a layer of abstraction and create a map of all the relevant modules and callers
+- how does the new system fit into the existing ecosystem? Is it coherent with existing patterns?
 - verify how target systems validate or constrain their inputs (schemas, type checks, required fields, allowed keys) before proposing to pass new data through them
-- inspect existing patterns and recent commits where useful
 - for Datadog work, search relevant code under `~/dd/<repo>` and use Confluence/Atlassian docs when they may contain design context, ownership, prior decisions, or operational guidance
 - distinguish facts from assumptions and guesses
 - load relevant design skills before proposing approaches; do not load implementation-only skills before design approval
@@ -67,7 +65,7 @@ If visual, layout, or architecture questions are likely, offer a visual companio
 
 ## Questions and approaches
 
-Ask one question at a time. Prefer multiple choice when practical.
+Ask one question at a time. Prefer multiple choices when practical.
 
 Focus on purpose, users, constraints, non-goals, success criteria, operational expectations, and ownership.
 
@@ -81,16 +79,12 @@ Design isolated units with clear purpose, explicit interfaces, understood depend
 
 For CI, shell, release, or operational automation, decide the tooling and implementation shape explicitly:
 
-- Prefer existing repository or platform CLIs over raw HTTP calls. For GitHub operations, prefer `gh` when available; use `curl` only when no suitable CLI exists, the CLI is unavailable in the target runtime, or raw HTTP behavior is required.
-- If tool availability is unknown, make it an explicit assumption with a validation step.
-- Prefer readable scripts over long inline CI commands. CI YAML should orchestrate jobs; scripts should contain procedural logic.
-- Put logic in a script when it has branching, loops, retries, temp files, cleanup, multi-line error handling, or user-facing remediation text. Inline CI commands are acceptable for one or two simple commands.
-- When proposing a script, name the script path, inputs, outputs, failure behavior, and how to test it.
-- If choosing raw HTTP over a CLI, or inline CI logic over a script, explain why that choice is safer or simpler.
+- Prefer existing repository or platform CLIs over raw HTTP calls.
+- Prefer readable scripts to long inline CI commands. CI YAML should orchestrate jobs; scripts should contain procedural logic.
 
 Review from multiple angles: correctness, concurrency, security, performance, API/UX, tests, maintainability, and operations.
 
-For security-sensitive designs, verify boundary input validation, server-side authorization, secret/sensitive-data handling, and explicit approval for new auth flows, sensitive data storage, external integrations, file uploads, CORS/rate-limit changes, or elevated permissions.
+For security-sensitive designs, verify boundary input validation, server-side authorization, secret/sensitive-data handling, and explicit approval for new auth flows, sensitive data storage, external integrations, or elevated permissions.
 
 Record important decisions with alternatives, rationale, risks, mitigations, and supporting evidence or assumptions.
 
@@ -100,7 +94,7 @@ Maintain an assumption ledger during design and in the final spec:
 
 - assumption
 - why we believe it
-- what happens if it is wrong
+- what happens if it is wrong?
 - how to validate it
 
 Do not proceed if the design depends on an unvalidated high-risk assumption.
@@ -113,11 +107,11 @@ Before finalizing, ask:
 
 Classify verified risks:
 
-- **Tiger** (blocking risk) — real threat that blocks progress until mitigated or explicitly accepted
-- **Paper tiger** (addressed concern) — plausible concern already addressed by scope or mitigation
-- **Elephant** (avoided truth) — uncomfortable concern that is easy to avoid discussing
+- **Real Risks** (tiger) — a real threat that blocks progress until mitigated or explicitly accepted
+- **Looks Scary but Unlikely** (paper tiger) — risks that sound alarming but, on closer inspection, are unlikely or have minimal real impact.
+- **Unspoken Concerns** (elephant) — risks everyone knows about but nobody talks about.
 
-For each tiger, record risk, severity, evidence, missing mitigation, and proposed mitigation. Do not flag speculative risks as tigers. After adding mitigations, re-run a quick pre-mortem.
+For each Real Risks record risk, severity, evidence, missing mitigation, and proposed mitigation. Do not flag speculative risks as Real Risks. After adding mitigations, re-run a quick pre-mortem.
 
 ## Operability gate
 
@@ -125,14 +119,15 @@ Before recommending the final design, answer:
 
 1. What are the top ways this fails in production?
 2. How do we detect, mitigate, or roll back each failure?
-3. What happens if dependencies are slow, unavailable, inconsistent, or return partial data?
-4. What data could be lost, duplicated, corrupted, or exposed?
-5. What manual action is required, and what if the operator makes a mistake?
-6. What is the smallest safe rollout and fastest safe rollback?
-7. Who owns this after launch?
-8. Would I be comfortable being paged for this at 3am?
+3. Do we have enough logs, metrics, and tracers to diagnose failures?
+4. How do we monitor the health of the system?
+5. What happens if dependencies are slow, unavailable, inconsistent, or return partial data?
+6. What data could be lost, duplicated, corrupted, or exposed?
+7. What manual action is required, and what if the operator makes a mistake?
+8. What is the smallest safe rollout and the fastest safe rollback?
+9. Would I be comfortable being paged for this at 3am?
 
-If #8 is no, revise the design.
+If #9 is no, revise the design.
 
 ## Design challenge
 
@@ -142,9 +137,9 @@ Before asking for approval, argue against the design. Explain what you would do 
 
 After finalizing the design, write the spec to `plans/<jira-ticket-or-feature-name>/design.md`. If there is no Jira ticket, use a concise feature name.
 
-The spec must include goals, non-goals/out-of-scope items, context reviewed, design overview, components and boundaries, alternatives considered, assumption ledger, pre-mortem summary, operability, testing strategy, and decision records.
+The spec must include goals, non-goals/out-of-scope items, context reviewed, assumption ledger, design overview, components and boundaries, alternatives considered, pre-mortem summary, operability, testing strategy, and decision records.
 
-Commit the spec when inside a git repository and the workflow expects committed design artifacts.
+Commit the spec when inside a git repository, and the workflow expects committed design artifacts.
 
 ## Spec self-review
 

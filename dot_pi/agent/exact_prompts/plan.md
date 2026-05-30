@@ -49,15 +49,11 @@ The terminal state is a saved implementation plan, not implementation.
 
 ## File Structure
 
-Before defining tasks, map the files to create or modify, each file's responsibility, boundaries, and tests. Follow existing patterns. Prefer focused files when the repository style allows it, but do not restructure unrelated code.
-
-For CI, shell, release, or operational automation:
-
-- Inspect existing script and helper locations before choosing paths, such as `.ci/`, `scripts/`, `hack/`, `Makefile`, and existing CI job commands.
-- Prefer existing repository or platform CLIs over raw HTTP calls. For GitHub operations, prefer `gh` when available; for GitLab operations, prefer `glab` when available; for Datadog operations, prefer established Datadog CLIs or MCP workflows. Use `curl` only after documenting why no existing CLI fits.
-- Prefer scripts over long inline CI YAML. Put logic in a script when it has branching, loops, retries, temp files, cleanup, multi-line error handling, or user-facing remediation text. Keep CI YAML focused on orchestration.
-- Include script syntax checks and stubbed behavior tests that do not perform real external mutations.
-- In the file map, state the runtime tool chosen, why it is preferred, the inline-vs-script decision, the script path if applicable, and how behavior is tested.
+Before defining tasks, map the files to create or modify, each file's responsibility, boundaries, and tests.
+Follow existing patterns. Prefer focused files when the repository style allows it but does not restructure unrelated code.
+Inspect existing script and helper locations before choosing paths, such as `.ci/`, `scripts/`, `hack/`, `Makefile`, and existing CI job commands. 
+Prefer existing repository or platform CLIs over raw HTTP calls.
+Prefer scripts to long inline CI YAML. Put logic in a script when it has branching, loops, retries, temp files, cleanup, multi-line error handling, or user-facing remediation text. Keep CI YAML focused on orchestration.
 
 Use this structure to decompose tasks. Each task should produce self-contained changes that make sense independently.
 

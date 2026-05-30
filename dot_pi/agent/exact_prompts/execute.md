@@ -26,8 +26,8 @@ Do not start implementation on `main` or `master` without explicit user consent.
 ## Posture
 
 Be convinced, not blindly compliant. Treat the plan as executable instructions, but review it critically before changing code.
-
-Follow the approved plan closely once it passes review. Deviate only for repository reality, equivalent verification commands, or user-approved plan changes. Keep changes surgical: every changed line should map to a plan step or explicit user instruction.
+Follow the approved plan closely once it passes review. Deviate only because of repository reality, equivalent verification commands, or user-approved plan changes.
+Keep changes surgical: every changed line should map to a plan step or explicit user instruction.
 
 ## Flow
 

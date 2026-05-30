@@ -41,7 +41,7 @@ Be convinced, not compliant. If the design is not ready to plan from, say so dir
    - Datadog compute or operational workflows: relevant compute skills
 4. Check scope. If the spec covers multiple independent subsystems, stop and suggest separate plans, one per subsystem, unless the spec already decomposes them into independently testable deliverables.
 5. Map the file structure before tasks (see File Structure below).
-6. Write the implementation plan to `plans/<jira-ticket-or-feature-name>/plan.md`, using the same directory as the design when appropriate.
+6. Write the implementation plan to `plans/<jira-ticket-or-feature-name>/plan.md`, using the same directory as the design.
 7. Self-review the plan and fix issues inline.
 8. Report: `Plan complete and saved to plans/<jira-ticket-or-feature-name>/plan.md`.
 

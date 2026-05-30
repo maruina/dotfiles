@@ -37,10 +37,17 @@ Push back on unclear goals, unsafe assumptions, missing rollback, weak observabi
 4. Propose 2-3 approaches with trade-offs and a recommendation.
 5. Run the pre-mortem and operability gate; revise until convinced.
 6. Present the design and get approval.
-7. Write the design spec to `plans/<jira-ticket-or-feature-name>/design.md`.
-8. Self-review the spec.
-9. Ask the user to review the written spec.
-10. After written spec approval, hand off to `/plan`.
+7. Create a worktree adjacent to the main checkout so the main branch stays undisturbed:
+    ```bash
+    REPO=$(basename "$(git rev-parse --show-toplevel)")
+    WORKTREE="../${REPO}-<jira-ticket-or-feature-name>"
+    git worktree add "$WORKTREE" -b maruina/<jira-ticket-or-feature-name> main
+    ```
+    All later file operations use absolute paths under `$WORKTREE/`
+8. Write the design spec to `plans/<jira-ticket-or-feature-name>/design.md`.
+9. Self-review the spec.
+10. Ask the user to review the written spec.
+11. After written spec approval, hand off to `/plan`.
 
 The terminal state is an approved design spec, not an implementation.
 

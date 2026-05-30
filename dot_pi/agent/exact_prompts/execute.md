@@ -73,7 +73,11 @@ Do not batch unrelated tasks. Do not skip tests because later tasks run broader 
 
 STOP executing immediately when:
 
-- You are on `main` or `master` and do not have explicit consent to implement there.
+- You are on `main` or `master` and do not have explicit consent to implement there. The design and the plan should be already in a worktree:
+   ```shell 
+   REPO=$(basename "$(git rev-parse --show-toplevel)")
+   WORKTREE="../${REPO}-<jira-ticket-or-feature-name>"
+   ```
 - The plan has critical gaps preventing safe execution.
 - A plan instruction conflicts with repository guidance or a loaded skill.
 - You do not understand an instruction.

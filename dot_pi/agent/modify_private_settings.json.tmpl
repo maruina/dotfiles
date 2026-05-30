@@ -19,6 +19,11 @@ printf '%s\n' "$input" | jq '
     "../../go/src/github.com/DataDog/datadog-pi-packages/packages/confluence-adf"
   ] |
 {{- end }}
+{{- if eq .profile "personal" }}
+  .skills = [
+    "/Users/ruio/src/github.com/kepano/obsidian-skills"
+  ] |
+{{- end }}
   del(.extensions.files) |
   .extensionSettings.files.diffEditor = "zed" |
   .extensionSettings.files.externalEditor = "zed" |

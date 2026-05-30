@@ -2,166 +2,69 @@
 description: Turn an idea into an approved design spec before implementation
 argument-hint: "<idea>"
 ---
-
-# Designing Ideas Into Specs
-
+# Brainstorm an Approved Design
 Idea:
 
 > $ARGUMENTS
 
-Help turn the idea into an approved design spec through collaborative dialogue.
+Turn the idea into an approved design spec through skeptical, collaborative discovery.
 
-Lifecycle:
-
-1. `/design` turns an idea into an approved design spec.
-2. `/plan` turns an approved design spec into an approved implementation plan.
-3. `/execute` turns an approved implementation plan into verified changes.
+Lifecycle: `/brainstorm` creates an approved design spec, `/plan` creates an approved implementation plan, and `/execute` implements verified changes.
 
 <HARD-GATE>
-Do not write code, scaffold, modify files other than the spec, or take implementation action until the design is approved. This applies to every project, even simple ones.
+Do not write implementation code, scaffold files, or change files outside the design spec. The terminal state is an approved `design.md`.
 </HARD-GATE>
 
 ## Posture
+Be convinced, not compliant. Prefer the smallest boring design that is safe to operate.
 
-Be convinced, not compliant. Optimize for a design you would support in production.
+Push back on unclear goals, unsafe assumptions, excessive scope, unnecessary novelty, brittle dependencies, weak observability, missing rollback, and ambiguous ownership.
 
-If you are not convinced, say so directly.
+## Workflow
+1. Inspect relevant guidance, existing patterns, recent commits, tickets, prior plans, architecture decision records, and design skills. Load design skills before proposing approaches.
+2. Define goals, non-goals, users, constraints, success criteria, ownership, and operational expectations.
+3. Classify complexity as simple, medium, or complex based on blast radius, novelty, component count, operational risk, and reversibility. Scale discovery to that risk.
+4. Keep an assumption ledger: assumption, evidence, impact if wrong, and validation path. Stop on unvalidated high-risk assumptions.
+5. Ask clarifying questions one at a time. Prefer multiple choice when practical.
+6. Recommend one approach, then compare 1-2 alternatives and explain why they are weaker.
+7. Run a pre-mortem, operability review, and security review scaled to risk. Mitigate real risks before approval.
+8. Get user approval for the design direction before writing the spec.
+9. If in a git repository, write the spec in a branch or worktree, not directly on `main` or `master` unless the user explicitly approves.
+10. Write `plans/<ticket-or-feature>/design.md`.
+11. Review the spec as a skeptical staff engineer. Fix blocking issues inline; record rejected findings with rationale.
+12. Ask the user to review the written spec before handing off to `/plan`.
 
-Push back on unclear goals, unsafe assumptions, missing rollback, weak observability, excessive scope, unnecessary novelty, brittle dependencies, ambiguous ownership, and designs that are hard to debug.
+## Design Checks
+Answer these before approval:
 
-## Flow
+- How does this fit existing architecture and repository patterns?
+- What are the main failure modes, and how do we detect, mitigate, and roll back each one?
+- Are logs, metrics, traces, alerts, and runbooks sufficient for diagnosis?
+- What happens when dependencies are slow, unavailable, inconsistent, or partially successful?
+- What data could be lost, duplicated, corrupted, or exposed?
+- What is the smallest safe rollout and fastest safe rollback?
+- Would I be comfortable being paged for this at 3am?
 
-1. Explore context and load relevant design skills.
-2. Assess scope; decompose multi-subsystem projects.
-3. Ask clarifying questions one at a time.
-4. Propose 2-3 approaches with trade-offs and a recommendation.
-5. Run the pre-mortem and operability gate; revise until convinced.
-6. Present the design and get approval.
-7. Create a worktree adjacent to the main checkout so the main branch stays undisturbed:
-    ```bash
-    REPO=$(basename "$(git rev-parse --show-toplevel)")
-    WORKTREE="../${REPO}-<jira-ticket-or-feature-name>"
-    git worktree add "$WORKTREE" -b maruina/<jira-ticket-or-feature-name> main
-    ```
-    All later file operations use absolute paths under `$WORKTREE/`
-8. Write the design spec to `plans/<jira-ticket-or-feature-name>/design.md`.
-9. Self-review the spec.
-10. Ask the user to review the written spec.
-11. After written spec approval, hand off to `/plan`.
+If the last answer is no, revise the design.
 
-The terminal state is an approved design spec, not an implementation.
+## Spec Requirements
+The spec must include:
 
-Scale the depth of each step to the risk and complexity of the idea, but do not skip gates.
+- goals and non-goals
+- context reviewed
+- assumption ledger
+- design overview
+- components, boundaries, and interfaces
+- alternatives considered and rationale
+- pre-mortem risks and mitigations
+- operability, rollout, and rollback
+- security and data-handling considerations
+- testing strategy
+- decision records
 
-## Context first
+Before asking for review, remove placeholders, contradictions, unsupported assumptions, scope creep, and vague mitigations.
 
-Before designing:
-
-- inspect existing patterns and recent commits where useful
-- if available, use the `context-kit.ts` extension to gather relevant context for agent
-- identify project shape: language, package boundaries, test/build commands, entry points, and guidance files
-- map the target area: files, tests, configs, dependencies, public interfaces, and ownership boundaries
-- go up a layer of abstraction and create a map of all the relevant modules and callers
-- how does the new system fit into the existing ecosystem? Is it coherent with existing patterns?
-- verify how target systems validate or constrain their inputs (schemas, type checks, required fields, allowed keys) before proposing to pass new data through them
-- for Datadog work, search relevant code under `~/dd/<repo>` and use Confluence/Atlassian docs when they may contain design context, ownership, prior decisions, or operational guidance
-- distinguish facts from assumptions and guesses
-- load relevant design skills before proposing approaches; do not load implementation-only skills before design approval
-
-If visual, layout, or architecture questions are likely, offer a visual companion in its own message before detailed questions.
-
-## Questions and approaches
-
-Ask one question at a time. Prefer multiple choices when practical.
-
-Focus on purpose, users, constraints, non-goals, success criteria, operational expectations, and ownership.
-
-When proposing approaches, lead with your recommendation and explain why the alternatives are weaker.
-
-## Design standards
-
-Prefer the most boring correct solution. Justify new infrastructure, abstractions, queues, frameworks, or control loops.
-
-Design isolated units with clear purpose, explicit interfaces, understood dependencies, and independent tests.
-
-For CI, shell, release, or operational automation, decide the tooling and implementation shape explicitly:
-
-- Prefer existing repository or platform CLIs over raw HTTP calls.
-- Prefer readable scripts to long inline CI commands. CI YAML should orchestrate jobs; scripts should contain procedural logic.
-
-Review from multiple angles: correctness, concurrency, security, performance, API/UX, tests, maintainability, and operations.
-
-For security-sensitive designs, verify boundary input validation, server-side authorization, secret/sensitive-data handling, and explicit approval for new auth flows, sensitive data storage, external integrations, or elevated permissions.
-
-Record important decisions with alternatives, rationale, risks, mitigations, and supporting evidence or assumptions.
-
-## Assumptions
-
-Maintain an assumption ledger during design and in the final spec:
-
-- assumption
-- why we believe it
-- what happens if it is wrong?
-- how to validate it
-
-Do not proceed if the design depends on an unvalidated high-risk assumption.
-
-## Pre-mortem
-
-Before finalizing, ask:
-
-> Imagine it is 3 months from now and this project failed, caused an incident, missed the goal, or became painful to maintain. Why?
-
-Classify verified risks:
-
-- **Real Risks** (tiger) — a real threat that blocks progress until mitigated or explicitly accepted
-- **Looks Scary but Unlikely** (paper tiger) — risks that sound alarming but, on closer inspection, are unlikely or have minimal real impact.
-- **Unspoken Concerns** (elephant) — risks everyone knows about but nobody talks about.
-
-For each Real Risks record risk, severity, evidence, missing mitigation, and proposed mitigation. Do not flag speculative risks as Real Risks. After adding mitigations, re-run a quick pre-mortem.
-
-## Operability gate
-
-Before recommending the final design, answer:
-
-1. What are the top ways this fails in production?
-2. How do we detect, mitigate, or roll back each failure?
-3. Do we have enough logs, metrics, and tracers to diagnose failures?
-4. How do we monitor the health of the system?
-5. What happens if dependencies are slow, unavailable, inconsistent, or return partial data?
-6. What data could be lost, duplicated, corrupted, or exposed?
-7. What manual action is required, and what if the operator makes a mistake?
-8. What is the smallest safe rollout and the fastest safe rollback?
-9. Would I be comfortable being paged for this at 3am?
-
-If #9 is no, revise the design.
-
-## Design challenge
-
-Before asking for approval, argue against the design. Explain what you would do differently, the trade-offs, and why the recommended design is still right.
-
-## Spec
-
-After finalizing the design, write the spec to `plans/<jira-ticket-or-feature-name>/design.md`. If there is no Jira ticket, use a concise feature name.
-
-The spec must include goals, non-goals/out-of-scope items, context reviewed, assumption ledger, design overview, components and boundaries, alternatives considered, pre-mortem summary, operability, testing strategy, and decision records.
-
-Commit the spec when inside a git repository, and the workflow expects committed design artifacts.
-
-## Spec self-review
-
-Before asking the user to review, fix placeholders, contradictions, ambiguity, scope creep, unsupported assumptions, and missing mitigations for high-severity risks.
-
-Then ask:
+## Handoff
+After saving the spec, say:
 
 > Spec written to `<path>`. Please review it and let me know if you want changes before we start writing the implementation plan.
-
-Wait for approval. If the user requests changes, update the spec and repeat self-review.
-
-## Implementation planning
-
-Only after written spec approval:
-
-- hand off to `/plan` to create the implementation plan
-- use the `write` skill only to improve clarity, consistency, and concision of the spec or handoff
-- do not start implementation unless explicitly asked after plan approval

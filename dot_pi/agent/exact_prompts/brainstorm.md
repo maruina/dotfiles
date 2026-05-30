@@ -65,6 +65,6 @@ The spec must include:
 Before asking for review, remove placeholders, contradictions, unsupported assumptions, scope creep, and vague mitigations.
 
 ## Handoff
-After saving the spec, say:
+After saving the spec, say exactly:
 
-> Spec written to `<path>`. Please review it and let me know if you want changes before we start writing the implementation plan.
+> Spec complete and saved to `plans/<ticket-or-feature>/design.md`. Review it before handing off to `/plan`.

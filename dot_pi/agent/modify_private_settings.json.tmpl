@@ -21,7 +21,8 @@ printf '%s\n' "$input" | jq '
 {{- end }}
 {{- if eq .profile "personal" }}
   .skills = [
-    "/Users/ruio/src/github.com/kepano/obsidian-skills"
+    "/Users/ruio/src/github.com/kepano/obsidian-skills/skills/obsidian-markdown/",
+    "/Users/ruio/src/github.com/kepano/obsidian-skills/skills/obsidian-cli/"
   ] |
 {{- end }}
   del(.extensions.files) |

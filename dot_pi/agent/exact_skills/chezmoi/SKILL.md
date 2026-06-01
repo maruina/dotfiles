@@ -77,6 +77,33 @@ chezmoi merge ~/.pi/agent/models.json
 ```
 `merge` opens a three-way diff (source rendered, target current, source raw) and lets you reconcile manually. Use it instead of `re-add` for templated files.
 
+## Updating pi models after `/refresh-models`
+`/refresh-models` updates the rendered target file:
+```
+~/.pi/agent/models.json
+```
+
+The chezmoi source of truth is the template:
+```
+~/.local/share/chezmoi/dot_pi/agent/models.json.tmpl
+```
+
+When `/refresh-models` changes `~/.pi/agent/models.json`, sync those changes into chezmoi with a template merge:
+```bash
+chezmoi diff ~/.pi/agent/models.json
+chezmoi merge ~/.pi/agent/models.json
+chezmoi diff ~/.pi/agent/models.json
+chezmoi apply ~/.pi/agent/models.json
+```
+
+After merging, verify that rendering the template matches the target and that chezmoi has no remaining diff:
+```bash
+chezmoi execute-template < ~/.local/share/chezmoi/dot_pi/agent/models.json.tmpl | diff -u - ~/.pi/agent/models.json
+chezmoi diff ~/.pi/agent/models.json
+```
+
+Do **not** use `chezmoi re-add ~/.pi/agent/models.json`; `models.json` is a template target, so `re-add` will not update `models.json.tmpl` correctly.
+
 ## Secrets
 Use 1Password exclusively. Never hardcode secrets in source files:
 ```

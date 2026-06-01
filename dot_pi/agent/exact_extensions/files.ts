@@ -444,6 +444,33 @@ const getGitRoot = async (
   return root ? root : null;
 };
 
+const getGitCommonDir = async (
+  pi: ExtensionAPI,
+  cwd: string,
+): Promise<string | null> => {
+  const result = await pi.exec("git", ["rev-parse", "--git-common-dir"], {
+    cwd,
+  });
+  if (result.code !== 0) {
+    return null;
+  }
+
+  const commonDir = result.stdout.trim();
+  if (!commonDir) {
+    return null;
+  }
+
+  return path.isAbsolute(commonDir) ? commonDir : path.resolve(cwd, commonDir);
+};
+
+const isGitWorktree = async (
+  pi: ExtensionAPI,
+  gitRoot: string,
+): Promise<boolean> => {
+  const commonDir = await getGitCommonDir(pi, gitRoot);
+  return commonDir !== null && !path.resolve(commonDir).startsWith(path.join(gitRoot, ".git"));
+};
+
 const getGitStatusMap = async (
   pi: ExtensionAPI,
   cwd: string,
@@ -713,14 +740,15 @@ const getEditableContent = (target: FileEntry): EditCheckResult => {
 
 const showActionSelector = async (
   ctx: ExtensionContext,
-  options: { canQuickLook: boolean; canEdit: boolean; canDiff: boolean },
+  options: { canQuickLook: boolean; canEdit: boolean; canDiff: boolean; canOpenGoLandProject: boolean },
 ): Promise<
-  "reveal" | "quicklook" | "open" | "edit" | "addToPrompt" | "diff" | null
+  "reveal" | "quicklook" | "open" | "openGoland" | "edit" | "addToPrompt" | "diff" | null
 > => {
   const actions: SelectItem[] = [
     ...(options.canDiff ? [{ value: "diff", label: `Diff in ${filesSettings.diffEditor ?? "Zed"}` }] : []),
     { value: "reveal", label: "Reveal in Finder" },
     { value: "open", label: "Open" },
+    { value: "openGoland", label: options.canOpenGoLandProject ? "Open Worktree as GoLand Project" : "Open with GoLand" },
     { value: "addToPrompt", label: "Add to prompt" },
     ...(options.canQuickLook
       ? [{ value: "quicklook", label: "Open in Quick Look" }]
@@ -729,7 +757,7 @@ const showActionSelector = async (
   ];
 
   return ctx.ui.custom<
-    "reveal" | "quicklook" | "open" | "edit" | "addToPrompt" | "diff" | null
+    "reveal" | "quicklook" | "open" | "openGoland" | "edit" | "addToPrompt" | "diff" | null
   >((tui, theme, _kb, done) => {
     const container = new Container();
     container.addChild(new DynamicBorder((str) => theme.fg("accent", str)));
@@ -751,6 +779,7 @@ const showActionSelector = async (
           | "reveal"
           | "quicklook"
           | "open"
+          | "openGoland"
           | "edit"
           | "addToPrompt"
           | "diff",
@@ -793,6 +822,26 @@ const openPath = async (
   if (result.code !== 0) {
     const errorMessage =
       result.stderr?.trim() || `Failed to open ${target.displayPath}`;
+    ctx.ui.notify(errorMessage, "error");
+  }
+};
+
+const openWithGoLand = async (
+  pi: ExtensionAPI,
+  ctx: ExtensionContext,
+  target: FileEntry,
+  projectRoot: string | null,
+): Promise<void> => {
+  const targetPath = projectRoot ?? target.resolvedPath;
+  if (!existsSync(targetPath)) {
+    ctx.ui.notify(`File not found: ${projectRoot ?? target.displayPath}`, "error");
+    return;
+  }
+
+  const result = await pi.exec("goland", [targetPath]);
+  if (result.code !== 0) {
+    const errorMessage =
+      result.stderr?.trim() || `Failed to open ${target.displayPath} in GoLand`;
     ctx.ui.notify(errorMessage, "error");
   }
 };
@@ -1181,6 +1230,7 @@ const runFileBrowser = async (
     const editCheck = getEditableContent(selected);
     const canDiff =
       selected.isTracked && !selected.isDirectory && Boolean(gitRoot);
+    const canOpenGoLandProject = gitRoot ? await isGitWorktree(pi, gitRoot) : false;
 
     if (quickAction === "diff") {
       await openDiff(pi, ctx, selected, gitRoot);
@@ -1191,6 +1241,7 @@ const runFileBrowser = async (
       canQuickLook,
       canEdit: editCheck.allowed,
       canDiff,
+      canOpenGoLandProject,
     });
     if (!action) {
       continue;
@@ -1202,6 +1253,9 @@ const runFileBrowser = async (
         break;
       case "open":
         await openPath(pi, ctx, selected);
+        break;
+      case "openGoland":
+        await openWithGoLand(pi, ctx, selected, canOpenGoLandProject ? gitRoot : null);
         break;
       case "edit":
         if (!editCheck.allowed || editCheck.content === undefined) {

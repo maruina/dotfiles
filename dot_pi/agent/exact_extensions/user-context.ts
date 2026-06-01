@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 const JIRA_KEY_RE = /\b[A-Z][A-Z0-9]+-[0-9]+\b/g;
-const DATA_DOG_ROOT = path.join(process.env.HOME ?? "", "go/src/github.com/DataDog");
+const DATA_DOG_ROOT = path.join(process.env.HOME ?? "", "dd");
 const DATA_DOG_WORKTREES = path.join(DATA_DOG_ROOT, ".worktrees");
 
 type CurrentPullRequest = {
@@ -101,7 +101,7 @@ function getWorktreeInfo(cwd: string): string[] {
     lines.push(`- Main checkout convention: ${DATA_DOG_ROOT}/<repo>`);
   } else if (DATA_DOG_ROOT && pathInside(root, DATA_DOG_ROOT)) {
     lines.push(`- Repository root: ${root}`);
-    lines.push(`- Worktree convention: ${DATA_DOG_WORKTREES}/<name>`);
+    lines.push(`- Worktree convention: ${DATA_DOG_WORKTREES}/<repo-name>-<branch-slug>`);
   }
   return lines;
 }

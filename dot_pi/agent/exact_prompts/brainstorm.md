@@ -29,7 +29,7 @@ Push back on unclear goals, unsafe assumptions, excessive scope, unnecessary nov
 6. Recommend one approach, then compare 1-2 alternatives and explain why they are weaker.
 7. Run a pre-mortem, operability review, and security review scaled to risk. Mitigate real risks before approval.
 8. Get user approval for the design direction before writing the spec.
-9. If in a git repository, write the spec in a branch or worktree, not directly on `main` or `master` unless the user explicitly approves.
+9. If in a git repository, write the spec in the current checkout. If the current checkout is on `main` or `master`, stop and ask the user whether to create a branch/worktree before writing.
 10. Write `plans/<ticket-or-feature>/design.md`.
 11. Review the spec as a skeptical staff engineer. Fix blocking issues inline; record rejected findings with rationale.
 12. Ask the user to review the written spec before handing off to `/plan`.

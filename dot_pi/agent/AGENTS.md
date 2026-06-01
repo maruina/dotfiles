@@ -49,7 +49,10 @@ For multi-step work, use a brief plan:
 ## Git Worktree
 
 - Start from an updated `main`.
-- Create Datadog worktrees under `~/go/src/github.com/DataDog/.worktrees/<name>`.
+- Keep Datadog repositories under `~/dd`.
+- Create Datadog worktrees under `~/dd/.worktrees/<repo-name>-<branch-slug>`.
+- Use one worktree per feature branch or PR; keep the base repository checkout on `main`.
+- Open the worktree directory itself in JetBrains IDEs such as GoLand.
 
 ## Dynamic Context
 

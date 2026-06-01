@@ -38,4 +38,12 @@ Declare Homebrew packages in `run_onchange_brew-install.sh.tmpl`. Do not install
 
 ## Key Tools
 
-Helix (`hx`), Ghostty, Starship, 1Password (secrets and SSH agent), SOPS + Age, Kubernetes (`kctx` for per-shell context isolation).
+Ghostty, Starship, 1Password (secrets and SSH agent), SOPS + Age, Kubernetes (`kctx` for per-shell context isolation).
+
+## Git Worktree
+
+- Start from an updated `main`.
+- Keep Datadog repositories under `~/dd`.
+- Create Datadog worktrees under `~/dd/.worktrees/<repo-name>-<branch-slug>`.
+- Use one worktree per feature branch or PR; keep the base repository checkout on `main`.
+- Open the worktree directory itself in JetBrains IDEs such as GoLand.

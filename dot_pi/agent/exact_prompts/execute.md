@@ -45,14 +45,24 @@ Keep changes surgical. Every changed line must map to a plan step or explicit us
    - Do repository instructions or loaded skills conflict with the plan?
    - Is the branch safe for implementation?
    - Are there blockers, risky assumptions, or ambiguities?
-6. If there are concerns, report them and ask for direction before modifying files.
-7. If there are no concerns, execute tasks in order.
-8. For each task, update plan checkboxes as work progresses, run the specified verification, and mark steps complete only after verification passes.
-9. Complete the plan's documentation and future-agent guidance task, including every required `AGENTS.md` inspection.
-10. Run the final verification commands and inspect `git status`.
-11. Review plan fidelity: all tasks complete, requirements met, no unapproved scope added, and deviations documented in the plan ledger.
-12. Use `/pr-create --draft` to open a draft PR unless the user explicitly says not to.
-13. Report the exact handoff phrase below.
+6. Verify the worktree starts with committed design and plan docs:
+   - `plans/<ticket-or-feature>/design.md` exists.
+   - `plans/<ticket-or-feature>/plan.md` exists.
+   - Both files are committed in git, ideally in separate commits.
+7. If the design or plan docs are uncommitted or untracked, recover before implementation only when all of these are true:
+   - the only uncommitted changes are under the selected `plans/<ticket-or-feature>/` directory
+   - both `design.md` and `plan.md` are present
+   - the docs are new or modified only as expected lifecycle artifacts
+   Then commit the design first with `docs: add <ticket-or-feature> design`, and commit the plan second with `docs: add <ticket-or-feature> implementation plan`. Stage only the relevant file for each commit. If recovery cannot safely create separate commits, stop and ask.
+8. Inspect uncommitted work before implementation. Stop and ask if there are any uncommitted changes after recovery. The plan ledger starts committed; execution may update it after implementation begins.
+9. If there are concerns, report them and ask for direction before modifying files.
+10. If there are no concerns, execute tasks in order.
+11. For each task, update plan checkboxes as work progresses, run the specified verification, and mark steps complete only after verification passes.
+12. Complete the plan's documentation and future-agent guidance task, including every required `AGENTS.md` inspection.
+13. Run the final verification commands and inspect `git status`.
+14. Review plan fidelity: all tasks complete, requirements met, no unapproved scope added, and deviations documented in the plan ledger.
+15. Use `/pr-create --draft` to open a draft PR unless the user explicitly says not to.
+16. Report the exact handoff phrase below.
 
 The terminal state is implemented, verified changes with the plan updated as the progress ledger.
 
@@ -72,6 +82,8 @@ Do not batch unrelated tasks. Do not skip narrow tests because later tasks run b
 Stop and ask when:
 
 - the branch is `main` or `master` and the user has not explicitly approved implementation there
+- the selected `design.md` and `plan.md` cannot be committed or recovered into separate commits before implementation begins
+- there are any uncommitted changes after lifecycle doc recovery; the plan ledger starts committed and execution may update it after work starts
 - the plan has gaps that prevent safe execution
 - a plan instruction conflicts with repository guidance or a loaded skill
 - an instruction is unclear

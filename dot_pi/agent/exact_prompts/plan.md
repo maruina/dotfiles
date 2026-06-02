@@ -40,9 +40,11 @@ Prefer DRY, YAGNI, small tasks, frequent verification, and existing repository p
 3. Load relevant planning skills before writing tasks. Prefer specific skills over general ones.
 4. Check scope. If the design spans independent subsystems, suggest separate plans unless the spec already decomposes them into independently testable deliverables.
 5. Map files before tasks: each file to create or modify, its responsibility, boundaries, and tests.
-6. Write the plan to `plans/<ticket-or-feature>/plan.md` in the same directory as the design.
-7. Self-review the plan and fix issues inline.
-8. Report the exact handoff phrase below.
+6. Before writing the plan, verify the selected design spec is already committed in git. If it is uncommitted or untracked, stop and ask the user to commit the design first.
+7. Write the plan to `plans/<ticket-or-feature>/plan.md` in the same directory as the design.
+8. Self-review the plan and fix issues inline.
+9. If in a git repository, commit only the plan with Conventional Commit message `docs: add <ticket-or-feature> implementation plan`. Do not include unrelated changes. If the branch is `main` or `master`, stop and ask before committing.
+10. Report the exact handoff phrase below.
 
 ## Plan Requirements
 Start every plan with:
@@ -120,6 +122,6 @@ Before reporting completion, verify:
 - automation uses the right CLI or script shape
 
 ## Handoff
-After saving the plan, say exactly:
+After saving and committing the plan, say exactly:
 
-> Plan complete and saved to `plans/<ticket-or-feature>/plan.md`
+> Plan complete, committed, and saved to `plans/<ticket-or-feature>/plan.md`

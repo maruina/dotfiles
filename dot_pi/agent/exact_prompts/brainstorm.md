@@ -32,7 +32,8 @@ Push back on unclear goals, unsafe assumptions, excessive scope, unnecessary nov
 9. If in a git repository, write the spec in the current checkout. If the current checkout is on `main` or `master`, stop and ask the user whether to create a branch/worktree before writing.
 10. Write `plans/<ticket-or-feature>/design.md`.
 11. Review the spec as a skeptical staff engineer. Fix blocking issues inline; record rejected findings with rationale.
-12. Ask the user to review the written spec before handing off to `/plan`.
+12. If in a git repository, commit only the design spec with Conventional Commit message `docs: add <ticket-or-feature> design`. Do not include unrelated changes. If the branch is `main` or `master`, stop and ask before committing.
+13. Ask the user to review the written spec before handing off to `/plan`.
 
 ## Context Discovery
 Scale discovery to complexity and risk, but start with evidence before design. Do not propose a design from a narrow reading of the target file.
@@ -94,6 +95,6 @@ The spec must include:
 Before asking for review, remove placeholders, contradictions, unsupported assumptions, scope creep, and vague mitigations.
 
 ## Handoff
-After saving the spec, say exactly:
+After saving and committing the spec, say exactly:
 
-> Spec complete and saved to `plans/<ticket-or-feature>/design.md`. Review it before handing off to `/plan plans/<ticket-or-feature>/design.md`, or run `/plan` with no arguments to choose from discovered design specs.
+> Spec complete, committed, and saved to `plans/<ticket-or-feature>/design.md`. Review it before handing off to `/plan plans/<ticket-or-feature>/design.md`, or run `/plan` with no arguments to choose from discovered design specs.

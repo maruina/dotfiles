@@ -838,7 +838,9 @@ const openWithGoLand = async (
     return;
   }
 
-  const result = await pi.exec("goland", [targetPath]);
+  const result = process.platform === "darwin"
+    ? await pi.exec("open", ["-na", "GoLand.app", "--args", targetPath])
+    : await pi.exec("goland", [targetPath]);
   if (result.code !== 0) {
     const errorMessage =
       result.stderr?.trim() || `Failed to open ${target.displayPath} in GoLand`;

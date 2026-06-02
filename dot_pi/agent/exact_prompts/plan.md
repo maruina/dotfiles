@@ -9,7 +9,19 @@ Extra instructions:
 
 > `${@:2}`
 
-Turn the approved design spec into a concrete implementation plan. If `$1` is missing, ask for the design path and stop.
+Turn the approved design spec into a concrete implementation plan.
+
+If `$1` is missing, discover candidate design specs before asking for a path:
+
+1. Search the current checkout for `plans/*/design.md`.
+2. If inside a git repository, run `git worktree list --porcelain` and search each worktree for `plans/*/design.md`.
+3. For each candidate, collect the design path, worktree path, branch name when available, last modified time, and first Markdown heading.
+4. Sort candidates by last modified time descending, with current-checkout candidates first when timestamps are similar.
+5. If there is exactly one candidate, ask the user to confirm it and stop until they answer.
+6. If there are multiple candidates, present a concise numbered list and ask which design to plan. Stop until the user chooses.
+7. If no candidates exist, ask for the design path and stop.
+
+After the user chooses a discovered design, treat it exactly as if it had been passed as `$1`.
 
 Lifecycle: `/brainstorm` creates an approved design spec, `/plan` creates an approved implementation plan, and `/execute` implements verified changes.
 

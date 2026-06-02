@@ -96,4 +96,4 @@ Before asking for review, remove placeholders, contradictions, unsupported assum
 ## Handoff
 After saving the spec, say exactly:
 
-> Spec complete and saved to `plans/<ticket-or-feature>/design.md`. Review it before handing off to `/plan`.
+> Spec complete and saved to `plans/<ticket-or-feature>/design.md`. Review it before handing off to `/plan plans/<ticket-or-feature>/design.md`, or run `/plan` with no arguments to choose from discovered design specs.

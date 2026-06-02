@@ -21,7 +21,9 @@ If `$1` is missing, discover candidate implementation plans before asking for a 
 6. If there are multiple candidates, present a concise numbered list and ask which plan to execute. Stop until the user chooses.
 7. If no candidates exist, ask for the plan path and stop.
 
-After the user chooses a discovered plan, treat it exactly as if it had been passed as `$1`.
+After the user chooses a discovered plan, execute in that plan's owning worktree. A selected plan from another worktree is not a branch/context mismatch by itself. Before reading repository files or modifying code, switch command context to the plan worktree with `cd <plan-worktree>` in shell commands and use paths relative to that worktree. Treat the plan worktree branch, not the original harness directory branch, as the implementation branch.
+
+If `$1` is an absolute or relative path to a plan outside the current checkout, infer the owning worktree from the nearest ancestor containing `.git` or from `git worktree list --porcelain`, then execute in that worktree using the same rule.
 
 Lifecycle: `/brainstorm` creates an approved design spec, `/plan` creates an approved implementation plan, and `/execute` implements verified changes.
 

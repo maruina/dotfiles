@@ -29,10 +29,16 @@ Push back on unclear goals, unsafe assumptions, excessive scope, unnecessary nov
 6. Recommend one approach, then compare 1-2 alternatives and explain why they are weaker.
 7. Run a pre-mortem, operability review, and security review scaled to risk. Mitigate real risks before approval.
 8. Get user approval for the design direction before writing the spec.
-9. If in a git repository, write the spec in the current checkout. If the current checkout is on `main` or `master`, stop and ask the user whether to create a branch/worktree before writing.
-10. Write `plans/<ticket-or-feature>/design.md`.
+9. If in a git repository, create an isolated worktree before writing the spec:
+   - Fetch the latest default branch.
+   - Create a branch from the latest default branch, not from the current checkout's HEAD.
+   - Branch naming: use `maruina/<ticket-or-feature>` unless repository guidance specifies a different owner prefix.
+   - Worktree path: follow repository guidance. For Datadog repositories, use `~/dd/.worktrees/<repo-name>-<branch-slug>`.
+   - If the default branch, branch name, or worktree location is ambiguous, ask before creating the worktree.
+   - Move any already-written uncommitted design spec from the original checkout into the worktree, then remove it from the original checkout.
+10. Write `plans/<ticket-or-feature>/design.md` in the worktree.
 11. Review the spec as a skeptical staff engineer. Fix blocking issues inline; record rejected findings with rationale.
-12. If in a git repository, commit only the design spec with Conventional Commit message `docs: add <ticket-or-feature> design`. Do not include unrelated changes. If the branch is `main` or `master`, stop and ask before committing.
+12. Commit only the design spec in the worktree with Conventional Commit message `docs: add <ticket-or-feature> design`. Do not include unrelated changes.
 13. Ask the user to review the written spec before handing off to `/plan`.
 
 ## Context Discovery

@@ -1,89 +1,40 @@
 ---
-description: Run an adversarial Codex review that challenges implementation and design choices
-argument-hint: "[model]"
+description: Run the official Codex adversarial review against local git state
+argument-hint: "[--wait|--background] [--base <ref>] [--scope auto|working-tree|branch] [focus ...]"
 ---
 # Codex Adversarial Review
 Raw arguments: `$ARGUMENTS`
 
-Run a one-shot adversarial Codex review for PR readiness. Review the selected worktree branch against `main`. Before invoking Codex, make sure all intended review files are committed so the branch diff contains the complete PR-ready state.
-
-Arguments are optional positional values:
-
-1. model, default `gpt-5.5`
+Run an adversarial Codex review through the official Codex plugin runtime.
+This is a challenge review that questions the implementation approach, design choices, tradeoffs, and assumptions.
 
 ## Rules
-- This is review-only after the optional preparation commit.
-- Do not edit files except to stage and commit already-existing user changes after explicit confirmation.
+- This is review-only.
+- Do not edit files.
 - Do not fix findings.
-- Treat `$ARGUMENTS` as an optional positional `model` value only; do not pass it as focus text.
-- Default to model `gpt-5.5`.
-- If the current checkout is not the implementation worktree, discover candidate worktrees before invoking Codex.
-- Do not weaken the adversarial framing.
-- If Codex reports findings, return them and stop; ask whether the user wants any findings validated or fixed in a follow-up turn.
-- If the Codex helper is missing or unauthenticated, stop and tell the user how to set it up.
-
-## Worktree selection
-First select the review worktree:
-
-1. Run `git rev-parse --show-toplevel` and `git branch --show-current` in the current checkout.
-2. If the current branch is not `main` or `master`, use the current checkout as `$REVIEW_ROOT`.
-3. If the current branch is `main` or `master`, run `git worktree list --porcelain` and inspect each worktree.
-4. For each worktree, collect path, branch, last modified time for `plans/*/plan.md` and `plans/*/design.md` when present, and `git status --short`.
-5. Prefer worktrees with non-main branches. Sort candidates by plan/design last modified time descending, with dirty worktrees ahead when timestamps are similar.
-6. If there is exactly one candidate, ask the user to confirm it and stop until they answer.
-7. If there are multiple candidates, present a concise numbered list and ask which worktree to review. Stop until the user chooses.
-8. If no candidate exists, ask the user to run the prompt from the implementation worktree or create one first.
-
-After the user chooses a discovered worktree, treat it exactly as if the prompt had been run from that worktree. All subsequent commands must use `cd <review-worktree>` or `git -C <review-worktree>`.
-
-## Preparation commit
-From `$REVIEW_ROOT`, inspect local changes before review:
-
-```bash
-git status --short
-```
-
-If there are staged, unstaged, or untracked changes:
-
-1. Show the status output to the user.
-2. Ask for explicit confirmation before committing. Stop until they answer.
-3. If the user declines, stop and explain that `adversarial-review --base main` would miss uncommitted files.
-4. If the user confirms, stage all intended local changes and commit them with a Conventional Commit message. Use the user's requested commit message if provided; otherwise choose a concise message that matches the branch work.
-5. Do not include unrelated files. If unrelated local changes are present, stop and ask what to include.
-
-After the preparation commit, verify the worktree is clean:
-
-```bash
-git status --short
-```
-
-If it is not clean, stop and ask how to handle the remaining files.
+- Preserve the user's arguments exactly when invoking Codex.
+- Do not add extra review instructions or rewrite the user's intent.
+- Return Codex's output verbatim.
+- If the Codex helper is missing or unauthenticated, stop and tell the user to run `/codex-setup`.
 
 ## Helper resolution
-Resolve `codex-companion.mjs` once before invoking Codex:
+Resolve `codex-companion.mjs` from `CLAUDE_PLUGIN_ROOT` first, falling back to the local checkout path:
 
 ```bash
-CODEX_COMPANION="$HOME/.claude/plugins/marketplaces/openai-codex/plugins/codex/scripts/codex-companion.mjs"
+CODEX_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$HOME/go/src/github.com/openai/codex-plugin-cc/plugins/codex}"
+CODEX_COMPANION="$CODEX_PLUGIN_ROOT/scripts/codex-companion.mjs"
 if [ ! -f "$CODEX_COMPANION" ]; then
-  CODEX_COMPANION=$(find "$HOME/.claude/plugins" -maxdepth 6 -path '*/codex/scripts/codex-companion.mjs' -type f 2>/dev/null | head -1)
-fi
-if [ ! -f "$CODEX_COMPANION" ]; then
-  echo "codex-companion.mjs not found — install/setup the OpenAI Codex Claude plugin first:" >&2
-  echo "  /plugin marketplace add openai/codex-plugin-cc" >&2
-  echo "  /plugin install codex@openai-codex" >&2
-  echo "  /codex:setup" >&2
+  echo "codex-companion.mjs not found at $CODEX_COMPANION" >&2
+  echo "Set CLAUDE_PLUGIN_ROOT to the official Codex plugin root or reinstall the local plugin package." >&2
   exit 1
 fi
-printf '%s\n' "$CODEX_COMPANION"
 ```
 
 ## Execution
-Run this from `$REVIEW_ROOT` after the worktree is clean:
+Run:
 
 ```bash
-set -- $ARGUMENTS
-MODEL="${1:-gpt-5.5}"
-node "$CODEX_COMPANION" adversarial-review --base main --model "$MODEL"
+node "$CODEX_COMPANION" adversarial-review $ARGUMENTS
 ```
 
 Return Codex's output without applying changes.

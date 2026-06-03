@@ -269,10 +269,10 @@ const normalizeReferencePath = (raw: string, cwd: string): string | null => {
   return candidate;
 };
 
-const formatDisplayPath = (absolutePath: string, cwd: string): string => {
-  const normalizedCwd = path.resolve(cwd);
-  if (absolutePath.startsWith(normalizedCwd + path.sep)) {
-    return path.relative(normalizedCwd, absolutePath);
+const formatDisplayPath = (absolutePath: string, root: string): string => {
+  const normalizedRoot = path.resolve(root);
+  if (absolutePath.startsWith(normalizedRoot + path.sep)) {
+    return path.relative(normalizedRoot, absolutePath);
   }
 
   return absolutePath;
@@ -444,33 +444,6 @@ const getGitRoot = async (
   return root ? root : null;
 };
 
-const getGitCommonDir = async (
-  pi: ExtensionAPI,
-  cwd: string,
-): Promise<string | null> => {
-  const result = await pi.exec("git", ["rev-parse", "--git-common-dir"], {
-    cwd,
-  });
-  if (result.code !== 0) {
-    return null;
-  }
-
-  const commonDir = result.stdout.trim();
-  if (!commonDir) {
-    return null;
-  }
-
-  return path.isAbsolute(commonDir) ? commonDir : path.resolve(cwd, commonDir);
-};
-
-const isGitWorktree = async (
-  pi: ExtensionAPI,
-  gitRoot: string,
-): Promise<boolean> => {
-  const commonDir = await getGitCommonDir(pi, gitRoot);
-  return commonDir !== null && !path.resolve(commonDir).startsWith(path.join(gitRoot, ".git"));
-};
-
 const getGitStatusMap = async (
   pi: ExtensionAPI,
   cwd: string,
@@ -558,8 +531,9 @@ const buildFileEntries = async (
   ctx: ExtensionContext,
 ): Promise<{ files: FileEntry[]; gitRoot: string | null }> => {
   const entries = ctx.sessionManager.getBranch();
-  const sessionChanges = collectSessionFileChanges(entries, ctx.cwd);
   const gitRoot = await getGitRoot(pi, ctx.cwd);
+  const displayRoot = gitRoot ?? ctx.cwd;
+  const sessionChanges = collectSessionFileChanges(entries, displayRoot);
   const statusMap = gitRoot
     ? await getGitStatusMap(pi, gitRoot)
     : new Map<string, GitStatusEntry>();
@@ -571,7 +545,7 @@ const buildFileEntries = async (
   ) => {
     const existing = fileMap.get(data.canonicalPath);
     const displayPath =
-      data.displayPath ?? formatDisplayPath(data.canonicalPath, ctx.cwd);
+      data.displayPath ?? formatDisplayPath(data.canonicalPath, displayRoot);
 
     if (existing) {
       fileMap.set(data.canonicalPath, {
@@ -629,7 +603,7 @@ const buildFileEntries = async (
     });
   }
 
-  const references = collectRecentFileReferences(entries, ctx.cwd, 200).filter(
+  const references = collectRecentFileReferences(entries, displayRoot, 200).filter(
     (ref) => ref.exists,
   );
   for (const ref of references) {
@@ -740,7 +714,7 @@ const getEditableContent = (target: FileEntry): EditCheckResult => {
 
 const showActionSelector = async (
   ctx: ExtensionContext,
-  options: { canQuickLook: boolean; canEdit: boolean; canDiff: boolean; canOpenGoLandProject: boolean },
+  options: { canQuickLook: boolean; canEdit: boolean; canDiff: boolean; hasGitRoot: boolean },
 ): Promise<
   "reveal" | "quicklook" | "open" | "openGoland" | "edit" | "addToPrompt" | "diff" | null
 > => {
@@ -748,7 +722,7 @@ const showActionSelector = async (
     ...(options.canDiff ? [{ value: "diff", label: `Diff in ${filesSettings.diffEditor ?? "Zed"}` }] : []),
     { value: "reveal", label: "Reveal in Finder" },
     { value: "open", label: "Open" },
-    { value: "openGoland", label: options.canOpenGoLandProject ? "Open Worktree as GoLand Project" : "Open with GoLand" },
+    { value: "openGoland", label: options.hasGitRoot ? "Open Worktree as GoLand Project" : "Open with GoLand" },
     { value: "addToPrompt", label: "Add to prompt" },
     ...(options.canQuickLook
       ? [{ value: "quicklook", label: "Open in Quick Look" }]
@@ -1232,8 +1206,6 @@ const runFileBrowser = async (
     const editCheck = getEditableContent(selected);
     const canDiff =
       selected.isTracked && !selected.isDirectory && Boolean(gitRoot);
-    const canOpenGoLandProject = gitRoot ? await isGitWorktree(pi, gitRoot) : false;
-
     if (quickAction === "diff") {
       await openDiff(pi, ctx, selected, gitRoot);
       continue;
@@ -1243,7 +1215,7 @@ const runFileBrowser = async (
       canQuickLook,
       canEdit: editCheck.allowed,
       canDiff,
-      canOpenGoLandProject,
+      hasGitRoot: Boolean(gitRoot),
     });
     if (!action) {
       continue;
@@ -1257,7 +1229,7 @@ const runFileBrowser = async (
         await openPath(pi, ctx, selected);
         break;
       case "openGoland":
-        await openWithGoLand(pi, ctx, selected, canOpenGoLandProject ? gitRoot : null);
+        await openWithGoLand(pi, ctx, selected, gitRoot);
         break;
       case "edit":
         if (!editCheck.allowed || editCheck.content === undefined) {

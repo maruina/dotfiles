@@ -3,12 +3,11 @@
 # Usage: ha-query-template.sh <template>
 # Example: ha-query-template.sh "{{ states.light | selectattr('state', 'eq', 'on') | list | length }}"
 
-set -euo pipefail
+set -eo pipefail
 
-if [ -z "${HOME_ASSISTANT_URL:-}" ] || [ -z "${HOME_ASSISTANT_TOKEN:-}" ]; then
-  echo "Error: HOME_ASSISTANT_URL and HOME_ASSISTANT_TOKEN must be set" >&2
-  exit 1
-fi
+# Load environment variables from Fish config
+export HOME_ASSISTANT_URL=$(fish -c 'echo $HOME_ASSISTANT_URL')
+export HOME_ASSISTANT_TOKEN=$(fish -c 'echo $HOME_ASSISTANT_TOKEN')
 
 if [ $# -lt 1 ]; then
   echo "Usage: $0 <template>" >&2

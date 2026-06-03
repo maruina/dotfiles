@@ -88,6 +88,10 @@ set -gx DD_SITE datadoghq.eu
 
 # Tavily agentic web search
 set -gx TAVILY_API_KEY '{{ onepasswordRead "op://Private/Tavily/api-key" }}'
+
+# Home Assistant API access
+set -gx HOME_ASSISTANT_URL 'https://hass.malazan.xyz'
+set -gx HOME_ASSISTANT_TOKEN '{{ onepasswordRead "op://Private/Home Assistant/pi_api_token" }}'
 {{- end }}
 
 # Set age key location for SOPS

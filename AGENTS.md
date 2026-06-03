@@ -36,6 +36,25 @@ Declare Homebrew packages in `run_onchange_brew-install.sh.tmpl`. Do not install
 - **Apply**: `chezmoi apply`.
 - **Re-sync managed files**: `chezmoi re-add`.
 
+## Completion Workflow
+
+After making and verifying a requested chezmoi source change, apply it to the target and commit/push it by default.
+
+Default sequence:
+1. Run `chezmoi diff` for the relevant target or full source.
+2. Run `chezmoi apply` for the changed target(s).
+3. Commit the source changes with a Conventional Commit message.
+4. Push the branch.
+
+Do not auto-commit/push when:
+- the user asks for a preview only
+- the change is incomplete or unverified
+- there are unrelated local changes
+- applying would affect broad or unreviewed targets
+- the branch or repository state makes the operation unsafe
+
+If unsure, stop and ask.
+
 ## Key Tools
 
 Ghostty, Starship, 1Password (secrets and SSH agent), SOPS + Age, Kubernetes (`kctx` for per-shell context isolation).

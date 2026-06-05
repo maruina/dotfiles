@@ -1,16 +1,17 @@
 {
   "providers": {
     "ai-gw-openai": {
-      "baseUrl": "https://ai-gateway.us1.prod.dog/v1",
+      "baseUrl": "https://ai-gateway.us1.ddbuild.io/v1",
       "api": "openai-responses",
-      "apiKey": "!sh -c \"ddtool auth token rapid-ai-platform --datacenter us1.prod.dog 2>/dev/null | grep -E '^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$' | head -1\"",
+      "apiKey": "!sh -c \"ddtool auth token rapid-ai-platform --datacenter us1.ddbuild.io 2>/dev/null | grep -E '^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$' | head -1\"",
       "headers": {
         "source": "pi",
         "org-id": "2",
         "x-llmo-force-redaction": "true",
         "x-dd-tag-ml_app": "pi",
         "x-dd-tag-dd.user_email": "matteo.ruina@datadoghq.com",
-        "x-dd-tag-dd.team": "unknown"
+        "x-dd-tag-dd.team": "unknown",
+        "x-dd-tag-client_session_id": "$PI_CLIENT_SESSION_ID"
       },
       "models": [
         {
@@ -93,16 +94,17 @@
       ]
     },
     "ai-gw-google": {
-      "baseUrl": "https://ai-gateway.us1.prod.dog/v1beta",
+      "baseUrl": "https://ai-gateway.us1.ddbuild.io/v1beta",
       "api": "google-generative-ai",
-      "apiKey": "!sh -c \"ddtool auth token rapid-ai-platform --datacenter us1.prod.dog 2>/dev/null | grep -E '^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$' | head -1\"",
+      "apiKey": "!sh -c \"ddtool auth token rapid-ai-platform --datacenter us1.ddbuild.io 2>/dev/null | grep -E '^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$' | head -1\"",
       "headers": {
         "source": "pi",
         "org-id": "2",
         "x-llmo-force-redaction": "true",
         "x-dd-tag-ml_app": "pi",
         "x-dd-tag-dd.user_email": "matteo.ruina@datadoghq.com",
-        "x-dd-tag-dd.team": "unknown"
+        "x-dd-tag-dd.team": "unknown",
+        "x-dd-tag-client_session_id": "$PI_CLIENT_SESSION_ID"
       },
       "models": [
         {
@@ -157,9 +159,9 @@
       "authHeader": true
     },
     "ai-gw-anthropic-200k": {
-      "baseUrl": "https://ai-gateway.us1.prod.dog",
+      "baseUrl": "https://ai-gateway.us1.ddbuild.io",
       "api": "anthropic-messages",
-      "apiKey": "!sh -c \"ddtool auth token rapid-ai-platform --datacenter us1.prod.dog 2>/dev/null | grep -E '^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$' | head -1\"",
+      "apiKey": "!sh -c \"ddtool auth token rapid-ai-platform --datacenter us1.ddbuild.io 2>/dev/null | grep -E '^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$' | head -1\"",
       "headers": {
         "source": "pi",
         "org-id": "2",
@@ -167,7 +169,8 @@
         "x-dd-tag-ml_app": "pi",
         "x-dd-tag-dd.user_email": "matteo.ruina@datadoghq.com",
         "x-dd-tag-dd.team": "unknown",
-        "provider": "anthropic"
+        "provider": "anthropic",
+        "x-dd-tag-client_session_id": "$PI_CLIENT_SESSION_ID"
       },
       "models": [
         {
@@ -237,9 +240,9 @@
       "authHeader": true
     },
     "ai-gw-anthropic-1m": {
-      "baseUrl": "https://ai-gateway.us1.prod.dog",
+      "baseUrl": "https://ai-gateway.us1.ddbuild.io",
       "api": "anthropic-messages",
-      "apiKey": "!sh -c \"ddtool auth token rapid-ai-platform --datacenter us1.prod.dog 2>/dev/null | grep -E '^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$' | head -1\"",
+      "apiKey": "!sh -c \"ddtool auth token rapid-ai-platform --datacenter us1.ddbuild.io 2>/dev/null | grep -E '^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$' | head -1\"",
       "headers": {
         "source": "pi",
         "org-id": "2",
@@ -248,7 +251,8 @@
         "x-dd-tag-ml_app": "pi",
         "x-dd-tag-dd.user_email": "matteo.ruina@datadoghq.com",
         "x-dd-tag-dd.team": "unknown",
-        "provider": "anthropic"
+        "provider": "anthropic",
+        "x-dd-tag-client_session_id": "$PI_CLIENT_SESSION_ID"
       },
       "models": [
         {

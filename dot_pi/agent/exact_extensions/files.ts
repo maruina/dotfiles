@@ -429,6 +429,11 @@ const collectSessionFileChanges = (
 const splitNullSeparated = (value: string): string[] =>
   value.split("\0").filter(Boolean);
 
+const isPathInside = (root: string, targetPath: string): boolean => {
+  const relative = path.relative(root, targetPath);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+};
+
 const getGitRoot = async (
   pi: ExtensionAPI,
   cwd: string,
@@ -442,6 +447,36 @@ const getGitRoot = async (
 
   const root = result.stdout.trim();
   return root ? path.normalize(root) : null;
+};
+
+const getMatchingWorktreeRoot = async (
+  pi: ExtensionAPI,
+  gitRoot: string,
+  files: Iterable<string>,
+): Promise<string | null> => {
+  const result = await pi.exec("git", ["worktree", "list", "--porcelain"], {
+    cwd: gitRoot,
+  });
+  if (result.code !== 0) {
+    return null;
+  }
+
+  const worktrees = result.stdout
+    .split("\n")
+    .filter((line) => line.startsWith("worktree "))
+    .map((line) => path.normalize(line.slice("worktree ".length).trim()))
+    .filter((worktree) => worktree !== gitRoot)
+    .sort((a, b) => b.length - a.length);
+
+  for (const filePath of files) {
+    for (const worktree of worktrees) {
+      if (isPathInside(worktree, filePath)) {
+        return worktree;
+      }
+    }
+  }
+
+  return null;
 };
 
 const getGitStatusMap = async (
@@ -529,7 +564,7 @@ const getTrackedGitFiles = async (
 const buildFileEntries = async (
   pi: ExtensionAPI,
   ctx: ExtensionContext,
-): Promise<{ files: FileEntry[]; gitRoot: string | null }> => {
+): Promise<{ files: FileEntry[]; gitRoot: string | null; projectRoot: string | null }> => {
   const entries = ctx.sessionManager.getBranch();
   const gitRoot = await getGitRoot(pi, ctx.cwd);
   const displayRoot = gitRoot ?? ctx.cwd;
@@ -587,10 +622,7 @@ const buildFileEntries = async (
       continue;
     }
 
-    const inRepo =
-      gitRoot !== null &&
-      !path.relative(gitRoot, canonicalPath).startsWith("..") &&
-      !path.isAbsolute(path.relative(gitRoot, canonicalPath));
+    const inRepo = gitRoot !== null && isPathInside(gitRoot, canonicalPath);
 
     upsertFile({
       canonicalPath,
@@ -610,10 +642,7 @@ const buildFileEntries = async (
     const canonical = toCanonicalPath(ref.path);
     if (!canonical) continue;
 
-    const inRepo =
-      gitRoot !== null &&
-      !path.relative(gitRoot, canonical.canonicalPath).startsWith("..") &&
-      !path.isAbsolute(path.relative(gitRoot, canonical.canonicalPath));
+    const inRepo = gitRoot !== null && isPathInside(gitRoot, canonical.canonicalPath);
 
     upsertFile({
       canonicalPath: canonical.canonicalPath,
@@ -630,10 +659,7 @@ const buildFileEntries = async (
     const canonical = toCanonicalPath(canonicalPath);
     if (!canonical) continue;
 
-    const inRepo =
-      gitRoot !== null &&
-      !path.relative(gitRoot, canonical.canonicalPath).startsWith("..") &&
-      !path.isAbsolute(path.relative(gitRoot, canonical.canonicalPath));
+    const inRepo = gitRoot !== null && isPathInside(gitRoot, canonical.canonicalPath);
 
     upsertFile({
       canonicalPath: canonical.canonicalPath,
@@ -681,7 +707,11 @@ const buildFileEntries = async (
     return a.displayPath.localeCompare(b.displayPath);
   });
 
-  return { files, gitRoot };
+  const projectRoot = gitRoot
+    ? await getMatchingWorktreeRoot(pi, gitRoot, files.map((file) => file.canonicalPath))
+    : null;
+
+  return { files, gitRoot, projectRoot: projectRoot ?? gitRoot };
 };
 
 type EditCheckResult = {
@@ -1183,7 +1213,7 @@ const runFileBrowser = async (
     return;
   }
 
-  const { files, gitRoot } = await buildFileEntries(pi, ctx);
+  const { files, gitRoot, projectRoot } = await buildFileEntries(pi, ctx);
   if (files.length === 0) {
     ctx.ui.notify("No files found", "info");
     return;
@@ -1231,7 +1261,7 @@ const runFileBrowser = async (
         await openPath(pi, ctx, selected);
         break;
       case "openGoland":
-        await openWithGoLand(pi, ctx, selected, gitRoot);
+        await openWithGoLand(pi, ctx, selected, projectRoot);
         break;
       case "edit":
         if (!editCheck.allowed || editCheck.content === undefined) {

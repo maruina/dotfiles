@@ -15,6 +15,7 @@ Prioritize:
 - **Cancellation:** make interrupted commands report whether partial progress occurred and what completed.
 - **Auth:** support stdin, environment variables, or credential files; do not require browser flows for automation.
 - **Command shape:** prefer a predictable noun-verb hierarchy with clear required arguments and examples in `--help`.
+- **Long flags:** prefer full long-name flags over shorthand; they are easier to read and understand. For example, prefer `curl --fail --silent --show-error` over `-fsS`.
 - **Schema quality:** version output schemas and validate them in CI when downstream automation depends on them.
 - **Useful defaults:** content-first no-arg defaults are helpful only when the target context is obvious and safe.
 - **Idempotency:** prefer idempotent operations where practical so retries do not create duplicate side effects.

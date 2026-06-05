@@ -449,36 +449,6 @@ const getGitRoot = async (
   return root ? path.normalize(root) : null;
 };
 
-const getMatchingWorktreeRoot = async (
-  pi: ExtensionAPI,
-  gitRoot: string,
-  files: Iterable<string>,
-): Promise<string | null> => {
-  const result = await pi.exec("git", ["worktree", "list", "--porcelain"], {
-    cwd: gitRoot,
-  });
-  if (result.code !== 0) {
-    return null;
-  }
-
-  const worktrees = result.stdout
-    .split("\n")
-    .filter((line) => line.startsWith("worktree "))
-    .map((line) => path.normalize(line.slice("worktree ".length).trim()))
-    .filter((worktree) => worktree !== gitRoot)
-    .sort((a, b) => b.length - a.length);
-
-  for (const filePath of files) {
-    for (const worktree of worktrees) {
-      if (isPathInside(worktree, filePath)) {
-        return worktree;
-      }
-    }
-  }
-
-  return null;
-};
-
 const getGitStatusMap = async (
   pi: ExtensionAPI,
   cwd: string,
@@ -564,7 +534,7 @@ const getTrackedGitFiles = async (
 const buildFileEntries = async (
   pi: ExtensionAPI,
   ctx: ExtensionContext,
-): Promise<{ files: FileEntry[]; gitRoot: string | null; projectRoot: string | null }> => {
+): Promise<{ files: FileEntry[]; gitRoot: string | null }> => {
   const entries = ctx.sessionManager.getBranch();
   const gitRoot = await getGitRoot(pi, ctx.cwd);
   const displayRoot = gitRoot ?? ctx.cwd;
@@ -707,11 +677,7 @@ const buildFileEntries = async (
     return a.displayPath.localeCompare(b.displayPath);
   });
 
-  const projectRoot = gitRoot
-    ? await getMatchingWorktreeRoot(pi, gitRoot, files.map((file) => file.canonicalPath))
-    : null;
-
-  return { files, gitRoot, projectRoot: projectRoot ?? gitRoot };
+  return { files, gitRoot };
 };
 
 type EditCheckResult = {
@@ -834,16 +800,17 @@ const openWithGoLand = async (
   pi: ExtensionAPI,
   ctx: ExtensionContext,
   target: FileEntry,
-  projectRoot: string | null,
 ): Promise<void> => {
-  const targetPath = projectRoot ?? target.resolvedPath;
+  const targetPath = target.resolvedPath;
   if (!existsSync(targetPath)) {
-    ctx.ui.notify(`File not found: ${projectRoot ?? target.displayPath}`, "error");
+    ctx.ui.notify(`File not found: ${target.displayPath}`, "error");
     return;
   }
 
-  const stats = statSync(targetPath);
-  const golandPath = stats.isDirectory() ? `${targetPath}${path.sep}` : targetPath;
+  const targetStats = statSync(targetPath);
+  const gitCwd = targetStats.isDirectory() ? targetPath : path.dirname(targetPath);
+  const selectedGitRoot = await getGitRoot(pi, gitCwd);
+  const golandPath = selectedGitRoot ?? targetPath;
   const result = process.platform === "darwin"
     ? await pi.exec("open", ["-na", "GoLand.app", "--args", golandPath])
     : await pi.exec("goland", [golandPath]);
@@ -1213,7 +1180,7 @@ const runFileBrowser = async (
     return;
   }
 
-  const { files, gitRoot, projectRoot } = await buildFileEntries(pi, ctx);
+  const { files, gitRoot } = await buildFileEntries(pi, ctx);
   if (files.length === 0) {
     ctx.ui.notify("No files found", "info");
     return;
@@ -1261,7 +1228,7 @@ const runFileBrowser = async (
         await openPath(pi, ctx, selected);
         break;
       case "openGoland":
-        await openWithGoLand(pi, ctx, selected, projectRoot);
+        await openWithGoLand(pi, ctx, selected);
         break;
       case "edit":
         if (!editCheck.allowed || editCheck.content === undefined) {

@@ -433,7 +433,7 @@ const getGitRoot = async (
   pi: ExtensionAPI,
   cwd: string,
 ): Promise<string | null> => {
-  const result = await pi.exec("git", ["rev-parse", "--show-toplevel"], {
+  const result = await pi.exec("git", ["rev-parse", "--path-format=absolute", "--show-toplevel"], {
     cwd,
   });
   if (result.code !== 0) {
@@ -441,7 +441,7 @@ const getGitRoot = async (
   }
 
   const root = result.stdout.trim();
-  return root ? root : null;
+  return root ? path.normalize(root) : null;
 };
 
 const getGitStatusMap = async (
@@ -812,9 +812,11 @@ const openWithGoLand = async (
     return;
   }
 
+  const stats = statSync(targetPath);
+  const golandPath = stats.isDirectory() ? `${targetPath}${path.sep}` : targetPath;
   const result = process.platform === "darwin"
-    ? await pi.exec("open", ["-na", "GoLand.app", "--args", targetPath])
-    : await pi.exec("goland", [targetPath]);
+    ? await pi.exec("open", ["-na", "GoLand.app", "--args", golandPath])
+    : await pi.exec("goland", [golandPath]);
   if (result.code !== 0) {
     const errorMessage =
       result.stderr?.trim() || `Failed to open ${target.displayPath} in GoLand`;

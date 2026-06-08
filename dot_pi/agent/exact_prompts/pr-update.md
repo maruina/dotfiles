@@ -1,5 +1,5 @@
 ---
-description: Update an existing PR description after code or review-feedback changes
+description: Update an existing PR description and optionally rewrite PR commits after code or review-feedback changes
 argument-hint: "[context]"
 ---
 
@@ -7,13 +7,14 @@ argument-hint: "[context]"
 
 Arguments: $ARGUMENTS
 
-Update the current branch's existing GitHub PR description. This is for refreshing an already-created PR after addressing feedback or changing implementation details.
+Update the current branch's existing GitHub PR description and, when useful, its commit structure. This is for refreshing an already-created PR after addressing feedback or changing implementation details.
 
 Assume this command may be run multiple times on the same PR. Make the update idempotent: preserve useful existing content, replace stale generated sections instead of appending duplicates, and keep only one `## Lessons learned` section.
 
 Do not create a new PR.
-Do not rewrite commits.
-Do not force-push.
+You may rewrite commits, squash commits, and force-push with `--force-with-lease` when the user asks or when the current commit structure is stale or hard to review.
+Ask before rewriting commits unless `$ARGUMENTS` explicitly requests commit rewriting, squashing, or force-pushing.
+Do not use plain `--force`.
 Do not post `@codex review` unless the user explicitly asks.
 Do not change the PR title unless the user explicitly asks.
 
@@ -60,7 +61,34 @@ Because this command may run repeatedly:
 - If the existing `## Changes since last review` section exists, replace it with `## Lessons learned` when there is useful reviewer context to share; otherwise remove it.
 - If the existing `## Lessons learned` section is stale, replace it with the latest meaningful lessons.
 
-## Phase 3: Draft the updated PR body
+## Phase 3: Update commit structure if needed
+
+Compare the current commits with the final PR scope and reviewer-guide topics.
+
+If commits are stale, tangled, too granular, or no longer match the review topics, propose a rewrite plan. Prefer one commit per review topic. If the PR is small or the user explicitly asks to squash, use a single commit.
+
+When proposing a rewrite, show:
+
+```markdown
+| # | Topic | Files | Commit message |
+|---|-------|-------|----------------|
+| 1 | ... | ... | ... |
+```
+
+Ask the user before rewriting unless `$ARGUMENTS` explicitly requests commit rewriting, squashing, or force-pushing.
+
+If rewriting commits:
+1. Ensure the working tree is clean, or clearly separate uncommitted changes that must be included.
+2. Create a backup branch named `backup/<current-branch>-pre-pr-update`.
+3. Reset softly to the merge base with `origin/$base`.
+4. Create the planned commit or commits in review order.
+5. Verify the working tree is clean.
+6. Verify the final diff against `origin/$base` still contains only intentional PR changes.
+7. Push with `git push --force-with-lease`.
+
+After rewriting, collect the new commit SHAs before drafting the reviewer guide.
+
+## Phase 4: Draft the updated PR body
 
 Use this structure unless the existing PR body uses a clearly intentional different structure:
 
@@ -97,7 +125,7 @@ The `## Lessons learned` section should explain reviewer-relevant insights, not 
 
 Keep the description concise. Avoid duplicating commit messages.
 
-## Phase 4: Apply the update
+## Phase 5: Apply the update
 
 Write the proposed body to a temporary file.
 
@@ -107,10 +135,12 @@ Then run:
 gh pr edit <number> --body-file <temp-file>
 ```
 
-## Phase 5: Report
+## Phase 6: Report
 
 Print:
 - PR URL
+- whether commits were rewritten, squashed, or left unchanged
+- whether the branch was force-pushed
 - sections changed
 - whether `Lessons learned` was added, updated, removed, or left unchanged
 - any assumptions made

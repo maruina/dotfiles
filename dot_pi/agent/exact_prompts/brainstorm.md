@@ -75,7 +75,7 @@ Answer these before approval:
 
 - How does this fit existing architecture and repository patterns?
 - What are the main failure modes, and how do we detect, mitigate, and roll back each one?
-- Are logs, metrics, traces, alerts, and runbooks sufficient for diagnosis?
+- Do the design's failure modes need new alerts, or are existing logs, metrics, traces, alerts, and runbooks sufficient for diagnosis?
 - What happens when dependencies are slow, unavailable, inconsistent, or partially successful?
 - What data could be lost, duplicated, corrupted, or exposed?
 - What is the smallest safe rollout and fastest safe rollback?

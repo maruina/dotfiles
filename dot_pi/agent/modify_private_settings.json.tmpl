@@ -12,7 +12,8 @@ printf '%s\n' "$input" | jq '
 {{- if eq .profile "work" }}
   .skills = [
     "/Users/matteo.ruina/dd/claude-marketplace/compute/skills",
-    "/Users/matteo.ruina/dd/claude-marketplace/compute-support/skills"
+    "/Users/matteo.ruina/dd/claude-marketplace/compute-support/skills",
+    "/Users/matteo.ruina/dd/claude-marketplace/dd/skills/conductor"
   ] |
   .packages = [
     "../../go/src/github.com/DataDog/datadog-pi-packages/packages/refresh-models",

@@ -9,6 +9,8 @@ Arguments: $ARGUMENTS
 
 Update the current branch's existing GitHub PR description and, when useful, its commit structure. This is for refreshing an already-created PR after addressing feedback or changing implementation details.
 
+Use commit rewriting to keep the PR reviewable after follow-up work: regroup commits by topic, squash fixup commits, or rebuild a reviewer-friendly history when the existing commits no longer match the final PR shape.
+
 Assume this command may be run multiple times on the same PR. Make the update idempotent: preserve useful existing content, replace stale generated sections instead of appending duplicates, and keep only one `## Lessons learned` section.
 
 Do not create a new PR.

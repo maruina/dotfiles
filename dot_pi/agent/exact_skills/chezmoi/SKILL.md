@@ -88,15 +88,23 @@ The chezmoi source of truth is the template:
 ~/.local/share/chezmoi/dot_pi/agent/models.json.tmpl
 ```
 
-When `/refresh-models` changes `~/.pi/agent/models.json`, sync those changes into chezmoi with a template merge:
+When `/refresh-models` changes `~/.pi/agent/models.json`, sync those changes into the correct profile branch in `models.json.tmpl`.
+
+Classify each refreshed provider before editing:
+- Treat a provider as **work** if its `baseUrl` points at Datadog infrastructure, especially `https://ai-gateway.us1.ddbuild.io` or `https://ai-gateway.us1.prod.dog`.
+- Also treat a provider as **work** if its headers include `"x-dd-tag-dd.user_email": "matteo.ruina@datadoghq.com"`.
+- Treat all other providers as **personal**.
+- If the URL and headers disagree, stop and ask before editing.
+
+Edit only the source template. Sync work providers into the `.profile == "work"` branch and personal providers into the `.profile == "personal"` branch:
 ```bash
 chezmoi diff ~/.pi/agent/models.json
-chezmoi merge ~/.pi/agent/models.json
+chezmoi edit ~/.pi/agent/models.json
 chezmoi diff ~/.pi/agent/models.json
 chezmoi apply ~/.pi/agent/models.json
 ```
 
-After merging, verify that rendering the template matches the target and that chezmoi has no remaining diff:
+After editing, verify that rendering the template matches the target and that chezmoi has no remaining diff:
 ```bash
 chezmoi execute-template < ~/.local/share/chezmoi/dot_pi/agent/models.json.tmpl | diff -u - ~/.pi/agent/models.json
 chezmoi diff ~/.pi/agent/models.json

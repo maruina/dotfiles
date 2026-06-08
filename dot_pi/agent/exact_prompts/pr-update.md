@@ -18,7 +18,8 @@ You may rewrite commits, squash commits, and force-push with `--force-with-lease
 Ask before rewriting commits unless `$ARGUMENTS` explicitly requests commit rewriting, squashing, or force-pushing.
 Do not use plain `--force`.
 Do not post `@codex review` unless the user explicitly asks.
-Do not change the PR title unless the user explicitly asks.
+Propose a PR title change when the existing title no longer reflects the final PR scope.
+Ask before changing the PR title unless `$ARGUMENTS` explicitly requests a title update.
 
 ## Phase 1: Gather PR and branch context
 
@@ -49,6 +50,7 @@ Read the existing PR body.
 Identify:
 - what is still accurate
 - what is stale
+- whether the existing PR title still reflects the final PR scope
 - what changed since the PR was created or last updated
 - what reviewer feedback appears to have been addressed
 - what tests were added or rerun
@@ -90,9 +92,11 @@ If rewriting commits:
 
 After rewriting, collect the new commit SHAs before drafting the reviewer guide.
 
-## Phase 4: Draft the updated PR body
+## Phase 4: Draft the updated PR title and body
 
-Use this structure unless the existing PR body uses a clearly intentional different structure:
+If the existing PR title is stale, propose a new title that reflects the final PR scope. Keep the existing title if it is still accurate.
+
+Use this body structure unless the existing PR body uses a clearly intentional different structure:
 
 ```markdown
 ## What
@@ -137,12 +141,19 @@ Then run:
 gh pr edit <number> --body-file <temp-file>
 ```
 
+If the user approved a title change or `$ARGUMENTS` explicitly requested one, include the new title:
+
+```fish
+gh pr edit <number> --title "<new title>" --body-file <temp-file>
+```
+
 ## Phase 6: Report
 
 Print:
 - PR URL
 - whether commits were rewritten, squashed, or left unchanged
 - whether the branch was force-pushed
+- whether the PR title was changed, proposed but not changed, or left unchanged
 - sections changed
 - whether `Lessons learned` was added, updated, removed, or left unchanged
 - any assumptions made

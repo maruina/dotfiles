@@ -11,6 +11,13 @@ Extra instructions:
 
 Turn the approved design spec into a concrete implementation plan.
 
+If `$1` is provided, resolve it before reading the spec:
+
+1. If `$1` exists relative to the current directory, or is an absolute path that exists, use it as-is.
+2. If `$1` does not exist from the current directory and you are inside a git repository, treat it as worktree-relative. `/brainstorm` prints a worktree-relative path such as `plans/<ticket-or-feature>/design.md`, which will not resolve from another checkout. Run `git worktree list --porcelain` and look for worktrees containing `$1`.
+3. If exactly one worktree contains it, use that path. If several do, present a concise numbered list and ask which to use. Stop until the user chooses.
+4. If it still cannot be found, stop and ask for a valid path.
+
 If `$1` is missing, discover candidate design specs before asking for a path:
 
 1. Search the current checkout for `plans/*/design.md`.

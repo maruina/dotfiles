@@ -36,6 +36,8 @@ Treat the plan as executable instructions, not unquestionable truth. Review it c
 
 Keep changes surgical. Every changed line must map to a plan step or explicit user instruction.
 
+For testable behavior, default to red-green-refactor: write or run the focused failing test first, implement only enough for the current behavior, run narrow verification, refactor only after green, then rerun verification.
+
 ## Workflow
 1. Read the plan completely.
 2. Inspect relevant guidance, git branch/status, files named by the plan, tests, build commands, package boundaries, and current repository state.
@@ -78,7 +80,9 @@ For each task:
 5. If verification fails, debug only within the current step and plan scope.
 6. Commit only when the plan says to commit. Use the exact commit message unless it no longer matches the change; if it does not match, stop and ask.
 
-Do not batch unrelated tasks. Do not skip narrow tests because later tasks run broader tests.
+Do not batch unrelated tasks. Do not skip narrow tests because later tasks run broader tests. Do not batch all tests ahead of implementation or all implementation ahead of verification unless the plan explicitly requires that shape.
+
+Keep tests on observable behavior through public or supported interfaces. Mock system boundaries such as external APIs, time, randomness, databases, or filesystems when needed; do not mock internal collaborators unless the repository already treats that seam as public.
 
 ## Stop Conditions
 Stop and ask when:
@@ -102,7 +106,7 @@ Return to plan review after the blocker is resolved or the user approves a plan 
 Use the plan file as the progress ledger:
 
 - update checkboxes for completed work
-- add short notes for deviations, failed verifications, and equivalent commands
+- add short notes for deviations, failed verifications, equivalent commands, and refactors made after green
 - do not rewrite the approved plan unless the user approves a plan change
 
 ## Handoff

@@ -39,7 +39,7 @@ Do not write implementation code, scaffold application files, or change files ou
 ## Posture
 Plan for a skilled engineer with no local context. Be exact, test-driven, and skeptical. If the design is not ready to plan from, stop and ask for the missing decision.
 
-Prefer DRY, YAGNI, small tasks, frequent verification, and existing repository patterns.
+Prefer DRY, YAGNI, small vertical slices, frequent verification, and existing repository patterns.
 
 Verify the design's scale assumptions are explicit and mapped to implementation constraints, tests, rollout guardrails, and observability. Do not add speculative optimizations. If expected scale, growth path, or operational limits are missing from the design, stop and ask before planning.
 
@@ -91,6 +91,10 @@ Then include:
 
 **Failure Modes to Handle**
 - [failure mode, expected behavior, and verification]
+
+**Test Strategy**
+- [public behaviors and interfaces to verify, plus the narrow command that should fail before implementation]
+- [system boundaries to mock, if any; do not mock internal collaborators unless the repository already uses that seam]
 ```
 
 ## Task Requirements
@@ -99,10 +103,14 @@ Each task must be small enough to execute safely and review independently.
 For every task, include:
 
 - exact files to create, modify, or test
-- checkbox steps for failing test, implementation, verification, and commit when applicable
+- checkbox steps for one behavior-focused failing test, minimal implementation, verification, refactor after green when needed, and commit when applicable
 - exact commands and expected results
 - enough code or config snippets to remove ambiguity, without inventing large blocks better derived during execution
 - Conventional Commit messages when the task commits
+
+For testable behavior, plan vertical slices/tracer bullets: one public behavior, one focused failing test through the supported interface, the smallest implementation that passes, then refactor only after verification is green. Do not plan all tests first and all implementation later unless the design explicitly requires that sequencing.
+
+Prefer naturally testable interfaces: small surface area, dependencies accepted rather than created internally, and results returned rather than hidden behind side effects. Tests should verify observable behavior and remain refactor-safe; avoid coupling them to private helpers, internal call order, direct storage inspection, or internal collaborators.
 
 Prefer scripts over long inline CI YAML when logic has branching, loops, retries, temp files, cleanup, multi-line errors, or remediation text. Prefer existing repository or platform CLIs over raw HTTP calls.
 
@@ -124,7 +132,7 @@ Do not include placeholders or vague instructions, including `TBD`, `TODO`, `imp
 Before reporting completion, verify:
 
 - every spec requirement maps to a task
-- task order is safe and testable
+- task order is safe, vertical, and testable
 - paths, types, commands, and flags match the repository
 - loaded skill guidance is reflected
 - security, observability, failure modes, docs, and `AGENTS.md` coverage are explicit

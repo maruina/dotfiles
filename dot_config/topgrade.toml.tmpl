@@ -1,0 +1,20 @@
+[misc]
+# IT manages OS updates. Helm repo/plugin updates are noisy and not needed by default.
+disable = ["system", "helm"]
+
+# Keep upgrades interactive so broad toolchain updates are explicit.
+assume_yes = false
+ask_retry = true
+show_skipped = true
+
+[git]
+# Keep remote refs fresh without merging, rebasing, or changing checked-out files.
+fetch_only = true
+
+{{- if eq .profile "work" }}
+repos = [
+  "~/dd/*/",
+]
+{{- else }}
+repos = []
+{{- end }}

@@ -31,11 +31,21 @@ gh pr view --json number,url,title,body 2>/dev/null; or echo "no PR yet"
 
 Also read any `CLAUDE.md` or `AGENTS.md` files in the repository root and in changed package directories.
 
+Also check for plan artifacts created by the `/brainstorm` → `/plan` → `/execute` workflow:
+
+```fish
+find plans -maxdepth 2 \( -name "design.md" -o -name "plan.md" \) 2>/dev/null
+```
+
+If found, note the paths for use in Phase 2 and Phase 6.
+
 If `gh pr view` finds an existing PR, stop and tell the user to run `/pr-update`.
 
 ## Phase 2: Understand the changes
 
 Inspect the changed files and diffs enough to explain the PR accurately.
+
+If `plans/*/design.md` was found in Phase 1, read it before inspecting diffs. It is the authoritative record of goals, alternatives considered, risks, and key decisions for this work.
 
 For each meaningful change, identify:
 - the review topic
@@ -124,6 +134,13 @@ One sentence describing the final state of the PR.
 ## Why
 
 Two to four sentences explaining why this change exists. Include relevant tickets, incidents, issues, or reviewer context. Write this so someone can understand the motivation months later.
+
+## Design & implementation plan
+
+> Include this section only when plan artifacts exist under `plans/`. Omit it otherwise.
+
+- **[`plans/<feature>/design.md`](<github-url>)** — Human-reviewable design spec. Covers goals, alternatives considered, risks, and key decisions. Reviewers should read this.
+- **[`plans/<feature>/plan.md`](<github-url>)** — Agent execution plan used to implement this PR. Covers task sequencing and step-level decisions. Optional to review.
 
 ## Reviewer guide
 

@@ -41,6 +41,8 @@ Plan for a skilled engineer with no local context. Be exact, test-driven, and sk
 
 Prefer DRY, YAGNI, small tasks, frequent verification, and existing repository patterns.
 
+Verify the design's scale assumptions are explicit and mapped to implementation constraints, tests, rollout guardrails, and observability. Do not add speculative optimizations. If expected scale, growth path, or operational limits are missing from the design, stop and ask before planning.
+
 ## Workflow
 1. Read the design spec completely.
 2. Inspect relevant guidance, code, tests, build commands, package boundaries, existing patterns, tickets, prior plans, architecture decision records, and review threads.

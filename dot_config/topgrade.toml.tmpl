@@ -8,6 +8,8 @@ ask_retry = true
 show_skipped = true
 
 [git]
+# Avoid fetching stale repos from Topgrade's predefined search paths.
+pull_predefined = false
 # Keep remote refs fresh without merging, rebasing, or changing checked-out files.
 fetch_only = true
 

@@ -116,6 +116,12 @@ set --erase _asdf_shims
 fish_add_path "{{ .chezmoi.homeDir }}/.bun/bin"
 {{- end }}
 
+# Add JetBrains Toolbox scripts so tools such as Topgrade can find IDE CLIs.
+set -l jetbrains_toolbox_scripts "{{ .chezmoi.homeDir }}/Library/Application Support/JetBrains/Toolbox/scripts"
+if test -d "$jetbrains_toolbox_scripts"
+    fish_add_path --append "$jetbrains_toolbox_scripts"
+end
+
 # Add obsidian CLI
 fish_add_path /Applications/Obsidian.app/Contents/MacOS
 

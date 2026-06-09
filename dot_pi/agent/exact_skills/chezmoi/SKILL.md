@@ -62,7 +62,7 @@ chezmoi source-path ~/.pi/agent/models.json
 # → /Users/you/.local/share/chezmoi/dot_pi/agent/models.json.tmpl
 
 # Edit the source template
-hx ~/.local/share/chezmoi/dot_pi/agent/models.json.tmpl
+"${EDITOR:-vi}" ~/.local/share/chezmoi/dot_pi/agent/models.json.tmpl
 # (or use chezmoi edit)
 chezmoi edit ~/.pi/agent/models.json
 

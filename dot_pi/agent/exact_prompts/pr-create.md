@@ -161,6 +161,29 @@ Omit `[TICKET]` if there is no linked ticket. Use one of these types unless anot
 - `test`
 - `chore`
 
+### Stacked-PR navigation block (required for any PR in a stack)
+
+If this PR is part of a stack (the branch targets another `maruina/...` branch rather than `main`, or a stack plan was created in Phase 3), the body **must begin** with a stack-navigation blockquote, before `## What`. Single PRs that target `main` directly and have no children omit it.
+
+Format (a blockquote; no ASCII tree — keep it scannable):
+
+```markdown
+> 📦 **Stacked PR <pos> of <total>** — part of [<TICKET>](<jira-url>)<optional: ` (<short epic/feature note>)`>
+>
+> - PR <pos1>: <label> — #<pr1>
+> - PR <pos2>: 👉 **<label> (this PR)** — #<pr2>
+> - PR <pos3>: <label> — #<pr3>
+```
+
+Rules for the block:
+- One bullet per PR in the stack, in dependency order (bottom → top).
+- Mark the current PR with `👉 **<label> (this PR)**`; all others are plain `<label>`.
+- Reference every PR by its `#<number>` so GitHub renders clickable, bidirectional links. Link the ticket with a Markdown link.
+- Use a short `<pos>` per branch (e.g. `1`, `2a`, `2b`, `3`) and a one-line `<label>` describing that PR's scope.
+- Do **not** include an ASCII dependency tree — the bullet list is the whole block.
+- Separate the block from the body with a `---` line.
+- A PR number does not exist until it is created (Phase 7). On first creation, write the block with the known siblings and fill in this PR's own `#<number>` in Phase 8; update sibling numbers as later stack PRs are opened.
+
 Draft the PR body with this structure:
 
 ```markdown
@@ -183,7 +206,7 @@ Two to four sentences explaining why this change exists. Include relevant ticket
 
 > Read the commits in this order. Open each via its link below and comment there — those are first-class PR review comments. Do **not** open commits via the `/commit/<sha>` URL; comments there do not show up in the PR.
 
-> For a stacked PR, also note this branch's place in the stack (⬆ parent PR / ⬇ child PR) so reviewers can follow the narrative across PRs.
+> The stack-navigation block at the top of the body already shows this PR's place in the stack; do not duplicate that here.
 
 | # | Commit | Files | What to look for |
 |---|--------|-------|------------------|
@@ -228,11 +251,13 @@ Now that the PR number exists, build each reviewer-guide row link as:
 https://github.com/<owner>/<repo>/pull/<pr-number>/changes/<full-sha>
 ```
 
-Fill these into the reviewer-guide table from Phase 6, write the completed body to a temp file, and set it on the PR:
+Fill these into the reviewer-guide table from Phase 6. If a stacked-PR navigation block was added, also fill in this PR's own `#<number>` (and mark it `👉 ... (this PR)`). Write the completed body to a temp file, and set it on the PR:
 
 ```fish
 gh pr edit <pr-number> --body-file <temp-file>
 ```
+
+When later stack PRs are created, rerun `/pr-update` on the earlier PRs (or edit their bodies) so every PR's navigation block lists the now-known sibling `#<number>`s.
 
 ## Phase 9: Trigger Codex review
 

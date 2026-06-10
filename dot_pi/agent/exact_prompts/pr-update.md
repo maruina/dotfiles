@@ -108,6 +108,29 @@ https://github.com/<owner>/<repo>/pull/<pr-number>/changes/<full-sha>
 
 The PR number comes from Phase 1; collect SHAs in reading order with `git log --reverse --format="%H %s" origin/$base..HEAD`. **Never** link the bare `/commit/<sha>` form — comments there are commit-scoped and do not appear in the PR.
 
+### Stacked-PR navigation block (required for any PR in a stack)
+
+If this PR is part of a stack (its base is another `maruina/...` branch rather than `main`, or it has child PRs stacked on it), the body **must begin** with a stack-navigation blockquote, before `## What`. Build or refresh it every run; this command is idempotent, so **replace** any existing block in place rather than appending a second one. Single PRs targeting `main` with no children omit it (and any stale block should be removed).
+
+Format (a blockquote; no ASCII tree — keep it scannable):
+
+```markdown
+> 📦 **Stacked PR <pos> of <total>** — part of [<TICKET>](<jira-url>)<optional: ` (<short epic/feature note>)`>
+>
+> - PR <pos1>: <label> — #<pr1>
+> - PR <pos2>: 👉 **<label> (this PR)** — #<pr2>
+> - PR <pos3>: <label> — #<pr3>
+```
+
+Rules for the block:
+- One bullet per PR in the stack, in dependency order (bottom → top).
+- Mark the current PR with `👉 **<label> (this PR)**`; all others are plain `<label>`.
+- Reference every PR by its `#<number>` so GitHub renders clickable, bidirectional links. Link the ticket with a Markdown link.
+- Use a short `<pos>` per branch (e.g. `1`, `2a`, `2b`, `3`) and a one-line `<label>` describing that PR's scope.
+- Do **not** include an ASCII dependency tree — the bullet list is the whole block.
+- Separate the block from the body with a `---` line.
+- Discover the sibling PRs from the machete layout / `git machete status` and `gh pr list`; keep the block consistent across all PRs in the stack (run `/pr-update` on each, or edit their bodies, when stack membership changes).
+
 Use this body structure unless the existing PR body uses a clearly intentional different structure:
 
 ```markdown
@@ -123,7 +146,7 @@ Two to four sentences explaining why this change exists.
 
 > Read the commits in this order. Open each via its link below and comment there — those are first-class PR review comments. Do **not** open commits via the `/commit/<sha>` URL; comments there do not show up in the PR.
 
-> For a stacked PR, also note this branch's place in the stack (⬆ parent PR / ⬇ child PR) so reviewers can follow the narrative across PRs.
+> The stack-navigation block at the top of the body already shows this PR's place in the stack; do not duplicate that here.
 
 | # | Commit | Files | What to look for |
 |---|--------|-------|------------------|

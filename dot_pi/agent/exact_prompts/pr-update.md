@@ -1,5 +1,5 @@
 ---
-description: Update an existing PR description and optionally rewrite PR commits after code or review-feedback changes
+description: Update an existing PR description after code or review-feedback changes, syncing the branch by merging upstream (no-rebase-once-open)
 argument-hint: "[context]"
 ---
 
@@ -7,19 +7,20 @@ argument-hint: "[context]"
 
 Arguments: $ARGUMENTS
 
-Update the current branch's existing GitHub PR description and, when useful, its commit structure. This is for refreshing an already-created PR after addressing feedback or changing implementation details.
+Update the current branch's existing GitHub PR description after addressing feedback or changing implementation details.
 
-Use commit rewriting to keep the PR reviewable after follow-up work: regroup commits by topic, squash fixup commits, or rebuild a reviewer-friendly history when the existing commits no longer match the final PR shape.
+This workflow uses git-machete with a **no-rebase-once-open** stance: once a PR is open, its branch is **never** rebased, squashed, or force-pushed. Upstream changes are **merged** in, and review feedback lands as **new commits**. This preserves review history and keeps commit-anchored comments and "changes since last review" working. Read the `git-machete` skill before performing any branch, stack, or PR operations.
+
+Because the branch is not rewritten, the reviewer guide is a **Files-changed reading-order narrative**, not a list of commit links.
 
 Assume this command may be run multiple times on the same PR. Make the update idempotent: preserve useful existing content, replace stale generated sections instead of appending duplicates, and keep only one `## Lessons learned` section.
 
 Do not create a new PR.
-You may rewrite commits, squash commits, and force-push with `--force-with-lease` when the user asks or when the current commit structure is stale or hard to review.
-Ask before rewriting commits unless `$ARGUMENTS` explicitly requests commit rewriting, squashing, or force-pushing.
-Do not use plain `--force`.
+Do not rebase, squash, or force-push a branch that has an open PR. Do not use `--force` or `--force-with-lease` on it.
 Do not post `@codex review` unless the user explicitly asks.
 Propose a PR title change when the existing title no longer reflects the final PR scope.
 Ask before changing the PR title unless `$ARGUMENTS` explicitly requests a title update.
+If the branch has unrelated uncommitted feedback fixes, commit them as new commits and push downstream with `git machete traverse -y --push --return-to=here` before updating the description.
 
 ## Phase 1: Gather PR and branch context
 
@@ -65,32 +66,35 @@ Because this command may run repeatedly:
 - If the existing `## Changes since last review` section exists, replace it with `## Lessons learned` when there is useful reviewer context to share; otherwise remove it.
 - If the existing `## Lessons learned` section is stale, replace it with the latest meaningful lessons.
 
-## Phase 3: Update commit structure if needed
+## Phase 3: Sync the branch (merge upstream, never rebase)
 
-Compare the current commits with the final PR scope and reviewer-guide topics.
+The PR is open, so its branch must not be rewritten. Do **not** rebase, squash, reset to merge base, or force-push.
 
-If commits are stale, tangled, too granular, or no longer match the review topics, propose a rewrite plan. Prefer one commit per review topic. If the PR is small or the user explicitly asks to squash, use a single commit.
+Land any work as **new commits**:
+- Review feedback and follow-up changes are committed normally on top of the branch.
+- Upstream (`$base`) changes are **merged** into the branch, not rebased onto.
 
-When proposing a rewrite, show:
+If the repo uses git-machete (the open-PR branch should carry the `update=merge` annotation set at create time), sync and push with:
 
-```markdown
-| # | Topic | Files | Commit message |
-|---|-------|-------|----------------|
-| 1 | ... | ... | ... |
+```fish
+git machete traverse -yW                       # merges $base into open-PR branches, rebases the rest
+git machete traverse -y --push --return-to=here
 ```
 
-Ask the user before rewriting unless `$ARGUMENTS` explicitly requests commit rewriting, squashing, or force-pushing.
+If git-machete is not set up, merge upstream by hand and push without force:
 
-If rewriting commits:
-1. Ensure the working tree is clean, or clearly separate uncommitted changes that must be included.
-2. Create a backup branch named `backup/<current-branch>-pre-pr-update`.
-3. Reset softly to the merge base with `origin/$base`.
-4. Create the planned commit or commits in review order.
-5. Verify the working tree is clean.
-6. Verify the final diff against `origin/$base` still contains only intentional PR changes.
-7. Push with `git push --force-with-lease`.
+```fish
+git merge origin/$base
+git push
+```
 
-After rewriting, collect the new commit SHAs before drafting the reviewer guide.
+If the branch's position in the stack changed (a parent merged or moved), retarget the PR instead of rewriting history:
+
+```fish
+git machete github retarget-pr
+```
+
+Resolve merge conflicts in place; do not rebase to avoid them. Do not create a `backup/` branch — nothing is being rewritten.
 
 ## Phase 4: Draft the updated PR title and body
 
@@ -109,12 +113,13 @@ Two to four sentences explaining why this change exists.
 
 ## Reviewer guide
 
-| # | Topic | Commit | Files |
-|---|-------|--------|-------|
-| 1 | <topic name> | [short-sha](full-github-url) | `file1.go`, `file2.go` |
+> Review in the **Files changed** tab, in this order. Comment there so your comments stay attached to the PR. Avoid commenting on individual commits.
 
-**What to look for per commit:**
-- **<Topic>** — specific things to verify or scrutinize
+> For a stacked PR, also note this branch's place in the stack (⬆ parent PR / ⬇ child PR) so reviewers can follow the narrative across PRs.
+
+| # | Read | Why now | What to look for |
+|---|------|---------|------------------|
+| 1 | `file1.go`, `file2.go` | establishes the core types | specific things to verify or scrutinize |
 
 ## Lessons learned
 
@@ -151,8 +156,8 @@ gh pr edit <number> --title "<new title>" --body-file <temp-file>
 
 Print:
 - PR URL
-- whether commits were rewritten, squashed, or left unchanged
-- whether the branch was force-pushed
+- whether upstream was merged into the branch and whether downstream branches were updated/pushed
+- whether the PR was retargeted
 - whether the PR title was changed, proposed but not changed, or left unchanged
 - sections changed
 - whether `Lessons learned` was added, updated, removed, or left unchanged

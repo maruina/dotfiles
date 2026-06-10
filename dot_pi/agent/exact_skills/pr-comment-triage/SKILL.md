@@ -52,6 +52,29 @@ Supported inputs:
    gh api repos/ORG/REPO/pulls/PR/reviews --paginate
    ```
 
+   Fetch review-thread resolution state via GraphQL. The REST endpoints above do
+   not expose `isResolved`, so use this to know which threads to skip:
+
+   ```bash
+   gh api graphql -f query='
+     query($owner:String!, $repo:String!, $pr:Int!) {
+       repository(owner:$owner, name:$repo) {
+         pullRequest(number:$pr) {
+           reviewThreads(first:100) {
+             nodes {
+               id
+               isResolved
+               comments(first:1) { nodes { databaseId path body } }
+             }
+           }
+         }
+       }
+     }' -F owner=ORG -F repo=REPO -F pr=PR
+   ```
+
+   On a subsequent run over the same PR, ignore every comment whose thread has
+   `isResolved: true`. Only triage unresolved threads and standalone comments.
+
 5. If a specific `discussion_rID` is supplied:
    - Find the review comment whose `id` matches the numeric suffix.
    - Focus only on that comment and its thread/replies when available.
@@ -89,6 +112,24 @@ Supported inputs:
    - If implementing, make minimal targeted edits.
    - Run relevant tests or validation commands.
    - Summarize diff and proof.
+
+10. After a comment is addressed, resolve its review thread.
+
+    Map the comment to its thread `id` from the GraphQL query in step 4, then
+    resolve it:
+
+    ```bash
+    gh api graphql -f query='
+      mutation($threadId:ID!) {
+        resolveReviewThread(input:{threadId:$threadId}) {
+          thread { id isResolved }
+        }
+      }' -F threadId=THREAD_ID
+    ```
+
+    Only resolve a thread after its fix is applied (or the user confirms the
+    response settles it). Do not resolve `needs-author-decision` or `unclear`
+    threads without explicit user direction.
 
 ## Output format
 
@@ -143,7 +184,8 @@ Status: ...
 
 - Do not assume review comments apply; inspect current code first.
 - Do not edit generated files unless repository instructions allow it.
-- Do not resolve or reply to GitHub comments unless explicitly asked.
+- Resolve a review thread only after its comment is actually addressed; do not reply to GitHub comments unless explicitly asked.
+- Skip threads already marked `isResolved` on subsequent runs.
 - Prefer `gh` for GitHub operations.
 - Keep changes minimal.
 - If local branch is not the PR head, warn before analysis.

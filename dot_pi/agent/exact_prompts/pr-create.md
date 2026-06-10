@@ -11,10 +11,15 @@ Create a new GitHub PR for the current branch.
 
 Use this command only for initial PR creation. If a PR already exists for this branch, stop and tell the user to run `/pr-update` instead.
 
-Interpret `--base <branch>` as the base branch. If the user does not pass `--base`, use `main`. Interpret `--draft` as creating the PR in draft mode. Treat all other arguments as task context.
+Interpret `--base <branch>` as the base branch. If the user does not pass `--base`, use `main`. Treat all other arguments as task context.
+
+This workflow uses git-machete with a **no-rebase-once-open** stance: once a PR is open, its branch is never rebased — upstream changes are merged in. Read the `git-machete` skill before performing any stack, branch, or PR operations here. PRs are opened as **draft by default** and annotated for merge-based updates.
+
+Goal of every PR you create: make it a **joy to review**. Prefer small, single-purpose PRs; when a change is large, split it into a stack and give reviewers a narrative reading order.
 
 Do not update an existing PR.
 Do not post duplicate review-trigger comments.
+Do not rebase a branch that already has an open PR.
 
 ## Phase 1: Gather context
 
@@ -59,11 +64,38 @@ Use narrow review topics. A topic should map to one subsystem, mechanism, or rev
 
 Ignore generated files unless they are important to review. Mention generated files only when they matter.
 
-## Phase 3: Check commit structure
+## Phase 3: Decide whether to split into a stack
 
-Compare the current commits with the review topics.
+Decide whether this should be **one PR** or a **stack of smaller stacked PRs**. A large PR is hard to review; splitting it is usually the single biggest improvement to reviewability.
 
-If the branch has multiple tangled commits that do not match the review topics, propose a one-commit-per-topic plan:
+Evaluate against this heuristic. These are defaults to reason from, not hard gates — state which signals tripped and let the user override.
+
+Propose a split if **any strong signal** trips, or if **two or more soft signals** trip.
+
+**Strong signals (any one → propose split):**
+- The change touches 2+ distinct subsystems or concerns that could ship and be reviewed independently.
+- The change is large enough that a reviewer cannot hold it in their head in one sitting: roughly >400 net lines of non-generated, non-test code, or >~15 non-generated files.
+
+**Soft signals (two or more → propose split):**
+- The reviewer guide would need more than 5 topics.
+- Commits already fall into clearly independent groups.
+- The branch mixes a refactor, a new feature, and a behavior change together.
+
+If a split is warranted, propose a stack plan, one branch per reviewable step in dependency order:
+
+```markdown
+| # | Branch (maruina/...) | Step / concern | Files |
+|---|----------------------|----------------|-------|
+| 1 | ... | ... | ... |
+```
+
+Then ask:
+
+> This change looks large enough to split. Should I split it into this stack of PRs?
+
+If the user agrees, follow the **Splitting one big branch into a stack** procedure in the `git-machete` skill, then create PRs bottom-up (this command handles the bottom branch; rerun it per branch as each becomes ready). If the user declines, continue as a single PR but make the reviewer guide a strong file-order narrative anyway.
+
+If no split is needed, compare the current commits with the review topics. If the branch has tangled commits that do not match the topics **and the branch has no open PR yet**, you may propose a one-commit-per-topic rewrite:
 
 ```markdown
 | # | Topic | Files | Commit message |
@@ -71,42 +103,34 @@ If the branch has multiple tangled commits that do not match the review topics, 
 | 1 | ... | ... | ... |
 ```
 
-Ask the user before rewriting commits:
-
-> Should I rewrite the branch into this one-commit-per-topic structure before creating the PR?
-
-If the user agrees:
+Ask before rewriting. If the user agrees:
 1. Create a backup branch named `backup/<current-branch>-pre-rebase`.
 2. Reset softly to the merge base with `origin/$base`.
 3. Create one commit per topic in review order.
-4. Verify the working tree is clean.
-5. Verify the diff from the backup branch contains only intentional changes.
-6. Push with `--force-with-lease`.
+4. Verify the working tree is clean and the diff from the backup branch contains only intentional changes.
+5. Push with `--force-with-lease`.
 
-If the user declines, keep the current commit structure and make the reviewer guide topic-based anyway.
+This rewrite is only acceptable **before** the PR exists. Never do it on a branch with an open PR.
 
 ## Phase 4: Push the branch
 
-Push the current branch if needed:
+Push the current branch and any downstream stacked branches:
+
+```fish
+git machete traverse -y --push --return-to=here
+```
+
+If the repo does not use git-machete yet, fall back to a plain push:
 
 ```fish
 git push -u origin (git branch --show-current)
 ```
 
-## Phase 5: Collect commit links
+## Phase 5: Determine the review order
 
-Run:
+The reviewer guide is a **file-reading narrative**, not a list of commit links. Commit-anchored comments are second-class on GitHub and break when history changes, so guide reviewers to the **Files changed** tab instead.
 
-```fish
-set repo (gh repo view --json nameWithOwner -q .nameWithOwner)
-git log --format="%H %s" origin/$base..HEAD
-```
-
-For each commit, build a link:
-
-```text
-https://github.com/$repo/commit/$sha
-```
+From the changed files, decide the order in which a reviewer should read them so the change tells a story: foundational types/models first, then the mechanisms that use them, then wiring/config/docs last. Group files into a small number of ordered steps, each with a one-line reason it is read at that point.
 
 ## Phase 6: Draft the PR title and body
 
@@ -144,12 +168,13 @@ Two to four sentences explaining why this change exists. Include relevant ticket
 
 ## Reviewer guide
 
-| # | Topic | Commit | Files |
-|---|-------|--------|-------|
-| 1 | <topic name> | [short-sha](full-url) | `file1.go`, `file2.go` |
+> Review in the **Files changed** tab, in this order. Comment there so your comments stay attached to the PR. Avoid commenting on individual commits.
 
-**What to look for per commit:**
-- **<Topic>** - specific things to verify or scrutinize
+> For a stacked PR, also note this branch's place in the stack (⬆ parent PR / ⬇ child PR) so reviewers can follow the narrative across PRs.
+
+| # | Read | Why now | What to look for |
+|---|------|---------|------------------|
+| 1 | `file1.go`, `file2.go` | establishes the core types | specific things to verify or scrutinize |
 
 ## Lessons learned
 
@@ -166,11 +191,19 @@ Omit `## Lessons learned` when there is nothing meaningful to share. Keep the bo
 
 ## Phase 7: Create the PR
 
-Create the PR:
+Create the PR as a **draft** and annotate the branch so future traverses merge upstream instead of rebasing (no-rebase-once-open):
 
 ```fish
-gh pr create --title "<title>" --body-file <temp-file> # add --draft if draft mode was requested
+git machete github create-pr --draft && git machete anno (git machete anno) update=merge
 ```
+
+If the repo does not use git-machete, fall back to:
+
+```fish
+gh pr create --draft --title "<title>" --body-file <temp-file>
+```
+
+If a stack plan was created in Phase 3, this command opens the PR for the current (bottom) branch only; the user reruns `/pr-create` per branch as each step becomes ready for review.
 
 Capture the PR URL.
 

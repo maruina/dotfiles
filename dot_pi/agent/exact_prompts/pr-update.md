@@ -100,6 +100,14 @@ Resolve merge conflicts in place; do not rebase to avoid them. Do not create a `
 
 If the existing PR title is stale, propose a new title that reflects the final PR scope. Keep the existing title if it is still accurate.
 
+The reviewer guide is a **commit-ordered narrative**, one row per commit in reading order. Each row links to the commit inside the PR review flow so comments there are first-class PR review comments:
+
+```text
+https://github.com/<owner>/<repo>/pull/<pr-number>/changes/<full-sha>
+```
+
+The PR number comes from Phase 1; collect SHAs in reading order with `git log --reverse --format="%H %s" origin/$base..HEAD`. **Never** link the bare `/commit/<sha>` form — comments there are commit-scoped and do not appear in the PR.
+
 Use this body structure unless the existing PR body uses a clearly intentional different structure:
 
 ```markdown
@@ -113,13 +121,13 @@ Two to four sentences explaining why this change exists.
 
 ## Reviewer guide
 
-> Review in the **Files changed** tab, in this order. Comment there so your comments stay attached to the PR. Avoid commenting on individual commits.
+> Read the commits in this order. Open each via its link below and comment there — those are first-class PR review comments. Do **not** open commits via the `/commit/<sha>` URL; comments there do not show up in the PR.
 
 > For a stacked PR, also note this branch's place in the stack (⬆ parent PR / ⬇ child PR) so reviewers can follow the narrative across PRs.
 
-| # | Read | Why now | What to look for |
-|---|------|---------|------------------|
-| 1 | `file1.go`, `file2.go` | establishes the core types | specific things to verify or scrutinize |
+| # | Commit | Files | What to look for |
+|---|--------|-------|------------------|
+| 1 | [short-sha](https://github.com/<owner>/<repo>/pull/<pr-number>/changes/<full-sha>) | `file1.go`, `file2.go` | specific things to verify or scrutinize |
 
 ## Lessons learned
 

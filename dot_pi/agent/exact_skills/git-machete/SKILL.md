@@ -11,9 +11,11 @@ This workflow mirrors Mat Brown's opinionated workflow with one firm rule: **onc
 ## Why no-rebase-once-open
 
 Once a PR is open, rebasing/force-pushing causes real harm:
-- It rewrites commit SHAs, which **orphans commit-anchored review comments** (they become "outdated" and cannot be resolved — the exact failure that makes per-commit reviewer guides useless).
+- It rewrites commit SHAs, which **orphans review comments anchored to those SHAs** (they become "outdated" and cannot be resolved).
 - It breaks GitHub's "changes since last review".
 - It clutters PR history with duplicate near-identical commits.
+
+Note on per-commit review links: a reviewer guide *can* link commits via the in-PR review surface `https://github.com/<owner>/<repo>/pull/<n>/changes/<sha>` — comments there are first-class PR review comments. The bare `https://github.com/<owner>/<repo>/commit/<sha>` surface creates commit-scoped comments that do not show up in the PR. Either way, both are anchored to a SHA, so no-rebase-once-open is what keeps them alive.
 
 So: review feedback and upstream updates land as **new commits / merge commits** on open-PR branches, preserving the PR's review history. Branches without an open PR are still rebased, because rebasing is what keeps a stack clean.
 

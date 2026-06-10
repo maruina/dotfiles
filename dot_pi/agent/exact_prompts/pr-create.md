@@ -126,11 +126,24 @@ If the repo does not use git-machete yet, fall back to a plain push:
 git push -u origin (git branch --show-current)
 ```
 
-## Phase 5: Determine the review order
+## Phase 5: Plan the review narrative and collect commits
 
-The reviewer guide is a **file-reading narrative**, not a list of commit links. Commit-anchored comments are second-class on GitHub and break when history changes, so guide reviewers to the **Files changed** tab instead.
+The reviewer guide is a **commit-ordered narrative**: one row per commit, in the order a reviewer should read them so the change tells a story (foundational types first, then the mechanisms that use them, then wiring/config/docs last). This assumes commits are already one-per-topic (Phase 3); if not, fix that first.
 
-From the changed files, decide the order in which a reviewer should read them so the change tells a story: foundational types/models first, then the mechanisms that use them, then wiring/config/docs last. Group files into a small number of ordered steps, each with a one-line reason it is read at that point.
+Each row links to the commit **inside the PR review flow** so that comments made there are first-class PR review comments (anchored to the PR diff), not commit-scoped comments:
+
+```text
+https://github.com/<owner>/<repo>/pull/<pr-number>/changes/<full-sha>
+```
+
+**Never** link the bare `https://github.com/<owner>/<repo>/commit/<sha>` form. Comments on that surface are commit comments: they do not appear in the PR review and orphan when history changes.
+
+The `/pull/<pr-number>/changes/<sha>` URL needs the PR number, which does not exist until Phase 7. So in this phase only collect the commit SHAs and draft the narrative order; fill in the links in Phase 8 after the PR is created.
+
+```fish
+set repo (gh repo view --json nameWithOwner -q .nameWithOwner)
+git log --reverse --format="%H %s" origin/$base..HEAD
+```
 
 ## Phase 6: Draft the PR title and body
 
@@ -168,13 +181,13 @@ Two to four sentences explaining why this change exists. Include relevant ticket
 
 ## Reviewer guide
 
-> Review in the **Files changed** tab, in this order. Comment there so your comments stay attached to the PR. Avoid commenting on individual commits.
+> Read the commits in this order. Open each via its link below and comment there — those are first-class PR review comments. Do **not** open commits via the `/commit/<sha>` URL; comments there do not show up in the PR.
 
 > For a stacked PR, also note this branch's place in the stack (⬆ parent PR / ⬇ child PR) so reviewers can follow the narrative across PRs.
 
-| # | Read | Why now | What to look for |
-|---|------|---------|------------------|
-| 1 | `file1.go`, `file2.go` | establishes the core types | specific things to verify or scrutinize |
+| # | Commit | Files | What to look for |
+|---|--------|-------|------------------|
+| 1 | [short-sha](https://github.com/<owner>/<repo>/pull/<pr-number>/changes/<full-sha>) | `file1.go`, `file2.go` | specific things to verify or scrutinize |
 
 ## Lessons learned
 
@@ -205,9 +218,23 @@ gh pr create --draft --title "<title>" --body-file <temp-file>
 
 If a stack plan was created in Phase 3, this command opens the PR for the current (bottom) branch only; the user reruns `/pr-create` per branch as each step becomes ready for review.
 
-Capture the PR URL.
+Capture the PR URL and PR number.
 
-## Phase 8: Trigger Codex review
+## Phase 8: Finalize reviewer-guide links and write the body
+
+Now that the PR number exists, build each reviewer-guide row link as:
+
+```text
+https://github.com/<owner>/<repo>/pull/<pr-number>/changes/<full-sha>
+```
+
+Fill these into the reviewer-guide table from Phase 6, write the completed body to a temp file, and set it on the PR:
+
+```fish
+gh pr edit <pr-number> --body-file <temp-file>
+```
+
+## Phase 9: Trigger Codex review
 
 After creating the PR, post one Codex review trigger comment:
 
@@ -215,7 +242,7 @@ After creating the PR, post one Codex review trigger comment:
 gh pr comment <pr-url> --body "@codex review"
 ```
 
-## Phase 9: Report
+## Phase 10: Report
 
 Print:
 - PR URL

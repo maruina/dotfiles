@@ -1,3 +1,4 @@
+{{ if eq .profile "work" -}}
 ---
 description: Uses Slack MCP through mcp-cli and a local Python stdio proxy backed by Claude Code's macOS keychain token. Use when searching Slack messages, reading channels or threads, finding users/channels, or explicitly sending Slack messages.
 ---
@@ -35,26 +36,26 @@ mcp-cli -c $SLACK_MCP_CONFIG call slack slack_search_public_and_private '{
   "query": "search terms",
   "limit": 10,
   "include_context": true,
-  "response_format": "markdown"
+  "response_format": "detailed"
 }'
 
 mcp-cli -c $SLACK_MCP_CONFIG call slack slack_search_channels '{
   "query": "channel-name",
   "limit": 10,
-  "response_format": "markdown"
+  "response_format": "detailed"
 }'
 
 mcp-cli -c $SLACK_MCP_CONFIG call slack slack_read_channel '{
   "channel_id": "CHANNEL_ID",
   "limit": 20,
-  "response_format": "markdown"
+  "response_format": "detailed"
 }'
 
 mcp-cli -c $SLACK_MCP_CONFIG call slack slack_read_thread '{
   "channel_id": "CHANNEL_ID",
   "message_ts": "MESSAGE_TS",
   "limit": 50,
-  "response_format": "markdown"
+  "response_format": "detailed"
 }'
 ```
 
@@ -73,3 +74,6 @@ Rules:
 - Slack MCP uses the user's normal Slack permissions and all access may be logged.
 - Do not print or persist Slack access or refresh tokens.
 - If auth fails, rerun `slack-mcp-auth.py` and retry.
+- `response_format` accepts only `detailed` or `concise` (default `detailed`); it does not support `markdown`.
+- Messages sent through this MCP are attributed to the Claude Slack app ("sent with Claude") because the client ID belongs to Claude Code, not Datadog/Pi.
+{{- end }}

@@ -23,7 +23,7 @@ Push back on unclear goals, unsafe assumptions, excessive scope, unnecessary nov
 Surface scale assumptions early. Ask enough sizing questions to understand the order of magnitude: users, requests per second, data volume, growth rate, and operational limits. Prefer an incremental design that solves the current scale well, leaves clear extension points for the next order of magnitude, and identifies which optimizations can wait.
 
 ## Workflow
-1. Gather context before proposing solutions. Assume you do not know this area well: go up one layer of abstraction, build a domain map, inspect relevant guidance and history. Before asking any design question, state aloud what you found and what you assumed — covering domain concepts, owners, boundaries, and key callers. Do not ask design questions or recommend a direction until you have done this. Load design skills before proposing approaches.
+1. Gather context before proposing solutions. Use the `codebase-research` skill: zoom out one abstraction layer, build a domain map, inspect relevant guidance and history, analyze current behavior, and find existing patterns. Before asking any design question, state aloud what you found and what you assumed — covering domain concepts, owners, boundaries, and key callers. Do not ask design questions or recommend a direction until you have done this. Load design skills before proposing approaches.
 2. Separate the proposed solution from the underlying problem. Ask what the user is trying to accomplish and why, what triggered the request, whether this is one-off recovery or durable behavior, and whether non-code options could solve it more safely. Define goals, non-goals, users, constraints, success criteria, ownership, and operational expectations.
 3. Classify complexity as simple, medium, or complex based on blast radius, novelty, component count, operational risk, and reversibility. Scale discovery to that risk.
 4. Keep an assumption ledger: assumption, evidence, impact if wrong, and validation path. Stop on unvalidated high-risk assumptions.
@@ -46,9 +46,7 @@ Surface scale assumptions early. Ask enough sizing questions to understand the o
 ## Context Discovery
 Scale discovery to complexity and risk. Start with evidence before design — do not propose from a narrow reading of the target file.
 
-Go up one layer of abstraction before reasoning locally. Build a map of the relevant domain using the project's vocabulary, not invented terms. If you cannot name the domain concepts, owners, callers, and boundaries in the project's own vocabulary, keep gathering context.
-
-Review when applicable:
+Use the `codebase-research` skill before proposing approaches. For design work, additionally review when applicable:
 
 - repository guidance: `README*`, `AGENTS.md`, `CLAUDE.md`, contributor docs, architecture docs, ADRs
 - relevant skills, prior plans (`plans/*/design.md`), tickets, incidents, dashboards, runbooks
@@ -61,7 +59,7 @@ Use repository glossary, type names, API names, comments, docs, and tests as voc
 
 Ask for source-of-truth links when they would materially improve context: Jira epic, Confluence page, Slack thread, incident, PR, design doc, runbook, dashboard, or service ownership page. If the user does not have them, continue with repository evidence and mark the gap.
 
-Before proposing approaches, summarize: the domain map, context reviewed, what is known vs. assumed, and what could not be verified. If a source is unavailable or irrelevant, say so briefly.
+Before proposing approaches, summarize: the domain map, context reviewed, current behavior, existing patterns, what is known vs. assumed, and what could not be verified. If a source is unavailable or irrelevant, say so briefly.
 
 ## Design Checks
 Answer these before approval:

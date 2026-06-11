@@ -11,7 +11,9 @@ If `$1` is provided, use the `resolve-worktree` skill to resolve it (no `$GLOB` 
 
 Perform a full systematic code review. If `Target` is a directory, use it as the starting point but follow important callers, callees, tests, configs, and public interfaces outside that directory when needed. If `Target` is a file, review that file in context: read its tests, direct dependencies, callers, and relevant configuration.
 
-Do not edit files. Investigate first, then report findings with concrete evidence.
+Use the `codebase-research` skill before applying the review checklist. Separate discovery from critique: first document current behavior and existing patterns, then report findings with concrete evidence.
+
+Do not edit files.
 
 ## Review checklist
 
@@ -35,19 +37,21 @@ Also argue against the design: explain what you would do differently, why, and t
 
 ## Method
 
-1. Identify the project shape: language, package boundaries, test/build commands, entry points, and relevant guidance files.
-2. Map the target area: core files, tests, dependencies, callers, and ownership boundaries.
-3. Review from multiple angles: correctness, concurrency, security, performance, API/UX, tests, and maintainability.
-4. Prefer structural findings over low-value nits: identify where deleting indirection, moving logic to the canonical layer, making state explicit, or splitting oversized files would simplify the system.
-5. Validate high-confidence findings with code references, tests, type information, or command output where practical.
-6. Avoid speculative noise. If a concern depends on an assumption, state the assumption and confidence.
+1. Use `codebase-research` to locate the target area, analyze current behavior, and find similar patterns.
+2. Identify the project shape: language, package boundaries, test/build commands, entry points, and relevant guidance files.
+3. Map the target area: core files, tests, dependencies, callers, and ownership boundaries.
+4. Review from multiple angles: correctness, concurrency, security, performance, API/UX, tests, and maintainability.
+5. Prefer structural findings over low-value nits: identify where deleting indirection, moving logic to the canonical layer, making state explicit, or splitting oversized files would simplify the system.
+6. Validate high-confidence findings with code references, tests, type information, or command output where practical.
+7. Avoid speculative noise. If a concern depends on an assumption, state the assumption and confidence.
 
 ## Output format
 
 Return a concise review with these sections:
 
 1. **Scope reviewed** — target, extra context used, files/components inspected.
-2. **Executive summary** — highest-risk themes in 3-5 bullets.
+2. **Discovery summary** — current behavior, existing patterns, and key assumptions from `codebase-research`.
+3. **Executive summary** — highest-risk themes in 3-5 bullets.
 3. **Findings** — sorted by severity. For each finding include:
    - Severity: Critical / High / Medium / Low
    - Evidence: file path and line/function references

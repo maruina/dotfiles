@@ -21,15 +21,10 @@ Arguments are positional:
 - Do not weaken the adversarial framing.
 
 ## Path resolution
-Resolve the document path before anything else. `/brainstorm` and `/plan` print worktree-relative paths such as `plans/<ticket-or-feature>/design.md`, which will not resolve from another checkout.
 
-1. If `$1` is missing, stop and ask for the path to the design or plan document.
-2. If `$1` exists relative to the current directory, or is an absolute path that exists, use it as-is.
-3. If `$1` does not exist from the current directory and you are inside a git repository, treat it as worktree-relative: run `git worktree list --porcelain` and look for worktrees containing `$1`.
-4. If exactly one worktree contains it, use that path. If several do, present a concise numbered list and ask which to use. Stop until the user chooses.
-5. If it still cannot be found, stop and ask for a valid path.
+If `$1` is missing, stop and ask for the path to the design or plan document.
 
-Set `$REVIEW_ROOT` to the worktree (git toplevel) that contains the resolved document, and `$REVIEW_FILE` to the document path relative to `$REVIEW_ROOT`. All later commands must use `cd $REVIEW_ROOT` or `git -C $REVIEW_ROOT`.
+Otherwise, use the `resolve-worktree` skill to resolve `$1` (no `$GLOB`). Set `$REVIEW_ROOT` to `$RESOLVED_ROOT` and `$REVIEW_FILE` to the document path relative to `$REVIEW_ROOT`. All later commands must use `cd $REVIEW_ROOT` or `git -C $REVIEW_ROOT`.
 
 ## Branch guard
 The review diffs the branch against `main`, so the document must live on a feature branch.

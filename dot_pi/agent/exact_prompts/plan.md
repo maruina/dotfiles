@@ -11,24 +11,7 @@ Extra instructions:
 
 Turn the approved design spec into a concrete implementation plan.
 
-If `$1` is provided, resolve it before reading the spec:
-
-1. If `$1` exists relative to the current directory, or is an absolute path that exists, use it as-is.
-2. If `$1` does not exist from the current directory and you are inside a git repository, treat it as worktree-relative. `/brainstorm` prints a worktree-relative path such as `plans/<ticket-or-feature>/design.md`, which will not resolve from another checkout. Run `git worktree list --porcelain` and look for worktrees containing `$1`.
-3. If exactly one worktree contains it, use that path. If several do, present a concise numbered list and ask which to use. Stop until the user chooses.
-4. If it still cannot be found, stop and ask for a valid path.
-
-If `$1` is missing, discover candidate design specs before asking for a path:
-
-1. Search the current checkout for `plans/*/design.md`.
-2. If inside a git repository, run `git worktree list --porcelain` and search each worktree for `plans/*/design.md`.
-3. For each candidate, collect the design path, worktree path, branch name when available, last modified time, and first Markdown heading.
-4. Sort candidates by last modified time descending, with current-checkout candidates first when timestamps are similar.
-5. If there is exactly one candidate, ask the user to confirm it and stop until they answer.
-6. If there are multiple candidates, present a concise numbered list and ask which design to plan. Stop until the user chooses.
-7. If no candidates exist, ask for the design path and stop.
-
-After the user chooses a discovered design, treat it exactly as if it had been passed as `$1`.
+Use the `resolve-worktree` skill to resolve `$1` with `$GLOB = plans/*/design.md`. Switch context to the owning worktree before reading the spec.
 
 Lifecycle: `/brainstorm` creates an approved design spec, `/plan` creates an approved implementation plan, and `/execute` implements verified changes.
 

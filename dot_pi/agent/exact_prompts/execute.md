@@ -11,19 +11,7 @@ Extra instructions:
 
 Execute the approved implementation plan.
 
-If `$1` is missing, discover candidate implementation plans before asking for a path:
-
-1. Search the current checkout for `plans/*/plan.md`.
-2. If inside a git repository, run `git worktree list --porcelain` and search each worktree for `plans/*/plan.md`.
-3. For each candidate, collect the plan path, worktree path, branch name when available, last modified time, and first Markdown heading.
-4. Sort candidates by last modified time descending, with current-checkout candidates first when timestamps are similar.
-5. If there is exactly one candidate, ask the user to confirm it and stop until they answer.
-6. If there are multiple candidates, present a concise numbered list and ask which plan to execute. Stop until the user chooses.
-7. If no candidates exist, ask for the plan path and stop.
-
-After the user chooses a discovered plan, execute in that plan's owning worktree. A selected plan from another worktree is not a branch/context mismatch by itself. Before reading repository files or modifying code, switch command context to the plan worktree with `cd <plan-worktree>` in shell commands and use paths relative to that worktree. Treat the plan worktree branch, not the original harness directory branch, as the implementation branch.
-
-If `$1` is an absolute or relative path to a plan outside the current checkout, infer the owning worktree from the nearest ancestor containing `.git` or from `git worktree list --porcelain`, then execute in that worktree using the same rule.
+Use the `resolve-worktree` skill to resolve `$1` with `$GLOB = plans/*/plan.md`. Switch context to the owning worktree before reading repository files or modifying code.
 
 Lifecycle: `/brainstorm` creates an approved design spec, `/plan` creates an approved implementation plan, and `/execute` implements verified changes.
 

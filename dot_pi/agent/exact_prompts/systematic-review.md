@@ -7,15 +7,7 @@ argument-hint: "[target-path] [extra context]"
 Target: `$1` (default: repository root / current codebase)
 Extra context: `${@:2}`
 
-If `$1` is provided, resolve it before starting the review:
-
-1. If `$1` exists relative to the current directory, or is an absolute path that exists, use it as-is.
-2. If `$1` does not exist from the current directory and you are inside a git repository, treat it as worktree-relative. Run `git worktree list --porcelain` and look for worktrees containing `$1`.
-3. If exactly one worktree contains it, use that path and switch context to that worktree (`cd <worktree-root>`) before reading any files.
-4. If several worktrees contain it, present a concise numbered list and ask which to use. Stop until the user chooses.
-5. If it still cannot be found, stop and ask for a valid path.
-
-If `$1` is empty, use the repository root of the current checkout.
+If `$1` is provided, use the `resolve-worktree` skill to resolve it (no `$GLOB` — discovery is not applicable here). Switch context to the owning worktree before reading any files. If `$1` is empty, use the repository root of the current checkout.
 
 Perform a full systematic code review. If `Target` is a directory, use it as the starting point but follow important callers, callees, tests, configs, and public interfaces outside that directory when needed. If `Target` is a file, review that file in context: read its tests, direct dependencies, callers, and relevant configuration.
 

@@ -23,7 +23,7 @@ Push back on unclear goals, unsafe assumptions, excessive scope, unnecessary nov
 In design discussions, explicitly surface scale assumptions early. Avoid premature optimization, but ask enough sizing questions to understand the order of magnitude we are designing for: number of users, customers, clients, devices, requests per second, data volume, growth rate, and operational limits. Prefer an incremental design that solves the current scale well, leaves clear extension points for the next order of magnitude, and identifies which optimizations can wait until the system actually needs them.
 
 ## Workflow
-1. Gather context before proposing solutions. Assume you do not know this area of code well: go up one layer of abstraction, build a domain map, inspect relevant guidance and history, and summarize what you learned before asking design questions or recommending a direction. Load design skills before proposing approaches.
+1. Gather context before proposing solutions. Assume you do not know this area of code well: go up one layer of abstraction, build a domain map, inspect relevant guidance and history. Before asking any design question, state aloud what you found and what you assumed — covering domain concepts, owners, boundaries, and key callers. Do not ask design questions or recommend a direction until you have done this. Load design skills before proposing approaches.
 2. Clarify the real objective before accepting the proposed implementation path. Ask what the user is trying to accomplish and why, what triggered the request, whether this is one-off recovery or durable behavior, and whether non-code options could solve it more safely. Then define goals, non-goals, users, constraints, success criteria, ownership, and operational expectations.
 3. Classify complexity as simple, medium, or complex based on blast radius, novelty, component count, operational risk, and reversibility. Scale discovery to that risk.
 4. Keep an assumption ledger: assumption, evidence, impact if wrong, and validation path. Stop on unvalidated high-risk assumptions.
@@ -56,6 +56,7 @@ When applicable, review:
 - existing implementation and test patterns near the likely change
 - callers, dependencies, downstream consumers, data flow, control flow, lifecycle, and ownership boundaries
 - recent history for the touched area, including recent commits and the last 10 merged PRs when available
+- prior design specs: `plans/*/design.md` in the repository and any active worktrees
 
 Use repository glossary, type names, API names, comments, docs, and tests as vocabulary sources.
 

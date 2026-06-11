@@ -17,24 +17,22 @@ Arguments are optional positional values:
 - Do not fix findings.
 - Treat `$ARGUMENTS` as an optional positional `model` value only; do not pass it as focus text.
 - Default to model `gpt-5.5`.
-- If the current checkout is not the implementation worktree, discover candidate worktrees before invoking Codex.
+- Use the `resolve-worktree` skill to select the review worktree; do not implement inline worktree discovery.
 - Do not weaken the adversarial framing.
 - If Codex reports findings, return them and stop; ask whether the user wants any findings validated or fixed in a follow-up turn.
 - If the Codex helper is missing or unauthenticated, stop and tell the user how to set it up.
 
 ## Worktree selection
-First select the review worktree:
 
-1. Run `git rev-parse --show-toplevel` and `git branch --show-current` in the current checkout.
-2. If the current branch is not `main` or `master`, use the current checkout as `$REVIEW_ROOT`.
-3. If the current branch is `main` or `master`, run `git worktree list --porcelain` and inspect each worktree.
-4. For each worktree, collect path, branch, last modified time for `plans/*/plan.md` and `plans/*/design.md` when present, and `git status --short`.
-5. Prefer worktrees with non-main branches. Sort candidates by plan/design last modified time descending, with dirty worktrees ahead when timestamps are similar.
-6. If there is exactly one candidate, ask the user to confirm it and stop until they answer.
-7. If there are multiple candidates, present a concise numbered list and ask which worktree to review. Stop until the user chooses.
-8. If no candidate exists, ask the user to run the prompt from the implementation worktree or create one first.
+Use the `resolve-worktree` skill with `$GLOB = plans/*/plan.md` to select the review worktree. Set `$REVIEW_ROOT` to `$RESOLVED_ROOT`. All subsequent commands must use `cd $REVIEW_ROOT` or `git -C $REVIEW_ROOT`.
 
-After the user chooses a discovered worktree, treat it exactly as if the prompt had been run from that worktree. All subsequent commands must use `cd <review-worktree>` or `git -C <review-worktree>`.
+After resolution, verify the selected branch is not `main` or `master`:
+
+```bash
+git -C "$REVIEW_ROOT" branch --show-current
+```
+
+If it is, stop and explain that a branch diff against `main` would be empty. Ask the user to run from a feature worktree or create one first.
 
 ## Preparation commit
 From `$REVIEW_ROOT`, inspect local changes before review:

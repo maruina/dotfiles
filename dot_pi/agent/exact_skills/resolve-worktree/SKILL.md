@@ -19,7 +19,9 @@ Set `$RESOLVED_PATH` to the absolute path and `$RESOLVED_ROOT` to its git toplev
 
 ## When `$1` is missing and a `$GLOB` is provided by the caller
 
-1. Search the current checkout and all worktrees (`git worktree list --porcelain`) for files matching `$GLOB`.
+**Never search only the current checkout.** Always enumerate every worktree first.
+
+1. Run `git worktree list --porcelain` and collect all worktree roots, including the current checkout. Search every root for files matching `$GLOB`.
 2. For each candidate, collect: full path, worktree root, branch name, last modified time, and first Markdown heading.
 3. Sort by last modified time descending; current-checkout candidates first when timestamps are similar.
 4. If exactly one candidate, ask the user to confirm it. Stop until they answer.

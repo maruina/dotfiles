@@ -24,7 +24,7 @@ Plan for a skilled engineer with no local context. Be exact, test-driven, and sk
 
 Prefer DRY, YAGNI, small vertical slices, frequent verification, and existing repository patterns.
 
-Verify the design's scale assumptions are explicit and mapped to implementation constraints, tests, rollout guardrails, and observability. Do not add speculative optimizations. If expected scale, growth path, or operational limits are missing from the design, stop and ask before planning.
+Verify the design's scale assumptions are explicit and mapped to implementation constraints, tests, rollout guardrails, and observability. If expected scale, growth path, or operational limits are missing from the design, stop and ask before planning.
 
 ## Workflow
 1. Read the design spec completely.
@@ -32,10 +32,10 @@ Verify the design's scale assumptions are explicit and mapped to implementation 
 3. Load relevant planning skills before writing tasks. Prefer specific skills over general ones.
 4. Check scope. If the design spans independent subsystems, suggest separate plans unless the spec already decomposes them into independently testable deliverables.
 5. Map files before tasks: each file to create or modify, its responsibility, boundaries, and tests.
-6. Before writing the plan, verify the selected design spec is already committed in git. If it is uncommitted or untracked, stop and ask the user to commit the design first.
+6. Verify the design spec is already committed in git. If it is uncommitted or untracked, stop and ask the user to commit it first.
 7. Write the plan to `plans/<ticket-or-feature>/plan.md` in the same directory as the design.
 8. Self-review the plan and fix issues inline.
-9. If in a git repository, commit only the plan with Conventional Commit message `docs: add <ticket-or-feature> implementation plan`. Do not include unrelated changes. If the branch is `main` or `master`, stop and ask before committing.
+9. Commit only the plan: `docs: add <ticket-or-feature> implementation plan`. Do not include unrelated changes. If the branch is `main` or `master`, stop and ask before committing.
 10. Report the exact handoff phrase below.
 
 ## Plan Requirements
@@ -91,14 +91,14 @@ For every task, include:
 - enough code or config snippets to remove ambiguity, without inventing large blocks better derived during execution
 - Conventional Commit messages when the task commits
 
-For testable behavior, plan vertical slices/tracer bullets: one public behavior, one focused failing test through the supported interface, the smallest implementation that passes, then refactor only after verification is green. Do not plan all tests first and all implementation later unless the design explicitly requires that sequencing.
+Plan vertical slices: one public behavior, one focused failing test through the supported interface, the smallest implementation that passes, then refactor only after verification is green. Do not plan all tests first and all implementation later unless the design explicitly requires that shape.
 
-Prefer naturally testable interfaces: small surface area, dependencies accepted rather than created internally, and results returned rather than hidden behind side effects. Tests should verify observable behavior and remain refactor-safe; avoid coupling them to private helpers, internal call order, direct storage inspection, or internal collaborators.
+Prefer naturally testable interfaces: small surface area, dependencies accepted rather than created internally, and results returned rather than hidden behind side effects. Tests verify observable behavior and stay refactor-safe — avoid coupling to private helpers, internal call order, direct storage inspection, or internal collaborators.
 
 Prefer scripts over long inline CI YAML when logic has branching, loops, retries, temp files, cleanup, multi-line errors, or remediation text. Prefer existing repository or platform CLIs over raw HTTP calls.
 
 ## Required Final Task
-Every plan must end with a documentation and future-agent guidance task. It must require the implementer to inspect each relevant item and either update it or record why no update is needed:
+Every plan must end with a documentation and future-agent guidance task. The implementer must inspect each item and either update it or record why no update is needed:
 
 - user-facing docs
 - developer docs
@@ -110,8 +110,6 @@ Every plan must end with a documentation and future-agent guidance task. It must
 For `AGENTS.md`, add only durable knowledge: required commands, generation steps, repository traps, source-of-truth rules, and testing or rollout procedures.
 
 ## Plan Quality Bar
-Do not include placeholders or vague instructions, including `TBD`, `TODO`, `implement later`, `add validation`, `handle edge cases`, `write tests for the above`, `similar to Task N`, or references to nonexistent files, types, functions, or commands.
-
 Before reporting completion, verify:
 
 - every spec requirement maps to a task
@@ -120,6 +118,7 @@ Before reporting completion, verify:
 - loaded skill guidance is reflected
 - security, observability, failure modes, docs, and `AGENTS.md` coverage are explicit
 - automation uses the right CLI or script shape
+- no placeholders: no `TBD`, `TODO`, `implement later`, `add validation`, `handle edge cases`, `write tests for the above`, `similar to Task N`, or references to nonexistent files, types, functions, or commands
 
 ## Handoff
 After saving and committing the plan, say exactly:

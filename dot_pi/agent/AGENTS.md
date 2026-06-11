@@ -69,10 +69,10 @@ A hidden `user-context` extension injects current repo, branch, PR, Jira-key, wo
 ## Tool Use
 
 - Use `gh` for GitHub operations.
-- For Go, TypeScript, JavaScript, YAML, and Helm code changes, prefer LSP tools once the relevant file/line is known:
-  - Use `lsp_context` before editing non-trivial symbols or fields.
-  - Use `lsp_find_references` before renaming, deleting, or changing exported/public symbols.
-  - Use `lsp_diagnostics` after edits when a language server is available.
+- For Go, TypeScript, JavaScript, YAML, and Helm code changes, use LSP tools selectively once the relevant file/line is known:
+  - Use `lsp_find_references` before renaming, deleting, changing signatures, or changing exported/public symbols.
+  - Use `lsp_context` when type, definition, enclosing-symbol, or reference context materially affects the edit.
+  - Use `lsp_diagnostics` after non-trivial Go/TypeScript edits or when investigating type/schema errors; skip it for purely textual edits.
 - Run `terraform fmt` with `OTEL_TRACES_EXPORTER=`.
 - When showing shell commands intended for copy/paste or shell history, prefer single-line commands over backslash-continued multi-line snippets unless readability requires multiple lines.
 

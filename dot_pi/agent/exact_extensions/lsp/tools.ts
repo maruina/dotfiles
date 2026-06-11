@@ -16,9 +16,9 @@ export function registerLspExtension(pi: ExtensionAPI) {
   const lspToolNames = new Set(["lsp_go_to_definition", "lsp_type_definition", "lsp_implementation", "lsp_find_references", "lsp_hover", "lsp_document_symbols", "lsp_enclosing_symbol", "lsp_workspace_symbols", "lsp_diagnostics", "lsp_context", "lsp_prepare_edit_context", "lsp_incoming_calls", "lsp_outgoing_calls", "lsp_code_actions", "lsp_package_context"]);
   const toolStarts = new Map<string, number>();
   const lspPromotedGuidelines = [
-    "For Go, TypeScript, JavaScript, YAML, and Helm edits: after locating the relevant file and symbol with rg/read, call lsp_context before editing unless the change is purely textual.",
-    "When changing a referenced symbol, public function, exported type, interface, CRD field, YAML key, or Helm value, use lsp_find_references or lsp_go_to_definition before editing.",
-    "After editing Go, TypeScript, JavaScript, YAML, or Helm files, call lsp_diagnostics on at least one changed file when a language server is available.",
+    "For Go, TypeScript, JavaScript, YAML, and Helm edits: use LSP tools selectively after locating a relevant file/line with rg/read; skip LSP for purely textual edits.",
+    "Use lsp_find_references before renaming, deleting, changing signatures, or changing exported/public symbols; use lsp_context when type, definition, enclosing-symbol, or reference context materially affects the edit.",
+    "Use lsp_diagnostics after non-trivial Go/TypeScript edits or when investigating type/schema errors; avoid repeated diagnostics calls when previous results were empty and nothing relevant changed.",
   ];
   type ToolStats = { calls: number; successes: number; empty: number; errors: number; totalMs: number };
   const metrics = { tools: new Map<string, ToolStats>(), followedLocations: 0, pendingFiles: new Map<string, Set<string>>() };

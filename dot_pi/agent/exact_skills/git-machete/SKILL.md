@@ -58,13 +58,21 @@ git machete status        # view the branch tree
 
 ## Opening a PR (Mat's create-pr pattern)
 
-PRs are opened as **draft** and annotated so future traverses **merge** upstream into them instead of rebasing:
+PRs are opened as **draft** and annotated with `rebase=no` so future traverses do not automatically rebase the open-PR branch:
 
 ```fish
-git machete github create-pr --draft && git machete anno (git machete anno) update=merge
+git machete github create-pr --draft && git machete anno (git machete anno) rebase=no
 ```
 
-`git machete anno` clobbers existing annotations, so `(git machete anno)` re-substitutes the PR mapping that `create-pr` just wrote. After this, `update=merge` is set on the open-PR branch.
+`git machete anno` clobbers existing annotations, so `(git machete anno)` re-substitutes the PR mapping that `create-pr` just wrote. After this, `rebase=no` is set on the open-PR branch.
+
+To sync an open-PR branch with its upstream, merge explicitly:
+
+```fish
+git machete traverse --merge -y --return-to=here
+```
+
+`rebase=no` prevents accidental rebasing during a broad `traverse -yW`; the `--merge` flag is the supported way to merge upstream into the branch.
 
 Only open a PR once a branch directly targets the trunk (`main`), or as the next reviewable step in a stack that's ready for review. You can push branches freely without creating PRs.
 
@@ -75,7 +83,7 @@ Given:
 ```text
   main
   |
-  o-maruina/feature-1-step-1  PR #123  (update=merge)
+  o-maruina/feature-1-step-1  PR #123  rebase=no
   | |
   | o-maruina/feature-1-step-2          (no PR → rebase)
   |
@@ -83,11 +91,11 @@ Given:
 ```
 
 `git machete traverse -W` should:
-1. **Merge** `origin/main` into `feature-1-step-1` (has a PR → `update=merge`).
+1. **Skip rebase** for `feature-1-step-1` (has a PR → `rebase=no`). Sync it manually with `git machete traverse --merge -y --return-to=here` when needed.
 2. **Rebase** `feature-1-step-2` onto `feature-1-step-1`.
 3. **Rebase** `feature-2` onto `main`.
 
-The `update=merge` annotation is what makes machete merge instead of rebase for the open-PR branch.
+The `rebase=no` annotation prevents machete from rebasing the open-PR branch during broad traverses. Use `--merge` explicitly to pull in upstream changes.
 
 ## Responding to review feedback (open PR)
 
@@ -114,7 +122,7 @@ This deletes the merged branch and restacks the rest onto latest `main`. Publish
 
 ```fish
 git machete traverse -y --push
-git machete github create-pr --draft && git machete anno (git machete anno) update=merge
+git machete github create-pr --draft --title="<title>" && git machete anno (git machete anno) rebase=no
 ```
 
 ## Splitting one big branch into a stack
@@ -188,5 +196,5 @@ git-machete keeps no in-progress state. If a `traverse` hits a conflict, resolve
 | `git switch -c maruina/x` | `git machete add -y maruina/x` |
 | `git pull --rebase origin main` | `git machete traverse -yW` (touches all tracked branches) |
 | `git push -f` | `git machete traverse -y --push --return-to=here` |
-| `gh pr create` | `git machete github create-pr --draft` (+ `update=merge` anno) |
+| `gh pr create` | `git machete github create-pr --draft` (+ `rebase=no` anno) |
 | `git rebase -i main` | `git machete reapply` (only if no PR open) |

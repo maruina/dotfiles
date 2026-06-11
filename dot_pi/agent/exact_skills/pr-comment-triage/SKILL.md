@@ -64,7 +64,7 @@ Supported inputs:
              nodes {
                id
                isResolved
-               comments(first:1) { nodes { databaseId path body } }
+               comments(first:50) { nodes { databaseId path body } }
              }
            }
          }

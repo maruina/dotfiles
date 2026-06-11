@@ -11,7 +11,7 @@ Create a new GitHub PR for the current branch.
 
 Use this command only for initial PR creation. If a PR already exists for this branch, stop and tell the user to run `/pr-update` instead.
 
-Interpret `--base <branch>` as the base branch. If the user does not pass `--base`, use `main`. Treat all other arguments as task context.
+Interpret `--base <branch>` as the base branch. If the user does not pass `--base`, detect it automatically: if the branch has a git-machete parent that is not `main` (i.e. it is a stacked branch), use that parent as `base`; otherwise use `main`. Run `git machete show parent 2>/dev/null` to detect the parent. Treat all other arguments as task context.
 
 This workflow uses git-machete with a **no-rebase-once-open** stance: once a PR is open, its branch is never rebased — upstream changes are merged in. Read the `git-machete` skill before performing any stack, branch, or PR operations here. PRs are opened as **draft by default** and annotated for merge-based updates.
 
@@ -227,10 +227,16 @@ Omit `## Lessons learned` when there is nothing meaningful to share. Keep the bo
 
 ## Phase 7: Create the PR
 
-Create the PR as a **draft** and annotate the branch so future traverses merge upstream instead of rebasing (no-rebase-once-open):
+Create the PR as a **draft** and annotate the branch with `rebase=no` so future traverses do not automatically rebase it (no-rebase-once-open):
 
 ```fish
-git machete github create-pr --draft && git machete anno (git machete anno) update=merge
+git machete github create-pr --draft --title="<drafted title>" && git machete anno (git machete anno) rebase=no
+```
+
+Then update the title if it was not accepted by `create-pr` (some versions ignore `--title`):
+
+```fish
+gh pr edit <pr-number> --title "<drafted title>"
 ```
 
 If the repo does not use git-machete, fall back to:

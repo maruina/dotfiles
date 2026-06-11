@@ -31,14 +31,28 @@ Then stop.
 
 ## Phase 2: Create review worktree
 
-Fetch the PR branch and create an isolated worktree:
+Derive the worktree path:
+
+```
+$WORKTREE = ~/dd/.worktrees/$REPO-pr-$PR_NUMBER-review
+```
+
+Check if we are already running inside this worktree:
+
+```bash
+git rev-parse --show-toplevel
+```
+
+If the output equals `$WORKTREE` (after expanding `~`), skip the rest of this phase — the worktree is already set up.
+
+Otherwise, fetch the PR branch and create an isolated worktree:
 
 ```fish
 set branch (gh pr view $PR_NUMBER --repo $ORG/$REPO --json headRefName -q .headRefName)
 git fetch origin $branch
 # Remove stale worktree if it already exists
-git worktree remove /tmp/pr-$PR_NUMBER-review --force 2>/dev/null; or true
-git worktree add /tmp/pr-$PR_NUMBER-review $branch
+git worktree remove ~/dd/.worktrees/$REPO-pr-$PR_NUMBER-review --force 2>/dev/null; or true
+git worktree add ~/dd/.worktrees/$REPO-pr-$PR_NUMBER-review $branch
 ```
 
 Store the worktree path as `$WORKTREE`. All file reads happen from here.
@@ -151,16 +165,16 @@ Use the `playground` skill to create a self-contained HTML walkthrough. The HTML
 - **Questions tab**: `<textarea>` that fills the available height + "Copy as prompt" button. Copied text: `"Reviewing PR #$PR_NUMBER ($TITLE). I have these questions:\n\n[textarea content]\n\nWorktree: $WORKTREE"`.
 - **Post comment tab**: review-type selector (comment / request-changes / approve) + `<textarea>` + generated `gh pr review` command that updates live, with a copy button.
 
-Save the output to `/tmp/pr-$PR_NUMBER-review.html`, then open it:
+Save the output to `~/dd/.worktrees/$REPO-pr-$PR_NUMBER-review.html`, then open it:
 
 ```fish
-open /tmp/pr-$PR_NUMBER-review.html
+open ~/dd/.worktrees/$REPO-pr-$PR_NUMBER-review.html
 ```
 
 ## Phase 9: Interactive session
 
 Tell the user:
-> Review is open at `/tmp/pr-$PR_NUMBER-review.html`. The comment panel at the bottom generates the `gh pr review` command as you type — copy and run it to post.
+> Review is open at `~/dd/.worktrees/$REPO-pr-$PR_NUMBER-review.html`. The comment panel at the bottom generates the `gh pr review` command as you type — copy and run it to post.
 > Ask me anything about the change — I have the full worktree at `$WORKTREE`.
 
 Stay available. Use `$WORKTREE` for any follow-up file reads.

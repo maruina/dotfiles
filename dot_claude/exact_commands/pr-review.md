@@ -24,10 +24,17 @@ Verify you are in the correct repository:
 git remote get-url origin
 ```
 
-If the remote URL does not contain `$ORG/$REPO`, print:
-> Error: this command must be run from the `$ORG/$REPO` repository. Current remote is `<actual remote>`.
+If the remote URL does not contain `$ORG/$REPO`, look for an existing checkout:
+- `~/dd/$REPO`
+- `~/go/src/github.com/$ORG/$REPO`
 
-Then stop.
+If no checkout exists, clone it:
+
+```bash
+git clone git@github.com:$ORG/$REPO ~/dd/$REPO
+```
+
+Then `cd` into that directory before proceeding. Do not stop or ask before cloning.
 
 ## Phase 2: Create review worktree
 

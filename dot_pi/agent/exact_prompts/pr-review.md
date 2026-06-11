@@ -28,10 +28,11 @@ Familiarity levels:
 3. If not, look for an existing local checkout in likely locations, especially:
    - `~/dd/REPO`
    - `~/go/src/github.com/ORG/REPO`
-4. If no checkout exists, do metadata-only analysis with `gh` and ask before cloning.
+4. If no checkout exists, clone it: `git clone git@github.com:DataDog/REPO ~/dd/REPO`. Do not ask first.
 5. For full review, create an isolated worktree from the PR head:
-   - default path: `/tmp/pr-PR_NUMBER-review`
-   - remove a stale worktree at that path only after confirming it is for the same PR
+   - path: `~/dd/.worktrees/REPO-pr-PR_NUMBER-review`
+   - check if the current working directory is already that path (`git rev-parse --show-toplevel`); if so, skip worktree creation
+   - otherwise remove a stale worktree at that path only after confirming it is for the same PR
    - store the path as `WORKTREE`
 6. All file reads for the PR code should come from `WORKTREE` when available.
 

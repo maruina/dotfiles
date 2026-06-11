@@ -1,6 +1,6 @@
 ---
 name: codebase-research
-description: Use when investigating an unfamiliar codebase area before designing, planning, reviewing, debugging, or editing. Guides staged discovery: zoom out, locate relevant files, analyze current behavior, find existing patterns, map assumptions, then summarize evidence before recommendations.
+description: "Use when investigating an unfamiliar codebase area before designing, planning, reviewing, debugging, or editing. Guides staged discovery: zoom out, locate relevant files, analyze current behavior, find existing patterns, map assumptions, then summarize evidence before recommendations."
 ---
 # Codebase Research
 Use this skill before proposing designs, implementation plans, reviews, or edits in code you do not already understand.

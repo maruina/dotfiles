@@ -1,6 +1,6 @@
 ---
 name: reviewable-pr-workflow
-description: Create and update GitHub PRs that are easy, fast, and confidence-building to review: coherent PR stories, stacked PRs, review-state-based history rewriting, evidence links, safe force-pushes, reviewer guides, and git-machete stack mechanics.
+description: "Create and update GitHub PRs that are easy, fast, and confidence-building to review: coherent PR stories, stacked PRs, review-state-based history rewriting, evidence links, safe force-pushes, reviewer guides, and git-machete stack mechanics."
 ---
 # Reviewable PR Workflow
 

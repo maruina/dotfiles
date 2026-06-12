@@ -1,6 +1,6 @@
 ---
 name: git-machete
-description: Use git-machete for stacked branch mechanics: creating, traversing, restacking, retargeting, advancing, squashing, and cleaning stacked PR branches. For PR review policy, rewrite rules, and reviewer-guide expectations, use the reviewable-pr-workflow skill first.
+description: "Use git-machete for stacked branch mechanics: creating, traversing, restacking, retargeting, advancing, squashing, and cleaning stacked PR branches. For PR review policy, rewrite rules, and reviewer-guide expectations, use the reviewable-pr-workflow skill first."
 ---
 # Git Machete
 

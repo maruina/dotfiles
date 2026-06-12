@@ -1,23 +1,12 @@
 ---
 name: git-machete
-description: Manage stacked branches and stacked PRs with git-machete using Matteo's no-rebase-once-open workflow. Use when creating or updating stacked PRs, splitting a large branch into a stack, restacking after upstream changes, moving branches in a stack, or driving git machete add/traverse/create-pr/advance/squash operations.
+description: Use git-machete for stacked branch mechanics: creating, traversing, restacking, retargeting, advancing, squashing, and cleaning stacked PR branches. For PR review policy, rewrite rules, and reviewer-guide expectations, use the reviewable-pr-workflow skill first.
 ---
 # Git Machete
 
-Use this skill to drive [git-machete](https://git-machete.readthedocs.io/en/stable) for stacked branches and stacked PRs.
+Use this skill for git-machete mechanics. Use `reviewable-pr-workflow` as the source of truth for PR policy: reviewer joy, review-state discipline, when to rewrite history, safe force-pushes, PR descriptions, evidence links, and reviewer guides.
 
-This workflow mirrors Mat Brown's opinionated workflow with one firm rule: **once a PR is open, never rebase its branch — merge upstream into it instead.** Rebasing only happens on branches that do not yet have an open PR.
-
-## Why no-rebase-once-open
-
-Once a PR is open, rebasing/force-pushing causes real harm:
-- It rewrites commit SHAs, which **orphans review comments anchored to those SHAs** (they become "outdated" and cannot be resolved).
-- It breaks GitHub's "changes since last review".
-- It clutters PR history with duplicate near-identical commits.
-
-Note on per-commit review links: a reviewer guide *can* link commits via the in-PR review surface `https://github.com/<owner>/<repo>/pull/<n>/changes/<sha>` — comments there are first-class PR review comments. The bare `https://github.com/<owner>/<repo>/commit/<sha>` surface creates commit-scoped comments that do not show up in the PR. Either way, both are anchored to a SHA, so no-rebase-once-open is what keeps them alive.
-
-So: review feedback and upstream updates land as **new commits / merge commits** on open-PR branches, preserving the PR's review history. Branches without an open PR are still rebased, because rebasing is what keeps a stack clean.
+Git-machete manages branch stacks. The goal is a stack of focused PRs where each PR tells one clear part of the story.
 
 ## Branch naming
 
@@ -27,7 +16,9 @@ Use Matteo's standard:
 
 The Confluence examples use `data.dog/...`; ignore that and use `maruina/...`.
 
-## Setup (once per machine)
+## Setup
+
+Install git-machete once per machine:
 
 ```fish
 brew install git-machete
@@ -36,142 +27,137 @@ brew install git-machete
 Initialize tracking in a repo if needed:
 
 ```fish
-git machete discover -y   # infer layout from existing branches
-git machete status        # view the branch tree
+git machete discover -y
+git machete status -l
 ```
 
-## Core daily operations
+## Core operations
 
 | Intent | Command |
 |---|---|
 | New stacked branch off current | `git machete add -y maruina/<name>` |
 | View the stack | `git machete status -l` |
-| Commit + update downstream | `git commit` then `git machete traverse -y --return-to=here` |
-| Sync everything from upstream | `git machete traverse -yW` |
-| Push current + downstream | `git machete traverse -y --push --return-to=here` |
-| Interactive rebase vs parent | `git machete reapply` (only if no PR open — see rule below) |
-| Open a PR (see create-pr below) | `git machete github create-pr --draft` |
-| Retarget an open PR after a move | `git machete github retarget-pr` |
-| Delete merged/untracked branches | `git machete clean` |
+| Commit, then update descendants | `git commit` then `git machete traverse -y --return-to=here` |
+| Traverse the stack from upstream | `git machete traverse -yW` |
+| Push current branch and descendants | `git machete traverse -y --push --return-to=here` |
+| Interactive rebase against parent | `git machete reapply` |
+| Open a draft PR | `git machete github create-pr --draft` |
+| Retarget an open PR after a stack move | `git machete github retarget-pr` |
+| Delete merged or untracked branches | `git machete clean` |
 
-`traverse` always walks the **whole** branch layout in topological order from the starting branch — it can touch branches outside the current stack. Use `-n` instead of `-y` to confirm each branch when you don't want that.
+`traverse` walks the whole branch layout in topological order from the starting branch. It can touch branches outside the current stack. Use `-n` instead of `-y` when you want to confirm each step.
 
-## Opening a PR (Mat's create-pr pattern)
+## Review-state rule
 
-PRs are opened as **draft** and annotated with `rebase=no` so future traverses do not automatically rebase the open-PR branch:
+Git-machete can rebase, merge, and restack branches. Choose the operation from `reviewable-pr-workflow`:
 
-```fish
-git machete github create-pr --draft && git machete anno (git machete anno) rebase=no
-```
+- Before human review, prefer rebasing/restacking when it makes the PR story clearer.
+- After human review starts on a PR, preserve that PR branch's history by default. Add response commits and push normally.
+- Rewrite a human-reviewed PR only when the user explicitly asks. Use `git push --force-with-lease`, never plain `git push --force`.
+- If rewriting a parent branch affects descendant PRs, inspect the whole stack and stop if any affected human-reviewed PR would be rewritten without explicit user approval.
 
-`git machete anno` clobbers existing annotations, so `(git machete anno)` re-substitutes the PR mapping that `create-pr` just wrote. After this, `rebase=no` is set on the open-PR branch.
+## Opening a PR
 
-To sync an open-PR branch with its upstream, merge explicitly:
-
-```fish
-git machete traverse --merge -y --return-to=here
-```
-
-`rebase=no` prevents accidental rebasing during a broad `traverse -yW`; the `--merge` flag is the supported way to merge upstream into the branch.
-
-Only open a PR once a branch directly targets the trunk (`main`), or as the next reviewable step in a stack that's ready for review. You can push branches freely without creating PRs.
-
-## The ideal traverse
-
-Given:
-
-```text
-  main
-  |
-  o-maruina/feature-1-step-1  PR #123  rebase=no
-  | |
-  | o-maruina/feature-1-step-2          (no PR → rebase)
-  |
-  o-maruina/feature-2                   (no PR → rebase)
-```
-
-`git machete traverse -W` should:
-1. **Skip rebase** for `feature-1-step-1` (has a PR → `rebase=no`). Sync it manually with `git machete traverse --merge -y --return-to=here` when needed.
-2. **Rebase** `feature-1-step-2` onto `feature-1-step-1`.
-3. **Rebase** `feature-2` onto `main`.
-
-The `rebase=no` annotation prevents machete from rebasing the open-PR branch during broad traverses. Use `--merge` explicitly to pull in upstream changes.
-
-## Responding to review feedback (open PR)
-
-Do **not** rebase. Commit the fix as a new commit and push downstream:
+Create PRs as drafts:
 
 ```fish
-git switch maruina/feature-1-step-1
-git commit                                  # new commit addressing feedback
-git machete traverse -y --push --return-to=here
+git machete github create-pr --draft
 ```
 
-Downstream branches get rebased onto the updated parent automatically; the open-PR branch itself only ever receives new commits and upstream merges.
+Some git-machete versions ignore title/body flags. If needed, set the title and body with `gh pr edit` after creation.
 
-## Merging the first PR
+Do not add blanket `rebase=no` or `update=merge` annotations by default. The correct update strategy depends on review state:
+- Branches without human review may be rebased/restacked.
+- Human-reviewed branches should preserve history unless the user explicitly asks to rewrite.
 
-Merge via the GitHub UI / merge queue as usual. Then locally:
+If a repository or branch already uses annotations, inspect them before changing behavior:
+
+```fish
+git machete anno
+```
+
+## Traversing stacks
+
+For branches without human-reviewed PRs, `traverse -yW` is usually the easiest way to restack against upstream:
 
 ```fish
 git machete traverse -yW
-git machete clean        # add -y to delete untracked branches without prompting
 ```
 
-This deletes the merged branch and restacks the rest onto latest `main`. Publish and open the next PR:
+For human-reviewed PR branches, avoid rebasing by default. If upstream changes must be incorporated, merge upstream into the reviewed branch, then push normally:
 
 ```fish
-git machete traverse -y --push
-git machete github create-pr --draft --title="<title>" && git machete anno (git machete anno) rebase=no
+git merge origin/<base>
+git push
 ```
 
-## Splitting one big branch into a stack
+Then rebase or restack descendants that have not received human review.
 
-Use this when a branch is too large to review well (see the `/pr-create` split heuristic). Goal: turn one branch into a stack where each branch is one reviewable step.
+## Rewriting a stack
 
-1. Squash the branch into a single commit, then unstage it:
+Before rewriting, inspect the stack:
+
+```fish
+git machete status -l
+```
+
+When rewriting is allowed by `reviewable-pr-workflow`:
+
+1. Rewrite the target branch into the desired review story.
+2. Restack descendants onto the rewritten parent.
+3. Push affected branches with `git push --force-with-lease`.
+4. Update every affected PR body so stack navigation and commit tables match the final SHAs.
+
+Do not rewrite only a parent and leave descendants based on old commits.
+
+## Splitting one branch into a stack
+
+Use this when a branch is too large to review well. Goal: one branch per reviewable step.
+
+1. Squash the branch into one commit, then unstage it:
    ```fish
    git machete squash
    git reset HEAD~1
    ```
-2. Build the first branch's commit by staging only its hunks:
+2. Build the first branch's commit:
    ```fish
-   git add -p                       # stage only hunks for branch 1 (new files: git add <path>)
+   git add -p
    git stash -ukm 'For later branches'
    git commit -m 'First step changes'
    ```
-3. Create the next branch and commit the rest:
+3. Create the next branch and commit the next step:
    ```fish
    git machete add -y maruina/<step-2>
    git stash pop
-   git add -p                       # stage only step-2 hunks; repeat stash/commit for >2 steps
+   git add -p
    git commit -m 'Second step changes'
    ```
-4. Repeat step 3 for each additional step. Then open PRs bottom-up as each step is ready.
+4. Repeat for each step. Open PRs bottom-up as each branch becomes ready.
 
-## Moving a branch within / out of a stack
+## Moving a branch within or out of a stack
 
-git-machete has no built-in `move`/`reorder`. Do it by hand:
+git-machete has no built-in `move` or `reorder`. Move branches by editing the layout.
 
-1. Lock fork points for the branch being moved and all its descendants:
+1. Lock fork points for the branch being moved and its descendants:
    ```fish
    git switch maruina/<branch>
    git machete fork-point --override-to-parent
    git machete fork-point --override-to-parent maruina/<descendant>
    ```
-2. Edit the layout file to the shape you want:
+2. Edit the layout:
    ```fish
    git machete edit
    ```
-3. Restack to match (review each rebase plan):
+3. Restack to match the new layout:
    ```fish
-   git machete update           # per moved branch, or:
+   git machete update
+   # or
    git machete traverse --start-from=root --return-to=here
    ```
-4. Unset the overrides and retarget affected open PRs:
+4. Unset overrides and retarget affected PRs:
    ```fish
    git machete fork-point --unset-override
-   git machete github retarget-pr   # for each branch with an open PR
+   git machete github retarget-pr
    ```
 
 ## Combining two branches
@@ -180,21 +166,29 @@ From the parent branch:
 
 ```fish
 git switch maruina/feature-1-step-1
-git machete advance        # fast-forwards parent to child head, untracks + deletes child
+git machete advance
 git machete clean
 ```
 
-## Stateless traverse / conflicts
+`advance` fast-forwards the parent to the child head, then untracks and deletes the child.
 
-git-machete keeps no in-progress state. If a `traverse` hits a conflict, resolve it, `git rebase --continue` (or finish the merge), then re-run `git machete traverse -y` to resume from the current branch.
+## Conflicts
 
-## Git → machete cheatsheet
+git-machete keeps no in-progress state. If `traverse` hits a conflict, resolve it, continue the underlying operation, then rerun `git machete traverse -y`:
+
+```fish
+git rebase --continue
+# or finish the merge
+git machete traverse -y
+```
+
+## Git to git-machete cheatsheet
 
 | Git/GitHub | git-machete |
 |---|---|
-| `git commit` | `git commit` + `git machete traverse -y --return-to=here` |
 | `git switch -c maruina/x` | `git machete add -y maruina/x` |
-| `git pull --rebase origin main` | `git machete traverse -yW` (touches all tracked branches) |
-| `git push -f` | `git machete traverse -y --push --return-to=here` |
-| `gh pr create` | `git machete github create-pr --draft` (+ `rebase=no` anno) |
-| `git rebase -i main` | `git machete reapply` (only if no PR open) |
+| `git pull --rebase origin main` | `git machete traverse -yW` |
+| `gh pr create --draft` | `git machete github create-pr --draft` |
+| `git rebase -i <base>` | `git machete reapply` |
+| Push after normal commits | `git machete traverse -y --push --return-to=here` |
+| Push after intentional rewrite | `git push --force-with-lease` |

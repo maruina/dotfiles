@@ -11,15 +11,13 @@ Create a new GitHub PR for the current branch.
 
 Use this command only for initial PR creation. If a PR already exists for this branch, stop and tell the user to run `/pr-update` instead.
 
+Read the `reviewable-pr-workflow` skill before creating the PR. It is the source of truth for reviewer joy, commit story, stacked PRs, evidence links, and safe rewriting. Read the `git-machete` skill before using git-machete commands.
+
 Interpret `--base <branch>` as the base branch. If the user does not pass `--base`, detect it automatically: if the branch has a git-machete parent that is not `main` (i.e. it is a stacked branch), use that parent as `base`; otherwise use `main`. Run `git machete show parent 2>/dev/null` to detect the parent. Treat all other arguments as task context.
 
-This workflow uses git-machete with a **no-rebase-once-open** stance: once a PR is open, its branch is never rebased — upstream changes are merged in. Read the `git-machete` skill before performing any stack, branch, or PR operations here. PRs are opened as **draft by default** and annotated for merge-based updates.
+Goal of every PR you create: make review easy, fast, and confidence-building. Reviewers should have everything they need in the PR: motivation, scope, reading order, tests, evidence links, and the right context. Prefer small, single-purpose PRs. Split large changes into stacked PRs.
 
-Goal of every PR you create: make it a **joy to review**. Prefer small, single-purpose PRs; when a change is large, split it into a stack and give reviewers a narrative reading order.
-
-Do not update an existing PR.
-Do not post duplicate review-trigger comments.
-Do not rebase a branch that already has an open PR.
+This command runs before human review starts, so reshape commits when it improves first-review quality. Do not update an existing PR. Do not post duplicate review-trigger comments.
 
 ## Phase 1: Gather context
 
@@ -55,13 +53,13 @@ If `git log origin/$base..HEAD` and `git diff origin/$base..HEAD` are still empt
 
 Also read any `CLAUDE.md` or `AGENTS.md` files in the repository root and in changed package directories.
 
-Also check for plan artifacts created by the `/brainstorm` → `/plan` → `/execute` workflow:
+Check for plan artifacts created by the `/brainstorm` → `/plan` → `/execute` workflow:
 
 ```fish
 find plans -maxdepth 2 \( -name "design.md" -o -name "plan.md" \) 2>/dev/null
 ```
 
-If found, note the paths for use in Phase 2 and Phase 6.
+If found, note the paths for Phase 2 and Phase 6.
 
 ## Phase 2: Understand the changes
 
@@ -75,7 +73,10 @@ For each meaningful change, identify:
 - why the change exists
 - what a reviewer should verify
 - what tests cover it
+- what evidence supports it: logs, metrics, traces, dashboards, queries, CI links, docs, tickets, incidents, screenshots, or other artifacts
 - any lessons worth sharing with reviewers: scope that grew beyond the original plan, interesting failure modes found during self or agentic review, surprising validation results, or non-obvious tradeoffs
+
+For each claim the PR makes, identify what evidence supports it. Prefer evidence that reviewers can open or rerun.
 
 Use narrow review topics. A topic should map to one subsystem, mechanism, or reviewer question. Split broad topics like "cleanup", "hardening", or "bug fix" into smaller reviewable topics when needed.
 
@@ -83,20 +84,20 @@ Ignore generated files unless they are important to review. Mention generated fi
 
 ## Phase 3: Decide whether to split into a stack
 
-Decide whether this should be **one PR** or a **stack of smaller stacked PRs**. A large PR is hard to review; splitting it is usually the single biggest improvement to reviewability.
+Decide whether this should be one PR or a stack of smaller PRs. A large PR is hard to review; splitting it is usually the biggest improvement to reviewability.
 
-Evaluate against this heuristic. These are defaults to reason from, not hard gates — state which signals tripped and let the user override.
+Evaluate against this heuristic. These are defaults to reason from, not hard gates. State which signals tripped and let the user override.
 
-Propose a split if **any strong signal** trips, or if **two or more soft signals** trip.
+Propose a split if any strong signal trips, or if two or more soft signals trip.
 
-**Strong signals (any one → propose split):**
+Strong signals:
 - The change touches 2+ distinct subsystems or concerns that could ship and be reviewed independently.
-- The change is large enough that a reviewer cannot hold it in their head in one sitting: roughly >400 net lines of non-generated, non-test code, or >~15 non-generated files.
+- The change is large enough that a reviewer cannot hold it in their head in one sitting: roughly more than 400 net lines of non-generated, non-test code, or more than about 15 non-generated files.
 
-**Soft signals (two or more → propose split):**
-- The reviewer guide would need more than 5 topics.
-- Commits already fall into clearly independent groups.
-- The branch mixes a refactor, a new feature, and a behavior change together.
+Soft signals:
+- The reviewer guide would need more than five topics.
+- Commits already fall into independent groups.
+- The branch mixes a refactor, a feature, and a behavior change.
 
 If a split is warranted, propose a stack plan, one branch per reviewable step in dependency order:
 
@@ -110,9 +111,9 @@ Then ask:
 
 > This change looks large enough to split. Should I split it into this stack of PRs?
 
-If the user agrees, follow the **Splitting one big branch into a stack** procedure in the `git-machete` skill, then create PRs bottom-up (this command handles the bottom branch; rerun it per branch as each becomes ready). If the user declines, continue as a single PR but make the reviewer guide a strong file-order narrative anyway.
+If the user agrees, follow the splitting procedure in the `git-machete` skill. Create PRs bottom-up. This command handles the current branch; rerun it per branch as each step becomes ready. If the user declines, continue as a single PR and make the reviewer guide strong enough to compensate.
 
-If no split is needed, compare the current commits with the review topics. If the branch has tangled commits that do not match the topics **and the branch has no open PR yet**, you may propose a one-commit-per-topic rewrite:
+If no split is needed, compare the current commits with the review topics. If the branch has tangled commits, propose a one-commit-per-topic rewrite:
 
 ```markdown
 | # | Topic | Files | Commit message |
@@ -121,13 +122,13 @@ If no split is needed, compare the current commits with the review topics. If th
 ```
 
 Ask before rewriting. If the user agrees:
-1. Create a backup branch named `backup/<current-branch>-pre-rebase`.
-2. Reset softly to the merge base with `origin/$base`.
-3. Create one commit per topic in review order.
-4. Verify the working tree is clean and the diff from the backup branch contains only intentional changes.
-5. Push with `--force-with-lease`.
+1. Reset softly to the merge base with `origin/$base`.
+2. Create one commit per topic in review order.
+3. Verify the working tree is clean.
+4. Verify the final diff contains only intentional changes.
+5. Push with `--force-with-lease` if the branch already exists on the remote.
 
-This rewrite is only acceptable **before** the PR exists. Never do it on a branch with an open PR.
+Do not create a backup branch by default. Create one only if the rewrite is risky enough to need a recovery point.
 
 ## Phase 4: Push the branch
 
@@ -137,7 +138,7 @@ Push the current branch and any downstream stacked branches:
 git machete traverse -y --push --return-to=here
 ```
 
-If the repo does not use git-machete yet, fall back to a plain push:
+If the repo does not use git-machete, fall back to a plain push:
 
 ```fish
 git push -u origin (git branch --show-current)
@@ -145,17 +146,17 @@ git push -u origin (git branch --show-current)
 
 ## Phase 5: Plan the review narrative and collect commits
 
-The reviewer guide is a **commit-ordered narrative**: one row per commit, in the order a reviewer should read them so the change tells a story (foundational types first, then the mechanisms that use them, then wiring/config/docs last). This assumes commits are already one-per-topic (Phase 3); if not, fix that first.
+The reviewer guide is a commit-ordered narrative: one row per commit, in the order a reviewer should read them so the change tells a story. This assumes commits are already one-per-topic. If they are not, fix that before creating the PR.
 
-Each row links to the commit **inside the PR review flow** so that comments made there are first-class PR review comments (anchored to the PR diff), not commit-scoped comments:
+Each row links to the commit inside the PR review flow so comments there are first-class PR review comments, not commit-scoped comments:
 
 ```text
 https://github.com/<owner>/<repo>/pull/<pr-number>/changes/<full-sha>
 ```
 
-**Never** link the bare `https://github.com/<owner>/<repo>/commit/<sha>` form. Comments on that surface are commit comments: they do not appear in the PR review and orphan when history changes.
+Never link the bare `https://github.com/<owner>/<repo>/commit/<sha>` form. Comments on that surface are commit comments: they do not appear in the PR review and orphan when history changes.
 
-The `/pull/<pr-number>/changes/<sha>` URL needs the PR number, which does not exist until Phase 7. So in this phase only collect the commit SHAs and draft the narrative order; fill in the links in Phase 8 after the PR is created.
+The `/pull/<pr-number>/changes/<sha>` URL needs the PR number, which does not exist until Phase 7. In this phase, collect the commit SHAs and draft the narrative order. Fill in the links in Phase 8 after the PR is created.
 
 ```fish
 set repo (gh repo view --json nameWithOwner -q .nameWithOwner)
@@ -178,11 +179,11 @@ Omit `[TICKET]` if there is no linked ticket. Use one of these types unless anot
 - `test`
 - `chore`
 
-### Stacked-PR navigation block (required for any PR in a stack)
+### Stacked-PR navigation block
 
-If this PR is part of a stack (the branch targets another `maruina/...` branch rather than `main`, or a stack plan was created in Phase 3), the body **must begin** with a stack-navigation blockquote, before `## What`. Single PRs that target `main` directly and have no children omit it.
+If this PR is part of a stack, the body must begin with a stack-navigation blockquote before `## What`. Single PRs that target `main` directly and have no children omit it.
 
-Format (a blockquote; no ASCII tree — keep it scannable):
+Format:
 
 ```markdown
 > 📦 **Stacked PR <pos> of <total>** — part of [<TICKET>](<jira-url>)<optional: ` (<short epic/feature note>)`>
@@ -190,16 +191,18 @@ Format (a blockquote; no ASCII tree — keep it scannable):
 > - PR <pos1>: <label> — #<pr1>
 > - PR <pos2>: 👉 **<label> (this PR)** — #<pr2>
 > - PR <pos3>: <label> — #<pr3>
+
+---
 ```
 
-Rules for the block:
-- One bullet per PR in the stack, in dependency order (bottom → top).
+Rules:
+- One bullet per PR in dependency order, bottom to top.
 - Mark the current PR with `👉 **<label> (this PR)**`; all others are plain `<label>`.
-- Reference every PR by its `#<number>` so GitHub renders clickable, bidirectional links. Link the ticket with a Markdown link.
-- Use a short `<pos>` per branch (e.g. `1`, `2a`, `2b`, `3`) and a one-line `<label>` describing that PR's scope.
-- Do **not** include an ASCII dependency tree — the bullet list is the whole block.
-- Separate the block from the body with a `---` line.
-- A PR number does not exist until it is created (Phase 7). On first creation, write the block with the known siblings and fill in this PR's own `#<number>` in Phase 8; update sibling numbers as later stack PRs are opened.
+- Reference every PR by `#<number>` so GitHub renders links.
+- Link the ticket when known.
+- Use a short position and one-line label for each PR.
+- Do not include an ASCII dependency tree.
+- A PR number does not exist until Phase 7. On first creation, write known siblings and fill in this PR's own `#<number>` in Phase 8.
 
 Draft the PR body with this structure:
 
@@ -232,7 +235,10 @@ Two to four sentences explaining why this change exists. Include relevant ticket
 ## Lessons learned
 
 - Optional. Include only if scope grew beyond the original plan, review found an interesting failure mode, agentic/self-review materially changed the implementation, or there is a tradeoff worth sharing with reviewers.
-- Explain reviewer-relevant insights, not a historical changelog.
+
+## Evidence
+
+- Optional. Include links to logs, metrics, dashboards, traces, queries, docs, tickets, incidents, screenshots, or other artifacts that help reviewers verify the change or understand the context.
 
 ## Tests
 
@@ -240,17 +246,17 @@ Two to four sentences explaining why this change exists. Include relevant ticket
 - If no tests were added or run, explain why.
 ```
 
-Omit `## Lessons learned` when there is nothing meaningful to share. Keep the body concise and specific. Do not duplicate commit messages.
+Omit `## Lessons learned` and `## Evidence` when they add no reviewer value. Keep the body concise and specific. Do not duplicate commit messages.
 
 ## Phase 7: Create the PR
 
-Create the PR as a **draft** and annotate the branch with `rebase=no` so future traverses do not automatically rebase it (no-rebase-once-open):
+Create the PR as a draft:
 
 ```fish
-git machete github create-pr --draft --title="<drafted title>" && git machete anno (git machete anno) rebase=no
+git machete github create-pr --draft --title="<drafted title>"
 ```
 
-Then update the title if it was not accepted by `create-pr` (some versions ignore `--title`):
+Then update the title if `create-pr` did not set it:
 
 ```fish
 gh pr edit <pr-number> --title "<drafted title>"
@@ -262,7 +268,7 @@ If the repo does not use git-machete, fall back to:
 gh pr create --draft --title "<title>" --body-file <temp-file>
 ```
 
-If a stack plan was created in Phase 3, this command opens the PR for the current (bottom) branch only; the user reruns `/pr-create` per branch as each step becomes ready for review.
+If a stack plan was created in Phase 3, this command opens the PR for the current branch only. Rerun `/pr-create` per branch as each step becomes ready for review.
 
 Capture the PR URL and PR number.
 
@@ -274,13 +280,13 @@ Now that the PR number exists, build each reviewer-guide row link as:
 https://github.com/<owner>/<repo>/pull/<pr-number>/changes/<full-sha>
 ```
 
-Fill these into the reviewer-guide table from Phase 6. If a stacked-PR navigation block was added, also fill in this PR's own `#<number>` (and mark it `👉 ... (this PR)`). Write the completed body to a temp file, and set it on the PR:
+Fill these into the reviewer-guide table from Phase 6. If a stacked-PR navigation block was added, also fill in this PR's own `#<number>` and mark it `👉 ... (this PR)`. Write the completed body to a temp file, and set it on the PR:
 
 ```fish
 gh pr edit <pr-number> --body-file <temp-file>
 ```
 
-When later stack PRs are created, rerun `/pr-update` on the earlier PRs (or edit their bodies) so every PR's navigation block lists the now-known sibling `#<number>`s.
+When later stack PRs are created, rerun `/pr-update` on earlier PRs so every PR's navigation block lists the now-known sibling PR numbers.
 
 ## Phase 9: Trigger Codex review
 
@@ -296,5 +302,7 @@ Print:
 - PR URL
 - whether the Codex review comment was posted
 - the reviewer guide table as a compact summary
+- evidence links added or intentionally omitted
 - any commit rewriting performed
-- the backup branch name, if one was created
+- whether stacked descendants were pushed
+- assumptions and tradeoffs

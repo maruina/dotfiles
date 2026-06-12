@@ -32,7 +32,7 @@ After any human review starts on a PR:
 
 Rewrite a human-reviewed PR only when the user explicitly asks to reset or rewrite reviewed history. Before doing it, state the tradeoff. Then use `--force-with-lease`, never plain `--force`, and regenerate the PR body from the new SHAs.
 
-Human review means a review, PR comment, or diff comment from a human other than the PR author. Bot, Codex, and agent comments do not count. If uncertain, assume human review has started and do not rewrite unless explicitly asked.
+Human review means a review, PR comment, or diff comment from a human other than the PR author. Comments from Matteo or the PR author are author instructions, not human review. Do not treat them as the start of human review, even if they are PR comments, review comments, or diff comments. Bot, Codex, and agent comments do not count. If uncertain, assume human review has started and do not rewrite unless explicitly asked.
 
 Do not refuse rewriting merely because a PR is open. The rewrite boundary is human review state.
 
@@ -48,6 +48,11 @@ Treat these user requests as explicit rewrite intent:
 - "reset for review"
 
 If human review has started and the user uses one of these phrases, proceed after stating that commit SHAs may change and GitHub's "changes since last review" or commit-anchored comments may be disrupted. If human review has started and rewrite intent is ambiguous, ask before rewriting.
+
+Example:
+- User: "Remove `scripts/fix_rmp_rms_subnets.py` from commits."
+- Correct: rewrite the branch so the file is removed from the commit where it was introduced, then push with `--force-with-lease`.
+- Incorrect: add a new commit that deletes the file just because the PR is open.
 
 ## What makes a PR joyful to review
 

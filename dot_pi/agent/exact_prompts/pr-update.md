@@ -13,6 +13,24 @@ Read the `reviewable-pr-workflow` skill before updating the PR. It is the source
 
 Use this command only for existing PRs. Do not create a new PR.
 
+## Decision rule
+
+Do not refuse history rewriting merely because a PR is open.
+
+If the user asks to remove a file "from commits" or "from history", treat that as an explicit request to rewrite the PR branch. Do not convert it into a new deletion commit by default.
+
+Default behavior:
+- If no human review has started: rewrite, remove the file from the offending commit, and push with `--force-with-lease`.
+- If human review has started: state the GitHub review UI tradeoff, then proceed because the user explicitly requested rewriting.
+- Ask only if human review has started and the rewrite request is ambiguous.
+
+Example:
+- User: "Remove `scripts/fix_rmp_rms_subnets.py` from commits."
+- Correct: rewrite the branch so the file is removed from the commit where it was introduced, then push with `--force-with-lease`.
+- Incorrect: add a new commit that deletes the file just because the PR is open.
+
+Comments from Matteo or the PR author are author instructions, not human review. Do not treat them as the start of human review, even if they are PR comments, review comments, or diff comments. They may still be explicit rewrite intent.
+
 Assume this command may run multiple times on the same PR. Make the update idempotent: preserve useful existing content, replace stale generated sections instead of appending duplicates, and keep only one `## Lessons learned` section and one `## Evidence` section.
 
 Do not post `@codex review` unless the user explicitly asks.
@@ -25,12 +43,12 @@ If the branch has unrelated uncommitted changes, inspect them and commit only ch
 Run:
 
 ```fish
-gh pr view --json number,title,body,baseRefName,url,reviews,comments,latestReviews,reviewDecision
+gh pr view --json number,title,body,baseRefName,url,author,reviews,comments,latestReviews,reviewDecision
 ```
 
 Set the base branch from `.baseRefName`.
 
-Classify whether human review has started. Treat the PR as human-reviewed if any review, PR comment, or diff comment came from a human other than the PR author. Bot, Codex, and agent comments do not count as human review. If uncertain, assume human review has started and do not rewrite unless the user explicitly requested it.
+Classify whether human review has started. Treat the PR as human-reviewed if any review, PR comment, or diff comment came from a human other than the PR author. Use the injected `GitHub Identity` as the current-user hint, but prefer fresh `gh pr view --json author,reviews,comments,latestReviews` data when available. Compare review/comment authors against `.author.login` and the current authenticated GitHub user. Comments from Matteo, the current user, or the PR author are author instructions, not human review. Bot, Codex, and agent comments do not count as human review. If uncertain, assume human review has started and do not rewrite unless the user explicitly requested it.
 
 Then gather:
 

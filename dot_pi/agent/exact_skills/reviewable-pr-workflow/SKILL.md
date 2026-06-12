@@ -34,6 +34,21 @@ Rewrite a human-reviewed PR only when the user explicitly asks to reset or rewri
 
 Human review means a review, PR comment, or diff comment from a human other than the PR author. Bot, Codex, and agent comments do not count. If uncertain, assume human review has started and do not rewrite unless explicitly asked.
 
+Do not refuse rewriting merely because a PR is open. The rewrite boundary is human review state.
+
+Treat these user requests as explicit rewrite intent:
+- "remove <file> from commits"
+- "remove <file> from history"
+- "drop <file> from the branch"
+- "clean up the commits"
+- "squash", "fixup", "reorder", or "split" commits
+- "make the commit table clean"
+- "rewrite this PR"
+- "force-push"
+- "reset for review"
+
+If human review has started and the user uses one of these phrases, proceed after stating that commit SHAs may change and GitHub's "changes since last review" or commit-anchored comments may be disrupted. If human review has started and rewrite intent is ambiguous, ask before rewriting.
+
 ## What makes a PR joyful to review
 
 A joyful PR has:

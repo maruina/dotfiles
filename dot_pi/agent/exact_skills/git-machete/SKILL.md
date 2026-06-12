@@ -56,6 +56,8 @@ Git-machete can rebase, merge, and restack branches. Choose the operation from `
 - Rewrite a human-reviewed PR only when the user explicitly asks. Use `git push --force-with-lease`, never plain `git push --force`.
 - If rewriting a parent branch affects descendant PRs, inspect the whole stack and stop if any affected human-reviewed PR would be rewritten without explicit user approval.
 
+A request to remove a file from commits/history, clean up commits, squash/fixup/reorder commits, rewrite a PR, force-push, or reset a PR for review is explicit rewrite intent. Follow `reviewable-pr-workflow`; do not refuse merely because the PR is open.
+
 ## Opening a PR
 
 Create PRs as drafts:

@@ -45,6 +45,10 @@ Also inspect recent commits and changed files enough to understand the current f
 
 If `$ARGUMENTS` is non-empty, treat it as user-provided context about what changed, what reviewer feedback was addressed, or whether the user explicitly wants history rewritten.
 
+Do not refuse rewriting merely because the PR is open. The rewrite boundary is human review state. Treat requests like "remove <file> from commits", "remove <file> from history", "clean up the commits", "squash", "fixup", "reorder", "rewrite this PR", "force-push", or "reset for review" as explicit rewrite intent.
+
+If human review has started and the user explicitly requested a rewrite, proceed after stating that commit SHAs may change and GitHub's "changes since last review" or commit-anchored comments may be disrupted. If human review has started and rewrite intent is ambiguous, ask before rewriting.
+
 ## Phase 2: Understand the existing PR body
 
 Read the existing PR body.

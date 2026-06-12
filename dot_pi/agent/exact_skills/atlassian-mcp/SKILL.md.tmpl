@@ -1,6 +1,6 @@
 {{ if eq .profile "work" -}}
 ---
-description: Uses Atlassian MCP through mcp-cli to read and search Datadog Jira and Confluence. Use when the user asks about Jira issues, Confluence pages, internal Datadog docs, Atlassian search, or documentation stored in datadoghq.atlassian.net.
+description: Uses Atlassian MCP through mcp-cli to read Datadog Confluence pages and perform Atlassian-wide search. Use when the user asks about Confluence pages, internal Datadog docs, or documentation stored in datadoghq.atlassian.net. Do NOT use for Jira issue reads or JQL searches — use the jira_issue and jira_search tools instead.
 ---
 # Atlassian MCP
 Use `mcp-cli` to access Datadog Atlassian through the `atlassian` MCP server.

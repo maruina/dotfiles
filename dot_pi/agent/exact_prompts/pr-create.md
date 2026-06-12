@@ -28,11 +28,30 @@ Parse arguments and set `base` and `draft`.
 Run:
 
 ```fish
+git status --short
 git log --oneline origin/$base..HEAD
 git diff --stat origin/$base..HEAD
 git diff --name-only origin/$base..HEAD
 gh pr view --json number,url,title,body 2>/dev/null; or echo "no PR yet"
 ```
+
+If `gh pr view` finds an existing PR, stop and tell the user to run `/pr-update`.
+
+If the working tree has uncommitted changes, handle them before deciding whether the branch has a PR diff:
+- Inspect the uncommitted diff enough to determine whether it belongs in this PR.
+- If the user already asked to commit, or the intended commit is obvious from the current task context and diff, stage only the intended files and create a Conventional Commit.
+- If the intended commit is not obvious, ask whether to commit the uncommitted changes and propose a commit message. Do not continue to PR creation until the user answers.
+- Do not stage or commit unrelated local changes. If unrelated changes are present, mention them and leave them unstaged.
+
+After committing intended changes, rerun:
+
+```fish
+git log --oneline origin/$base..HEAD
+git diff --stat origin/$base..HEAD
+git diff --name-only origin/$base..HEAD
+```
+
+If `git log origin/$base..HEAD` and `git diff origin/$base..HEAD` are still empty after handling uncommitted changes, stop and explain that GitHub has no branch diff to open.
 
 Also read any `CLAUDE.md` or `AGENTS.md` files in the repository root and in changed package directories.
 
@@ -43,8 +62,6 @@ find plans -maxdepth 2 \( -name "design.md" -o -name "plan.md" \) 2>/dev/null
 ```
 
 If found, note the paths for use in Phase 2 and Phase 6.
-
-If `gh pr view` finds an existing PR, stop and tell the user to run `/pr-update`.
 
 ## Phase 2: Understand the changes
 

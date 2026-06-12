@@ -1,4 +1,4 @@
-import type { Skill } from "@mariozechner/pi-coding-agent";
+import type { Skill } from "@earendil-works/pi-coding-agent";
 
 /**
  * Surgically excise `<skill>...</skill>` blocks from the assembled system
@@ -7,7 +7,7 @@ import type { Skill } from "@mariozechner/pi-coding-agent";
  * preamble paragraph so the prompt doesn't end up with a dangling header.
  *
  * Anchors mirror the literal strings emitted by Pi's `formatSkillsForPrompt`
- * (node_modules/@mariozechner/pi-coding-agent/dist/core/skills.js). If Pi's
+ * (node_modules/@earendil-works/pi-coding-agent/dist/core/skills.js). If Pi's
  * format drifts, the anchors return -1 and this function leaves the prompt
  * unchanged — same silent-passthrough posture used elsewhere in this
  * extension.

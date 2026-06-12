@@ -18,22 +18,21 @@ describe("walkUpForAgents", () => {
     writeFileSync(full, content);
   };
 
-  it("returns AGENTS.md and CLAUDE.md found between startDir (inclusive) and cwd (exclusive), shallowest-first", () => {
+  it("returns AGENTS.md found between startDir (inclusive) and cwd (exclusive), shallowest-first", () => {
     write("a/AGENTS.md");
-    write("a/b/CLAUDE.md");
+    write("a/b/AGENTS.md");
     write("a/b/c/AGENTS.md");
 
     const result = walkUpForAgents(join(cwd, "a/b/c"), cwd);
     assert.deepEqual(result, [
       join(cwd, "a/AGENTS.md"),
-      join(cwd, "a/b/CLAUDE.md"),
+      join(cwd, "a/b/AGENTS.md"),
       join(cwd, "a/b/c/AGENTS.md"),
     ]);
   });
 
-  it("stops at cwd (does not include cwd's own context files — Pi already loaded them)", () => {
+  it("stops at cwd (does not include cwd's own AGENTS.md — Pi already loaded it)", () => {
     write("AGENTS.md");
-    write("CLAUDE.md");
     write("a/AGENTS.md");
 
     const result = walkUpForAgents(join(cwd, "a"), cwd);
@@ -57,19 +56,11 @@ describe("walkUpForAgents", () => {
     }
   });
 
-  it("skips directories with no context file", () => {
+  it("skips directories with no AGENTS.md", () => {
     write("a/b/AGENTS.md");
-    // No context file at a/ — walk-up should still find a/b/AGENTS.md.
+    // No AGENTS.md at a/ — walk-up should still find a/b/AGENTS.md.
     const result = walkUpForAgents(join(cwd, "a/b/c"), cwd);
     assert.deepEqual(result, [join(cwd, "a/b/AGENTS.md")]);
-  });
-
-  it("returns AGENTS.md before CLAUDE.md in the same directory", () => {
-    write("a/AGENTS.md");
-    write("a/CLAUDE.md");
-
-    const result = walkUpForAgents(join(cwd, "a"), cwd);
-    assert.deepEqual(result, [join(cwd, "a/AGENTS.md"), join(cwd, "a/CLAUDE.md")]);
   });
 });
 

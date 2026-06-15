@@ -85,7 +85,7 @@
   uvx --version
   ```
   Expected: line present; `uvx` already installed (`/opt/homebrew/bin/uvx`), so no install needed now — this only makes the dependency reproducible.
-- [ ] Commit: `chore: declare uv for ha-mcp in brew bundle`
+- [x] Commit: `chore: declare uv for ha-mcp in brew bundle`
 
 ## Task 2 — Register personal `ha-mcp` server in `mcp_servers.json.tmpl`
 
@@ -136,7 +136,7 @@
   ! render work dot_config/mcp/mcp_servers.json.tmpl | grep -qi 'ha-mcp\|homeassistant'
   ```
   Expected: keys are `["atlassian","datadog-prod","datadog-staging","slack"]`; absence check exits successfully.
-- [ ] Commit: `feat(mcp): add personal-only ha-mcp server`
+- [x] Commit: `feat(mcp): add personal-only ha-mcp server`
 
 ## Task 3 — Add the `ha-mcp` driver skill (profile-gated)
 
@@ -163,7 +163,7 @@ This mirrors the existing `datadog-mcp`/`slack-mcp` driver-skill pattern (profil
   render personal dot_pi/agent/exact_skills/home-assistant-mcp/SKILL.md.tmpl | grep -q 'mcp-cli info ha-mcp' && echo OK
   ```
   Expected: work render is empty/whitespace; personal render contains the discovery command.
-- [ ] Commit: `feat(skills): add personal ha-mcp driver skill`
+- [x] Commit: `feat(skills): add personal ha-mcp driver skill`
 
 ## Task 4 — Reframe the personal Home Assistant skill as the safety/router layer
 
@@ -206,7 +206,7 @@ This mirrors the existing `datadog-mcp`/`slack-mcp` driver-skill pattern (profil
   ```bash
   ls dot_pi/agent/exact_skills_personal/home-assistant/scripts/*.sh | wc -l   # expect 5
   ```
-- [ ] Commit: `refactor(skills): reframe home-assistant skill as safety router`
+- [x] Commit: `refactor(skills): reframe home-assistant skill as safety router`
 
 ## Task 5 — Remove the unmanaged upstream skills path from personal settings
 
@@ -233,7 +233,7 @@ Do this only after Tasks 3–4 exist (local replacement guidance present), per t
   ! printf '{}' | sh /tmp/ha-settings-work.sh | grep -qi 'homeassistant\|home_assistant\|ha-mcp'
   ```
   Expected: absence check exits successfully.
-- [ ] Commit: `feat(pi): drop unmanaged upstream home assistant skills path`
+- [x] Commit: `feat(pi): drop unmanaged upstream home assistant skills path`
 
 ## Task 6 — Add the `sync-home-assistant-skills` prompt template
 
@@ -259,7 +259,7 @@ Do this only after Tasks 3–4 exist (local replacement guidance present), per t
     && grep -q 'commit/date\|commit / date' dot_pi/agent/exact_prompts/sync-home-assistant-skills.md && echo OK
   ```
   Expected: `OK`.
-- [ ] Commit: `feat(prompts): add sync-home-assistant-skills template`
+- [x] Commit: `feat(prompts): add sync-home-assistant-skills template`
 
 ## Task 7 — Render, diff, apply gate, and smoke-test gate
 
@@ -309,7 +309,7 @@ Do this only after Tasks 3–4 exist (local replacement guidance present), per t
   ```
   Expected on a personal profile: tool list prints without error (server starts via `uvx`). If it errors, stop and check `uv`, `HOME_ASSISTANT_URL`, and `HOME_ASSISTANT_TOKEN` in the current Fish shell. Expected on the work profile: `SKIP_SMOKE_TEST...`.
 - [x] Optional (only after explicit user approval and only on a personal profile): skipped; no explicit user approval and active profile is not personal. Do not perform any mutation in this plan.
-- [ ] No commit (apply/verify only). If the apply gate is skipped on the work profile, record "personal-profile apply and smoke test pending" in the final summary.
+- [x] No commit (apply/verify only). Apply and smoke test skipped because active chezmoi profile is not personal; personal-profile apply and smoke test pending.
 
 ## Task 8 — Documentation and future-agent guidance (required final task)
 
@@ -328,4 +328,4 @@ For each item below, the implementer must either update it or record in the comm
   git -C /Users/matteo.ruina/.local/share/chezmoi-home-assistant-pi-skills grep -n 'homeassistant-ai/skills/skills' -- . ':!plans' || echo NO_UPSTREAM_PATH
   ```
   Expected: `NO_OLD_NAME`, `NO_UPSTREAM_PATH`.
-- [ ] Commit: `docs: record ha-mcp and home assistant skill knowledge`
+- [x] Commit: `docs: record ha-mcp and home assistant skill knowledge`

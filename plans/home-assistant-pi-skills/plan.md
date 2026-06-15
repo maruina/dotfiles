@@ -169,18 +169,18 @@ This mirrors the existing `datadog-mcp`/`slack-mcp` driver-skill pattern (profil
 
 **Files:** rename `dot_pi/agent/exact_skills_personal/home-assistant-api/` → `dot_pi/agent/exact_skills_personal/home-assistant/`; rewrite `SKILL.md`; keep `scripts/*.sh`; keep `references/core-concepts.md`; add `references/safety-and-routing.md`.
 
-- [ ] Rename the directory with git to preserve history:
+- [x] Rename the directory with git to preserve history:
   ```bash
   git mv dot_pi/agent/exact_skills_personal/home-assistant-api dot_pi/agent/exact_skills_personal/home-assistant
   ```
-- [ ] Failing check (current skill links to 6 missing references):
+- [x] Failing check (current skill links to 6 missing references):
   ```bash
   for f in state-management service-reference entity-types templates system-config examples; do
     grep -q "references/$f.md" dot_pi/agent/exact_skills_personal/home-assistant/SKILL.md && echo "DANGLING:$f"
   done
   ```
   Expected before: prints `DANGLING:` for each of the six.
-- [ ] Rewrite `SKILL.md` so it is concise and deterministic for cheap models. Frontmatter `name: home-assistant`, specific `description` (personal smart-home work, routes between `ha-mcp`, curated docs, and REST fallback; read-only by default; requires confirmation for mutations). Body sections:
+- [x] Rewrite `SKILL.md` so it is concise and deterministic for cheap models. Frontmatter `name: home-assistant`, specific `description` (personal smart-home work, routes between `ha-mcp`, curated docs, and REST fallback; read-only by default; requires confirmation for mutations). Body sections:
   - **Routing:** prefer the `home-assistant-mcp` skill (live `ha-mcp`) for inventory/state/control; use `references/` for curated best practices; use `scripts/*.sh` only as REST fallback/debug.
   - **Safety tiers** (verbatim intent from design):
     - Tier 0 read-only, no confirmation (list/inspect, draft changes without applying).
@@ -191,9 +191,9 @@ This mirrors the existing `datadog-mcp`/`slack-mcp` driver-skill pattern (profil
   - **Documentation-update guidance:** when durable setup facts or reusable patterns are discovered, ask before writing docs; do not auto-write during incidental exploration.
   - **Token handling:** never print or persist `HOME_ASSISTANT_TOKEN`; treat entity/state/presence data as household-private.
   - Remove all links to the six nonexistent reference files. Keep a short pointer to `references/core-concepts.md` (REST basics) and `references/safety-and-routing.md`.
-- [ ] Create `references/safety-and-routing.md` holding the long-form tier table, the confirmation checklist, the verify/rollback protocol, and the routing decision (so `SKILL.md` stays lean). No tool names invented beyond "run `mcp-cli info ha-mcp` to discover tools."
-- [ ] Trim `references/core-concepts.md` only if it points at missing siblings: it currently links `state-management.md`, `service-reference.md`, `templates.md` in its "Next Steps". Replace those with a pointer to the `home-assistant-mcp` skill and `safety-and-routing.md`.
-- [ ] Verify no dangling references remain and tiers are present:
+- [x] Create `references/safety-and-routing.md` holding the long-form tier table, the confirmation checklist, the verify/rollback protocol, and the routing decision (so `SKILL.md` stays lean). No tool names invented beyond "run `mcp-cli info ha-mcp` to discover tools."
+- [x] Trim `references/core-concepts.md` only if it points at missing siblings: it currently links `state-management.md`, `service-reference.md`, `templates.md` in its "Next Steps". Replace those with a pointer to the `home-assistant-mcp` skill and `safety-and-routing.md`.
+- [x] Verify no dangling references remain and tiers are present:
   ```bash
   ! grep -rqE 'references/(state-management|service-reference|entity-types|templates|system-config|examples)\.md' dot_pi/agent/exact_skills_personal/home-assistant/ && echo NO_DANGLING
   grep -q 'Tier 0' dot_pi/agent/exact_skills_personal/home-assistant/SKILL.md \
@@ -202,7 +202,7 @@ This mirrors the existing `datadog-mcp`/`slack-mcp` driver-skill pattern (profil
   grep -qi 'never print\|never persist' dot_pi/agent/exact_skills_personal/home-assistant/SKILL.md && echo TOKEN_RULE_OK
   ```
   Expected: `NO_DANGLING`, `TIERS_OK`, `TOKEN_RULE_OK`.
-- [ ] Verify scripts still exist and are referenced as fallback only:
+- [x] Verify scripts still exist and are referenced as fallback only:
   ```bash
   ls dot_pi/agent/exact_skills_personal/home-assistant/scripts/*.sh | wc -l   # expect 5
   ```

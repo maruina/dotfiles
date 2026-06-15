@@ -15,11 +15,11 @@
 **Components Affected**
 | Component | Files | Responsibility | Verification |
 |---|---|---|---|
-| Personal MCP server config | `dot_config/mcp/mcp_servers.json.tmpl` | Add a `.profile == "personal"` branch that registers a `ha-mcp` stdio server (`uvx ha-mcp@latest`) using `${HOMEASSISTANT_URL}`/`${HOMEASSISTANT_TOKEN}` env substitution | `chezmoi execute-template` renders valid JSON for personal; renders empty/work-only for work; `chezmoi diff ~/.config/mcp/mcp_servers.json` |
+| Personal MCP server config | `dot_config/mcp/mcp_servers.json.tmpl` | Add a `.profile == "personal"` branch that registers a `ha-mcp` stdio server (`uvx ha-mcp@latest`) using `${HOMEASSISTANT_URL}`/`${HOMEASSISTANT_TOKEN}` env substitution | `cm execute-template` renders valid JSON for personal; renders empty/work-only for work; `cm diff ~/.config/mcp/mcp_servers.json` |
 | `ha-mcp` driver skill | `dot_pi/agent/exact_skills/home-assistant-mcp/SKILL.md.tmpl` | Profile-gated (`personal`) skill documenting how to drive `ha-mcp` via `mcp-cli` (discovery, read-only inventory, confirmed calls) | Renders only for personal; `mcp-cli info ha-mcp` lists tools |
 | Personal Home Assistant router skill | `dot_pi/agent/exact_skills_personal/home-assistant/SKILL.md` (renamed from `home-assistant-api`), `references/core-concepts.md`, `references/safety-and-routing.md`, `scripts/*.sh` | Authoritative safety/router layer: read-only default, tiers, confirmation, verify/rollback, doc-update guidance, routing between `ha-mcp` / curated docs / REST fallback; remove dangling missing-reference links | pi discovers the skill; skill text contains tier/confirmation language; no links to nonexistent files |
 | Personal settings gating | `dot_pi/agent/modify_private_settings.json.tmpl` | Remove the unmanaged upstream `/Users/ruio/.../homeassistant-ai/skills/skills/` runtime path; keep local `exact_skills_personal` path | Rendered personal settings omit the upstream path and keep `exact_skills_personal`; rendered work settings contain no Home Assistant references |
-| Upstream sync prompt | `dot_pi/agent/exact_prompts/sync-home-assistant-skills.md` | Prompt template to review upstream `homeassistant-ai/skills` + `ha-mcp` and curate local updates without mirroring or weakening safety | `chezmoi diff ~/.pi/agent/prompts/sync-home-assistant-skills.md`; appears as `/sync-home-assistant-skills` |
+| Upstream sync prompt | `dot_pi/agent/exact_prompts/sync-home-assistant-skills.md` | Prompt template to review upstream `homeassistant-ai/skills` + `ha-mcp` and curate local updates without mirroring or weakening safety | `cm diff ~/.pi/agent/prompts/sync-home-assistant-skills.md`; appears as `/sync-home-assistant-skills` |
 | Tooling prerequisite | `run_onchange_brew-install.sh.tmpl` | Declare `uv` (provides `uvx`) so `ha-mcp` install is reproducible | `uv` present in the Brewfile heredoc, alphabetical position |
 | Docs / future-agent guidance | `dot_config/private_fish/private_config.fish.tmpl` (comment only if needed), `AGENTS.md` files, chezmoi skill | Record durable MCP + Home Assistant knowledge | Reviewed in final task |
 
@@ -51,14 +51,19 @@
 **Test Strategy**
 - This is a config/docs/template change set; "tests" are deterministic render and content assertions run with `chezmoi execute-template`, `jq`, and `grep`, plus a manual `mcp-cli` smoke test gated behind the user.
 - Each template task has a narrow failing check that fails before the edit (e.g. `grep -q ha-mcp` on the rendered personal config fails first) and passes after.
-- **Profile override for rendering (critical):** `.profile` comes from chezmoi config data (currently `work`), not from a prompt. `--init --promptString profile=personal` does **not** override it. Render a target template under a chosen profile by prepending a `set` directive to the piped input, proven to work in this repo:
+- **Chezmoi source override (critical):** implementation runs from this feature worktree, but `chezmoi` defaults to the base source directory (`~/.local/share/chezmoi`) even when `cwd` is a worktree. Define and use these helpers for every `chezmoi` command in this plan:
   ```bash
+  cd /Users/matteo.ruina/.local/share/chezmoi-home-assistant-pi-skills
+  export CHEZMOI_SOURCE_DIR="$PWD"
+  cm() { chezmoi --source "$CHEZMOI_SOURCE_DIR" "$@"; }
   render() { # usage: render <profile> <template-path>
-    { printf '{{- $_ := set . "profile" "%s" -}}\n' "$1"; cat "$2"; } | chezmoi execute-template
+    { printf '{{- $_ := set . "profile" "%s" -}}\n' "$1"; cat "$2"; } | cm execute-template
   }
+  cm execute-template '{{ .chezmoi.sourceDir }}' | grep -Fx "$CHEZMOI_SOURCE_DIR"
   ```
-  For the `modify_` settings script, pipe the rendered script through `sh` with `printf '{}'` as the simulated current target (proven).
-- Boundaries: do not mock `ha-mcp` or Home Assistant. The single live integration check (`mcp-cli info ha-mcp`, read-only inventory) is run once, manually, and only with the user present, per the design's smoke-test step.
+- **Profile override for rendering (critical):** `.profile` comes from chezmoi config data, not from a prompt. This implementation may run on a `work` profile for model quality, so render personal-profile output with the `render personal ...` helper above. `--init --promptString profile=personal` does **not** override `.profile` for target rendering. For the `modify_` settings script, pipe the rendered script through `sh` with `printf '{}'` as the simulated current target (proven).
+- **Apply gate:** when implementing from a work profile, do not apply personal Home Assistant targets. Task 7 must run render/diff checks from the feature worktree, then skip `cm apply` and live `mcp-cli` smoke tests unless `cm data | jq -e '.profile == "personal"'` succeeds. Record skipped apply/smoke-test as a personal-profile follow-up.
+- Boundaries: do not mock `ha-mcp` or Home Assistant. The single live integration check (`mcp-cli info ha-mcp`, read-only inventory) is run once, manually, and only on a personal profile with the user present, per the design's smoke-test step.
 - No automated test framework exists in this dotfiles repo; verification uses shell one-liners, matching repository conventions.
 
 ---
@@ -86,10 +91,13 @@
 
 **Files:** `dot_config/mcp/mcp_servers.json.tmpl`
 
-- [ ] Define the render helper (used by all checks below):
+- [ ] Define the chezmoi source and render helpers (used by all checks below):
   ```bash
   cd /Users/matteo.ruina/.local/share/chezmoi-home-assistant-pi-skills
-  render() { { printf '{{- $_ := set . "profile" "%s" -}}\n' "$1"; cat "$2"; } | chezmoi execute-template; }
+  export CHEZMOI_SOURCE_DIR="$PWD"
+  cm() { chezmoi --source "$CHEZMOI_SOURCE_DIR" "$@"; }
+  render() { { printf '{{- $_ := set . "profile" "%s" -}}\n' "$1"; cat "$2"; } | cm execute-template; }
+  cm execute-template '{{ .chezmoi.sourceDir }}' | grep -Fx "$CHEZMOI_SOURCE_DIR"
   ```
 - [ ] Failing check (should fail before edit):
   ```bash
@@ -125,9 +133,9 @@
 - [ ] Verify work renders unchanged (three servers, no Home Assistant):
   ```bash
   render work dot_config/mcp/mcp_servers.json.tmpl | jq -e '.mcpServers | keys'
-  render work dot_config/mcp/mcp_servers.json.tmpl | grep -ci 'ha-mcp\|homeassistant'
+  ! render work dot_config/mcp/mcp_servers.json.tmpl | grep -qi 'ha-mcp\|homeassistant'
   ```
-  Expected: keys are `["atlassian","datadog-prod","datadog-staging","slack"]`; grep count `0`.
+  Expected: keys are `["atlassian","datadog-prod","datadog-staging","slack"]`; absence check exits successfully.
 - [ ] Commit: `feat(mcp): add personal-only ha-mcp server`
 
 ## Task 3 — Add the `ha-mcp` driver skill (profile-gated)
@@ -141,11 +149,12 @@ This mirrors the existing `datadog-mcp`/`slack-mcp` driver-skill pattern (profil
   test -f dot_pi/agent/exact_skills/home-assistant-mcp/SKILL.md.tmpl && echo EXISTS || echo MISSING
   ```
   Expected before: `MISSING`.
-- [ ] Create the file wrapped in `{{ if eq .profile "personal" -}}...{{- end }}` with frontmatter (`name: home-assistant-mcp`, a specific `description` mentioning live Home Assistant access via `ha-mcp`/`mcp-cli` and that it is read-only by default). Body must cover:
+- [ ] Create the file wrapped in `{{ if eq .profile "personal" -}}...{{- end }}` with frontmatter (`name: home-assistant-mcp`, a specific `description` stating this skill is subordinate: use only after loading the `home-assistant` router skill or when that skill routes to live MCP access). Body must cover:
+  - mandatory routing rule: for every Home Assistant task, load `home-assistant` first; this skill only documents `mcp-cli` mechanics for the router-selected live MCP path;
   - config: server name `ha-mcp`, config file `~/.config/mcp/mcp_servers.json`;
   - discovery: ``mcp-cli info ha-mcp`` and ``mcp-cli info ha-mcp <tool>``;
   - read-only inventory/state examples via ``mcp-cli call ha-mcp <tool> '{...}'`` using stdin/heredoc for complex JSON;
-  - explicit rule: defer all mutation safety to the `home-assistant` router skill and its tiers; never call mutating tools without the router's confirmation protocol;
+  - explicit rule: defer all mutation safety to the `home-assistant` router skill and its tiers; never call mutating tools directly from this skill without the router's confirmation protocol;
   - rule: never print or persist `HOME_ASSISTANT_TOKEN`.
   Do not invent exact tool names beyond what discovery returns; instruct the agent to run discovery first (upstream advertises 95+ tools and may rename them).
 - [ ] Verify gating and discoverability (reuse the `render` helper from Task 2):
@@ -221,9 +230,9 @@ Do this only after Tasks 3–4 exist (local replacement guidance present), per t
 - [ ] Verify work settings still contain zero Home Assistant references:
   ```bash
   render work dot_pi/agent/modify_private_settings.json.tmpl > /tmp/ha-settings-work.sh
-  printf '{}' | sh /tmp/ha-settings-work.sh | grep -ci 'homeassistant\|home_assistant\|ha-mcp'
+  ! printf '{}' | sh /tmp/ha-settings-work.sh | grep -qi 'homeassistant\|home_assistant\|ha-mcp'
   ```
-  Expected: `0`.
+  Expected: absence check exits successfully.
 - [ ] Commit: `feat(pi): drop unmanaged upstream home assistant skills path`
 
 ## Task 6 — Add the `sync-home-assistant-skills` prompt template
@@ -252,39 +261,55 @@ Do this only after Tasks 3–4 exist (local replacement guidance present), per t
   Expected: `OK`.
 - [ ] Commit: `feat(prompts): add sync-home-assistant-skills template`
 
-## Task 7 — Render, diff, apply, and smoke test
+## Task 7 — Render, diff, apply gate, and smoke-test gate
 
-**Files:** none (verification + apply only)
+**Files:** none (verification + optional apply only)
 
-- [ ] Full render/diff review of every changed target:
+- [ ] Full render/diff review of every changed target from the feature worktree source:
   ```bash
-  chezmoi diff ~/.config/mcp/mcp_servers.json
-  chezmoi diff ~/.pi/agent/skills/home-assistant-mcp/SKILL.md
-  chezmoi diff ~/.pi/agent/skills_personal/home-assistant
-  chezmoi diff ~/.pi/agent/prompts/sync-home-assistant-skills.md
-  chezmoi diff ~/.pi/agent/settings.json
+  cm diff ~/.config/mcp/mcp_servers.json
+  cm diff ~/.pi/agent/skills/home-assistant-mcp/SKILL.md
+  cm diff ~/.pi/agent/skills_personal/home-assistant
+  cm diff ~/.pi/agent/prompts/sync-home-assistant-skills.md
+  cm diff ~/.pi/agent/settings.json
   ```
   Expected: diffs show only intended changes; the old `skills_personal/home-assistant-api` directory is removed (it is under an `exact_` parent) and `home-assistant` is added; no token literals anywhere.
+- [ ] Render-check personal outputs explicitly, even when implementing from a work profile:
+  ```bash
+  render personal dot_config/mcp/mcp_servers.json.tmpl | jq -e '.mcpServers["ha-mcp"]'
+  render personal dot_pi/agent/modify_private_settings.json.tmpl > /tmp/ha-settings-personal.sh
+  printf '{}' | sh /tmp/ha-settings-personal.sh | jq -e '[.skills[] | select(endswith("exact_skills_personal"))] | length == 1'
+  ```
+  Expected: `ha-mcp` exists in the personal MCP render and the personal settings render keeps the local skills path.
 - [ ] Confirm no committed source file contains a token:
   ```bash
   git -C /Users/matteo.ruina/.local/share/chezmoi-home-assistant-pi-skills grep -nEi 'HOMEASSISTANT_TOKEN.*[a-f0-9]{20,}|Bearer [A-Za-z0-9._-]{20,}' -- . ':!plans' || echo NO_TOKENS
   ```
   Expected: `NO_TOKENS`.
-- [ ] Apply only the relevant personal targets after review:
+- [ ] Apply gate: because this implementation may run from a `work` profile for better model access, apply only if the active chezmoi profile is personal:
   ```bash
-  chezmoi apply ~/.config/mcp/mcp_servers.json
-  chezmoi apply ~/.pi/agent/skills/home-assistant-mcp
-  chezmoi apply ~/.pi/agent/skills_personal
-  chezmoi apply ~/.pi/agent/prompts/sync-home-assistant-skills.md
-  chezmoi apply ~/.pi/agent/settings.json
+  if cm data | jq -e '.profile == "personal"'; then
+    cm apply ~/.config/mcp/mcp_servers.json
+    cm apply ~/.pi/agent/skills/home-assistant-mcp
+    cm apply ~/.pi/agent/skills_personal
+    cm apply ~/.pi/agent/prompts/sync-home-assistant-skills.md
+    cm apply ~/.pi/agent/settings.json
+  else
+    echo "SKIP_APPLY: active chezmoi profile is not personal; run apply from a personal-profile environment."
+  fi
   ```
-- [ ] Read-only smoke test (run only with the user present; this touches the live instance):
+  Expected on the work profile: `SKIP_APPLY...`. Expected on a personal profile: the five targets apply from the feature worktree source.
+- [ ] Read-only smoke-test gate (run only after the apply gate has applied on a personal profile, and only with the user present; this touches the live instance):
   ```bash
-  mcp-cli info ha-mcp
+  if cm data | jq -e '.profile == "personal"'; then
+    mcp-cli info ha-mcp
+  else
+    echo "SKIP_SMOKE_TEST: active chezmoi profile is not personal."
+  fi
   ```
-  Expected: tool list prints without error (server starts via `uvx`). If it errors, stop and check `uv`, `HOME_ASSISTANT_URL`, and `HOME_ASSISTANT_TOKEN` in the current Fish shell.
-- [ ] Optional (only after explicit user approval): one Tier 0 read-only inventory call via `mcp-cli call ha-mcp <discovered-list-tool>` to confirm entity count and that no locks/alarms/cameras are present. Do not perform any mutation in this plan.
-- [ ] No commit (apply/verify only). If `chezmoi apply` produced a re-add need, none is expected because all targets are templates or `exact_` directories synced from source.
+  Expected on a personal profile: tool list prints without error (server starts via `uvx`). If it errors, stop and check `uv`, `HOME_ASSISTANT_URL`, and `HOME_ASSISTANT_TOKEN` in the current Fish shell. Expected on the work profile: `SKIP_SMOKE_TEST...`.
+- [ ] Optional (only after explicit user approval and only on a personal profile): one Tier 0 read-only inventory call via `mcp-cli call ha-mcp <discovered-list-tool>` to confirm entity count and that no locks/alarms/cameras are present. Do not perform any mutation in this plan.
+- [ ] No commit (apply/verify only). If the apply gate is skipped on the work profile, record "personal-profile apply and smoke test pending" in the final summary.
 
 ## Task 8 — Documentation and future-agent guidance (required final task)
 

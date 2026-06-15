@@ -91,7 +91,7 @@
 
 **Files:** `dot_config/mcp/mcp_servers.json.tmpl`
 
-- [ ] Define the chezmoi source and render helpers (used by all checks below):
+- [x] Define the chezmoi source and render helpers (used by all checks below):
   ```bash
   cd /Users/matteo.ruina/.local/share/chezmoi-home-assistant-pi-skills
   export CHEZMOI_SOURCE_DIR="$PWD"
@@ -99,13 +99,13 @@
   render() { { printf '{{- $_ := set . "profile" "%s" -}}\n' "$1"; cat "$2"; } | cm execute-template; }
   cm execute-template '{{ .chezmoi.sourceDir }}' | grep -Fx "$CHEZMOI_SOURCE_DIR"
   ```
-- [ ] Failing check (should fail before edit):
+- [x] Failing check (should fail before edit):
   ```bash
   render personal dot_config/mcp/mcp_servers.json.tmpl | jq -e '.mcpServers["ha-mcp"]' \
     && echo HAS_HA || echo NO_HA
   ```
   Expected before: personal currently renders empty → `NO_HA` (jq errors on empty input; treat any non-`HAS_HA` as failing).
-- [ ] Restructure the template so the existing work block is wrapped in `{{ if eq .profile "work" }}...{{ end }}` (unchanged content) and add a sibling `{{ if eq .profile "personal" }}` block:
+- [x] Restructure the template so the existing work block is wrapped in `{{ if eq .profile "work" }}...{{ end }}` (unchanged content) and add a sibling `{{ if eq .profile "personal" }}` block:
   ```json
   {{ if eq .profile "personal" -}}
   {
@@ -123,14 +123,14 @@
   {{- end }}
   ```
   Keep the work block exactly as-is (three servers). Do not include `--refresh` (avoids opaque per-call upgrades; pin behavior is `@latest` resolved at install).
-- [ ] Verify personal renders valid JSON with the server and **no token literal**:
+- [x] Verify personal renders valid JSON with the server and **no token literal**:
   ```bash
   render personal dot_config/mcp/mcp_servers.json.tmpl | tee /tmp/ha-mcp-personal.json | jq -e '.mcpServers["ha-mcp"].command == "uvx"'
   grep -Eo '\$\{HOME_ASSISTANT_(URL|TOKEN)\}' /tmp/ha-mcp-personal.json
   ! grep -qi 'op://\|eyJ\|[a-f0-9]\{40\}' /tmp/ha-mcp-personal.json && echo NO_SECRET
   ```
   Expected: `true`; both `${HOME_ASSISTANT_URL}` and `${HOME_ASSISTANT_TOKEN}` present; `NO_SECRET`.
-- [ ] Verify work renders unchanged (three servers, no Home Assistant):
+- [x] Verify work renders unchanged (three servers, no Home Assistant):
   ```bash
   render work dot_config/mcp/mcp_servers.json.tmpl | jq -e '.mcpServers | keys'
   ! render work dot_config/mcp/mcp_servers.json.tmpl | grep -qi 'ha-mcp\|homeassistant'

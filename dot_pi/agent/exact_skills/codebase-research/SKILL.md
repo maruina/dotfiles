@@ -1,9 +1,11 @@
 ---
 name: codebase-research
-description: "Use when investigating an unfamiliar codebase area before designing, planning, reviewing, debugging, or editing. Guides staged discovery: zoom out, locate relevant files, analyze current behavior, find existing patterns, map assumptions, then summarize evidence before recommendations."
+description: "Use before proposing or implementing fixes, designs, plans, reviews, or edits in an unfamiliar codebase area, even when the user asks to jump straight to a fix. Especially use when a bug fix may have missed use cases, behavior depends on callers/usages, or correctness requires finding similar paths. Guides staged discovery: zoom out, locate relevant files, analyze current behavior, find existing patterns, map assumptions, then summarize evidence before recommendations."
 ---
 # Codebase Research
 Use this skill before proposing designs, implementation plans, reviews, or edits in code you do not already understand.
+
+Use it even for apparently small fixes when the change modifies shared defaults, generated manifests, builders, serializers, validators, security context, permissions, authentication, authorization, storage, networking, or other cross-cutting behavior.
 
 The goal is to understand the system as it exists today before judging or changing it.
 
@@ -33,6 +35,10 @@ Look for:
 - generated code
 - docs, architecture decision records, runbooks, and ownership files
 - examples and sample usages
+- callers and alternate construction paths
+- existing overrides and special cases
+- generated fixture changes that combine new defaults with existing feature flags, annotations, or configuration
+- similar values, constants, annotations, or settings elsewhere in the repository
 
 Output a compact map:
 - implementation files

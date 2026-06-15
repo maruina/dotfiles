@@ -11,6 +11,12 @@ Use this skill when the user provides a GitHub pull request URL or a specific PR
 
 Read PR feedback, inspect the local repository, determine whether comments still apply, and propose a concrete solution. Do not edit files unless the user explicitly asks to apply fixes.
 
+## Relationship to codebase-research
+
+If the PR/comment concerns code behavior you do not already understand, or if the comment suggests a missed use case, hidden caller, alternate path, or broader pattern, use the `codebase-research` skill before proposing a fix.
+
+Do not limit analysis to the commented diff hunk when correctness depends on usages, callers, similar implementations, generated fixture changes, or existing repository patterns.
+
 ## Inputs
 
 Supported inputs:
@@ -100,6 +106,11 @@ Supported inputs:
 
 8. Propose a solution.
 
+   Before proposing a solution, if the fix depends on understanding behavior beyond the commented lines:
+   - use `codebase-research` to locate related files, callers, tests, and similar implementations
+   - inspect alternate paths, direct annotations/configuration, generated fixture changes, and existing overrides or special cases
+   - summarize current behavior and assumptions before recommending the change
+
    Include:
    - why the comment does or does not apply
    - exact file paths
@@ -183,6 +194,7 @@ Status: ...
 ## Rules
 
 - Do not assume review comments apply; inspect current code first.
+- When a review comment flags a missed use case, do not inspect only the diff hunk; use `codebase-research` to find alternate paths before proposing a fix.
 - Do not edit generated files unless repository instructions allow it.
 - Resolve a review thread only after its comment is actually addressed; do not reply to GitHub comments unless explicitly asked.
 - Skip threads already marked `isResolved` on subsequent runs.

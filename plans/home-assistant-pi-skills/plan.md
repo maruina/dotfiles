@@ -144,12 +144,12 @@
 
 This mirrors the existing `datadog-mcp`/`slack-mcp` driver-skill pattern (profile-gated `.tmpl`, documents `mcp-cli` usage).
 
-- [ ] Failing check:
+- [x] Failing check:
   ```bash
   test -f dot_pi/agent/exact_skills/home-assistant-mcp/SKILL.md.tmpl && echo EXISTS || echo MISSING
   ```
   Expected before: `MISSING`.
-- [ ] Create the file wrapped in `{{ if eq .profile "personal" -}}...{{- end }}` with frontmatter (`name: home-assistant-mcp`, a specific `description` stating this skill is subordinate: use only after loading the `home-assistant` router skill or when that skill routes to live MCP access). Body must cover:
+- [x] Create the file wrapped in `{{ if eq .profile "personal" -}}...{{- end }}` with frontmatter (`name: home-assistant-mcp`, a specific `description` stating this skill is subordinate: use only after loading the `home-assistant` router skill or when that skill routes to live MCP access). Body must cover:
   - mandatory routing rule: for every Home Assistant task, load `home-assistant` first; this skill only documents `mcp-cli` mechanics for the router-selected live MCP path;
   - config: server name `ha-mcp`, config file `~/.config/mcp/mcp_servers.json`;
   - discovery: ``mcp-cli info ha-mcp`` and ``mcp-cli info ha-mcp <tool>``;
@@ -157,7 +157,7 @@ This mirrors the existing `datadog-mcp`/`slack-mcp` driver-skill pattern (profil
   - explicit rule: defer all mutation safety to the `home-assistant` router skill and its tiers; never call mutating tools directly from this skill without the router's confirmation protocol;
   - rule: never print or persist `HOME_ASSISTANT_TOKEN`.
   Do not invent exact tool names beyond what discovery returns; instruct the agent to run discovery first (upstream advertises 95+ tools and may rename them).
-- [ ] Verify gating and discoverability (reuse the `render` helper from Task 2):
+- [x] Verify gating and discoverability (reuse the `render` helper from Task 2):
   ```bash
   render work dot_pi/agent/exact_skills/home-assistant-mcp/SKILL.md.tmpl | wc -c   # expect ~0
   render personal dot_pi/agent/exact_skills/home-assistant-mcp/SKILL.md.tmpl | grep -q 'mcp-cli info ha-mcp' && echo OK

@@ -72,14 +72,14 @@
 
 **Files:** `run_onchange_brew-install.sh.tmpl`
 
-- [ ] Failing check (should fail before edit):
+- [x] Failing check (should fail before edit):
   ```bash
   cd /Users/matteo.ruina/.local/share/chezmoi-home-assistant-pi-skills
   grep -q '^brew "uv"$' run_onchange_brew-install.sh.tmpl && echo PRESENT || echo MISSING
   ```
   Expected before: `MISSING`.
-- [ ] Add `brew "uv"` in alphabetical order in the Brewfile heredoc (between `brew "typescript-language-server"` and `brew "wget"` — verify exact neighbors when editing; `uv` sorts after `typescript-language-server` and before `wget`).
-- [ ] Verify:
+- [x] Add `brew "uv"` in alphabetical order in the Brewfile heredoc (between `brew "typescript-language-server"` and `brew "wget"` — verify exact neighbors when editing; `uv` sorts after `typescript-language-server` and before `wget`).
+- [x] Verify:
   ```bash
   grep -n '^brew "uv"$' run_onchange_brew-install.sh.tmpl
   uvx --version

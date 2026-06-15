@@ -214,20 +214,20 @@ This mirrors the existing `datadog-mcp`/`slack-mcp` driver-skill pattern (profil
 
 Do this only after Tasks 3–4 exist (local replacement guidance present), per the design rollout order.
 
-- [ ] Failing check (path currently present):
+- [x] Failing check (path currently present):
   ```bash
   grep -q 'homeassistant-ai/skills/skills' dot_pi/agent/modify_private_settings.json.tmpl && echo PRESENT
   ```
   Expected before: `PRESENT`.
-- [ ] Remove the line `"/Users/ruio/src/github.com/homeassistant-ai/skills/skills/",` from the personal `.skills` array. Keep the `{{ .chezmoi.sourceDir }}/dot_pi/agent/exact_skills_personal` entry and the obsidian entries. Note: the script is a `jq` filter inside a templated `sh` script — the change is a single-line deletion; ensure the resulting JSON array still has valid comma placement.
-- [ ] Verify personal settings render valid JSON without the upstream path and with the local path. The `modify_` file renders to a shell script that reads the current target on stdin and prints the new JSON; simulate an empty current target with `printf '{}'`:
+- [x] Remove the line `"/Users/ruio/src/github.com/homeassistant-ai/skills/skills/",` from the personal `.skills` array. Keep the `{{ .chezmoi.sourceDir }}/dot_pi/agent/exact_skills_personal` entry and the obsidian entries. Note: the script is a `jq` filter inside a templated `sh` script — the change is a single-line deletion; ensure the resulting JSON array still has valid comma placement.
+- [x] Verify personal settings render valid JSON without the upstream path and with the local path. The `modify_` file renders to a shell script that reads the current target on stdin and prints the new JSON; simulate an empty current target with `printf '{}'`:
   ```bash
   render personal dot_pi/agent/modify_private_settings.json.tmpl > /tmp/ha-settings.sh
   printf '{}' | sh /tmp/ha-settings.sh | jq -e '.skills | index("/Users/ruio/src/github.com/homeassistant-ai/skills/skills/") == null'
   printf '{}' | sh /tmp/ha-settings.sh | jq -e '[.skills[] | select(endswith("exact_skills_personal"))] | length == 1'
   ```
   Expected: both `true` (upstream path absent; local path present).
-- [ ] Verify work settings still contain zero Home Assistant references:
+- [x] Verify work settings still contain zero Home Assistant references:
   ```bash
   render work dot_pi/agent/modify_private_settings.json.tmpl > /tmp/ha-settings-work.sh
   ! printf '{}' | sh /tmp/ha-settings-work.sh | grep -qi 'homeassistant\|home_assistant\|ha-mcp'

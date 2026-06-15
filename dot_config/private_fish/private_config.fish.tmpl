@@ -89,7 +89,7 @@ set -gx DD_SITE datadoghq.eu
 # Tavily agentic web search
 set -gx TAVILY_API_KEY '{{ onepasswordRead "op://Private/Tavily/api-key" }}'
 
-# Home Assistant API access
+# Home Assistant API access. ha-mcp consumes these vars via mcp_servers.json.
 set -gx HOME_ASSISTANT_URL 'https://hass.malazan.xyz'
 set -gx HOME_ASSISTANT_TOKEN '{{ onepasswordRead "op://Private/Home Assistant/pi_api_token" }}'
 {{- end }}

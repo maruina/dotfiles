@@ -16,6 +16,7 @@ Use this skill when working with chezmoi-managed dotfiles.
     exact_extensions/    # ~/.pi/agent/extensions/
     models.json.tmpl     # ~/.pi/agent/models.json  (template)
     modify_private_settings.json.tmpl
+  dot_config/mcp/        # ~/.config/mcp/ server config templates, profile-gated and driven by mcp-cli skills
   dot_config/private_fish/
   dot_ssh/config.tmpl
   run_onchange_brew-install.sh.tmpl

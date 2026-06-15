@@ -265,7 +265,7 @@ Do this only after Tasks 3–4 exist (local replacement guidance present), per t
 
 **Files:** none (verification + optional apply only)
 
-- [ ] Full render/diff review of every changed target from the feature worktree source:
+- [x] Full render/diff review of every changed target from the feature worktree source:
   ```bash
   cm diff ~/.config/mcp/mcp_servers.json
   cm diff ~/.pi/agent/skills/home-assistant-mcp/SKILL.md
@@ -274,19 +274,19 @@ Do this only after Tasks 3–4 exist (local replacement guidance present), per t
   cm diff ~/.pi/agent/settings.json
   ```
   Expected: diffs show only intended changes; the old `skills_personal/home-assistant-api` directory is removed (it is under an `exact_` parent) and `home-assistant` is added; no token literals anywhere.
-- [ ] Render-check personal outputs explicitly, even when implementing from a work profile:
+- [x] Render-check personal outputs explicitly, even when implementing from a work profile:
   ```bash
   render personal dot_config/mcp/mcp_servers.json.tmpl | jq -e '.mcpServers["ha-mcp"]'
   render personal dot_pi/agent/modify_private_settings.json.tmpl > /tmp/ha-settings-personal.sh
   printf '{}' | sh /tmp/ha-settings-personal.sh | jq -e '[.skills[] | select(endswith("exact_skills_personal"))] | length == 1'
   ```
   Expected: `ha-mcp` exists in the personal MCP render and the personal settings render keeps the local skills path.
-- [ ] Confirm no committed source file contains a token:
+- [x] Confirm no committed source file contains a token:
   ```bash
   git -C /Users/matteo.ruina/.local/share/chezmoi-home-assistant-pi-skills grep -nEi 'HOMEASSISTANT_TOKEN.*[a-f0-9]{20,}|Bearer [A-Za-z0-9._-]{20,}' -- . ':!plans' || echo NO_TOKENS
   ```
   Expected: `NO_TOKENS`.
-- [ ] Apply gate: because this implementation may run from a `work` profile for better model access, apply only if the active chezmoi profile is personal:
+- [x] Apply gate: because this implementation may run from a `work` profile for better model access, apply only if the active chezmoi profile is personal:
   ```bash
   if cm data | jq -e '.profile == "personal"'; then
     cm apply ~/.config/mcp/mcp_servers.json
@@ -299,7 +299,7 @@ Do this only after Tasks 3–4 exist (local replacement guidance present), per t
   fi
   ```
   Expected on the work profile: `SKIP_APPLY...`. Expected on a personal profile: the five targets apply from the feature worktree source.
-- [ ] Read-only smoke-test gate (run only after the apply gate has applied on a personal profile, and only with the user present; this touches the live instance):
+- [x] Read-only smoke-test gate (run only after the apply gate has applied on a personal profile, and only with the user present; this touches the live instance):
   ```bash
   if cm data | jq -e '.profile == "personal"'; then
     mcp-cli info ha-mcp
@@ -308,7 +308,7 @@ Do this only after Tasks 3–4 exist (local replacement guidance present), per t
   fi
   ```
   Expected on a personal profile: tool list prints without error (server starts via `uvx`). If it errors, stop and check `uv`, `HOME_ASSISTANT_URL`, and `HOME_ASSISTANT_TOKEN` in the current Fish shell. Expected on the work profile: `SKIP_SMOKE_TEST...`.
-- [ ] Optional (only after explicit user approval and only on a personal profile): one Tier 0 read-only inventory call via `mcp-cli call ha-mcp <discovered-list-tool>` to confirm entity count and that no locks/alarms/cameras are present. Do not perform any mutation in this plan.
+- [x] Optional (only after explicit user approval and only on a personal profile): skipped; no explicit user approval and active profile is not personal. Do not perform any mutation in this plan.
 - [ ] No commit (apply/verify only). If the apply gate is skipped on the work profile, record "personal-profile apply and smoke test pending" in the final summary.
 
 ## Task 8 — Documentation and future-agent guidance (required final task)
@@ -317,12 +317,12 @@ Do this only after Tasks 3–4 exist (local replacement guidance present), per t
 
 For each item below, the implementer must either update it or record in the commit message why no update is needed.
 
-- [ ] **Repo `AGENTS.md` (`/Users/matteo.ruina/.local/share/chezmoi/AGENTS.md` and the two mirrors):** add durable knowledge only if absent: (a) pi has no native MCP — MCP servers live in `~/.config/mcp/mcp_servers.json` (source: `dot_config/mcp/*.json.tmpl`) and are driven by `mcp-cli`-based skills; (b) Home Assistant capability is personal-profile-only; (c) `mcp_servers.json.tmpl` has separate work and personal branches. Keep it terse.
-- [ ] **chezmoi skill (`~/.pi/agent/skills/chezmoi/SKILL.md`):** consider a one-line note that MCP server config is templated under `dot_config/mcp/` and gated by profile. Update only if it adds durable value; otherwise record why not.
-- [ ] **Fish config comment:** the `HOME_ASSISTANT_URL`/`HOME_ASSISTANT_TOKEN` block already has a comment. Add a one-line note that `ha-mcp` (in `mcp_servers.json`) consumes these vars, so renaming them breaks the MCP server. Update only if helpful.
-- [ ] **README / runbook / examples:** the repo has no Home Assistant README or runbook; record "no user-facing or runbook docs exist for this area" in the commit if nothing is created. Do not create new top-level docs unless the user asks.
-- [ ] **Driver/router skills as docs:** confirm the two skills themselves serve as the developer/operational doc for the operability checks listed in the design (transcript, `ha-mcp` startup output, logbook/history, config validation, read-only inventory). If any check is missing from the router skill, add it there.
-- [ ] Verify nothing references removed paths:
+- [x] **Repo `AGENTS.md` (`/Users/matteo.ruina/.local/share/chezmoi/AGENTS.md` and the two mirrors):** add durable knowledge only if absent: (a) pi has no native MCP — MCP servers live in `~/.config/mcp/mcp_servers.json` (source: `dot_config/mcp/*.json.tmpl`) and are driven by `mcp-cli`-based skills; (b) Home Assistant capability is personal-profile-only; (c) `mcp_servers.json.tmpl` has separate work and personal branches. Keep it terse.
+- [x] **chezmoi skill (`~/.pi/agent/skills/chezmoi/SKILL.md`):** consider a one-line note that MCP server config is templated under `dot_config/mcp/` and gated by profile. Update only if it adds durable value; otherwise record why not.
+- [x] **Fish config comment:** the `HOME_ASSISTANT_URL`/`HOME_ASSISTANT_TOKEN` block already has a comment. Add a one-line note that `ha-mcp` (in `mcp_servers.json`) consumes these vars, so renaming them breaks the MCP server. Update only if helpful.
+- [x] **README / runbook / examples:** no user-facing or runbook docs exist for this area;  the repo has no Home Assistant README or runbook; record "no user-facing or runbook docs exist for this area" in the commit if nothing is created. Do not create new top-level docs unless the user asks.
+- [x] **Driver/router skills as docs:** confirm the two skills themselves serve as the developer/operational doc for the operability checks listed in the design (transcript, `ha-mcp` startup output, logbook/history, config validation, read-only inventory). If any check is missing from the router skill, add it there.
+- [x] Verify nothing references removed paths:
   ```bash
   git -C /Users/matteo.ruina/.local/share/chezmoi-home-assistant-pi-skills grep -n 'home-assistant-api' -- . ':!plans' || echo NO_OLD_NAME
   git -C /Users/matteo.ruina/.local/share/chezmoi-home-assistant-pi-skills grep -n 'homeassistant-ai/skills/skills' -- . ':!plans' || echo NO_UPSTREAM_PATH

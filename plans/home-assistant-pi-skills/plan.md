@@ -239,12 +239,12 @@ Do this only after Tasks 3–4 exist (local replacement guidance present), per t
 
 **Files:** `dot_pi/agent/exact_prompts/sync-home-assistant-skills.md`
 
-- [ ] Failing check:
+- [x] Failing check:
   ```bash
   test -f dot_pi/agent/exact_prompts/sync-home-assistant-skills.md && echo EXISTS || echo MISSING
   ```
   Expected before: `MISSING`.
-- [ ] Create the prompt with frontmatter `description:` (review upstream Home Assistant skills + ha-mcp and curate local updates). Body must instruct the agent to:
+- [x] Create the prompt with frontmatter `description:` (review upstream Home Assistant skills + ha-mcp and curate local updates). Body must instruct the agent to:
   - inspect upstream `homeassistant-ai/skills` and `homeassistant-ai/ha-mcp`;
   - compare upstream guidance/tooling against local `dot_pi/agent/exact_skills_personal/home-assistant*` and `dot_pi/agent/exact_skills/home-assistant-mcp/SKILL.md.tmpl`;
   - highlight useful changes, stale local guidance, duplicated content, changed safety assumptions, and renamed/deprecated `ha-mcp` tools;
@@ -253,7 +253,7 @@ Do this only after Tasks 3–4 exist (local replacement guidance present), per t
   - ask before editing unless explicitly told to apply;
   - record upstream URL, commit/date, source method, and a summary of curated updates;
   - never include the Home Assistant token or private URLs in output.
-- [ ] Verify discoverability and content:
+- [x] Verify discoverability and content:
   ```bash
   grep -q 'safety policy' dot_pi/agent/exact_prompts/sync-home-assistant-skills.md \
     && grep -q 'commit/date\|commit / date' dot_pi/agent/exact_prompts/sync-home-assistant-skills.md && echo OK

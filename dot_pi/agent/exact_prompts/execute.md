@@ -48,7 +48,11 @@ For testable behavior, default to red-green-refactor: write or run the focused f
 12. Complete the plan's documentation and future-agent guidance task, including every required `AGENTS.md` inspection.
 13. Run the final verification commands and inspect `git status`.
 14. Review plan fidelity: all tasks complete, requirements met, no unapproved scope added, and deviations documented in the plan ledger.
-15. Use `/pr-create --draft` to open a draft PR unless the user explicitly says not to.
+15. Before opening a PR, evaluate the completed work against the stack-split signals from the `reviewable-pr-workflow` skill:
+   - Strong signals: 2+ distinct subsystems that could ship independently; more than ~400 net lines of non-generated, non-test code; more than ~15 non-generated files.
+   - Soft signals: reviewer guide would need more than five topics; commits fall into independent groups; branch mixes refactor, feature, and behavior change.
+   If any strong signal trips, or two or more soft signals trip, **stop and propose a stack plan** (one row per branch in dependency order) and ask whether to split before opening any PR. Do not proceed past this point until the user responds.
+   If no split is needed, use `/pr-create --draft` to open a draft PR unless the user explicitly says not to.
 16. Report the exact handoff phrase below.
 
 The terminal state is implemented, verified changes with the plan updated as the progress ledger.
@@ -69,6 +73,7 @@ Keep tests on observable behavior through public or supported interfaces. Mock s
 ## Stop Conditions
 Stop and ask when:
 
+- the completed implementation triggers a strong or two-soft stack-split signal (see step 15) and the user has not approved a split or single-PR decision
 - the branch is `main` or `master` without explicit user approval
 - `design.md` and `plan.md` cannot be committed or recovered into separate commits before implementation begins
 - there are uncommitted changes after lifecycle doc recovery

@@ -106,6 +106,5 @@ curl -H "Authorization: Bearer $HOME_ASSISTANT_TOKEN" \
 ## Next Steps
 
 After understanding authentication and basics:
-- Query states: See `state-management.md`
-- Control devices: See `service-reference.md`
-- Advanced queries: See `templates.md`
+- Prefer the `home-assistant-mcp` skill for live inventory, state, and control through `ha-mcp`.
+- Follow `safety-and-routing.md` for confirmation, verification, rollback, and routing rules.

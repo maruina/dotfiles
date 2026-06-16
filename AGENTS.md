@@ -59,6 +59,10 @@ If unsure, stop and ask.
 
 Ghostty, Starship, 1Password (secrets and SSH agent), SOPS + Age, Kubernetes (`kctx` for per-shell context isolation).
 
+## Pi MCP and Home Assistant
+
+Pi has no native MCP. MCP servers are templated under `dot_config/mcp/` into `~/.config/mcp/mcp_servers.json` and driven by `mcp-cli` skills. Keep `mcp_servers.json.tmpl` profile-gated with separate work and personal branches; Home Assistant capability is personal-profile-only.
+
 ## Git Worktree
 
 - Start from an updated `main`.

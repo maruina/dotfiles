@@ -38,7 +38,7 @@ Surface scale assumptions early. Ask enough sizing questions to understand the o
    - Worktree path: follow repository guidance. For Datadog repositories, use `~/dd/.worktrees/<repo-name>-<branch-slug>`.
    - If the default branch, branch name, or worktree location is ambiguous, ask before creating.
    - Move any already-written uncommitted design spec into the worktree and remove it from the original checkout.
-10. Write `plans/<ticket-or-feature>/design.md` in the worktree.
+10. Write `plans/<ticket-or-feature>/design.md` in the worktree, relative to the relevant package directory in monorepos (e.g. `domains/compute/apps/<app>/plans/<ticket-or-feature>/design.md`). Record its absolute path for the handoff.
 11. Review the spec as a skeptical staff engineer. Fix blocking issues inline; record rejected findings with rationale.
 12. Commit only the design spec: `docs: add <ticket-or-feature> design`. Do not include unrelated changes.
 13. Ask the user to review the spec before handing off to `/plan`.
@@ -92,6 +92,8 @@ The spec must include:
 Before asking for review, remove placeholders, contradictions, unsupported assumptions, scope creep, and vague mitigations.
 
 ## Handoff
-After saving and committing the spec, say exactly:
+After saving and committing the spec, report its absolute path and hand off with that exact path, saying:
 
-> Spec complete, committed, and saved to `plans/<ticket-or-feature>/design.md`. Review it before handing off to `/plan plans/<ticket-or-feature>/design.md`, or run `/plan` with no arguments to choose from discovered design specs.
+> Spec complete, committed, and saved to `<absolute-path-to-design.md>`. Review it before handing off to `/plan <absolute-path-to-design.md>`.
+
+Pass the full absolute path so `/plan` resolves the spec directly instead of searching every worktree, which in a monorepo lists every committed `plans/*/design.md` copy across worktrees.

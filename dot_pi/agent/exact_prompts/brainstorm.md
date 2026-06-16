@@ -94,6 +94,6 @@ Before asking for review, remove placeholders, contradictions, unsupported assum
 ## Handoff
 After saving and committing the spec, report its absolute path and hand off with that exact path, saying:
 
-> Spec complete, committed, and saved to `<absolute-path-to-design.md>`. Review it before handing off to `/plan <absolute-path-to-design.md>`.
+> Spec complete, committed, and saved to `<absolute-path-to-design.md>`. Review it before handing off to `/plan <absolute-path-to-design.md>`, or run `/plan` with no arguments to choose from discovered design specs.
 
-Pass the full absolute path so `/plan` resolves the spec directly instead of searching every worktree, which in a monorepo lists every committed `plans/*/design.md` copy across worktrees.
+Lead with the full absolute path so `/plan` resolves the spec directly instead of searching every worktree, which in a monorepo lists every committed `plans/*/design.md` copy across worktrees. Keep the no-argument form as a fallback for when the path is not at hand.

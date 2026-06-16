@@ -123,4 +123,6 @@ Before reporting completion, verify:
 ## Handoff
 After saving and committing the plan, say exactly:
 
-> Plan complete, committed, and saved to `plans/<ticket-or-feature>/plan.md`. Run `/systematic-review plans/<ticket-or-feature>/plan.md` to validate it before handing off to `/execute`.
+> Plan complete, committed, and saved to `<full-path-to-plan.md>`. Run `/systematic-review <full-path-to-plan.md>` to validate it before handing off to `/execute`.
+
+Replace `<full-path-to-plan.md>` with the absolute path to the plan file in the worktree (e.g. `/Users/you/dd/.worktrees/repo-branch/plans/ticket/plan.md`).

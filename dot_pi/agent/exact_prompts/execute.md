@@ -1,22 +1,22 @@
 ---
-description: Execute an approved implementation plan with review checkpoints
+description: Execute a committed implementation plan with review checkpoints
 argument-hint: "<path-to-plan.md> [extra instructions]"
 ---
-# Execute an Approved Plan
+# Execute a Plan
 Plan: `$1`
 
 Extra instructions:
 
 > `${@:2}`
 
-Execute the approved implementation plan.
+Execute the committed implementation plan.
 
 Use the `resolve-worktree` skill to resolve `$1` with `$GLOB = **/plans/*/plan.md`. Switch context to the owning worktree before reading repository files or modifying code. The recursive glob matches plans nested under monorepo package paths (e.g. `domains/compute/apps/<app>/plans/<ticket>/plan.md`), not only repository-root `plans/`.
 
-Lifecycle: `/brainstorm` creates an approved design spec, `/plan` creates an approved implementation plan, and `/execute` implements verified changes.
+Lifecycle: `/brainstorm` creates a committed design spec, `/plan` creates a committed implementation plan, `/systematic-review` validates code or plans, `/execute` implements verified changes, and `/compound` captures durable learning after the work lands.
 
 <HARD-GATE>
-Do not start implementation on `main` or `master` without explicit user consent. Do not skip the initial plan review. Do not continue past blockers, unclear instructions, scope changes, or repeatedly failing verification; stop and ask.
+Do not start implementation on `main` or `master` without explicit user consent. Do not skip the initial plan review. Do not continue past blockers, unclear instructions, scope changes, or repeated verification failures; stop and ask.
 </HARD-GATE>
 
 ## Posture
@@ -82,7 +82,7 @@ Stop and ask when:
 - an instruction is unclear
 - a required dependency, credential, service, or generated artifact is missing
 - verification fails repeatedly after focused debugging
-- implementation needs a scope, behavior, API, schema, rollout, or rollback change beyond the approved plan
+- implementation needs a scope, behavior, API, schema, rollout, or rollback change beyond the committed plan
 - the plan requires an unavailable skill
 - the current codebase materially differs from the plan assumptions
 - a loaded skill shows the planned approach is unsafe or non-idiomatic
@@ -94,7 +94,7 @@ Use the plan file as the progress ledger:
 
 - update checkboxes for completed work
 - add short notes for deviations, failed verifications, equivalent commands, and refactors made after green
-- do not rewrite the approved plan unless the user approves a plan change
+- do not rewrite the committed plan unless the user approves a plan change
 
 ## Handoff
 After all tasks are complete, verification passes, `git status` has been inspected, and the draft PR is opened, summarize changed files, verification commands, and follow-up items. Then say exactly:

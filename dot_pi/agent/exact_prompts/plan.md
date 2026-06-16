@@ -1,22 +1,22 @@
 ---
-description: Turn an approved design spec into an implementation plan
+description: Turn a committed design spec into a committed implementation plan
 argument-hint: "<path-to-design.md> [extra instructions]"
 ---
-# Plan an Approved Design
+# Plan a Design
 Design spec: `$1`
 
 Extra instructions:
 
 > `${@:2}`
 
-Turn the approved design spec into a concrete implementation plan.
+Turn the committed design spec into a concrete implementation plan.
 
 Use the `resolve-worktree` skill to resolve `$1` with `$GLOB = **/plans/*/design.md`. Switch context to the owning worktree before reading the spec. The recursive glob matches design specs nested under monorepo package paths (e.g. `domains/compute/apps/<app>/plans/<ticket>/design.md`), not only repository-root `plans/`.
 
-Lifecycle: `/brainstorm` creates an approved design spec, `/plan` creates an approved implementation plan, and `/execute` implements verified changes.
+Lifecycle: `/brainstorm` creates a committed design spec, `/plan` creates a committed implementation plan, `/systematic-review` validates code or plans, `/execute` implements verified changes, and `/compound` captures durable learning after the work lands.
 
 <HARD-GATE>
-Do not write implementation code, scaffold application files, or change files outside `plans/<ticket-or-feature>/plan.md`. The terminal state is a saved implementation plan.
+Do not write implementation code, scaffold application files, or change files outside `plans/<ticket-or-feature>/plan.md`. The terminal state is a committed implementation plan.
 </HARD-GATE>
 
 ## Posture
@@ -123,6 +123,6 @@ Before reporting completion, verify:
 ## Handoff
 After saving and committing the plan, say exactly:
 
-> Plan complete, committed, and saved to `<full-path-to-plan.md>`. Run `/systematic-review <full-path-to-plan.md>` to validate it before handing off to `/execute`.
+> Plan complete, committed, and saved to `<absolute-path-to-plan.md>`. Run `/systematic-review <absolute-path-to-plan.md>` to validate it before handing off to `/execute <absolute-path-to-plan.md>`.
 
-Replace `<full-path-to-plan.md>` with the absolute path to the plan file in the worktree (e.g. `/Users/you/dd/.worktrees/repo-branch/plans/ticket/plan.md`).
+Replace `<absolute-path-to-plan.md>` with the absolute path to the plan file in the worktree (e.g. `/Users/you/dd/.worktrees/repo-branch/plans/ticket/plan.md`).

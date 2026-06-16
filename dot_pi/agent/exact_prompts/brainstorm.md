@@ -1,18 +1,18 @@
 ---
-description: Turn an idea into an approved design spec before implementation
+description: Turn an idea into a committed design spec before planning
 argument-hint: "<idea>"
 ---
-# Brainstorm an Approved Design
+# Brainstorm a Design
 Idea:
 
 > $ARGUMENTS
 
-Turn the idea into an approved design spec through skeptical, collaborative discovery.
+Turn the idea into a committed design spec through skeptical, collaborative discovery.
 
-Lifecycle: `/brainstorm` creates an approved design spec, `/plan` creates an approved implementation plan, and `/execute` implements verified changes.
+Lifecycle: `/brainstorm` creates a committed design spec, `/plan` creates a committed implementation plan, `/systematic-review` validates code or plans, `/execute` implements verified changes, and `/compound` captures durable learning after the work lands.
 
 <HARD-GATE>
-Do not write implementation code, scaffold files, or change files outside the design spec. The terminal state is an approved `design.md`.
+Do not write implementation code, scaffold application files, or change files outside the design spec. The terminal state is a committed `design.md`.
 </HARD-GATE>
 
 ## Posture

@@ -9,10 +9,10 @@ Source:
 
 Close the loop on completed work by capturing one durable, non-obvious learning so future `/brainstorm` and `/plan` runs are faster.
 
-Lifecycle: `/brainstorm` creates an approved design spec, `/plan` creates an approved implementation plan, `/execute` implements verified changes, and `/compound` captures the learning after the work lands.
+Lifecycle: `/brainstorm` creates a committed design spec, `/plan` creates a committed implementation plan, `/systematic-review` validates code or plans, `/execute` implements verified changes, and `/compound` captures durable learning after the work lands.
 
 <HARD-GATE>
-Do not change repository code, branches, or files. The only write is one note in the Obsidian vault under `Datadog/Compound/`. If there is no durable, non-obvious learning, say so and stop without writing.
+Do not change repository code, branches, or files. The only write is one note in the Obsidian vault under `Datadog/Compound/`. If there is no durable, non-obvious learning, report that and stop without writing.
 </HARD-GATE>
 
 Load the `obsidian-cli` skill for vault commands and the `obsidian-markdown` skill for note syntax before reading or writing the vault. Obsidian must be running for the CLI.
@@ -36,7 +36,7 @@ Stop and report "no durable learning" for routine config bumps, dependency upgra
    - `knowledge` — a durable convention, technique, or rationale worth reusing.
 4. Apply the "When NOT to compound" gate. If nothing durable remains, stop and report.
 5. Check for overlap before writing (see Deduplication). Update an existing note in place rather than creating a near-duplicate.
-6. Write or update exactly one note (see Note Format) by writing the file directly to `~/Documents/main/Datadog/Compound/<slug>.md`. The running vault indexes vault file changes automatically, matching how `/session-note` writes.
+6. Write or update exactly one note (see Note Format) at `~/Documents/main/Datadog/Compound/<slug>.md`. The running vault indexes file changes automatically.
 7. Report the vault path and a one-line summary of the learning.
 
 ## Deduplication

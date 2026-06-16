@@ -50,6 +50,7 @@ Use the `codebase-research` skill before proposing approaches. For design work, 
 
 - repository guidance: `README*`, `AGENTS.md`, `CLAUDE.md`, contributor docs, architecture docs, ADRs
 - relevant skills, prior plans (`**/plans/*/design.md`), tickets, incidents, dashboards, runbooks
+- past learnings captured by `/compound` in the Obsidian vault under `Datadog/Compound/`, filtered to the current repo slug (e.g. `obsidian search:context query="<owner/name>" path="Datadog/Compound"`); load the `obsidian-cli` skill to query them
 - files, packages, APIs, configs, tests, owners, and interfaces likely to be touched
 - existing implementation and test patterns near the likely change
 - callers, dependencies, downstream consumers, data flow, control flow, lifecycle, and ownership boundaries

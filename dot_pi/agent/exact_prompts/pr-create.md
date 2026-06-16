@@ -56,8 +56,10 @@ Also read any `CLAUDE.md` or `AGENTS.md` files in the repository root and in cha
 Check for plan artifacts created by the `/brainstorm` → `/plan` → `/execute` workflow:
 
 ```fish
-find plans -maxdepth 2 \( -name "design.md" -o -name "plan.md" \) 2>/dev/null
+find . \( -path '*/plans/*/design.md' -o -path '*/plans/*/plan.md' \) 2>/dev/null
 ```
+
+This recursive search finds plan artifacts nested under monorepo package paths (e.g. `domains/compute/apps/<app>/plans/<ticket>/`), not only repository-root `plans/`.
 
 If found, note the paths for Phase 2 and Phase 6.
 
@@ -65,7 +67,7 @@ If found, note the paths for Phase 2 and Phase 6.
 
 Inspect the changed files and diffs enough to explain the PR accurately.
 
-If `plans/*/design.md` was found in Phase 1, read it before inspecting diffs. It is the authoritative record of goals, alternatives considered, risks, and key decisions for this work.
+If a `**/plans/*/design.md` spec was found in Phase 1, read it before inspecting diffs. It is the authoritative record of goals, alternatives considered, risks, and key decisions for this work.
 
 For each meaningful change, identify:
 - the review topic

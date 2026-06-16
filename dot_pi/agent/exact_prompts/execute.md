@@ -11,7 +11,7 @@ Extra instructions:
 
 Execute the approved implementation plan.
 
-Use the `resolve-worktree` skill to resolve `$1` with `$GLOB = plans/*/plan.md`. Switch context to the owning worktree before reading repository files or modifying code.
+Use the `resolve-worktree` skill to resolve `$1` with `$GLOB = **/plans/*/plan.md`. Switch context to the owning worktree before reading repository files or modifying code. The recursive glob matches plans nested under monorepo package paths (e.g. `domains/compute/apps/<app>/plans/<ticket>/plan.md`), not only repository-root `plans/`.
 
 Lifecycle: `/brainstorm` creates an approved design spec, `/plan` creates an approved implementation plan, and `/execute` implements verified changes.
 

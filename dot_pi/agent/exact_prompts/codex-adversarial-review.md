@@ -24,7 +24,7 @@ Arguments are optional positional values:
 
 ## Worktree selection
 
-Use the `resolve-worktree` skill with `$GLOB = plans/*/plan.md` to select the review worktree. Set `$REVIEW_ROOT` to `$RESOLVED_ROOT`. All subsequent commands must use `cd $REVIEW_ROOT` or `git -C $REVIEW_ROOT`.
+Use the `resolve-worktree` skill with `$GLOB = **/plans/*/plan.md` to select the review worktree. Set `$REVIEW_ROOT` to `$RESOLVED_ROOT`. All subsequent commands must use `cd $REVIEW_ROOT` or `git -C $REVIEW_ROOT`.
 
 After resolution, verify the selected branch is not `main` or `master`:
 

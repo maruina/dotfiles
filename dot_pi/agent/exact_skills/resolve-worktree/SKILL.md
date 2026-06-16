@@ -21,7 +21,7 @@ Set `$RESOLVED_PATH` to the absolute path and `$RESOLVED_ROOT` to its git toplev
 
 **Never search only the current checkout.** Always enumerate every worktree first.
 
-1. Run `git worktree list --porcelain` and collect all worktree roots, including the current checkout. Search every root for files matching `$GLOB`.
+1. Run `git worktree list --porcelain` and collect all worktree roots, including the current checkout. Search every root for files matching `$GLOB`. `$GLOB` may be recursive (e.g. `**/plans/*/design.md`); match it recursively from each worktree root with `find <root> -path '*/plans/*/design.md'` or an equivalent globstar search, so specs nested under monorepo package paths are found, not only repository-root `plans/`.
 2. For each candidate, collect: full path, worktree root, branch name, last modified time, and first Markdown heading.
 3. Sort by last modified time descending; current-checkout candidates first when timestamps are similar.
 4. If exactly one candidate, ask the user to confirm it. Stop until they answer.

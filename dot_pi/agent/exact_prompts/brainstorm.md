@@ -49,7 +49,7 @@ Scale discovery to complexity and risk. Start with evidence before design — do
 Use the `codebase-research` skill before proposing approaches. For design work, additionally review when applicable:
 
 - repository guidance: `README*`, `AGENTS.md`, `CLAUDE.md`, contributor docs, architecture docs, ADRs
-- relevant skills, prior plans (`plans/*/design.md`), tickets, incidents, dashboards, runbooks
+- relevant skills, prior plans (`**/plans/*/design.md`), tickets, incidents, dashboards, runbooks
 - files, packages, APIs, configs, tests, owners, and interfaces likely to be touched
 - existing implementation and test patterns near the likely change
 - callers, dependencies, downstream consumers, data flow, control flow, lifecycle, and ownership boundaries

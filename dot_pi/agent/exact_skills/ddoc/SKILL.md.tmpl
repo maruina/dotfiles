@@ -1,0 +1,229 @@
+{{ if eq .profile "work" -}}
+---
+name: ddoc
+description: Use Datadog ddoc to sync Markdown documentation from code to Confluence. Use when creating, linking, validating, previewing, or troubleshooting ddoc-managed Markdown pages, ddoc frontmatter, ddoc directives, or Confluence docs-as-code sync.
+---
+# ddoc
+`ddoc` syncs Markdown files in GitHub repos to Confluence. Docs live next to code, get reviewed in PRs, and sync automatically after merge to the repo's default branch.
+
+Official docs:
+- [ddoc](https://datadoghq.atlassian.net/wiki/spaces/ODP/pages/6183815156/ddoc)
+- [ddoc Syntax Reference](https://datadoghq.atlassian.net/wiki/spaces/ODP/pages/6197969213/ddoc+Syntax+Reference)
+
+## Default workflow
+1. Add ddoc frontmatter to a Markdown file once.
+2. Review and merge changes to the repo's default branch, usually `main`.
+3. Let `ddoc-sync-consumer` update Confluence.
+
+Use the CLI for one-time setup, local validation, previews, and manual syncs. In steady state, publish docs by merging PRs.
+
+## Installation
+Recommended on Apple Silicon:
+
+```shell
+dogbrew install ddoc
+```
+
+Homebrew alternative:
+
+```shell
+brew update && brew install datadog/tap/ddoc
+```
+
+When switching from Homebrew to Dogbrew, uninstall the Homebrew version first:
+
+```shell
+brew uninstall datadog/tap/ddoc
+```
+
+Run from `dd-source` without installing:
+
+```shell
+bzl run //domains/odp/apps/apis/ddoc-sync-consumer/cmd/ddoc -- sync <path>
+```
+
+## Authentication and environment
+`sync`, `status`, and verified `link` need Confluence credentials:
+
+```shell
+export CONFLUENCE_EMAIL='you@datadoghq.com'
+export CONFLUENCE_API_TOKEN='your-atlassian-api-token'
+export CONFLUENCE_URL='https://datadoghq.atlassian.net'
+export DDOC_DEFAULT_SPACE='ODP'
+```
+
+Rules:
+- Never hardcode or print `CONFLUENCE_API_TOKEN` or `CONFLUENCE_TOKEN`.
+- `CONFLUENCE_API_TOKEN` and `CONFLUENCE_TOKEN` are both accepted.
+- `CONFLUENCE_EMAIL` and `CONFLUENCE_USERNAME` are both accepted.
+- `CONFLUENCE_URL` defaults to `https://datadoghq.atlassian.net`.
+- `DDOC_DEFAULT_SPACE` only applies when frontmatter omits `confluence_space`.
+- `ddoc check` is offline-friendly. It uses credentials, when present, only to detect page conflicts.
+
+## Common commands
+| Command | Purpose |
+| --- | --- |
+| `ddoc init FILE --space SPACE` | Add ddoc frontmatter. Optional: `--parent`, `--title`, `--emoji`, `--width`. |
+| `ddoc link FILE PAGE_ID` | Link a file to an existing Confluence page and write `confluence_id`. |
+| `ddoc check PATH [PATH ...]` | Validate frontmatter and conversion without writing. |
+| `ddoc status [path ...]` | Show sync status against Confluence without writing. |
+| `ddoc sync [path ...]` | Preview, confirm, and sync pages. |
+| `ddoc version` | Print the CLI version. |
+
+Useful `sync` flags:
+- `--dry-run`: preview only.
+- `-y` / `--yes`: skip confirmation, usually for CI.
+- `--force`: re-push unchanged pages and skip confirmation.
+
+Flags can appear before or after positional arguments.
+
+## Onboarding docs
+### Link an existing Confluence page
+Copy the page ID from a URL like `.../pages/<ID>/...`, then run:
+
+```shell
+ddoc link docs/architecture.md 6183815156
+```
+
+Commit the frontmatter change. Future merges to the default branch update that page.
+
+### Create a new Confluence page
+When no page exists yet:
+
+```shell
+ddoc init docs/runbook.md --space ODP --parent 1234567890
+ddoc sync docs/runbook.md
+```
+
+The first sync creates the page and writes `confluence_id` to the file. Commit that ID.
+
+### Preview selected files
+
+```shell
+ddoc sync --dry-run docs/
+ddoc sync --dry-run src/pawprints/*.md
+```
+
+## Frontmatter
+Every managed Markdown file starts with YAML frontmatter:
+
+```yaml
+---
+ddoc:
+  confluence_id: "6183815156"
+  confluence_space: "ODP"
+  confluence_parent: "1234567890"
+  title: "My Page Title"
+  emoji: "🚀"
+  width: full-width
+  banner: false
+  exclude: true
+---
+```
+
+Field rules:
+- Specify at least `confluence_id` or `confluence_space`.
+- `confluence_id` updates an existing page. Without it, ddoc creates a page.
+- `confluence_space` is required for new pages and whenever `confluence_parent` is set.
+- `confluence_parent` sets the parent page ID for child pages.
+- `title` overrides the first H1 as the Confluence page title.
+- `emoji` sets the Confluence page icon.
+- `width` accepts `default` or `full-width`. Unset preserves the current Confluence width.
+- `banner` defaults to `true`. Set `false` to hide the source banner.
+- `exclude: true` skips the file during sync.
+
+## Page organization
+### Directory of pages
+Each annotated file becomes one page. Child pages can declare `confluence_parent`. An `index.md` automatically becomes the parent for sibling files in the same directory.
+
+### Split one file into pages
+Use inline directives:
+
+```markdown
+# Parent Page Title
+
+Parent content.
+
+<!-- ddoc:page "API Reference" id:1234567 emoji:📘 -->
+
+## API Reference
+
+Child page content.
+
+<!-- ddoc:page-end -->
+
+Back to parent content.
+```
+
+Directive notes:
+- `<!-- ddoc:page "Title" -->` starts a child page.
+- Add `id:PAGE_ID` to update an existing page instead of creating a duplicate.
+- Add `emoji:EMOJI` to set a child page icon.
+- `<!-- ddoc:page-end -->` returns content to the parent page.
+
+## Ignore content
+Hide content from Confluence while keeping it in GitHub:
+
+```markdown
+<!-- ddoc:ignore -->
+This next line is hidden from Confluence.
+
+<!-- ddoc:ignore:start -->
+This block is hidden from Confluence.
+<!-- ddoc:ignore:end -->
+```
+
+ddoc also strips common CI/CD badges.
+
+## Supported Markdown and Confluence features
+Use normal GitHub-Flavored Markdown when possible. ddoc supports:
+- Fenced code blocks, with language aliases such as `js`, `ts`, `py`, `sh`, `shell`, and `yml` normalized for Confluence.
+- Mermaid diagrams from ```mermaid fences. ddoc renders them with `mmdc` when available and falls back to code blocks otherwise.
+- GFM callouts: `> [!NOTE]`, `> [!TIP]`, `> [!WARNING]`, `> [!IMPORTANT]`, `> [!CAUTION]`.
+- Bold-prefix callouts: `> **Note:**`, `> **Warning:**`, `> **Tip:**`.
+- Tables, task lists, strikethrough, images, and local image uploads as Confluence attachments.
+- Status lozenges: `{status:green|Done}`, `{status:yellow|In Progress}`, `{status:red|Blocked}`, `{status:blue|Info}`, `{status:grey|Skipped}`.
+- Table of contents macros: `[TOC]` or `[[_TOC_]]`.
+- `<details>/<summary>` converted to Confluence expand macros.
+- Links to other ddoc-managed `.md` files rewritten to Confluence page URLs.
+
+For Mermaid support:
+
+```shell
+npm install -g @mermaid-js/mermaid-cli
+```
+
+Optional Mermaid environment:
+- `DDOC_DIAGRAM_DIR`: diagram PNG cache directory. Default: `/tmp/ddoc/diagrams`.
+- `DDOC_MERMAID_CLI`: path to `mmdc`. Default: auto-detected.
+
+## Validation before push
+Prefer this sequence before committing ddoc changes:
+
+```shell
+ddoc check README.md docs/architecture.md
+ddoc status docs/
+ddoc sync --dry-run docs/
+```
+
+Use `ddoc check` for fast offline validation. Use `status` or `sync --dry-run` to compare against Confluence when credentials are available.
+
+## Auto-sync requirements
+Auto-sync runs only when:
+- the repo is in the `DataDog` GitHub org,
+- the repo has a `dd-octo-sts` policy,
+- the push is on the repo's default branch, and
+- the changed `.md` file has ddoc frontmatter.
+
+## Safety guidance
+- Do not edit ddoc-managed pages directly in Confluence. Edit the source Markdown in GitHub.
+- After `ddoc sync` creates a page and writes `confluence_id`, commit the frontmatter update.
+- Use `id:PAGE_ID` for existing inline child pages to avoid duplicates.
+- Prefer `--dry-run`, `ddoc check`, and `ddoc status` before manual writes.
+- Do not use `--force` unless the user needs to re-push unchanged content.
+- ddoc attempts to preserve Confluence inline comment markers when the marked text still exists.
+
+## Support and source
+- Slack: `#ddoc-ops`
+- Source: `DataDog/dd-source`, `domains/odp/apps/apis/ddoc-sync-consumer/`
+{{- end }}

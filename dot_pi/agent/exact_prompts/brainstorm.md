@@ -140,10 +140,58 @@ Do not:
 - ask a long questionnaire
 - produce polished output before the problem is understood
 
+## Branch-by-Branch Exploration
+Explore the problem tree one branch at a time.
+
+Do not jump between unrelated concerns. Finish the current branch enough to know whether it is:
+
+- accepted
+- rejected
+- deferred
+- blocked on evidence
+- split into a smaller slice
+
+Useful branches include:
+
+- user / audience
+- problem and current pain
+- proposed solution
+- constraints
+- success criteria
+- validation
+- risks and failure modes
+- rollout / reversibility
+- ownership and maintenance
+- alternatives and simpler options
+
+## Pressure-Test Mode
+If the user asks to pressure-test, grill, challenge, poke holes in, or stress-test an idea, become more adversarial while staying constructive.
+
+In pressure-test mode:
+
+- look for weak assumptions
+- ask what would make the idea fail
+- compare against simpler alternatives
+- identify hidden operational, review, rollout, and ownership costs
+- force vague success criteria into observable outcomes
+- keep asking one question at a time until the risky branches are resolved or explicitly deferred
+
 ## Questions
 Ask one question at a time.
 
 Ask the question that most reduces uncertainty or scope risk. Prefer specific questions over generic questions.
+
+When useful, include a recommended answer:
+
+```md
+## Question
+...
+
+## Recommended answer
+I would choose ... because ...
+```
+
+The recommended answer is not a decision. It is a strawman to make disagreement easier.
 
 Good questions:
 
@@ -211,6 +259,10 @@ If the answer to the on-call question is no, propose a smaller or safer slice.
 Scale discovery to scope and risk. Do not do heavyweight discovery for simple work, and do not skip discovery for broad or risky work.
 
 For codebase work, use the `codebase-research` skill when correctness depends on current behavior, callers, usages, existing patterns, or missed edge cases. For other domains, inspect the relevant source-of-truth material available in the environment.
+
+Do not ask the user questions that can be answered cheaply from available source-of-truth material.
+
+If the answer is likely in code, tests, docs, tickets, logs, metrics, PRs, or repository guidance, inspect that evidence first. Ask the user only for decisions, priorities, missing context, or source-of-truth material that is not available.
 
 Ask for source-of-truth links when they would materially improve context: Jira, Confluence page, Slack thread, incident, PR, design doc, runbook, dashboard, support ticket, service ownership page, or other durable reference. If the user does not have them, continue with available evidence and mark the gap.
 

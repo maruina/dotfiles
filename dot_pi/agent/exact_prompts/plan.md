@@ -28,6 +28,18 @@ If no path is provided, use the current conversation context and `$ARGUMENTS`. W
 
 If the input is a broad idea with unclear goal, audience/user, scope, success criteria, or validation, stop and ask one question at a time before writing a plan.
 
+When asking a blocking planning question, include a recommended answer if there is enough evidence:
+
+```md
+## Blocking question
+...
+
+## Recommended answer
+I recommend ... because ...
+
+If that is right, I will plan around ...
+```
+
 For trivial or explicitly ephemeral work, ask whether the user wants a chat-only plan instead of a committed `plan.md`. Otherwise write a durable plan file.
 
 ## Source of Truth
@@ -41,6 +53,8 @@ Every major task must trace back to a goal, requirement, or explicit user instru
 Plan for a skilled engineer with no local context. Be exact, test-driven, and skeptical. If the input is not ready to plan from, stop and ask for the missing decision.
 
 Prefer DRY, YAGNI, small vertical slices, frequent verification, and existing repository patterns. Use boring technology. Reuse existing libraries, services, CLIs, controllers, APIs, and platform primitives instead of reimplementing them.
+
+Do not ask the user to identify files, commands, patterns, or existing behavior if those can be discovered from the repository. Investigate first, then ask only to confirm ambiguous choices or product decisions.
 
 Capture decisions, boundaries, files, dependencies, risks, and test scenarios. Do not pre-write large implementation blocks or shell-command choreography. Include snippets only when they clarify an interface, schema, command, invariant, or expected behavior.
 
@@ -62,16 +76,17 @@ When creating or updating a durable plan:
 ## Workflow
 1. Read the planning input completely. If it is a path, resolve it to the correct worktree first.
 2. Inspect relevant guidance, code, tests, build commands, package boundaries, existing patterns, tickets, prior plans, architecture decision records, and review threads.
-3. Load relevant planning skills before writing tasks. Prefer specific skills over general ones.
-4. Check scope. If the work spans independent subsystems, suggest separate plans unless the input already decomposes them into independently testable deliverables.
-5. Right-size the plan based on risk and complexity.
-6. Map files before tasks: each file to create or modify, its responsibility, boundaries, and tests.
-7. Decide where the plan should live. Prefer `plans/<ticket-or-feature>/plan.md` relative to the relevant package directory in monorepos. If a design spec was provided, write the plan in the same directory as the design.
-8. Ensure the worktree policy is satisfied before writing a durable plan.
-9. Write the plan document only. Do not change implementation files.
-10. Self-review the plan and fix issues inline.
-11. Commit only the plan: `docs: add <ticket-or-feature> implementation plan`. Do not include unrelated changes. If the branch is `main` or `master`, stop and ask before committing.
-12. Report the exact handoff phrase below.
+3. Before writing the plan, pressure-test the input. Ask one question at a time only if the answer materially changes the implementation plan. Prefer inspecting evidence over asking the user. Check whether the problem is framed clearly enough to plan, success criteria are observable, the first slice is small enough to implement and review safely, existing repository or platform patterns can be reused, and rollout, rollback, ownership, and validation are clear enough for the risk level.
+4. Load relevant planning skills before writing tasks. Prefer specific skills over general ones.
+5. Check scope. If the work spans independent subsystems, suggest separate plans unless the input already decomposes them into independently testable deliverables.
+6. Right-size the plan based on risk and complexity.
+7. Map files before tasks: each file to create or modify, its responsibility, boundaries, and tests.
+8. Decide where the plan should live. Prefer `plans/<ticket-or-feature>/plan.md` relative to the relevant package directory in monorepos. If a design spec was provided, write the plan in the same directory as the design.
+9. Ensure the worktree policy is satisfied before writing a durable plan.
+10. Write the plan document only. Do not change implementation files.
+11. Self-review the plan and fix issues inline.
+12. Commit only the plan: `docs: add <ticket-or-feature> implementation plan`. Do not include unrelated changes. If the branch is `main` or `master`, stop and ask before committing.
+13. Report the exact handoff phrase below.
 
 ## Right-Size the Plan
 Match plan detail to risk.

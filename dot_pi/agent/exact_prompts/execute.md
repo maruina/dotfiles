@@ -61,9 +61,10 @@ Do not leave the work 80% done. Complete the current approved slice, including t
    - Are there blockers, risky assumptions, or ambiguities?
    - What scope boundaries, non-goals, implementation-time unknowns, execution notes, requirements traceability, references, or patterns must guide execution?
    - What operational requirements apply: logs, metrics, traces, alerts, dashboards, runbooks, rollout, rollback, and ownership?
-7. For plan-based execution, verify the worktree starts with a committed plan doc:
+7. For plan-based execution, verify the worktree starts with committed lifecycle docs:
    - `plans/<ticket-or-feature>/plan.md` exists and is committed.
    - If a sibling `design.md` exists, it is committed, ideally in a separate commit.
+   - For plan-based work that came from `/brainstorm`, expect a sibling `design.md`; if it is missing, continue only when the plan clearly documents that the work was intentionally lightweight or started directly from `/plan`.
 8. If lifecycle docs are uncommitted or untracked, recover only when all of these are true: the only uncommitted changes are under `plans/<ticket-or-feature>/`, the files are present, and the docs are new or modified only as expected lifecycle artifacts. Commit the design first when present, then the plan, staging only the relevant file per commit. If recovery cannot safely create separate commits, stop and ask.
 9. Stop and ask if there are any uncommitted changes after recovery. The plan ledger starts committed; execution may update it once work begins.
 10. Report any concerns and ask for direction before modifying files unless the work is clearly trivial and unambiguous.

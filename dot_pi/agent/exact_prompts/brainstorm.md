@@ -20,7 +20,7 @@ Brainstorming answers:
 Planning answers how to do it. Execution makes the change.
 
 <HARD-GATE>
-Do not write implementation code, scaffold application files, commit files, or make product/design decisions without user confirmation. The terminal state is an agreed alignment brief and a suggested handoff to `/plan`.
+Do not write implementation code, scaffold application files, or make product/design decisions without user confirmation. The default terminal state is a committed `design.md` in a feature worktree. A chat-only alignment brief is allowed only when the user explicitly asks for lightweight brainstorming, no artifacts, no worktree, or a quick discussion.
 </HARD-GATE>
 
 ## Role
@@ -39,6 +39,7 @@ Be convinced, not compliant. Prefer the smallest boring next step that is useful
 6. Identify what evidence would validate the outcome.
 7. Propose the smallest useful next step.
 8. Do not move to planning or execution until the user confirms the framing.
+9. Treat durable artifacts as the default for non-trivial work; make lightweight chat-only brainstorming the explicit exception.
 
 ## First Response
 In the first response:
@@ -309,9 +310,11 @@ A good first slice is:
 - operable with clear ownership and observability
 
 ## Durable Output
-The durable output of brainstorming is an alignment brief, not an implementation plan.
+The durable output of brainstorming is a design spec, not an implementation plan. It captures the agreed problem framing and design direction so `/plan`, `/execute`, PR creation, and future agents have a reviewable source of truth.
 
-When the framing is clear, summarize:
+A chat-only alignment brief is the exception. Use it only when the user explicitly requests lightweight brainstorming, no artifacts, no worktree, or a quick discussion. If the user does not opt out, write and commit a design spec after they confirm the framing.
+
+When the framing is clear, summarize the alignment brief in chat first:
 
 ```md
 ## Alignment brief
@@ -349,12 +352,41 @@ Open questions:
 - ...
 ```
 
-Only after the user agrees, offer to move to planning.
+Only after the user agrees, create the durable design spec unless they opted into the lightweight exception.
 
-End with:
+## Worktree Policy
+Prefer feature worktrees for durable brainstorm artifacts.
+
+When writing a `design.md`:
+
+- Fetch the latest default branch.
+- Branch from the latest default branch, not from the current HEAD.
+- Use branch name `maruina/<ticket-or-feature>` unless repository guidance specifies otherwise.
+- Follow repository worktree guidance. For Datadog repositories, use `~/dd/.worktrees/<repo-name>-<branch-slug>`.
+- If already in the correct feature worktree, continue there.
+- If in a base checkout on `main` or `master`, create a feature worktree before writing the design unless the user explicitly asks not to.
+- If the default branch, branch name, or worktree location is ambiguous, ask before creating.
+
+## Design Spec Workflow
+After the user confirms the alignment brief:
+
+1. Ensure the worktree policy is satisfied.
+2. Write `plans/<ticket-or-feature>/design.md`. Prefer the relevant package directory in monorepos; otherwise use the repository root.
+3. Include the agreed alignment brief plus enough design detail for planning: goals, non-goals, context reviewed, assumptions, design overview, alternatives considered, risks and mitigations, operability, rollout and rollback, security/data-handling notes, testing strategy, and open questions.
+4. Self-review the spec as a skeptical staff engineer. Fix blocking issues inline; record material rejected findings with rationale.
+5. Commit only the design spec with Conventional Commit message `docs: add <ticket-or-feature> design`. Do not include unrelated changes. If the branch is `main` or `master`, stop and ask before committing.
+6. Ask the user to review the written spec before handing off to `/plan`.
+
+For lightweight chat-only brainstorming, end with:
 
 ```md
 If this captures the problem and first slice, I can turn it into a plan next.
+```
+
+For durable brainstorming, after saving and committing the spec, say:
+
+```md
+Spec complete, committed, and saved to `<absolute-path-to-design.md>`. Review it before handing off to `/plan <absolute-path-to-design.md>`, or run `/plan` with no arguments to choose from discovered design specs.
 ```
 
 ## Stop Conditions

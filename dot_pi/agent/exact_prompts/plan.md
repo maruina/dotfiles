@@ -24,7 +24,9 @@ Do not write implementation code, scaffold application files, or change files ou
 
 If a path is provided, use the `resolve-worktree` skill to resolve it. For design specs, set `$GLOB = **/plans/*/design.md`; for plan files, set `$GLOB = **/plans/*/plan.md`; for ambiguous markdown briefs, search likely repo-relative locations first, then ask if multiple matches exist. Switch context to the owning worktree before reading the artifact.
 
-If no path is provided, use the current conversation context and `$ARGUMENTS`. When directly invoked, stay in planning mode. Do not abandon the workflow because the input is imperfect. Ask focused questions or recommend returning to `/brainstorm` only when missing decisions are problem-framing decisions rather than planning details.
+If no path is provided and the user did not explicitly request lightweight/chat-only planning, use the `resolve-worktree` skill with `$GLOB = **/plans/*/design.md` to discover existing design specs across worktrees. If a design spec is resolved, switch context to the owning worktree and use it as the source of truth. If no design spec is found, use the current conversation context and `$ARGUMENTS`.
+
+Only skip design spec discovery when the user explicitly asks for lightweight planning, no artifacts, no worktree, or a quick chat-only plan. When directly invoked, stay in planning mode. Do not abandon the workflow because the input is imperfect. Ask focused questions or recommend returning to `/brainstorm` only when missing decisions are problem-framing decisions rather than planning details.
 
 If the input is a broad idea with unclear goal, audience/user, scope, success criteria, or validation, stop and ask one question at a time before writing a plan.
 
@@ -40,7 +42,7 @@ I recommend ... because ...
 If that is right, I will plan around ...
 ```
 
-For trivial or explicitly ephemeral work, ask whether the user wants a chat-only plan instead of a committed `plan.md`. Otherwise write a durable plan file.
+For trivial or explicitly ephemeral work, ask whether the user wants a chat-only plan instead of a committed `plan.md`. Otherwise prefer a durable plan file, and prefer an existing `design.md` as input when one exists.
 
 ## Source of Truth
 Use the upstream alignment brief, design spec, Jira, issue, PR comment, or user request as the source of truth for WHAT.

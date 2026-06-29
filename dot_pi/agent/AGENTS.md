@@ -69,6 +69,10 @@ A hidden `user-context` extension injects current repo, branch, PR, Jira-key, wo
 ## Tool Use
 
 - Use `gh` for GitHub operations.
+- GitHub has two authenticated accounts on `github.com`; check `gh auth status` before GitHub operations that depend on org access.
+  - Use `gh auth switch --hostname github.com --user matteo-ruina_ddog` only for `ddoghq/*` and `ddoghq-sandbox/*` repositories and searches.
+  - Use `gh auth switch --hostname github.com --user maruina` for everything else, including `DataDog/*` repositories and searches.
+  - Switch to the appropriate account before running `gh pr`, `gh repo`, `gh search`, or GitHub API commands if the active account does not match the target org.
 - For Go, TypeScript, JavaScript, YAML, and Helm code changes, use LSP tools selectively once the relevant file/line is known:
   - Use `lsp_find_references` before renaming, deleting, changing signatures, or changing exported/public symbols.
   - Use `lsp_context` when type, definition, enclosing-symbol, or reference context materially affects the edit.

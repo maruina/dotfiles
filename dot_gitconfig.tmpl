@@ -91,9 +91,6 @@
 [url "git@github.com:"]
 	insteadOf = https://github.com/
 
-[url "git@github-dd:ddoghq-sandbox/"]
-	insteadOf = git@github.com:ddoghq-sandbox/
-
 [fetch]
 	prune = true
 
@@ -109,6 +106,11 @@
 [merge "mergiraf"]
     name = mergiraf
     driver = mergiraf merge --git %O %A %B -s %S -x %X -y %Y -p %P
+
+{{- if eq .profile "work" }}
+[include]
+	path = {{ .chezmoi.homeDir }}/.config/datadog/git/config
+{{- end }}
 
 {{- if eq .profile "personal" }}
 [format]

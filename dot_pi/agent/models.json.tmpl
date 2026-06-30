@@ -46,38 +46,6 @@
         }
       ]
     },
-    "ai-gw-google": {
-      "baseUrl": "https://ai-gateway.us1.ddbuild.io/v1beta",
-      "api": "google-generative-ai",
-      "apiKey": "!sh -c \"ddtool auth token rapid-ai-platform --datacenter us1.ddbuild.io 2>/dev/null | grep -E '^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$' | head -1\"",
-      "headers": {
-        "source": "pi",
-        "org-id": "2",
-        "x-llmo-force-redaction": "true",
-        "x-dd-tag-ml_app": "pi",
-        "x-dd-tag-dd.user_email": "matteo.ruina@datadoghq.com",
-        "x-dd-tag-dd.team": "unknown",
-        "x-dd-tag-client_session_id": "$PI_CLIENT_SESSION_ID"
-      },
-      "models": [
-        {
-          "id": "gemini-3.5-flash",
-          "name": "Gemini 3.5 Flash (Google)",
-          "api": "google-generative-ai",
-          "reasoning": true,
-          "input": [
-            "text",
-            "image"
-          ],
-          "contextWindow": 1048576,
-          "maxTokens": 65536,
-          "thinkingLevelMap": {
-            "off": null
-          }
-        }
-      ],
-      "authHeader": true
-    },
     "ai-gw-anthropic-200k": {
       "baseUrl": "https://ai-gateway.us1.ddbuild.io",
       "api": "anthropic-messages",

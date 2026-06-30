@@ -62,21 +62,6 @@
       },
       "models": [
         {
-          "id": "anthropic/claude-haiku-4-5-20251001",
-          "name": "Claude Haiku 4.5 (AI Gateway, 200k)",
-          "api": "anthropic-messages",
-          "reasoning": true,
-          "input": [
-            "text",
-            "image"
-          ],
-          "contextWindow": 200000,
-          "maxTokens": 16384,
-          "compat": {
-            "supportsEagerToolInputStreaming": false
-          }
-        },
-        {
           "id": "anthropic/claude-opus-4-8",
           "name": "Claude Opus 4.8 (AI Gateway, 200k)",
           "api": "anthropic-messages",
@@ -108,6 +93,18 @@
           "compat": {
             "forceAdaptiveThinking": true
           }
+        },
+        {
+          "id": "anthropic/claude-sonnet-5",
+          "name": "Claude Sonnet 5 (AI Gateway, 200k)",
+          "api": "anthropic-messages",
+          "reasoning": true,
+          "input": [
+            "text",
+            "image"
+          ],
+          "contextWindow": 200000,
+          "maxTokens": 16384
         }
       ],
       "authHeader": true

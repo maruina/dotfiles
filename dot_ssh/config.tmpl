@@ -1,20 +1,12 @@
-{{- if eq .profile "work" }}
+{{- if eq .profile "work" -}}
 Include /Users/matteo.ruina/.config/datadog/git/ssh_config
 Include /Users/matteo.ruina/.colima/ssh_config
+
 # BEGIN ANSIBLE MANAGED BLOCK
 Host *
 Compression yes
 ServerAliveInterval 30
 # END ANSIBLE MANAGED BLOCK
-    AddKeysToAgent yes
-    UseKeychain yes
-    IdentityFile ~/.ssh/id_rsa
-    StrictHostKeyChecking no
-
-Host github-dd
-  Hostname github.com
-  User git
-  IdentityAgent "~/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"
 
 Host i-* mi-*
     ProxyCommand sh -c "aws ssm start-session --target %h --document-name AWS-StartSSHSession --parameters 'portNumber=%p'"

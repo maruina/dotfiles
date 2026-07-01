@@ -104,7 +104,10 @@
             "image"
           ],
           "contextWindow": 200000,
-          "maxTokens": 16384
+          "maxTokens": 16384,
+          "compat": {
+            "forceAdaptiveThinking": true
+          }
         }
       ],
       "authHeader": true
@@ -154,6 +157,21 @@
           ],
           "contextWindow": 1000000,
           "maxTokens": 64000,
+          "compat": {
+            "forceAdaptiveThinking": true
+          }
+        },
+        {
+          "id": "anthropic/claude-sonnet-5",
+          "name": "Claude Sonnet 5 (AI Gateway, 1M)",
+          "api": "anthropic-messages",
+          "reasoning": true,
+          "input": [
+            "text",
+            "image"
+          ],
+          "contextWindow": 1000000,
+          "maxTokens": 16384,
           "compat": {
             "forceAdaptiveThinking": true
           }

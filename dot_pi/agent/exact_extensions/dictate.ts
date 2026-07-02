@@ -1,7 +1,7 @@
 /**
  * Dictation via sox + MacWhisper CLI.
  *
- * alt+space — toggle: idle → start recording, recording → stop + transcribe + auto-submit.
+ * ctrl+space — toggle: idle → start recording, recording → stop + transcribe + auto-submit.
  * esc       — abort while recording (drops the wav, no transcription).
  *
  * While recording, the input editor is replaced with a status display showing the elapsed
@@ -104,7 +104,7 @@ const isWhisperSilenceHallucination = (transcript: string): boolean => {
  * Custom editor that replaces the normal input area with a recording / transcribing
  * indicator while a dictation session is active. Swallows printable input so the user
  * can't accidentally type into a buffer that'll never be sent. Forwards control sequences
- * (escape, ctrl+*, CSI \x1b…) so the registered `alt+space` shortcut and our raw-input
+ * (escape, ctrl+*, CSI \x1b…) so the registered `ctrl+space` shortcut and our raw-input
  * `esc` handler still fire.
  */
 class DictationDisplay extends CustomEditor {
@@ -145,7 +145,7 @@ class DictationDisplay extends CustomEditor {
 		}
 		const code = data.charCodeAt(0);
 		// Forward control sequences (escape \x1b, ctrl+* < 0x20, backspace 0x7f) to super so
-		// app keybindings, the opt+space shortcut, and the onTerminalInput esc-to-abort
+		// app keybindings, the ctrl+space shortcut, and the onTerminalInput esc-to-abort
 		// handler all fire. Discard everything else (printable ASCII, UTF-8 multi-byte first
 		// bytes, paste payloads) so the user can't type into a buffer that'll never be sent.
 		if (code === 0x1b || code < 0x20 || code === 0x7f) {
@@ -173,7 +173,7 @@ class DictationDisplay extends CustomEditor {
 			const elapsed = Math.floor((Date.now() - this.startedAt) / 1000);
 			const indicator = this.appTheme.fg("error", "🎤 RECORDING");
 			const timer = this.appTheme.fg("muted", `(${formatElapsed(elapsed)})`);
-			const hints = this.appTheme.fg("muted", "opt+space stop · esc abort");
+			const hints = this.appTheme.fg("muted", "ctrl+space stop · esc abort");
 			return `${indicator}  ${timer}  ${hints}`;
 		}
 		return this.appTheme.fg("warning", "📝 transcribing…");
@@ -270,7 +270,7 @@ export default function dictateExtension(pi: ExtensionAPI): void {
 				if (!transcript || isWhisperSilenceHallucination(transcript)) {
 					// Silent no-op — nothing was said (or only Whisper's silence hallucination came
 					// back). Tear down and bail without bothering the user with a notify;
-					// accidentally toggling opt+space twice with nothing in between is common enough
+					// accidentally toggling ctrl+space twice with nothing in between is common enough
 					// that surfacing it as a warning would be noisy.
 					closeDisplay(ctx, display);
 					return;
@@ -292,7 +292,7 @@ export default function dictateExtension(pi: ExtensionAPI): void {
 
 			// ── Start recording ────────────────────────────────────────────
 			// Dictation takes over the editor, so it only makes sense to start with an empty
-			// one. A non-empty editor means the user typed opt+space when they meant to type
+			// one. A non-empty editor means the user typed ctrl+space when they meant to type
 			// a literal space — surface the mistake instead of silently swallowing their text.
 			if (ctx.ui.getEditorText().trim()) {
 				ctx.ui.notify(
@@ -320,7 +320,7 @@ export default function dictateExtension(pi: ExtensionAPI): void {
 					abortRecording(ctx);
 					return { consume: true };
 				}
-				// Bare spacebar also stops + transcribes — same as opt+space. The custom
+				// Bare spacebar also stops + transcribes — same as ctrl+space. The custom
 				// editor's handleInput discards printable chars, but onTerminalInput fires
 				// first, so we catch " " here and route through the same toggle path. Errors
 				// surface via ctx.ui.notify inside toggle().
@@ -353,8 +353,8 @@ export default function dictateExtension(pi: ExtensionAPI): void {
 			});
 	};
 
-	pi.registerShortcut("alt+space", {
-		description: "Toggle dictation (sox + MacWhisper). Space or opt+space stops; esc aborts.",
+	pi.registerShortcut("ctrl+space", {
+		description: "Toggle dictation (sox + MacWhisper). Space or ctrl+space stops; esc aborts.",
 		handler: toggle,
 	});
 }

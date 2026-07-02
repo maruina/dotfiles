@@ -13,6 +13,10 @@
  *   - `sox` on PATH (`brew install sox`)
  *   - `mw` on PATH (MacWhisper → Settings → Advanced → Command-Line Tool → Install)
  *   - macOS Microphone permission for the host terminal app (granted on first use)
+ *
+ * Gated to the "work" chezmoi profile (see .chezmoiignore) — MacWhisper is a paid,
+ * work-laptop-only tool. The personal profile may get a different transcription
+ * backend later.
  */
 
 import { CustomEditor, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";

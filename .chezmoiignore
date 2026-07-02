@@ -1,3 +1,4 @@
 {{- if ne .profile "work" }}
 .pi/agent/skills/end-of-session
+.pi/agent/extensions/dictate.ts
 {{- end }}

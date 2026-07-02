@@ -173,7 +173,7 @@ class DictationDisplay extends CustomEditor {
 			const elapsed = Math.floor((Date.now() - this.startedAt) / 1000);
 			const indicator = this.appTheme.fg("error", "🎤 RECORDING");
 			const timer = this.appTheme.fg("muted", `(${formatElapsed(elapsed)})`);
-			const hints = this.appTheme.fg("muted", "ctrl+shift+m stop · esc abort");
+			const hints = this.appTheme.fg("muted", "space stop · esc abort");
 			return `${indicator}  ${timer}  ${hints}`;
 		}
 		return this.appTheme.fg("warning", "📝 transcribing…");

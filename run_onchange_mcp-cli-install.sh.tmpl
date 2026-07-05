@@ -1,0 +1,18 @@
+#!/bin/bash
+set -eufo pipefail
+
+# mcp-cli: lightweight MCP server driver used by pi agent skills
+# (atlassian/slack/datadog on work, ha-mcp on personal).
+# Installs the checksum-verified precompiled binary from
+# https://github.com/philschmid/mcp-cli to ~/.local/bin.
+#
+# To update mcp-cli to the latest release, re-run this script:
+#   chezmoi apply ~/.local/bin/mcp-cli
+# or directly:
+#   curl -fsSL https://raw.githubusercontent.com/philschmid/mcp-cli/main/install.sh | bash
+
+INSTALL_DIR="$HOME/.local/bin"
+mkdir -p "$INSTALL_DIR"
+
+curl -fsSL https://raw.githubusercontent.com/philschmid/mcp-cli/main/install.sh \
+  | INSTALL_DIR="$INSTALL_DIR" bash

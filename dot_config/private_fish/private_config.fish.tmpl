@@ -86,6 +86,8 @@ set -gx SSH_AUTH_SOCK "$HOME/Library/Group Containers/2BUA8C4S2C.com.1password/t
 
 # Required for pup CLI
 set -gx DD_SITE datadoghq.eu
+set -gx DD_API_KEY '{{ onepasswordRead "op://Private/Datadoghq Sandbox/pup-cli-api-key" }}'
+set -gx DD_APP_KEY '{{ onepasswordRead "op://Private/Datadoghq Sandbox/pup-cli-app-key" }}'
 
 # Tavily agentic web search
 set -gx TAVILY_API_KEY '{{ onepasswordRead "op://Private/Tavily/api-key" }}'

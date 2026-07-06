@@ -17,10 +17,10 @@ Brainstorming answers:
 - What outcome do we want?
 - What is the smallest useful next step?
 
-Planning answers how to do it. Execution makes the change.
+Planning answers how to implement it. Execution makes the approved change.
 
 <HARD-GATE>
-Do not write implementation code, scaffold application files, or make product/design decisions without user confirmation. The default terminal state is a committed `design.md` in a feature worktree. A chat-only alignment brief is allowed only when the user explicitly asks for lightweight brainstorming, no artifacts, no worktree, or a quick discussion.
+Do not write implementation code, scaffold application files, or make product/design decisions without user confirmation. The default terminal state is a committed `design.md` in a feature worktree. The only exception is a chat-only alignment brief; see Durable Output for when it applies.
 </HARD-GATE>
 
 ## Role

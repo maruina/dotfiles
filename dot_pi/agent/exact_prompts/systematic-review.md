@@ -3,13 +3,13 @@ description: Review a plan, codebase, directory, or file systematically
 argument-hint: "[target-path] [extra context]"
 ---
 # Systematic Review
+Review input:
 
-Target: `$1` (default: repository root / current codebase)
-Extra context: `${@:2}`
+> $ARGUMENTS
 
-Validate a plan or review code without editing files.
+Validate a plan or review code without editing files. Treat the first path in the input as the target (default: repository root / current codebase); treat any remaining text as extra context.
 
-If `$1` is a `plan.md`, use the `resolve-worktree` skill with `$GLOB = **/plans/*/plan.md`, switch to the owning worktree, and review whether the plan is executable, complete, and consistent with the codebase. If `$1` is another path, resolve it with `resolve-worktree` without `$GLOB`. If `$1` is empty, use the current repository root.
+If the target is a `plan.md`, use the `resolve-worktree` skill with `$GLOB = **/plans/*/plan.md`, switch to the owning worktree, and review whether the plan is executable, complete, and consistent with the codebase. If the target is another path, resolve it with `resolve-worktree` without `$GLOB`. If no target is given, use the current repository root.
 
 Use the `codebase-research` skill before critique. First document current behavior and existing patterns, then report evidence-backed findings.
 
@@ -39,11 +39,15 @@ Also argue against the design: explain what you would do differently, why, and t
 
 For `plan.md` targets, check that:
 
-- every design requirement maps to a task
+- every requirement maps to a task or explicit follow-up
+- acceptance requirements are expressed as testable scenarios, each mapped to at least one task
 - tasks are vertical, ordered safely, and independently verifiable
-- file paths, commands, types, functions, flags, and dependencies exist
-- each task includes a failing test or explicit reason one is not practical
-- security, observability, failure modes, rollout, rollback, docs, and `AGENTS.md` checks are covered
+- each task includes a focused failing test or an explicit reason one is not practical
+- file paths, commands, types, functions, flags, and dependencies exist and match the repository
+- all file paths are repo-relative
+- security, observability, failure modes, rollout, rollback, docs, and `AGENTS.md` coverage are explicit for the plan's risk level
+- the plan reuses existing patterns and does not reimplement platform capabilities without justification
+- the plan does not invent behavior beyond the source of truth
 - stop conditions, assumptions, and scope boundaries are explicit
 - no placeholders, contradictions, duplicated work, or bloated instructions remain
 
@@ -75,3 +79,10 @@ Return a concise review with these sections:
 7. **Open questions** — only questions that block confidence or change the recommendation.
 
 If no issues are found, say so explicitly and still include the design challenge and any residual risks.
+
+## Handoff
+Close with the recommended next step:
+
+- For a `plan.md` target with no blocking findings: `Review complete. Run /execute <absolute-path-to-plan.md> to implement it.`
+- For a `plan.md` target with blocking findings: `Review complete. Address the findings above, then re-run /systematic-review <absolute-path-to-plan.md>, or return to /plan to revise.`
+- For a code-only target with no plan: recommend the highest-priority next action instead of a pipeline handoff.

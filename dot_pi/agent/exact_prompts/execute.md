@@ -48,12 +48,12 @@ For testable behavior, default to red-green-refactor: write or run the focused f
 Do not leave the work 80% done. Complete the current approved slice, including tests, docs impact, verification, and PR readiness, or stop with a clear blocker.
 
 ## Workflow
-1. Resolve and read the plan completely, or classify the bare prompt as trivial before editing.
+1. **Setup —** Resolve and read the plan completely, or classify the bare prompt as trivial before editing.
 2. Satisfy the worktree policy before changing files.
-3. Inspect relevant guidance, git branch/status, files named by the plan or prompt, tests, build commands, package boundaries, and current repository state.
+3. **Review —** Inspect relevant guidance, git branch/status, files named by the plan or prompt, tests, build commands, package boundaries, and current repository state.
 4. Load execution skills before editing. Read skills named by the plan, infer skills from affected files, and prefer specific skills over general ones.
 5. Inspect referenced tickets, PRs, reviews, or discussion threads. If recent actionable feedback is missing from the plan, stop and ask whether to update it.
-6. Review the plan or trivial prompt before implementation:
+6. Review the plan or trivial prompt before implementation. `/systematic-review` is the authoritative plan-validation gate; here, re-check at the depth the change needs:
    - Are files, commands, types, functions, tests, and dependencies present and consistent?
    - Does the plan or prompt match the current codebase?
    - Do repository instructions or loaded skills conflict with the plan or prompt?
@@ -68,10 +68,10 @@ Do not leave the work 80% done. Complete the current approved slice, including t
 8. If lifecycle docs are uncommitted or untracked, recover only when all of these are true: the only uncommitted changes are under `plans/<ticket-or-feature>/`, the files are present, and the docs are new or modified only as expected lifecycle artifacts. Commit the design first when present, then the plan, staging only the relevant file per commit. If recovery cannot safely create separate commits, stop and ask.
 9. Stop and ask if there are any uncommitted changes after recovery. The plan ledger starts committed; execution may update it once work begins.
 10. Report any concerns and ask for direction before modifying files unless the work is clearly trivial and unambiguous.
-11. Execute tasks in order. For bare-prompt trivial work, execute the single approved change.
+11. **Execute —** Execute tasks in order. For bare-prompt trivial work, execute the single approved change.
 12. For each task, update plan checkboxes as work progresses, run the specified verification, and mark steps complete only after verification passes. For trivial bare prompts, track progress in chat instead of a plan file.
 13. Complete the plan's documentation and future-agent guidance task, including every required `AGENTS.md` inspection. For trivial bare prompts, explicitly decide whether docs are unnecessary.
-14. Run the final verification commands and inspect `git status`.
+14. **Verify and hand off —** Run the final verification commands and inspect `git status`.
 15. Review plan fidelity: all tasks complete, requirements met, no unapproved scope added, and deviations documented in the plan ledger.
 16. Before opening a PR, evaluate the completed work against the stack-split signals from the `reviewable-pr-workflow` skill:
    - Strong signals: 2+ distinct subsystems that could ship independently; more than ~400 net lines of non-generated, non-test code; more than ~15 non-generated files.

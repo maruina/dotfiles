@@ -9,7 +9,7 @@ Planning input:
 
 Turn an agreed problem framing, alignment brief, design spec, issue, or clear task request into a concrete implementation plan.
 
-Brainstorming answers what problem to solve and what first slice is useful. Planning answers how to implement that slice. Execution makes the change.
+Brainstorming answers what problem to solve. Planning answers how to implement it. Execution makes the approved change.
 
 <HARD-GATE>
 Do not write implementation code, scaffold application files, or change files outside the plan document. The default terminal state for non-trivial work is a committed `plan.md` in a feature worktree.
@@ -257,17 +257,18 @@ For Small plans, include documentation impact in validation or explicitly state 
 ## Plan Quality Bar
 Before reporting completion, verify:
 
-- every input requirement maps to a task or explicit follow-up
-- acceptance requirements are expressed as testable scenarios, and each maps to at least one task
-- task order is safe, vertical, and testable
-- paths, types, commands, and flags match the repository
+- every requirement maps to a task or explicit follow-up
+- acceptance requirements are expressed as testable scenarios, each mapped to at least one task
+- tasks are vertical, ordered safely, and independently verifiable
+- each task includes a focused failing test or an explicit reason one is not practical
+- file paths, commands, types, functions, flags, and dependencies exist and match the repository
 - all file paths inside the plan are repo-relative
 - loaded skill guidance is reflected
 - security, observability, failure modes, rollout, rollback, docs, and `AGENTS.md` coverage are explicit for the plan's risk level
 - automation uses the right CLI or script shape
 - the plan reuses existing patterns and does not reimplement platform capabilities without justification
-- the plan does not invent product behavior beyond the source of truth
-- no placeholders: no `TBD`, `TODO`, `implement later`, `add validation`, `handle edge cases`, `write tests for the above`, `similar to Task N`, or references to nonexistent files, types, functions, or commands
+- the plan does not invent behavior beyond the source of truth
+- no placeholders, contradictions, duplicated work, or bloated instructions remain: no `TBD`, `TODO`, `implement later`, `add validation`, `handle edge cases`, `write tests for the above`, `similar to Task N`, or references to nonexistent files, types, functions, or commands
 
 ## Handoff
 After saving and committing a durable plan, say exactly:

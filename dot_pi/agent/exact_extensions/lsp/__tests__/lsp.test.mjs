@@ -56,7 +56,7 @@ test("extension registers LSP tools and command", () => {
   const app = fakePi();
   entry.default(app.pi);
 
-  assert.equal(app.tools.size, 15);
+  assert.equal(app.tools.size, 16);
   assert.ok(app.tools.has("lsp_context"));
   assert.ok(app.tools.has("lsp_prepare_edit_context"));
   assert.ok(app.tools.has("lsp_workspace_symbols"));

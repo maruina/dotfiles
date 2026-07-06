@@ -1,7 +1,7 @@
 import { accessSync, constants, existsSync, readFileSync, statSync } from "node:fs";
 import { delimiter, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { LOCATION_PREVIEW_LIMIT, POSITION_SNAP_MAX_CANDIDATES, POSITION_SNAP_MAX_DISTANCE, type Diagnostic, type DocumentSymbol, type Location, type LocationLink, type Position, type Range, type ServerConfig, type SymbolInformation, type ToolLocation } from "./protocol";
+import { LOCATION_PREVIEW_LIMIT, POSITION_SNAP_MAX_CANDIDATES, POSITION_SNAP_MAX_DISTANCE, type Diagnostic, type DocumentSymbol, type Location, type LocationLink, type Position, type Range, type ServerConfig, type SymbolInformation, type TextEdit, type ToolLocation, type WorkspaceEdit } from "./protocol";
 
 export function toLspPosition(line: number, character: number): Position { if (!Number.isInteger(line) || !Number.isInteger(character) || line < 1 || character < 1) throw new Error("line and column must be positive integers; column is a 1-indexed UTF-16 offset"); return { line: line - 1, character: character - 1 }; }
 export function lspPositionCandidates(filePath: string, line: number, column: number): Position[] {
@@ -77,6 +77,24 @@ export function formatDiagnostics(items: Array<{ path: string; diagnostic: Diagn
 export function diagnosticsDetails(map: Map<string, Diagnostic[]>): Array<{ path: string; line: number; column: number; severity: string; message: string; source?: string; code?: string | number }> { return [...map.entries()].flatMap(([path, diagnostics]) => diagnostics.map((d) => ({ path, line: d.range.start.line + 1, column: d.range.start.character + 1, severity: diagnosticSeverityName(d.severity), message: d.message, source: d.source, code: d.code }))); }
 export function rangeToDetails(range: Range) { return { startLine: range.start.line + 1, startColumn: range.start.character + 1, endLine: range.end.line + 1, endColumn: range.end.character + 1 }; }
 export function formatSymbol(s: DocumentSymbol): string { return `${symbolKindName(s.kind)} ${s.name} ${rangeToDetails(s.range).startLine}-${rangeToDetails(s.range).endLine}`; }
+export function normalizeWorkspaceEdit(edit: WorkspaceEdit | null): Map<string, TextEdit[]> {
+  const out = new Map<string, TextEdit[]>();
+  if (!edit) return out;
+  for (const [uri, edits] of Object.entries(edit.changes ?? {})) out.set(uri, [...(out.get(uri) ?? []), ...edits]);
+  for (const change of edit.documentChanges ?? []) {
+    const c = change as { textDocument?: { uri?: string }; edits?: TextEdit[] };
+    if (c.textDocument?.uri && c.edits) out.set(c.textDocument.uri, [...(out.get(c.textDocument.uri) ?? []), ...c.edits]);
+  }
+  return out;
+}
+export function textEditPreview(filePath: string, edit: TextEdit): string {
+  if (edit.range.start.line !== edit.range.end.line) return `<multi-line edit: ${edit.range.end.line - edit.range.start.line + 1} lines> -> ${edit.newText}`;
+  try {
+    const line = readFileSync(filePath, "utf8").split(/\r?\n/)[edit.range.start.line] ?? "";
+    const oldText = line.slice(edit.range.start.character, edit.range.end.character);
+    return `${oldText || "<insert>"} -> ${edit.newText}`;
+  } catch { return `-> ${edit.newText}`; }
+}
 export function errorResult(name: string, err: unknown) { return { content: [{ type: "text" as const, text: `${name} error: ${err instanceof Error ? err.message : String(err)}` }], details: {}, isError: true }; }
 export const symbolKindNames: Record<number, string> = { 1: "File", 2: "Module", 3: "Namespace", 4: "Package", 5: "Class", 6: "Method", 7: "Property", 8: "Field", 9: "Constructor", 10: "Enum", 11: "Interface", 12: "Function", 13: "Variable", 14: "Constant", 15: "String", 16: "Number", 17: "Boolean", 18: "Array", 19: "Object", 20: "Key", 21: "Null", 22: "EnumMember", 23: "Struct", 24: "Event", 25: "Operator", 26: "TypeParameter" };
 export function symbolKindName(kind: number): string { return symbolKindNames[kind] || `Kind(${kind})`; }

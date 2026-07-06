@@ -78,7 +78,8 @@ Do not leave the work 80% done. Complete the current approved slice, including t
    - Soft signals: reviewer guide would need more than five topics; commits fall into independent groups; branch mixes refactor, feature, and behavior change.
    If any strong signal trips, or two or more soft signals trip, **stop and propose a stack plan** (one row per branch in dependency order) and ask whether to split before opening any PR. Do not proceed past this point until the user responds.
    If no split is needed, use `/pr-create --draft` to open a draft PR unless the user explicitly says not to.
-17. Report the exact handoff phrase below.
+17. Optionally suggest `/simplify` for a behavior-preserving cleanup pass over the diff before review. This is opt-in; do not run it automatically.
+18. Report the exact handoff phrase below.
 
 The terminal state is implemented, verified changes with the plan updated as the progress ledger when a plan exists.
 

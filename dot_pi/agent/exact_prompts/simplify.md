@@ -28,6 +28,8 @@ Honor a user-supplied `--base`. Stay within the changed lines and their immediat
 ## Delegate the "how"
 Do not restate style rules here. Load the skill that matches each touched file and defer to it, plus the repository's `AGENTS.md`:
 
+- Kubernetes CRDs / API types: `k8s-api-design` (takes precedence over `go-best-practices` for that code)
+- Kubernetes controllers / controller-runtime: `k8s-controller-dev` (takes precedence over `go-best-practices` for that code)
 - Go: `go-best-practices`
 - Shell / Fish: `script-best-practices`
 - CLI surfaces: `cli-best-practices`

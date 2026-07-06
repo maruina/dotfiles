@@ -7,7 +7,7 @@ argument-hint: "[week|date range|notes]"
 
 Arguments: $ARGUMENTS
 
-Create a weekly work summary for Matteo Ruina (`@maruina`, `matteo.ruina@datadoghq.com`).
+Create a weekly work summary for Matteo Ruina (`@maruina` in `DataDog/*`, `@matteo-ruina_ddog` in `ddoghq/*`, `matteo.ruina@datadoghq.com`).
 
 The goal is to produce an Obsidian weekly page named `Week of DD/MM/YYYY`. Matteo will manually edit and publish it to Confluence later.
 
@@ -47,22 +47,51 @@ If the note does not exist, continue and create it in the final phase.
 
 ## Phase 3: Gather GitHub PRs
 
-Find PRs authored by `maruina` in the `DataDog` GitHub org:
+Find PRs authored by Matteo across both Datadog GitHub orgs:
+
+| Org | GitHub author | Required `gh` account |
+|---|---|---|
+| `DataDog` | `maruina` | `maruina` |
+| `ddoghq` | `matteo-ruina_ddog` | `matteo-ruina_ddog` |
+
+For each org, gather PRs that were:
 
 - merged during the selected week
 - opened or updated during the selected week but not merged
 
+Before searching an org, switch `gh` to the matching account:
+
+```fish
+gh auth switch --hostname github.com --user maruina
+```
+
+for `DataDog/*`, and:
+
+```fish
+gh auth switch --hostname github.com --user matteo-ruina_ddog
+```
+
+for `ddoghq/*`.
+
 Use `gh search prs` or equivalent GitHub CLI commands. Start with queries like:
 
 ```fish
-gh search prs --owner DataDog --author maruina --merged --merged-at "<YYYY-MM-DD>..<YYYY-MM-DD>" --json repository,number,title,url,state,mergedAt,createdAt,updatedAt
+gh search prs --owner DataDog --author maruina --merged --merged-at "<YYYY-MM-DD>..<YYYY-MM-DD>" --json repository,number,title,url,state,closedAt,createdAt,updatedAt
 ```
 
 ```fish
-gh search prs --owner DataDog --author maruina --updated "<YYYY-MM-DD>..<YYYY-MM-DD>" --json repository,number,title,url,state,mergedAt,createdAt,updatedAt
+gh search prs --owner DataDog --author maruina --updated "<YYYY-MM-DD>..<YYYY-MM-DD>" --json repository,number,title,url,state,closedAt,createdAt,updatedAt
 ```
 
-If the installed `gh` version does not support one of these flags, adapt the query syntax and report the command used.
+```fish
+gh search prs --owner ddoghq --author matteo-ruina_ddog --merged --merged-at "<YYYY-MM-DD>..<YYYY-MM-DD>" --json repository,number,title,url,state,closedAt,createdAt,updatedAt
+```
+
+```fish
+gh search prs --owner ddoghq --author matteo-ruina_ddog --updated "<YYYY-MM-DD>..<YYYY-MM-DD>" --json repository,number,title,url,state,closedAt,createdAt,updatedAt
+```
+
+If the installed `gh` version does not support one of these flags or JSON fields, adapt the query syntax and report the command used.
 
 For each relevant PR, gather:
 
@@ -173,6 +202,6 @@ After writing, report:
 
 - the Obsidian file path
 - whether an existing note was rewritten or a new note was created
-- the main evidence sources used, such as merged PRs, updated PRs, Jira tickets, existing notes, and pi sessions
+- the main evidence sources used, such as merged and updated PRs from `DataDog/*` and `ddoghq/*`, Jira tickets, existing notes, and pi sessions
 
 Do not create or update Confluence. Matteo will manually edit and publish the Obsidian note to Confluence.

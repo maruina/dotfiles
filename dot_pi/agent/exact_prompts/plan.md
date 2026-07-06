@@ -30,6 +30,8 @@ Only skip design spec discovery when the user explicitly asks for lightweight pl
 
 If the input is a broad idea with unclear goal, audience/user, scope, success criteria, or validation, stop and ask one question at a time before writing a plan.
 
+If a resolved design spec or existing plan has drifted from the current request, decide whether to revise it or restart before writing tasks. Revise the existing artifact when the intent is unchanged and most of the scope still overlaps. Return to `/brainstorm` for a new design when the problem itself changed, the scope grew until the original is unrecognizable, or the original could ship as-is and this is follow-up work.
+
 When asking a blocking planning question, include a recommended answer if there is enough evidence:
 
 ```md
@@ -188,11 +190,38 @@ For Medium and Large/Risky plans, include:
 - [smallest safe rollout, fastest safe rollback, and owner]
 
 **Test Strategy**
-- [public behaviors and interfaces to verify, plus the narrow command that should fail before implementation]
+- [public behaviors and interfaces to verify, mapped to the acceptance requirements above, plus the narrow command that should fail before implementation]
 - [system boundaries to mock, if any; do not mock internal collaborators unless the repository already uses that seam]
 ```
 
 For Small plans, replace the implementation contract with concise `## Scope` and `## Validation` sections, but still include exact files, ordered tasks, success criteria, and documentation impact.
+
+## Acceptance Criteria
+Express the plan's success criteria as testable behavior contracts, not prose. Each behavior the change must guarantee is a requirement with at least one concrete scenario.
+
+Use RFC 2119 keywords and Given/When/Then:
+
+```md
+### Requirement: <observable behavior>
+The system SHALL <normative statement>.
+
+#### Scenario: <happy path or edge case>
+- GIVEN <precondition>
+- WHEN <action>
+- THEN <observable outcome>
+- AND <additional outcome>
+```
+
+Rules:
+
+- Use SHALL/MUST for required behavior; SHOULD/MAY only for genuine options.
+- Every requirement has at least one scenario, and every scenario exercises the requirement it sits under.
+- Scenarios must be observable through a supported interface so each maps to a test.
+- Cover the happy path, the edge cases you care about, and failure paths. The most valuable scenario is often the one you almost forgot to state.
+
+Each scenario becomes the focused failing test in a red-green-refactor task. Trace every acceptance requirement to at least one task, and every behavior task back to a requirement.
+
+Scale to risk: Small plans may inline one or two scenarios in `## Validation`; Medium and Large/Risky plans list acceptance requirements explicitly and reference them from the Test Strategy.
 
 ## Task Requirements
 Each task must be small enough to execute safely and review independently.
@@ -229,6 +258,7 @@ For Small plans, include documentation impact in validation or explicitly state 
 Before reporting completion, verify:
 
 - every input requirement maps to a task or explicit follow-up
+- acceptance requirements are expressed as testable scenarios, and each maps to at least one task
 - task order is safe, vertical, and testable
 - paths, types, commands, and flags match the repository
 - all file paths inside the plan are repo-relative

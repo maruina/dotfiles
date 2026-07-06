@@ -389,6 +389,25 @@ For durable brainstorming, after saving and committing the spec, say:
 Spec complete, committed, and saved to `<absolute-path-to-design.md>`. Review it before handing off to `/plan <absolute-path-to-design.md>`, or run `/plan` with no arguments to choose from discovered design specs.
 ```
 
+## Update or Restart
+When the work already has a committed `design.md` and the framing has shifted, decide whether to revise the existing spec or start a new one before writing anything.
+
+Update the existing spec when:
+
+- intent is unchanged and only execution details are refined
+- scope narrows to a smaller slice of the same goal
+- discovery corrects assumptions but the problem is the same
+
+Start a new spec when:
+
+- the problem itself changed, not just the approach
+- scope grew until the original would be unrecognizable
+- the original is independently completable and the new work stands alone
+
+Heuristics: same intent, more than ~50% scope overlap, and "the original cannot be called done without this" all point to update. Different intent, less than ~50% overlap, or "the original could ship as-is and this is follow-up" all point to a new spec.
+
+Principle: update preserves the history of your thinking; a new spec provides clarity when patching would confuse more than help.
+
 ## Stop Conditions
 Stop and ask rather than continuing when:
 

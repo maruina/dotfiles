@@ -121,13 +121,20 @@ Examples:
 When the call path crosses a package, service, or ownership boundary, say so explicitly.
 
 ## Phase 6: Build the narrative
-Write the narrative as a concise literate-programming walkthrough: enough system context to review the PR, then the change.
+Write the narrative as a concise literate-programming walkthrough: enough system context to review the PR, then the change. Prefer connected explanations over disconnected bullets when explaining system behavior.
 
 Start with:
 1. Problem statement: what the PR is trying to accomplish and why.
 2. Reader profile: the inferred or provided familiarity level.
 3. System model: service/component role, entry points, data/control flow, key contracts.
-4. Solution map: table of changed components and the problem each solves.
+4. Core intuition: the smallest mental model that makes the PR make sense.
+5. Solution map: table of changed components and the problem each solves.
+
+For core intuition:
+- Explain the essence before the implementation details.
+- Use a small toy example with concrete inputs and outputs when it clarifies non-obvious behavior.
+- Use a compact diagram when it reduces cognitive load. Prefer Mermaid flowcharts or Markdown tables in normal chat output. Reuse the same diagram shape across the walkthrough when explaining variants.
+- Keep comprehension separate from judgment: explain neutrally first, then assess.
 
 For each logical step, include:
 1. **How it works today** — existing behavior, abstractions, contracts, and relevant code path.
@@ -147,7 +154,6 @@ Callout labels:
 Rules:
 - Explain why for every non-obvious design choice.
 - State timing, retries, timeouts, ordering, idempotency, and concurrency constraints where relevant.
-- Keep comprehension separate from judgment: explain neutrally first, then assess.
 - For levels `0` and `1`, include a short glossary only for terms needed to understand the PR.
 
 ## Phase 7: Review assessment
@@ -182,6 +188,9 @@ Produce Markdown in this structure:
 ## System context
 ...
 
+## Core intuition
+...
+
 ## Solution map
 | Component | Files | Purpose |
 |---|---|---|
@@ -208,11 +217,16 @@ Produce Markdown in this structure:
 ### Validation
 - ...
 
+## Reviewer comprehension checks
+- 3-5 short questions a reviewer should be able to answer after reading the review. Focus on behavior, edge cases, invariants, rollout, and tests. Do not make them gotchas.
+
 ## Suggested review comment
 A concise draft the user can edit before posting. If no comment is needed, say so.
 ```
 
 Keep the verdict short. Do not post it.
+
+If the user asks for `html` or a shareable artifact, also write an HTML explanation outside the repo at `/tmp/YYYY-MM-DD-pr-review-ORG-REPO-PR_NUMBER.html`. Include CSS and, if using interactive comprehension checks, JavaScript. Use Mermaid diagrams when they reduce cognitive load, rendered from the CDN with `<script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs"; mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "strict" });</script>`. Put Mermaid source in `<pre class="mermaid">` blocks. Note that the HTML artifact needs network access to render Mermaid diagrams. Do not use ASCII diagrams in HTML output. Use simple HTML diagrams when Mermaid is not needed, and use `<pre>` tags for code blocks.
 
 ## Phase 10: Follow-up
 End by saying that follow-up questions should refer to `WORKTREE` when available. Use that worktree for any follow-up reads.

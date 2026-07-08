@@ -40,8 +40,8 @@
 [push]
     # https://git-scm.com/docs/git-config#git-config-pushdefault
     default = current
-    # Make `git push` push relevant annotated tags when pushing branches out.
-    followTags = true
+    # Keep branch pushes branch-only; push tags explicitly when needed.
+    followTags = false
 
 [core]
     whitespace = space-before-tab,-indent-with-non-tab,trailing-space

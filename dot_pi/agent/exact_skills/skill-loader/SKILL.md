@@ -38,6 +38,9 @@ Load when opening a new PR, amending commits before review, or responding to rev
 ### Prose and documentation — `write`
 Load when drafting PR descriptions, design docs, runbooks, commit messages, or any freeform user-facing text that will be read by humans.
 
+### Mermaid diagrams — `mermaid-best-practices`
+Load when creating or editing any Mermaid diagram (`.mmd` files or ` ```mermaid ` blocks), or when adding diagrams to runbooks, design docs, or Confluence pages.
+
 ## Skill load checklist
 
 Before editing, confirm each of these:
@@ -49,3 +52,4 @@ Before editing, confirm each of these:
 - [ ] Noted any conflicts between loaded skills and recorded which takes precedence.
 
 If no trigger matches (e.g. pure YAML config, Terraform, Helm), proceed without a best-practice skill and note that in chat.
+- [ ] For Mermaid: confirmed whether any diagram is being created or modified; loaded `mermaid-best-practices` if so.

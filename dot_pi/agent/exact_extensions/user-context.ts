@@ -11,8 +11,8 @@ const DATA_DOG_WORKTREES = path.join(DATA_DOG_ROOT, ".worktrees");
 const SKILL_LOADER_GUIDANCE = `## Skill Loading
 
 For requests that involve planning, reviewing, implementing, modifying, debugging, or testing code, first read the \`skill-loader\` skill and follow its checklist before editing files. Use it to determine which language and domain skills to load. Skip this for purely informational, operational, or non-code tasks.`;
-const CODE_TASK_RE = /\b(plan|implement|edit|modify|change|fix|refactor|review|write|add|create|update|debug|test)\b/i;
-const CODE_CONTEXT_RE = /\b(code|file|files|function|class|method|module|package|script|terraform|helm|yaml|go|typescript|javascript|shell|bash|cli|controller|crd|extension)\b|\.(go|ts|tsx|js|jsx|sh|bash|tf|tfvars|hcl|ya?ml)\b/i;
+const CODE_TASK_RE = /\b(plan|implement|edit|modify|change|fix|refactor|review|write|add|create|update|debug|test|tests|testing)\b/i;
+const CODE_CONTEXT_RE = /\b(code|file|files|function|class|method|module|package|script|terraform|helm|yaml|go|typescript|javascript|shell|bash|cli|controller|crd|extension|test|tests|testing|ci)\b|\.(go|ts|tsx|js|jsx|sh|bash|tf|tfvars|hcl|ya?ml)\b/i;
 
 type CurrentPullRequest = {
   number: number;

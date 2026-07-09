@@ -21,6 +21,9 @@ Load in addition to `go-best-practices` when the affected `.go` files define or 
 ### Shell scripts — `script-best-practices`
 Load when any `.sh`, `.bash`, or `run_onchange_*` file is created or modified, or when CI pipeline scripts are affected.
 
+### Terraform/OpenTofu — `terraform-best-practices`
+Load when any `.tf`, `.tfvars`, or Terraform/Terragrunt `.hcl` file is created or modified, or when planning/reviewing Terraform modules, providers, backends, state operations, imports, moved blocks, CI validation, or plan/apply workflows.
+
 ### CLI commands — `cli-best-practices`
 Load when implementing or modifying a CLI command, its flags, output format, error messages, or interactive prompts.
 
@@ -49,7 +52,8 @@ Before editing, confirm each of these:
 - [ ] Loaded every skill whose trigger matches.
 - [ ] For Go: confirmed whether controller-runtime is involved; loaded `k8s-controller-dev` if so.
 - [ ] For Go CRD types: confirmed whether API type evolution is involved; loaded `k8s-api-design` if so.
+- [ ] For Terraform/OpenTofu: confirmed whether any `.tf`, `.tfvars`, or Terragrunt `.hcl` file or state/plan workflow is involved; loaded `terraform-best-practices` if so.
+- [ ] For Mermaid: confirmed whether any diagram is being created or modified; loaded `mermaid-best-practices` if so.
 - [ ] Noted any conflicts between loaded skills and recorded which takes precedence.
 
-If no trigger matches (e.g. pure YAML config, Terraform, Helm), proceed without a best-practice skill and note that in chat.
-- [ ] For Mermaid: confirmed whether any diagram is being created or modified; loaded `mermaid-best-practices` if so.
+If no trigger matches (e.g. pure YAML config or Helm), proceed without a best-practice skill and note that in chat.

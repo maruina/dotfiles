@@ -31,7 +31,8 @@ Do not restate style rules here. Load the skill that matches each touched file a
 - Kubernetes CRDs / API types: `k8s-api-design` (takes precedence over `go-best-practices` for that code)
 - Kubernetes controllers / controller-runtime: `k8s-controller-dev` (takes precedence over `go-best-practices` for that code)
 - Go: `go-best-practices`
-- Shell / Fish: `script-best-practices`
+- Shell scripts: `script-best-practices`
+- Fish files: follow repository Fish conventions and existing syntax; do not apply Bash-specific script guidance unless a Fish-specific skill is loaded.
 - CLI surfaces: `cli-best-practices`
 - Unfamiliar area: `codebase-research` before touching it
 

@@ -1,23 +1,32 @@
 ---
+name: cli-best-practices
 description: Design agent-friendly CLI commands. Use when creating, implementing, reviewing, or modifying a CLI command, flags, output, errors, prompts, or command workflows.
 ---
 # Agent-Friendly CLI
-Core test: **what is the human caller implicitly expected to figure out?** Remove that inference from the command contract.
+Design CLIs so humans and agents do not need to infer hidden state, parse prose, or guess recovery steps.
 
-Prioritize:
-- **Structured output:** support `--json` on every command. When output is piped or captured, default to JSON. Keep stdout for data and stderr for diagnostics. Use minimal default fields; add `--fields` or `--full` for more. Treat output fields as a stable contract.
-- **Legible failures:** use consistent semantic exit codes. Return structured errors with stable `error`/`code`, human `message`, `retryable`, and concrete recovery `suggestions`. Return all validation errors at once.
-- **Non-interactive execution:** never block on prompts, pagers, menus, or browser auth in non-interactive contexts. Mutating commands should have `--dry-run --json` for preview and `--yes`/`--no-interactive` for execution.
-- **Next-step context:** include fields agents would otherwise query or compute: `total_count`, pagination/truncation metadata, summaries, specific next commands, and `undo_command` for mutations when available.
-- **Safe input handling:** reject ambiguous, dangerous, or structurally invalid input. Normalize only trivial unambiguous formatting, such as case or trailing whitespace.
-- **Secrets:** never print secrets to stdout, stderr, dry-run, verbose output, or process args. Prefer stdin, env vars, or credential files.
-- **Streaming:** use NDJSON for large or streamed results.
-- **Cancellation:** make interrupted commands report whether partial progress occurred and what completed.
-- **Auth:** support stdin, environment variables, or credential files; do not require browser flows for automation.
-- **Command shape:** prefer a predictable noun-verb hierarchy with clear required arguments and examples in `--help`.
-- **Long flags:** prefer full long-name flags over shorthand; they are easier to read and understand. For example, prefer `curl --fail --silent --show-error` over `-fsS`.
-- **Schema quality:** version output schemas and validate them in CI when downstream automation depends on them.
-- **Useful defaults:** content-first no-arg defaults are helpful only when the target context is obvious and safe.
-- **Idempotency:** prefer idempotent operations where practical so retries do not create duplicate side effects.
+## Contract
+- Support `--json` on every command. Default to JSON when stdout is piped or captured.
+- Keep stdout for data and stderr for diagnostics.
+- Treat JSON fields as stable API. Version schemas when automation depends on them.
+- Use NDJSON for large or streamed results.
+- Prefer predictable noun-verb commands, explicit required arguments, and clear examples in `--help`.
+- Prefer full long flags over shorthand in docs and generated commands.
 
-Do not add large agent docs for behavior the CLI already exposes through help or structured output. A `SKILL.md` should contain only non-inferable workflow rules and domain constraints.
+## Failures
+- Use consistent semantic exit codes.
+- Return structured errors: stable `code`, human `message`, `retryable`, and concrete `suggestions`.
+- Report all validation errors at once.
+- Include enough context to retry safely: resource IDs, partial progress, and completed steps.
+
+## Automation
+- Never block non-interactive callers on prompts, pagers, menus, or browser auth.
+- Mutating commands should support `--dry-run --json` and `--yes` or `--no-interactive`.
+- Include pagination/truncation metadata, `total_count`, next commands, and `undo_command` when available.
+- Prefer idempotent operations so retries do not create duplicate side effects.
+
+## Safety
+- Reject ambiguous, dangerous, or structurally invalid input. Normalize only trivial formatting.
+- Never print secrets to stdout, stderr, dry-run, verbose output, or process args.
+- Accept credentials through stdin, environment variables, or credential files.
+- Do not add large agent docs for behavior already exposed by help or structured output. A skill should contain only workflow rules and domain constraints.

@@ -54,12 +54,13 @@ For `plan.md` targets, check that:
 ## Method
 
 1. Use `codebase-research` to locate the target area, analyze current behavior, and find similar patterns.
-2. Identify the project shape: language, package boundaries, test/build commands, entry points, and relevant guidance files.
-3. Map the target area: core files, tests, dependencies, callers, and ownership boundaries. For plans, also read the sibling `design.md`.
-4. Review from multiple angles: correctness, concurrency, security, performance, API/UX, tests, and maintainability.
-5. Prefer structural findings over low-value nits.
-6. Validate high-confidence findings with code references, tests, type information, or command output where practical.
-7. Avoid speculative noise. If a concern depends on an assumption, state the assumption and confidence.
+2. Use the `skill-loader` skill to determine which language and domain skills to read based on the target files. Load them before evaluating findings.
+3. Identify the project shape: language, package boundaries, test/build commands, entry points, and relevant guidance files.
+4. Map the target area: core files, tests, dependencies, callers, and ownership boundaries. For plans, also read the sibling `design.md`.
+5. Review from multiple angles: correctness, concurrency, security, performance, API/UX, tests, and maintainability.
+6. Prefer structural findings over low-value nits.
+7. Validate high-confidence findings with code references, tests, type information, or command output where practical.
+8. Avoid speculative noise. If a concern depends on an assumption, state the assumption and confidence.
 
 ## Output format
 

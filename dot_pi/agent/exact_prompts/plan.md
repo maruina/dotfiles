@@ -81,7 +81,7 @@ When creating or updating a durable plan:
 1. Read the planning input completely. If it is a path, resolve it to the correct worktree first.
 2. Inspect relevant guidance, code, tests, build commands, package boundaries, existing patterns, tickets, prior plans, architecture decision records, and review threads.
 3. Before writing the plan, pressure-test the input. Ask one question at a time only if the answer materially changes the implementation plan. Prefer inspecting evidence over asking the user. Check whether the problem is framed clearly enough to plan, success criteria are observable, the first slice is small enough to implement and review safely, existing repository or platform patterns can be reused, and rollout, rollback, ownership, and validation are clear enough for the risk level.
-4. Load relevant planning skills before writing tasks. Prefer specific skills over general ones.
+4. Load relevant planning skills before writing tasks. Use the `skill-loader` skill to determine which language and domain skills to read based on files the plan will affect. Prefer specific skills over general ones.
 5. Check scope. If the work spans independent subsystems, suggest separate plans unless the input already decomposes them into independently testable deliverables.
 6. Right-size the plan based on risk and complexity.
 7. Map files before tasks: each file to create or modify, its responsibility, boundaries, and tests.

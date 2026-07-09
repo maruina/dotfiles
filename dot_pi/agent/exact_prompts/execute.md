@@ -51,7 +51,7 @@ Do not leave the work 80% done. Complete the current approved slice, including t
 1. **Setup —** Resolve and read the plan completely, or classify the bare prompt as trivial before editing.
 2. Satisfy the worktree policy before changing files.
 3. **Review —** Inspect relevant guidance, git branch/status, files named by the plan or prompt, tests, build commands, package boundaries, and current repository state.
-4. Load execution skills before editing. Read skills named by the plan, infer skills from affected files, and prefer specific skills over general ones.
+4. Load execution skills before editing. Use the `skill-loader` skill to determine which language and domain skills to read based on affected files. Also read any skills explicitly named by the plan. Prefer specific skills over general ones.
 5. Inspect referenced tickets, PRs, reviews, or discussion threads. If recent actionable feedback is missing from the plan, stop and ask whether to update it.
 6. Review the plan or trivial prompt before implementation. `/systematic-review` is the authoritative plan-validation gate; here, re-check at the depth the change needs:
    - Are files, commands, types, functions, tests, and dependencies present and consistent?

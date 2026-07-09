@@ -8,6 +8,11 @@ const execFileAsync = promisify(execFile);
 const JIRA_KEY_RE = /\b[A-Z][A-Z0-9]+-[0-9]+\b/g;
 const DATA_DOG_ROOT = path.join(process.env.HOME ?? "", "dd");
 const DATA_DOG_WORKTREES = path.join(DATA_DOG_ROOT, ".worktrees");
+const SKILL_LOADER_GUIDANCE = `## Skill Loading
+
+For requests that involve planning, reviewing, implementing, modifying, debugging, or testing code, first read the \`skill-loader\` skill and follow its checklist before editing files. Use it to determine which language and domain skills to load. Skip this for purely informational, operational, or non-code tasks.`;
+const CODE_TASK_RE = /\b(plan|implement|edit|modify|change|fix|refactor|review|write|add|create|update|debug|test)\b/i;
+const CODE_CONTEXT_RE = /\b(code|file|files|function|class|method|module|package|script|terraform|helm|yaml|go|typescript|javascript|shell|bash|cli|controller|crd|extension)\b|\.(go|ts|tsx|js|jsx|sh|bash|tf|tfvars|hcl|ya?ml)\b/i;
 
 type CurrentPullRequest = {
   number: number;
@@ -190,11 +195,15 @@ function formatPR(pr: RecentPullRequest | CurrentPullRequest): string {
   return `- [${state}] #${pr.number}${base}: ${pr.title} [head: ${head}]${link}`;
 }
 
+function shouldAddSkillLoaderGuidance(prompt: string): boolean {
+  return CODE_TASK_RE.test(prompt) && CODE_CONTEXT_RE.test(prompt);
+}
+
 export default function (pi: ExtensionAPI) {
   let cachedSlowLines: string[] | null = null;
   let slowFetchStarted = false;
 
-  pi.on("before_agent_start", async (_event, ctx) => {
+  pi.on("before_agent_start", async (event, ctx) => {
     const { cwd } = ctx;
     const lines: string[] = [];
     const { name, email } = getGitIdentity(cwd);
@@ -294,14 +303,24 @@ export default function (pi: ExtensionAPI) {
       }
     }
 
-    if (lines.length === 0) return;
+    const response: {
+      message?: { customType: string; content: string; display: boolean };
+      systemPrompt?: string;
+    } = {};
 
-    return {
-      message: {
+    if (lines.length > 0) {
+      response.message = {
         customType: "user-context",
         content: lines.join("\n"),
         display: false,
-      },
-    };
+      };
+    }
+
+    if (shouldAddSkillLoaderGuidance(event.prompt)) {
+      response.systemPrompt = `${event.systemPrompt}\n\n${SKILL_LOADER_GUIDANCE}`;
+    }
+
+    if (!response.message && !response.systemPrompt) return;
+    return response;
   });
 }

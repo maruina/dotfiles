@@ -373,7 +373,9 @@ After the user confirms the alignment brief:
 1. Ensure the worktree policy is satisfied.
 2. Write `plans/<ticket-or-feature>/design.md`. Prefer the relevant package directory in monorepos; otherwise use the repository root.
 3. Include the agreed alignment brief plus enough design detail for planning: goals, non-goals, context reviewed, assumptions, design overview, alternatives considered, risks and mitigations, operability, rollout and rollback, security/data-handling notes, testing strategy, and open questions.
-4. Self-review the spec as a skeptical staff engineer. Fix blocking issues inline; record material rejected findings with rationale.
+4. Self-review the spec as a skeptical staff engineer. Fix blocking issues inline; record material rejected findings with rationale. Specifically verify:
+   - The chosen direction has at least one explicit downside (no decision is cost-free).
+   - Each considered alternative has at least one genuine merit (no straw-man options).
 5. Commit only the design spec with Conventional Commit message `docs: add <ticket-or-feature> design`. Do not include unrelated changes. If the branch is `main` or `master`, stop and ask before committing.
 6. Ask the user to review the written spec before handing off to `/plan`.
 

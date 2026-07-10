@@ -11,6 +11,7 @@ fi
 printf '%s\n' "$input" | jq '
 {{- if eq .profile "work" }}
   .skills = [
+    "{{ .chezmoi.homeDir }}/.pi/agent/skills_work",
     "/Users/matteo.ruina/dd/claude-marketplace/compute/skills",
     "/Users/matteo.ruina/dd/claude-marketplace/compute-support/skills",
     "/Users/matteo.ruina/dd/claude-marketplace/dd/skills/conductor"
@@ -22,7 +23,7 @@ printf '%s\n' "$input" | jq '
 {{- end }}
 {{- if eq .profile "personal" }}
   .skills = [
-    "{{ .chezmoi.sourceDir }}/dot_pi/agent/exact_skills_personal"
+    "{{ .chezmoi.homeDir }}/.pi/agent/skills_personal"
   ] |
 {{- end }}
   del(.extensions.files) |

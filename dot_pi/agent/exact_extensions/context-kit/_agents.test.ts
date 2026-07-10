@@ -18,16 +18,27 @@ describe("walkUpForAgents", () => {
     writeFileSync(full, content);
   };
 
-  it("returns AGENTS.md found between startDir (inclusive) and cwd (exclusive), shallowest-first", () => {
+  it("returns AGENTS.md and CLAUDE.md found between startDir (inclusive) and cwd (exclusive), shallowest-first", () => {
     write("a/AGENTS.md");
-    write("a/b/AGENTS.md");
+    write("a/b/CLAUDE.md");
     write("a/b/c/AGENTS.md");
 
     const result = walkUpForAgents(join(cwd, "a/b/c"), cwd);
     assert.deepEqual(result, [
       join(cwd, "a/AGENTS.md"),
-      join(cwd, "a/b/AGENTS.md"),
+      join(cwd, "a/b/CLAUDE.md"),
       join(cwd, "a/b/c/AGENTS.md"),
+    ]);
+  });
+
+  it("orders AGENTS.md before CLAUDE.md within the same directory", () => {
+    write("a/AGENTS.md");
+    write("a/CLAUDE.md");
+
+    const result = walkUpForAgents(join(cwd, "a"), cwd);
+    assert.deepEqual(result, [
+      join(cwd, "a/AGENTS.md"),
+      join(cwd, "a/CLAUDE.md"),
     ]);
   });
 

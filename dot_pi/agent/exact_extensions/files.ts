@@ -469,7 +469,8 @@ const getGitStatusMap = async (
     const statusLabel = status.replace(/\s/g, "") || status.trim();
     let filePath = entry.slice(3);
     if ((status.startsWith("R") || status.startsWith("C")) && entries[i + 1]) {
-      filePath = entries[i + 1];
+      // In porcelain v1 -z output, the entry path is the new/current path and
+      // the next NUL-delimited field is the old source path.
       i += 1;
     }
     if (!filePath) continue;
@@ -838,7 +839,7 @@ const openExternalEditor = (
     });
 
     if (result.status === 0) {
-      return readFileSync(tmpFile, "utf8").replace(/\n$/, "");
+      return readFileSync(tmpFile, "utf8");
     }
 
     return null;

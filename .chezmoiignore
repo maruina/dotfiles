@@ -1,7 +1,6 @@
-{{- if ne .profile "work" }}
-.pi/agent/skills/end-of-session
+{{- if eq .profile "personal" }}
 .pi/agent/skills_work
 {{- end }}
-{{- if ne .profile "personal" }}
+{{- if eq .profile "work" }}
 .pi/agent/skills_personal
 {{- end }}

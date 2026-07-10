@@ -8,7 +8,14 @@ const agentDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 process.chdir(agentDir);
 
 const SKILL_NAME_RE = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
-const SKILL_ROOTS = ["exact_skills", "exact_skills_personal", "skills", "skills_personal"];
+const SKILL_ROOTS = [
+  "exact_skills",
+  "exact_skills_work",
+  "exact_skills_personal",
+  "skills",
+  "skills_work",
+  "skills_personal",
+];
 
 function walk(dir, files = []) {
   let entries;
@@ -31,7 +38,13 @@ function walk(dir, files = []) {
 }
 
 function renderTemplate(file) {
-  return execFileSync("chezmoi", ["execute-template"], {
+  const args = [];
+  if (process.env.CHEZMOI_VALIDATE_PROFILE) {
+    args.push("--override-data", JSON.stringify({ profile: process.env.CHEZMOI_VALIDATE_PROFILE }));
+  }
+  args.push("execute-template");
+
+  return execFileSync("chezmoi", args, {
     input: readFileSync(file),
     encoding: "utf8",
     stdio: ["pipe", "pipe", "pipe"],
@@ -171,4 +184,7 @@ if (errors.length > 0) {
   process.exit(1);
 }
 
-console.log(`Validated ${validated} skill(s); skipped ${inactive} inactive template(s).`);
+const profileLabel = process.env.CHEZMOI_VALIDATE_PROFILE
+  ? ` for ${process.env.CHEZMOI_VALIDATE_PROFILE} profile`
+  : "";
+console.log(`Validated ${validated} skill(s)${profileLabel}; skipped ${inactive} inactive template(s).`);

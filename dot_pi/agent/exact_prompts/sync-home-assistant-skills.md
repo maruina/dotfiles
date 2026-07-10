@@ -8,7 +8,7 @@ Review upstream Home Assistant agent guidance and tooling, then recommend curate
 - Upstream `homeassistant-ai/skills`
 - Upstream `homeassistant-ai/ha-mcp`
 - Local `dot_pi/agent/exact_skills_personal/exact_home-assistant/`
-- Local `dot_pi/agent/exact_skills/home-assistant-mcp/SKILL.md.tmpl`
+- Local `dot_pi/agent/exact_skills_personal/exact_home-assistant-mcp/SKILL.md.tmpl`
 
 Record the upstream URL, commit/date, source method, and a short summary of what changed upstream.
 

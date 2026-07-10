@@ -10,10 +10,12 @@ Use for chezmoi-managed dotfiles.
 ## Source layout
 ```text
 ~/.local/share/chezmoi/
-  dot_pi/agent/exact_skills/       # ~/.pi/agent/skills/
-  dot_pi/agent/exact_prompts/      # ~/.pi/agent/prompts/
-  dot_pi/agent/exact_extensions/   # ~/.pi/agent/extensions/
-  dot_pi/agent/models.json.tmpl    # ~/.pi/agent/models.json
+  dot_pi/agent/exact_skills/                # ~/.pi/agent/skills/
+  dot_pi/agent/exact_skills_personal/       # ~/.pi/agent/skills_personal/ (personal profile)
+  dot_pi/agent/exact_skills_personal/exact_home-assistant/  # exact ~/.pi/agent/skills_personal/home-assistant/
+  dot_pi/agent/exact_prompts/               # ~/.pi/agent/prompts/
+  dot_pi/agent/exact_extensions/            # ~/.pi/agent/extensions/
+  dot_pi/agent/models.json.tmpl             # ~/.pi/agent/models.json
   dot_config/mcp/
   dot_config/private_fish/
   dot_ssh/config.tmpl
@@ -32,19 +34,23 @@ Use for chezmoi-managed dotfiles.
 ## Common commands
 ```bash
 chezmoi source-path ~/.pi/agent/skills/my-skill/SKILL.md
+chezmoi source-path ~/.pi/agent/skills_personal/home-assistant/SKILL.md
 chezmoi edit ~/.pi/agent/skills/my-skill/SKILL.md
 chezmoi diff ~/.pi/agent/skills/my-skill/SKILL.md
 chezmoi apply ~/.pi/agent/skills/my-skill/SKILL.md
 chezmoi managed
 chezmoi unmanaged ~/.pi/agent/skills/
+chezmoi unmanaged ~/.pi/agent/skills_personal/
 ```
 
 Add a new target file with the target path, not the source path:
 
 ```bash
 chezmoi add ~/.pi/agent/skills/my-skill/SKILL.md
+chezmoi add ~/.pi/agent/skills_personal/my-skill/SKILL.md
 chezmoi chattr +private ~/.some/private/file
 chezmoi chattr +exact ~/.pi/agent/skills/
+chezmoi chattr +exact ~/.pi/agent/skills_personal/home-assistant/
 ```
 
 ## Templates

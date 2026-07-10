@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { findDeniedOperation } from "./compute-guardrails.ts";
+import { findDeniedOperation } from "./_shared/compute-guardrails-core.ts";
 
 const blocked = (command) => findDeniedOperation(command) !== null;
 

@@ -1,16 +1,16 @@
 ---
 name: home-assistant
-description: Personal Home Assistant safety/router skill. Routes between ha-mcp, curated docs, and REST fallback; read-only by default; requires confirmation for mutations.
+description: Personal Home Assistant safety/router skill. Routes Home Assistant work through ha-mcp and curated docs; read-only by default; requires confirmation for mutations.
 ---
 # Home Assistant
 Use this skill for personal smart-home work. Treat entity names, states, presence, cameras, locks, alarms, and device inventory as household-private.
 
 ## Routing
-1. Prefer the `home-assistant-mcp` skill for live inventory, state inspection, service/schema discovery, and confirmed control through `ha-mcp`.
-2. Use `references/core-concepts.md` for REST basics and `references/safety-and-routing.md` for detailed safety guidance.
-3. Use `scripts/*.sh` only as a REST fallback or debugging path when MCP is unavailable or the user explicitly asks for REST.
+1. Use the `home-assistant-mcp` skill for live inventory, state inspection, service/schema discovery, and confirmed control through `ha-mcp`.
+2. Use `references/core-concepts.md` for `ha-mcp` basics and `references/safety-and-routing.md` for detailed safety guidance.
+3. If MCP is unavailable, stop and report the blocker instead of falling back to direct REST calls.
 
-For live MCP work, load `home-assistant-mcp`, run `mcp-cli info ha-mcp`, and discover tool names before calling anything.
+For live work, load `home-assistant-mcp`, run `mcp-cli info ha-mcp`, and discover tool names before calling anything.
 
 ## Safety tiers
 - **Tier 0 — read-only, no confirmation:** list or inspect state, inventory, history, logbook, config, schemas, or draft changes without applying them.

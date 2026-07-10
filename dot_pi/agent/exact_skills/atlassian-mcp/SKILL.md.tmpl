@@ -16,7 +16,6 @@ Discovery:
 ```fish
 mcp-cli info atlassian
 mcp-cli info atlassian searchConfluenceUsingCql
-mcp-cli info atlassian searchJiraIssuesUsingJql
 ```
 
 Common calls:
@@ -35,17 +34,6 @@ mcp-cli call atlassian getConfluencePage '{
   "contentFormat": "markdown"
 }'
 
-mcp-cli call atlassian searchJiraIssuesUsingJql '{
-  "cloudId": "66c05bee-f5ff-4718-b6fc-81351e5ef659",
-  "jql": "project = ABC AND text ~ \"query\"",
-  "maxResults": 10
-}'
-
-mcp-cli call atlassian getJiraIssue '{
-  "cloudId": "66c05bee-f5ff-4718-b6fc-81351e5ef659",
-  "issueIdOrKey": "ABC-123",
-  "responseContentFormat": "markdown"
-}'
 ```
 
 Rules:

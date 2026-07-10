@@ -25,10 +25,11 @@ describe("ignore-file loaders", () => {
   });
 
   it("loads patterns from .pi/agentsignore", () => {
-    writeFileSync(join(cwd, ".pi/agentsignore"), "subdir/AGENTS.md\n");
+    writeFileSync(join(cwd, ".pi/agentsignore"), "subdir/AGENTS.md\nsubdir/CLAUDE.md\n");
     const m = loadAgentsIgnore(cwd);
     assert.ok(m, "matcher should be loaded");
     assert.equal(isIgnored(m, join(cwd, "subdir/AGENTS.md"), cwd), true);
+    assert.equal(isIgnored(m, join(cwd, "subdir/CLAUDE.md"), cwd), true);
     assert.equal(isIgnored(m, join(cwd, "other/AGENTS.md"), cwd), false);
   });
 

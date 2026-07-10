@@ -8,19 +8,22 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
 
 const globalRoot = execFileSync("npm", ["root", "-g"], { encoding: "utf8" }).trim();
-const piNodeModules = join(globalRoot, "@mariozechner/pi-coding-agent/node_modules");
+const piNodeModules = join(globalRoot, "@earendil-works/pi-coding-agent/node_modules");
 process.env.NODE_PATH = [piNodeModules, globalRoot, process.env.NODE_PATH].filter(Boolean).join(":");
 Module._initPaths();
 
 const require = Module.createRequire(import.meta.url);
-const { createJiti } = require("@mariozechner/jiti");
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../../..");
-const jiti = createJiti(`${repoRoot}/`);
+const { createJiti } = require("jiti");
+const testDir = dirname(fileURLToPath(import.meta.url));
+const agentRoot = resolve(testDir, "../../..");
+const extensionsDir = resolve(testDir, "../..");
+const extensionPrefix = extensionsDir.endsWith("/extensions") ? "extensions/lsp" : "exact_extensions/lsp";
+const jiti = createJiti(`${agentRoot}/`);
 
-const utils = jiti("./dot_pi/agent/exact_extensions/lsp/utils.ts");
-const servers = jiti("./dot_pi/agent/exact_extensions/lsp/servers.ts");
-const transport = jiti("./dot_pi/agent/exact_extensions/lsp/transport.ts");
-const entry = jiti("./dot_pi/agent/exact_extensions/lsp.ts");
+const utils = jiti(`./${extensionPrefix}/utils.ts`);
+const servers = jiti(`./${extensionPrefix}/servers.ts`);
+const transport = jiti(`./${extensionPrefix}/transport.ts`);
+const entry = jiti(`./${extensionPrefix}.ts`);
 
 function tempDir() { return mkdtempSync(join(tmpdir(), "pi-lsp-test-")); }
 
@@ -215,5 +218,5 @@ test("document sync coalesces concurrent opens for the same URI", async () => {
 test("LspClient debug state is safe before startup", () => {
   const client = new transport.LspClient(process.cwd(), { id: "x", label: "X", command: "x", args: [], extensions: [], rootMarkers: [], languageId: () => "x" }, "/bin/false");
 
-  assert.deepEqual(client.debugState(), { running: false, initialized: false, openDocuments: 0, diagnostics: 0, syncingDocuments: 0 });
+  assert.deepEqual(client.debugState(), { running: false, initialized: false, command: "x", commandPath: "/bin/false", args: [], activeOverride: undefined, env: {}, openDocuments: 0, diagnostics: 0, syncingDocuments: 0 });
 });

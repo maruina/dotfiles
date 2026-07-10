@@ -48,7 +48,7 @@ function buildCodexPrompt(params: WebSearchParams): string | null {
   }
 }
 
-async function runCodex(params: WebSearchParams, signal: AbortSignal) {
+async function runCodex(params: WebSearchParams, signal: AbortSignal, cwd: string) {
   const prompt = buildCodexPrompt(params);
   if (!prompt) {
     throw new Error(`Missing required input for codex ${params.capability}`);
@@ -71,13 +71,13 @@ async function runCodex(params: WebSearchParams, signal: AbortSignal) {
       "--color",
       "never",
       "--cd",
-      process.cwd(),
+      cwd,
       prompt,
     ];
 
     await new Promise<void>((resolve, reject) => {
       const child = spawn("codex", args, {
-        cwd: process.cwd(),
+        cwd,
         env: process.env,
         signal,
         stdio: ["ignore", "pipe", "pipe"],
@@ -138,8 +138,8 @@ export default function (pi: ExtensionAPI) {
       ),
     }),
 
-    async execute(toolCallId, params, signal) {
-{{ if eq .profile "work" }}      return runCodex(params, signal);
+    async execute(toolCallId, params, signal, _onUpdate, ctx) {
+{{ if eq .profile "work" }}      return runCodex(params, signal, ctx.cwd);
 {{ else }}      const apiKey = getApiKey();
 
       // Tavily uses /search endpoint for both search and research modes

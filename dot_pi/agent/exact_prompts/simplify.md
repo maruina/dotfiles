@@ -26,17 +26,9 @@ Default to recently changed code, not the whole repository. Resolve the target f
 Honor a user-supplied `--base`. Stay within the changed lines and their immediate context; do not expand into untouched code.
 
 ## Delegate the "how"
-Do not restate style rules here. Load the skill that matches each touched file and defer to it, plus the repository's `AGENTS.md`:
+Do not restate style rules here. Before proposing or making simplifications, use the `skill-loader` skill to determine which language and domain skills to read based on the touched files. Load those skills and defer to them, plus the repository's `AGENTS.md`.
 
-- Kubernetes CRDs / API types: `k8s-api-design` (takes precedence over `go-best-practices` for that code)
-- Kubernetes controllers / controller-runtime: `k8s-controller-dev` (takes precedence over `go-best-practices` for that code)
-- Go: `go-best-practices`
-- Shell scripts: `script-best-practices`
-- Fish files: follow repository Fish conventions and existing syntax; do not apply Bash-specific script guidance unless a Fish-specific skill is loaded.
-- CLI surfaces: `cli-best-practices`
-- Unfamiliar area: `codebase-research` before touching it
-
-Match the repository's existing conventions over any general preference.
+If the touched code is in an unfamiliar area, also load `codebase-research` before changing it. Match the repository's existing conventions over any general preference.
 
 ## Guardrail
 Simplicity serves the reader, not brevity. Do not:

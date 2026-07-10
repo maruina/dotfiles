@@ -35,6 +35,7 @@ import {
   Text,
   type TUI,
 } from "@earendil-works/pi-tui";
+import { parseGitStatusPorcelainZ } from "./files/_git.ts";
 
 type ContentBlock = {
   type?: string;
@@ -461,27 +462,14 @@ const getGitStatusMap = async (
     return statusMap;
   }
 
-  const entries = splitNullSeparated(statusResult.stdout);
-  for (let i = 0; i < entries.length; i += 1) {
-    const entry = entries[i];
-    if (!entry || entry.length < 4) continue;
-    const status = entry.slice(0, 2);
-    const statusLabel = status.replace(/\s/g, "") || status.trim();
-    let filePath = entry.slice(3);
-    if ((status.startsWith("R") || status.startsWith("C")) && entries[i + 1]) {
-      // In porcelain v1 -z output, the entry path is the new/current path and
-      // the next NUL-delimited field is the old source path.
-      i += 1;
-    }
-    if (!filePath) continue;
-
-    const resolved = path.isAbsolute(filePath)
-      ? filePath
-      : path.resolve(cwd, filePath);
+  for (const entry of parseGitStatusPorcelainZ(statusResult.stdout)) {
+    const resolved = path.isAbsolute(entry.path)
+      ? entry.path
+      : path.resolve(cwd, entry.path);
     const canonical = toCanonicalPathMaybeMissing(resolved);
     if (!canonical) continue;
     statusMap.set(canonical.canonicalPath, {
-      status: statusLabel,
+      status: entry.status,
       exists: canonical.exists,
       isDirectory: canonical.isDirectory,
     });

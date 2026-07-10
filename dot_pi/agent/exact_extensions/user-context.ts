@@ -95,11 +95,11 @@ async function getRepoName(cwd: string): Promise<string | null> {
   return nameWithOwner ?? getLocalRepoName(cwd);
 }
 
-function uniqueMatches(text: string): string[] {
+export function uniqueMatches(text: string): string[] {
   return [...new Set(text.match(JIRA_KEY_RE) ?? [])];
 }
 
-function pathInside(child: string, parent: string): boolean {
+export function pathInside(child: string, parent: string): boolean {
   const rel = path.relative(parent, child);
   return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
 }
@@ -196,7 +196,7 @@ async function getRecentFiles(email: string, cwd: string, sampleSize = 10): Prom
   return files.filter((_, index) => index % stride === 0).slice(0, Math.min(sampleSize, files.length));
 }
 
-function formatPR(pr: RecentPullRequest | CurrentPullRequest): string {
+export function formatPR(pr: RecentPullRequest | CurrentPullRequest): string {
   const state = pr.state === "OPEN" ? "OPEN" : pr.state === "MERGED" ? "MERGED" : pr.state;
   const base = pr.baseRefName ? ` → ${pr.baseRefName}` : "";
   const head = pr.headRefName ? `${pr.headRefName}` : `#${pr.number}`;
@@ -204,8 +204,12 @@ function formatPR(pr: RecentPullRequest | CurrentPullRequest): string {
   return `- [${state}] #${pr.number}${base}: ${pr.title} [head: ${head}]${link}`;
 }
 
-function shouldAddSkillLoaderGuidance(prompt: string): boolean {
+export function shouldAddSkillLoaderGuidance(prompt: string): boolean {
   return CODE_TASK_RE.test(prompt) && CODE_CONTEXT_RE.test(prompt);
+}
+
+export function buildRepoContextKey(cwd: string, branch: string | null, email: string | null): string {
+  return [cwd, branch ?? "", email ?? ""].join("\0");
 }
 
 type CachedRepoContext = {
@@ -233,7 +237,7 @@ export default function (pi: ExtensionAPI) {
     if (isGitRepo(cwd)) {
       const localRepoName = getLocalRepoName(cwd);
       const branch = getGitBranch(cwd);
-      const repoContextKey = [cwd, branch ?? "", email ?? ""].join("\0");
+      const repoContextKey = buildRepoContextKey(cwd, branch, email);
       const cached = cachedRepoContext?.key === repoContextKey ? cachedRepoContext : null;
       const repoName = cached?.repoName ?? localRepoName;
       const defaultBranch = cached?.defaultBranch ?? getLocalDefaultBranch(cwd);

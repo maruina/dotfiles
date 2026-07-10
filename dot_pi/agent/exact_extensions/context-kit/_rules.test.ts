@@ -1,5 +1,5 @@
 import { strict as assert } from "node:assert";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
@@ -219,6 +219,24 @@ describe("findMatchingRules", () => {
       sources: [{ dir: join(cwd, ".claude/rules"), kind: "claude" }],
     });
     assert.deepEqual(matches, []);
+  });
+
+  it("invalidates cached frontmatter when a rule file mtime changes", () => {
+    const rulePath = join(cwd, ".cursor/rules/cache.mdc");
+    writeRule(
+      ".cursor/rules/cache.mdc",
+      ["---", "globs: src/**/*.ts", "---", "rule"].join("\n"),
+    );
+
+    const sources = [{ dir: join(cwd, ".cursor/rules"), kind: "cursor" as const }];
+    assert.equal(findMatchingRules({ filePath: join(cwd, "src/foo.ts"), cwd, sources }).length, 1);
+
+    writeFileSync(rulePath, ["---", "globs: tests/**/*.ts", "---", "rule"].join("\n"));
+    const future = new Date(Date.now() + 10_000);
+    utimesSync(rulePath, future, future);
+
+    assert.deepEqual(findMatchingRules({ filePath: join(cwd, "src/foo.ts"), cwd, sources }), []);
+    assert.equal(findMatchingRules({ filePath: join(cwd, "tests/foo.ts"), cwd, sources }).length, 1);
   });
 
   it("returns empty when rules dir doesn't exist", () => {

@@ -14,7 +14,9 @@ Use for chezmoi-managed dotfiles.
   dot_pi/agent/exact_skills_personal/       # ~/.pi/agent/skills_personal/ (personal profile)
   dot_pi/agent/exact_skills_personal/exact_home-assistant/  # exact ~/.pi/agent/skills_personal/home-assistant/
   dot_pi/agent/exact_prompts/               # ~/.pi/agent/prompts/
-  dot_pi/agent/exact_extensions/            # ~/.pi/agent/extensions/
+  dot_pi/agent/exact_extensions/            # ~/.pi/agent/extensions/ entrypoints
+  dot_pi/agent/exact_extensions/_shared/    # shared helpers, not extension entrypoints
+  dot_pi/agent/exact_scripts/               # ~/.pi/agent/scripts/
   dot_pi/agent/models.json.tmpl             # ~/.pi/agent/models.json
   dot_config/mcp/
   dot_config/private_fish/
@@ -30,6 +32,9 @@ Use for chezmoi-managed dotfiles.
 | `exact_` | Remove target files absent from source |
 | `run_onchange_` | Run when content hash changes |
 | `.tmpl` | Render with Go `text/template` |
+
+## Pi extension contract
+Top-level `dot_pi/agent/exact_extensions/*.ts` files are auto-discovered by Pi and must export a default extension factory. Put pure helper modules under `_shared/` or inside an extension directory.
 
 ## Common commands
 ```bash
@@ -85,6 +90,14 @@ Inspect and test templates:
 chezmoi data
 chezmoi execute-template '{{ .chezmoi.os }}'
 chezmoi execute-template < ~/.local/share/chezmoi/dot_pi/agent/models.json.tmpl
+```
+
+Validate Pi resources:
+
+```bash
+cd ~/.local/share/chezmoi/dot_pi/agent && npm test
+cd ~/.local/share/chezmoi/dot_pi/agent && npm run test:all
+cd ~/.pi/agent && npm test
 ```
 
 ## Secrets

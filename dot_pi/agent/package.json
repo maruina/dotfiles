@@ -4,10 +4,14 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "sh -c 'ext=$([ -d exact_extensions ] && echo exact_extensions || echo extensions); node --experimental-strip-types --test \"$ext\"/context-kit/*.test.ts \"$ext\"/lsp/__tests__/lsp.test.mjs \"$ext\"/compute-guardrails.test.mjs'",
+    "test": "npm run test:unit && npm run test:skills",
+    "test:all": "npm test && npm run test:smoke",
     "test:compute-guardrails": "sh -c 'ext=$([ -d exact_extensions ] && echo exact_extensions || echo extensions); node --experimental-strip-types --test \"$ext\"/compute-guardrails.test.mjs'",
     "test:context-kit": "sh -c 'ext=$([ -d exact_extensions ] && echo exact_extensions || echo extensions); node --experimental-strip-types --test \"$ext\"/context-kit/*.test.ts'",
-    "test:lsp": "sh -c 'ext=$([ -d exact_extensions ] && echo exact_extensions || echo extensions); node --experimental-strip-types --test \"$ext\"/lsp/__tests__/lsp.test.mjs'"
+    "test:lsp": "sh -c 'ext=$([ -d exact_extensions ] && echo exact_extensions || echo extensions); node --experimental-strip-types --test \"$ext\"/lsp/__tests__/lsp.test.mjs'",
+    "test:skills": "sh -c 'scripts=$([ -d exact_scripts ] && echo exact_scripts || echo scripts); node \"$scripts\"/validate-skills.mjs'",
+    "test:smoke": "sh -c 'output=$(PI_OFFLINE=1 pi --no-session --no-context-files --list-models __pi_smoke_no_match__ 2>&1); status=$?; printf \"%s\\n\" \"$output\"; if [ $status -ne 0 ]; then exit $status; fi; ! printf \"%s\\n\" \"$output\" | grep -q \"\\[Extension issues\\]\"'",
+    "test:unit": "sh -c 'ext=$([ -d exact_extensions ] && echo exact_extensions || echo extensions); node --experimental-strip-types --test \"$ext\"/context-kit/*.test.ts \"$ext\"/lsp/__tests__/lsp.test.mjs \"$ext\"/compute-guardrails.test.mjs'"
   },
   "keywords": [],
   "author": "",

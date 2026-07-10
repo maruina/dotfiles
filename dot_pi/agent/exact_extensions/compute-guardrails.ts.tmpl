@@ -1,8 +1,8 @@
 /**
  * Compute Guardrails Extension
  *
- * Blocks destructive kubectl, ddtool, helm, aws, and rm commands.
- * All other commands pass through silently — pi has no permission prompts by default.
+ * Blocks mutating-looking kubectl, ddtool, helm, aws, and rm commands.
+ * Known read-only operations pass through; unknown protected operations fail closed.
  *
  * Disable for one session: `pi --no-extensions`
  * Disable for a project:   add `{ "extensions": ["!**\/compute-guardrails*"] }` to .pi/settings.json
@@ -209,28 +209,105 @@ const DENY_RECORDS: DenyRecord[] = [
 
 // rm -r and rm -rf only (not plain rm)
 const RM_RECURSIVE = /(?:^|\s)rm\s+(?:\S+\s+)*-[a-zA-Z]*r[a-zA-Z]*/;
+const PROTECTED_TOOLS = new Set(["aws", "ddtool", "helm", "kubectl"]);
+const SHELL_WRAPPERS = new Set(["bash", "fish", "sh", "zsh"]);
+const READ_ONLY_KUBECTL = new Set(["api-resources", "api-versions", "auth", "cluster-info", "describe", "explain", "get", "logs", "top", "version"]);
+const READ_ONLY_KUBECTL_AUTH = new Set(["can-i", "whoami"]);
+const READ_ONLY_KUBECTL_CONFIG = new Set(["current-context", "get-contexts", "view"]);
+const READ_ONLY_HELM = new Set(["env", "get", "history", "lint", "list", "search", "show", "status", "template", "version"]);
+const READ_ONLY_HELM_REPO = new Set(["list"]);
+const READ_ONLY_DDTOOL = new Set(["describe", "find", "get", "info", "list", "search", "show"]);
+const READ_ONLY_AWS_PREFIXES = ["describe", "get", "list"];
+const READ_ONLY_AWS_EXACT = new Set(["filter-log-events", "lookup-events", "query", "scan"]);
+
+const GLOBAL_FLAGS_WITH_VALUE: Record<string, Set<string>> = {
+  aws: new Set(["--ca-bundle", "--cli-binary-format", "--color", "--endpoint-url", "--output", "--profile", "--query", "--region"]),
+  ddtool: new Set(["--config", "--context", "--profile"]),
+  helm: new Set(["--burst-limit", "--kube-apiserver", "--kube-as-user", "--kube-ca-file", "--kube-context", "--kube-token", "--namespace", "--registry-config", "--repository-cache", "--repository-config", "-k", "-n"]),
+  kubectl: new Set(["--as", "--as-group", "--cache-dir", "--certificate-authority", "--client-certificate", "--client-key", "--cluster", "--context", "--kubeconfig", "--match-server-version", "--namespace", "--profile", "--request-timeout", "--server", "--token", "--user", "-n"]),
+};
+
+const GLOBAL_FLAGS_WITHOUT_VALUE: Record<string, Set<string>> = {
+  aws: new Set(["--debug", "--no-cli-auto-prompt", "--no-cli-pager", "--no-paginate", "--no-sign-request"]),
+  ddtool: new Set(["--debug", "--verbose"]),
+  helm: new Set(["--debug", "--kube-insecure-skip-tls-verify"]),
+  kubectl: new Set(["--insecure-skip-tls-verify"]),
+};
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Strip leading VAR=value assignments and common command-running wrappers
- * (sudo, env, timeout, nice, nohup) so the real command name is token[0].
- */
+function basename(command: string): string {
+  return command.split(/[\\/]/).pop() ?? command;
+}
+
+function isAssignment(token: string): boolean {
+  return /^[A-Za-z_][A-Za-z0-9_]*=/.test(token);
+}
+
+function isFlag(token: string): boolean {
+  return token.startsWith("-") && token !== "-";
+}
+
 function stripPrefixes(tokens: string[]): string[] {
+  let out = [...tokens];
+  while (out.length > 0) {
+    const command = basename(out[0]);
+    if (isAssignment(command)) {
+      out = out.slice(1);
+      continue;
+    }
+    if (command === "sudo") {
+      out = stripSudo(out.slice(1));
+      continue;
+    }
+    if (command === "env") {
+      out = stripEnv(out.slice(1));
+      continue;
+    }
+    if (["command", "nohup", "time", "xargs"].includes(command)) {
+      out = out.slice(1);
+      continue;
+    }
+    if (command === "timeout") {
+      out = stripTimeout(out.slice(1));
+      continue;
+    }
+    if (command === "nice" || command === "ionice") {
+      out = stripSimpleWrapperOptions(out.slice(1));
+      continue;
+    }
+    break;
+  }
+  return out;
+}
+
+function stripSudo(tokens: string[]): string[] {
+  let i = 0;
+  const valueFlags = new Set(["-C", "-D", "-g", "-h", "-p", "-T", "-t", "-U", "-u", "--askpass", "--chdir", "--group", "--host", "--login-class", "--prompt", "--role", "--type", "--user"]);
+  while (i < tokens.length && isFlag(tokens[i])) {
+    const token = tokens[i];
+    i++;
+    if (!token.includes("=") && valueFlags.has(token) && i < tokens.length) i++;
+  }
+  return tokens.slice(i);
+}
+
+function stripEnv(tokens: string[]): string[] {
   let i = 0;
   while (i < tokens.length) {
-    const t = tokens[i];
-    // VAR=value assignment
-    if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(t)) { i++; continue; }
-    // command-running wrappers (consume their own flags too)
-    if (/^(sudo|env|timeout|nice|nohup|ionice|time|xargs)$/.test(t)) {
+    const token = tokens[i];
+    if (isAssignment(token)) {
       i++;
-      // skip flags belonging to the wrapper (e.g. sudo -u root, timeout 30)
-      while (i < tokens.length && tokens[i].startsWith("-")) i++;
-      // timeout also takes a duration positional
-      if (t === "timeout" && i < tokens.length && /^\d/.test(tokens[i])) i++;
+      continue;
+    }
+    if (token === "-i" || token === "--ignore-environment" || token === "-0" || token === "--null") {
+      i++;
+      continue;
+    }
+    if ((token === "-u" || token === "--unset") && i + 1 < tokens.length) {
+      i += 2;
       continue;
     }
     break;
@@ -238,72 +315,205 @@ function stripPrefixes(tokens: string[]): string[] {
   return tokens.slice(i);
 }
 
-/**
- * Tokenise one shell segment (already split on &&, ||, ;, |).
- * Handles quoted strings and strips path prefix from the command name.
- */
-function tokenise(segment: string): string[] {
-  const tokens: string[] = [];
-  const re = /'[^']*'|"[^"]*"|\S+/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(segment)) !== null) {
-    let t = m[0];
-    // strip surrounding quotes
-    if ((t.startsWith("'") && t.endsWith("'")) ||
-        (t.startsWith('"') && t.endsWith('"'))) {
-      t = t.slice(1, -1);
-    }
-    tokens.push(t);
+function stripTimeout(tokens: string[]): string[] {
+  let i = 0;
+  const valueFlags = new Set(["--kill-after", "-k", "--signal", "-s"]);
+  while (i < tokens.length && isFlag(tokens[i])) {
+    const token = tokens[i];
+    i++;
+    if (!token.includes("=") && valueFlags.has(token) && i < tokens.length) i++;
   }
+  if (i < tokens.length && /^\d/.test(tokens[i])) i++;
+  return tokens.slice(i);
+}
+
+function stripSimpleWrapperOptions(tokens: string[]): string[] {
+  let i = 0;
+  while (i < tokens.length && isFlag(tokens[i])) i++;
+  return tokens.slice(i);
+}
+
+function tokenize(segment: string): string[] {
+  const tokens: string[] = [];
+  let current = "";
+  let quote: "'" | '"' | null = null;
+  for (let i = 0; i < segment.length; i++) {
+    const char = segment[i];
+    if (quote) {
+      if (char === quote) {
+        quote = null;
+      } else if (char === "\\" && quote === '"' && i + 1 < segment.length) {
+        current += segment[++i];
+      } else {
+        current += char;
+      }
+      continue;
+    }
+    if (char === "'" || char === '"') {
+      quote = char;
+      continue;
+    }
+    if (/\s/.test(char)) {
+      if (current) {
+        tokens.push(current);
+        current = "";
+      }
+      continue;
+    }
+    current += char;
+  }
+  if (current) tokens.push(current);
   return tokens;
 }
 
-/**
- * Split a shell command string into top-level segments on &&, ||, ;, and |.
- * Does not descend into subshells — we only need the command names at the
- * top level for the deny check (subshell contents are separate segments).
- */
-function splitSegments(cmd: string): string[] {
-  // Simple splitter: break on &&, ||, ;, |, newline
-  // Good enough for the deny-list use case (fail-open for unusual forms)
-  return cmd.split(/&&|\|\||[;|\n]/).map(s => s.trim()).filter(Boolean);
+function splitSegments(command: string): string[] {
+  const segments: string[] = [];
+  let current = "";
+  let quote: "'" | '"' | null = null;
+  for (let i = 0; i < command.length; i++) {
+    const char = command[i];
+    const next = command[i + 1];
+    if (quote) {
+      current += char;
+      if (char === quote) quote = null;
+      continue;
+    }
+    if (char === "'" || char === '"') {
+      quote = char;
+      current += char;
+      continue;
+    }
+    if (char === "\n" || char === ";" || char === "|" || (char === "&" && next === "&")) {
+      if (current.trim()) segments.push(current.trim());
+      current = "";
+      if ((char === "|" && next === "|") || (char === "&" && next === "&")) i++;
+      continue;
+    }
+    current += char;
+  }
+  if (current.trim()) segments.push(current.trim());
+  return segments;
 }
 
-/**
- * Check one shell segment against the deny list.
- * Returns the matching DenyRecord, or null if no match.
- */
-function checkSegment(segment: string): DenyRecord | null {
-  const raw = tokenise(segment);
-  const tokens = stripPrefixes(raw);
-  if (tokens.length === 0) return null;
-
-  // rm -r / rm -rf check (flag-order independent)
-  if (tokens[0] === "rm" && RM_RECURSIVE.test(segment)) {
-    return { tool: "rm", sub: [], reason: "recursive filesystem delete (rm -r / rm -rf)" };
-  }
-
-  for (const record of DENY_RECORDS) {
-    if (tokens[0] !== record.tool) continue;
-    // Check that the subcommand words appear at tokens[1..n] in order
-    const sub = record.sub;
-    if (tokens.length < 1 + sub.length) continue;
-    let match = true;
-    for (let i = 0; i < sub.length; i++) {
-      if (tokens[1 + i] !== sub[i]) { match = false; break; }
+function skipGlobalFlags(tool: string, args: string[]): string[] {
+  const withValue = GLOBAL_FLAGS_WITH_VALUE[tool] ?? new Set<string>();
+  const withoutValue = GLOBAL_FLAGS_WITHOUT_VALUE[tool] ?? new Set<string>();
+  let i = 0;
+  while (i < args.length) {
+    const token = args[i];
+    if (isAssignment(token)) {
+      i++;
+      continue;
     }
-    if (match) return record;
+    if (!isFlag(token)) break;
+    const flag = token.includes("=") ? token.slice(0, token.indexOf("=")) : token;
+    if (withValue.has(flag)) {
+      i += token.includes("=") ? 1 : 2;
+      continue;
+    }
+    if (withoutValue.has(flag)) {
+      i++;
+      continue;
+    }
+    // Unknown leading flags are treated as global flags. If they take a value,
+    // the next pass will stop on that value and fail closed for protected tools.
+    i++;
+  }
+  return args.slice(i);
+}
+
+function findShellCommand(tokens: string[]): string | null {
+  if (tokens.length === 0 || !SHELL_WRAPPERS.has(basename(tokens[0]))) return null;
+  for (let i = 1; i < tokens.length; i++) {
+    const token = tokens[i];
+    if (token === "-c" || token.endsWith("c") && token.startsWith("-")) {
+      return tokens[i + 1] ?? null;
+    }
   }
   return null;
 }
 
+function exactDenyRecord(tool: string, args: string[]): DenyRecord | null {
+  for (const record of DENY_RECORDS) {
+    if (tool !== record.tool) continue;
+    if (args.length < record.sub.length) continue;
+    if (record.sub.every((part, index) => args[index] === part)) return record;
+  }
+  return null;
+}
+
+function protectedToolDecision(tool: string, args: string[]): DenyRecord | null {
+  const record = exactDenyRecord(tool, args);
+  if (record) return record;
+  if (isAllowedReadOnly(tool, args)) return null;
+  return { tool, sub: args.slice(0, 2), reason: "unknown or mutating protected command" };
+}
+
+function isAllowedReadOnly(tool: string, args: string[]): boolean {
+  const [first, second] = args;
+  if (!first) return false;
+  switch (tool) {
+    case "kubectl":
+      if (first === "auth") return Boolean(second && READ_ONLY_KUBECTL_AUTH.has(second));
+      if (first === "config") return Boolean(second && READ_ONLY_KUBECTL_CONFIG.has(second));
+      return READ_ONLY_KUBECTL.has(first);
+    case "helm":
+      if (first === "repo") return Boolean(second && READ_ONLY_HELM_REPO.has(second));
+      return READ_ONLY_HELM.has(first);
+    case "aws":
+      return isAllowedAws(args);
+    case "ddtool":
+      return args.some((arg) => READ_ONLY_DDTOOL.has(arg));
+    default:
+      return false;
+  }
+}
+
+function isAllowedAws(args: string[]): boolean {
+  const [service, operation] = args;
+  if (!service || !operation) return false;
+  if (service === "s3" && operation === "ls") return true;
+  if (READ_ONLY_AWS_EXACT.has(operation)) return true;
+  return READ_ONLY_AWS_PREFIXES.some((prefix) => operation.startsWith(prefix));
+}
+
+function inspectCommandSubstitutions(command: string, depth: number): DenyRecord | null {
+  for (const match of command.matchAll(/\$\(([^()]*)\)|`([^`]*)`/g)) {
+    const nested = match[1] ?? match[2];
+    if (!nested) continue;
+    const hit = findDeniedOperation(nested, depth + 1);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+function checkSegment(segment: string, depth: number): DenyRecord | null {
+  const tokens = stripPrefixes(tokenize(segment));
+  if (tokens.length === 0) return null;
+
+  const shellCommand = findShellCommand(tokens);
+  if (shellCommand) return findDeniedOperation(shellCommand, depth + 1);
+
+  const tool = basename(tokens[0]);
+  if (tool === "rm" && RM_RECURSIVE.test(segment)) {
+    return { tool: "rm", sub: [], reason: "recursive filesystem delete" };
+  }
+  if (!PROTECTED_TOOLS.has(tool)) return null;
+
+  const args = skipGlobalFlags(tool, tokens.slice(1));
+  return protectedToolDecision(tool, args);
+}
+
 /**
- * Scan the full command string for any denied operation.
- * Returns the first DenyRecord found, or null.
+ * Scan the full command string for any denied operation. Returns null for
+ * commands outside the protected CLI families and for known read-only forms.
  */
-function findDeniedOperation(command: string): DenyRecord | null {
+export function findDeniedOperation(command: string, depth = 0): DenyRecord | null {
+  if (depth > 3) return { tool: "shell", sub: [], reason: "nested shell command exceeded guardrail inspection depth" };
+  const nestedHit = inspectCommandSubstitutions(command, depth);
+  if (nestedHit) return nestedHit;
   for (const segment of splitSegments(command)) {
-    const hit = checkSegment(segment);
+    const hit = checkSegment(segment, depth);
     if (hit) return hit;
   }
   return null;

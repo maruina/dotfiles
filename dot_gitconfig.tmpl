@@ -45,6 +45,10 @@
 
 [core]
     whitespace = space-before-tab,-indent-with-non-tab,trailing-space
+    # Use a TTY-aware editor: exit 0 immediately in non-interactive environments
+    # (e.g. pi, scripts) so git rebase --continue never blocks waiting for vim.
+    # In a real terminal, delegates to $VISUAL or $EDITOR.
+    editor = sh -c '[ -t 0 ] && exec "${VISUAL:-${EDITOR:-vim}}" "$@" || exit 0' --
     # Make `git rebase` safer on macOS
     # More info: <http://www.git-tower.com/blog/make-git-rebase-safe-on-osx/>
     trustctime = false

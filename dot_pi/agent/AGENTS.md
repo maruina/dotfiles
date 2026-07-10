@@ -58,6 +58,9 @@ For multi-step work, use a brief plan:
 
 A hidden `user-context` extension injects current repo, branch, PR, Jira-key, worktree, and recent-file context. Treat it as hints; follow explicit user instructions and repository guidance first.
 
+## Pi Extension Layout
+Top-level files under `dot_pi/agent/exact_extensions/*.ts` are Pi-discovered extension entrypoints and must export a default factory function. Put pure helpers, shared modules, and test-only code under `_shared/` or an extension subdirectory so Pi does not try to load them as standalone extensions.
+
 ## Code Style
 
 - Use US English.

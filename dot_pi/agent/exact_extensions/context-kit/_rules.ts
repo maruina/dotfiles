@@ -141,6 +141,35 @@ export function defaultRuleSources(cwd: string, home: string = homedir()): RuleS
   ];
 }
 
+type ParsedRuleFile = {
+  mtimeMs: number;
+  frontmatter: ReturnType<typeof parseFrontmatter>;
+};
+
+const parsedRuleCache = new Map<string, ParsedRuleFile>();
+
+function readRuleFrontmatter(ruleFile: string): ReturnType<typeof parseFrontmatter> | null {
+  let mtimeMs: number;
+  try {
+    mtimeMs = statSync(ruleFile).mtimeMs;
+  } catch {
+    return null;
+  }
+
+  const cached = parsedRuleCache.get(ruleFile);
+  if (cached?.mtimeMs === mtimeMs) {
+    return cached.frontmatter;
+  }
+
+  try {
+    const frontmatter = parseFrontmatter(readFileSync(ruleFile, "utf8"));
+    parsedRuleCache.set(ruleFile, { mtimeMs, frontmatter });
+    return frontmatter;
+  } catch {
+    return null;
+  }
+}
+
 export type RuleMatch = {
   /** Absolute path to the rule file. */
   path: string;
@@ -168,13 +197,8 @@ export function findMatchingRules(opts: {
   const matches: RuleMatch[] = [];
   for (const source of opts.sources) {
     for (const ruleFile of listRuleFiles(source.dir, source.kind)) {
-      let content: string;
-      try {
-        content = readFileSync(ruleFile, "utf8");
-      } catch {
-        continue;
-      }
-      const fm = parseFrontmatter(content);
+      const fm = readRuleFrontmatter(ruleFile);
+      if (!fm) continue;
       const patterns = source.kind === "claude" ? fm.paths : fm.globs;
       if (!patterns || patterns.length === 0) continue; // Only path-matched rules.
       const matched = patterns.filter((p) => minimatch(rel, p, { dot: true }));

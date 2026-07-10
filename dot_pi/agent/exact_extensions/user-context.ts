@@ -1,8 +1,9 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { BeforeAgentStartEvent, BeforeAgentStartEventResult, ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { execFile, execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
+import { traceHook } from "./_shared/tracing.ts";
 
 const execFileAsync = promisify(execFile);
 const JIRA_KEY_RE = /\b[A-Z][A-Z0-9]+-[0-9]+\b/g;
@@ -68,22 +69,30 @@ function getGitBranch(cwd: string): string | null {
   return git(cwd, ["branch", "--show-current"]);
 }
 
-function getDefaultBranch(cwd: string): string | null {
+function getLocalDefaultBranch(cwd: string): string | null {
   const originHead = git(cwd, ["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"]);
   if (originHead?.startsWith("origin/")) return originHead.slice("origin/".length);
-  return git(cwd, ["remote", "show", "origin"], 5000)?.match(/HEAD branch: (.+)/)?.[1]?.trim() ?? null;
+  return null;
+}
+
+async function getDefaultBranch(cwd: string): Promise<string | null> {
+  const localDefault = getLocalDefaultBranch(cwd);
+  if (localDefault) return localDefault;
+  return (await runAsync("git", ["remote", "show", "origin"], cwd, 5000))?.match(/HEAD branch: (.+)/)?.[1]?.trim() ?? null;
 }
 
 function getRepoRoot(cwd: string): string | null {
   return git(cwd, ["rev-parse", "--show-toplevel"]);
 }
 
-function getRepoName(cwd: string): string | null {
-  const nameWithOwner = runSync("gh", ["repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"], cwd, 3000);
-  if (nameWithOwner) return nameWithOwner;
-
+function getLocalRepoName(cwd: string): string | null {
   const root = getRepoRoot(cwd);
   return root ? path.basename(root) : null;
+}
+
+async function getRepoName(cwd: string): Promise<string | null> {
+  const nameWithOwner = await runAsync("gh", ["repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"], cwd, 3000);
+  return nameWithOwner ?? getLocalRepoName(cwd);
 }
 
 function uniqueMatches(text: string): string[] {
@@ -199,11 +208,18 @@ function shouldAddSkillLoaderGuidance(prompt: string): boolean {
   return CODE_TASK_RE.test(prompt) && CODE_CONTEXT_RE.test(prompt);
 }
 
-export default function (pi: ExtensionAPI) {
-  let cachedSlowLines: string[] | null = null;
-  let slowFetchStarted = false;
+type CachedRepoContext = {
+  key: string;
+  lines: string[];
+  repoName: string | null;
+  defaultBranch: string | null;
+};
 
-  pi.on("before_agent_start", async (event, ctx) => {
+export default function (pi: ExtensionAPI) {
+  let cachedRepoContext: CachedRepoContext | null = null;
+  let repoContextFetchKey: string | null = null;
+
+  pi.on("before_agent_start", traceHook<BeforeAgentStartEvent, BeforeAgentStartEventResult>(pi, "user-context.before_agent_start", async (event, ctx) => {
     const { cwd } = ctx;
     const lines: string[] = [];
     const { name, email } = getGitIdentity(cwd);
@@ -215,9 +231,12 @@ export default function (pi: ExtensionAPI) {
     }
 
     if (isGitRepo(cwd)) {
-      const repoName = getRepoName(cwd);
+      const localRepoName = getLocalRepoName(cwd);
       const branch = getGitBranch(cwd);
-      const defaultBranch = getDefaultBranch(cwd);
+      const repoContextKey = [cwd, branch ?? "", email ?? ""].join("\0");
+      const cached = cachedRepoContext?.key === repoContextKey ? cachedRepoContext : null;
+      const repoName = cached?.repoName ?? localRepoName;
+      const defaultBranch = cached?.defaultBranch ?? getLocalDefaultBranch(cwd);
       const jiraKeys = uniqueMatches([branch, repoName].filter(Boolean).join(" "));
 
       if (repoName) {
@@ -258,16 +277,18 @@ export default function (pi: ExtensionAPI) {
         lines.push(...hintLines);
       }
 
-      if (cachedSlowLines !== null && cachedSlowLines.length > 0) {
+      if (cached?.lines.length) {
         lines.push("");
-        lines.push(...cachedSlowLines);
+        lines.push(...cached.lines);
       }
 
-      if (!slowFetchStarted) {
-        slowFetchStarted = true;
+      if (repoContextFetchKey !== repoContextKey) {
+        repoContextFetchKey = repoContextKey;
         void (async () => {
           const slowLines: string[] = [];
-          const [gitHubUser, currentPR, prs, files] = await Promise.all([
+          const [remoteRepoName, remoteDefaultBranch, gitHubUser, currentPR, prs, files] = await Promise.all([
+            getRepoName(cwd),
+            getDefaultBranch(cwd),
             getGitHubUsername(),
             getCurrentPR(cwd),
             getRecentPRs(cwd, 3),
@@ -298,7 +319,14 @@ export default function (pi: ExtensionAPI) {
             for (const file of files) slowLines.push(`- ${file}`);
           }
 
-          cachedSlowLines = slowLines;
+          if (repoContextFetchKey === repoContextKey) {
+            cachedRepoContext = {
+              key: repoContextKey,
+              lines: slowLines,
+              repoName: remoteRepoName,
+              defaultBranch: remoteDefaultBranch,
+            };
+          }
         })();
       }
     }
@@ -322,5 +350,5 @@ export default function (pi: ExtensionAPI) {
 
     if (!response.message && !response.systemPrompt) return;
     return response;
-  });
+  }));
 }

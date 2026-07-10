@@ -16,6 +16,10 @@ const blockedCases = [
   "rm -rf /tmp/foo",
   "kubectl plugin-that-mutates stuff",
   "helm repo update",
+  "ddtool clusters rename foo list",
+  "ddtool cordons apply --name get",
+  "ddtool namespaces migrate --to describe",
+  "rm --recursive /tmp/foo",
 ];
 
 const allowedCases = [

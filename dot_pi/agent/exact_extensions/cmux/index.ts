@@ -22,7 +22,7 @@
  * opts in.
  */
 
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { BADGE_STATES, CmuxClient } from "./_client.js";
 
 interface CmuxNotifyPayload {

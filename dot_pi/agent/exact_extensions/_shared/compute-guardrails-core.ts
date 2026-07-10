@@ -196,8 +196,8 @@ const DENY_RECORDS: DenyRecord[] = [
   { tool: "aws", sub: ["secretsmanager", "delete-resource-policy"], reason: "removes a secret's resource-based policy" },
 ];
 
-// rm -r and rm -rf only (not plain rm)
-const RM_RECURSIVE = /(?:^|\s)rm\s+(?:\S+\s+)*-[a-zA-Z]*r[a-zA-Z]*/;
+// Recursive rm only (not plain rm).
+const RM_RECURSIVE = /(?:^|\s)rm\s+(?:\S+\s+)*(?:-[a-zA-Z]*r[a-zA-Z]*|--recursive)(?:\s|$)/;
 const PROTECTED_TOOLS = new Set(["aws", "ddtool", "helm", "kubectl"]);
 const SHELL_WRAPPERS = new Set(["bash", "fish", "sh", "zsh"]);
 const READ_ONLY_KUBECTL = new Set(["api-resources", "api-versions", "auth", "cluster-info", "describe", "explain", "get", "logs", "top", "version"]);
@@ -452,7 +452,7 @@ function isAllowedReadOnly(tool: string, args: string[]): boolean {
     case "aws":
       return isAllowedAws(args);
     case "ddtool":
-      return args.some((arg) => READ_ONLY_DDTOOL.has(arg));
+      return READ_ONLY_DDTOOL.has(first) || Boolean(second && READ_ONLY_DDTOOL.has(second));
     default:
       return false;
   }

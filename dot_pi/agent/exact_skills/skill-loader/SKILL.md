@@ -13,7 +13,7 @@ Prefer specific skills over general ones. When multiple skills apply, read all o
 ### Go — `go-best-practices`
 Load when any `.go` file is created or modified.
 
-**Exception:** when the affected code involves controller-runtime, reconcilers, CRDs, watches, finalizers, status conditions, or envtest, load `k8s-controller-dev` as the primary skill and `go-best-practices` as the secondary. If `k8s-controller-dev` is unavailable, continue with `go-best-practices` and note the missing skill. The controller skill takes precedence where they conflict.
+**Exception:** when the affected code interacts with Kubernetes in any way — including but not limited to controller-runtime, reconcilers, watches, finalizers, status conditions, envtest, admission webhooks, authorization webhooks, `client-go`, or any `k8s.io/*` / `sigs.k8s.io/*` import — load `k8s-controller-dev` as the primary skill and `go-best-practices` as the secondary. If `k8s-controller-dev` is unavailable, continue with `go-best-practices` and note the missing skill. The controller skill takes precedence where they conflict.
 
 ### Go + Kubernetes API types — `k8s-api-design`
 Load in addition to `go-best-practices` when the affected `.go` files define or evolve CRD types (`+kubebuilder:*` markers, `spec`/`status` structs, conversion webhooks, or storage version annotations). If `k8s-api-design` is unavailable, continue with `go-best-practices` and note the missing skill.
@@ -50,7 +50,7 @@ Before editing, confirm each of these:
 
 - [ ] Identified all file extensions and paths affected by the task.
 - [ ] Loaded every skill whose trigger matches.
-- [ ] For Go: confirmed whether controller-runtime is involved; loaded `k8s-controller-dev` if available, otherwise noted the missing skill and continued with `go-best-practices`.
+- [ ] For Go: confirmed whether any Kubernetes interaction is involved (controller-runtime, webhooks, `client-go`, `k8s.io/*`, `sigs.k8s.io/*`); loaded `k8s-controller-dev` if available, otherwise noted the missing skill and continued with `go-best-practices`.
 - [ ] For Go CRD types: confirmed whether API type evolution is involved; loaded `k8s-api-design` if available, otherwise noted the missing skill and continued with `go-best-practices`.
 - [ ] For Terraform/OpenTofu: confirmed whether any `.tf`, `.tfvars`, or Terragrunt `.hcl` file or state/plan workflow is involved; loaded `terraform-best-practices` if so.
 - [ ] For Mermaid: confirmed whether any diagram is being created or modified; loaded `mermaid-best-practices` if so.

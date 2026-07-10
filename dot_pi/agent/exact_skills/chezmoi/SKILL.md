@@ -106,6 +106,14 @@ cd ~/.local/share/chezmoi/dot_pi/agent && npm run test:all
 cd ~/.pi/agent && npm test
 ```
 
+If `chezmoi apply` prints npm `allow-scripts` warnings from the Pi agent dependency install, treat them as non-fatal unless the apply fails. Review pending scripts from the rendered target before approving them:
+
+```bash
+cd ~/.pi/agent && npm approve-scripts --allow-scripts-pending
+```
+
+Approve only expected Pi dependency lifecycle scripts, such as `@google/genai`'s no-op preinstall and `protobufjs`'s postinstall.
+
 ## Secrets
 Use 1Password only. Never hardcode secrets:
 

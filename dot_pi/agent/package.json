@@ -4,7 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "sh -c 'ext=$([ -d exact_extensions ] && echo exact_extensions || echo extensions); node --experimental-strip-types --test \"$ext\"/context-kit/*.test.ts \"$ext\"/lsp/__tests__/lsp.test.mjs'",
+    "test:context-kit": "sh -c 'ext=$([ -d exact_extensions ] && echo exact_extensions || echo extensions); node --experimental-strip-types --test \"$ext\"/context-kit/*.test.ts'",
+    "test:lsp": "sh -c 'ext=$([ -d exact_extensions ] && echo exact_extensions || echo extensions); node --experimental-strip-types --test \"$ext\"/lsp/__tests__/lsp.test.mjs'"
   },
   "keywords": [],
   "author": "",
@@ -22,6 +24,7 @@
     "@mariozechner/pi-coding-agent": "^0.73.1",
     "@mariozechner/pi-tui": "^0.73.1",
     "@sinclair/typebox": "^0.34.49",
+    "jiti": "^2.7.0",
     "typescript": "^6.0.3"
   }
 }

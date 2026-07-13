@@ -49,9 +49,28 @@ For trivial or explicitly ephemeral work, ask whether the user wants a chat-only
 ## Source of Truth
 Use the upstream alignment brief, design spec, Jira, issue, PR comment, or user request as the source of truth for WHAT.
 
+Treat the current repository, available tools, and validated command behavior as the source of truth for HOW. A design may intentionally defer an implementation detail; do not promote a deferred assumption into a normative task until you establish a concrete mechanism and validation path.
+
 Do not reinvent goals, scope, user-facing behavior, or success criteria during planning. If these are missing or contradictory, stop and ask one question at a time.
 
 Every major task must trace back to a goal, requirement, or explicit user instruction from the input. Remove tasks that do not map to the source of truth, or mark them as optional follow-up.
+
+## Feasibility Gate
+Before writing acceptance criteria or tasks, validate every requirement that depends on a tool, runtime capability, external service, metadata source, or workflow behavior. Record the result in a compact table when the work is Medium or Large/Risky:
+
+| Requirement | Mechanism | Evidence it exists | Validation | If unavailable |
+|---|---|---|---|---|
+| [requirement] | [specific interface, command, or component] | [repository reference or command output] | [observable check] | [enable, narrow/defer with approval, or block] |
+
+Do not write “requires proof,” “exercise the scenario,” or equivalent placeholders. Name how the proof is obtained and what result establishes it.
+
+If a required mechanism is unavailable, choose exactly one:
+
+1. Add the enabling implementation and its validation explicitly to scope.
+2. Narrow or defer the requirement with user approval.
+3. Stop and report the blocker.
+
+Do not write implementation tasks until every required mechanism has a validation path. A planned command must validate the claimed behavior, not merely a nearby subsystem.
 
 ## Posture
 Plan for a skilled engineer with no local context. Be exact, test-driven, and skeptical. If the input is not ready to plan from, stop and ask for the missing decision.
@@ -80,7 +99,7 @@ When creating or updating a durable plan:
 ## Workflow
 1. Read the planning input completely. If it is a path, resolve it to the correct worktree first.
 2. Inspect relevant guidance, code, tests, build commands, package boundaries, existing patterns, tickets, prior plans, architecture decision records, and review threads.
-3. Before writing the plan, pressure-test the input. Ask one question at a time only if the answer materially changes the implementation plan. Prefer inspecting evidence over asking the user. Check whether the problem is framed clearly enough to plan, success criteria are observable, the first slice is small enough to implement and review safely, existing repository or platform patterns can be reused, and rollout, rollback, ownership, and validation are clear enough for the risk level.
+3. Before writing the plan, pressure-test the input. Ask one question at a time only if the answer materially changes the implementation plan. Prefer inspecting evidence over asking the user. Check whether the problem is framed clearly enough to plan, success criteria are observable, required mechanisms have been validated under the Feasibility Gate, the first slice is small enough to implement and review safely, existing repository or platform patterns can be reused, and rollout, rollback, ownership, and validation are clear enough for the risk level.
 4. Load relevant planning skills before writing tasks. Use the `skill-loader` skill to determine which language and domain skills to read based on files the plan will affect. Prefer specific skills over general ones.
 5. Check scope. If the work spans independent subsystems, suggest separate plans unless the input already decomposes them into independently testable deliverables.
 6. Right-size the plan based on risk and complexity.
@@ -216,10 +235,12 @@ Rules:
 
 - Use SHALL/MUST for required behavior; SHOULD/MAY only for genuine options.
 - Every requirement has at least one scenario, and every scenario exercises the requirement it sits under.
-- Scenarios must be observable through a supported interface so each maps to a test.
+- Scenarios must be observable through a supported interface and map to either an automated test or a reproducible manual validation procedure.
 - Cover the happy path, the edge cases you care about, and failure paths. The most valuable scenario is often the one you almost forgot to state.
 
-Each scenario becomes the focused failing test in a red-green-refactor task. Trace every acceptance requirement to at least one task, and every behavior task back to a requirement.
+Each scenario becomes the focused failing test in a red-green-refactor task when an automated interface exists. When automation is impractical, specify a reproducible manual procedure: preconditions, setup, exact invocation, expected observable result, cleanup, and why automation is impractical. “Exercise the scenario,” “walk the prompt through it,” and “confirm in chat” are not validation procedures.
+
+Trace every acceptance requirement to at least one task, and every behavior task back to a requirement.
 
 Scale to risk: Small plans may inline one or two scenarios in `## Validation`; Medium and Large/Risky plans list acceptance requirements explicitly and reference them from the Test Strategy.
 
@@ -230,7 +251,7 @@ For every implementation task, include:
 
 - exact repo-relative files to create, modify, or test
 - checkbox steps for one behavior-focused failing test when applicable, minimal implementation, verification, refactor after green when needed, and commit when applicable
-- exact commands and expected results
+- exact commands and expected results, or a reproducible manual-validation procedure when automation is impractical
 - Conventional Commit messages when the task commits
 - the requirement, goal, or explicit instruction the task traces back to
 
@@ -261,14 +282,15 @@ Before reporting completion, verify:
 - acceptance requirements are expressed as testable scenarios, each mapped to at least one task
 - tasks are vertical, ordered safely, and independently verifiable
 - each task includes a focused failing test or an explicit reason one is not practical
-- file paths, commands, types, functions, flags, and dependencies exist and match the repository
+- file paths, commands, types, functions, flags, dependencies, and required mechanisms exist and match the repository
+- every normative requirement has a concrete mechanism and an observable validation path, or is explicitly blocked, deferred with approval, or scoped to add its enabling mechanism
 - all file paths inside the plan are repo-relative
 - loaded skill guidance is reflected
 - security, observability, failure modes, rollout, rollback, docs, and `AGENTS.md` coverage are explicit for the plan's risk level
 - automation uses the right CLI or script shape
 - the plan reuses existing patterns and does not reimplement platform capabilities without justification
-- the plan does not invent behavior beyond the source of truth
-- no placeholders, contradictions, duplicated work, or bloated instructions remain: no `TBD`, `TODO`, `implement later`, `add validation`, `handle edge cases`, `write tests for the above`, `similar to Task N`, or references to nonexistent files, types, functions, or commands
+- the plan does not invent behavior beyond the source of truth or turn an unverified design assumption into a requirement
+- no placeholders, contradictions, duplicated work, or bloated instructions remain: no `TBD`, `TODO`, `implement later`, `add validation`, `handle edge cases`, `write tests for the above`, `exercise the scenario`, `walk the prompt through it`, `confirm in chat`, `similar to Task N`, or references to nonexistent files, types, functions, commands, or validation mechanisms
 
 ## Handoff
 After saving and committing a durable plan, say exactly:

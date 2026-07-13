@@ -16,6 +16,9 @@ Default to repository conventions. Make small, idiomatic changes. Do not rewrite
 - Avoid package-level mutable state unless it is read-only, lazily initialized, or synchronized.
 - Prefer explicit initialization over `init`; never start unmanaged goroutines in `init`.
 - Avoid `unsafe`, `reflect`, `go:linkname`, cgo, and `syscall` unless the need is clear and documented.
+- Define a finite classification once when multiple code paths depend on it. Derive checks, labels, and validation from that shared definition rather than maintaining duplicate value lists.
+- Parse external or unstructured input into a typed domain value at the boundary. Keep raw transport representations (such as `map[string]string`, JSON fields, environment variables, and ConfigMap data) out of internal state and business-logic APIs.
+- Keep validation and fail-safe defaults alongside boundary parsing; pass only the resulting typed configuration to internal components.
 
 ## Naming
 - Use short names for narrow scopes and longer names for wider scopes or unfamiliar concepts.

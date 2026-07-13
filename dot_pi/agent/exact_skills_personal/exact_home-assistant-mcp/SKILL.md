@@ -1,4 +1,3 @@
-{{ if eq .profile "personal" -}}
 ---
 name: home-assistant-mcp
 description: Drive the personal ha-mcp server through mcp-cli. Use only after loading the home-assistant router skill, or when that skill routes a Home Assistant task to live MCP access.
@@ -47,4 +46,3 @@ Summarize household-private data carefully. Entity names, states, presence, came
 Do not call mutating ha-mcp tools directly from this skill. Defer all mutation safety to the `home-assistant` router skill and its tiers.
 
 Before any mutation, the router must have produced the confirmation checklist and received the required explicit confirmation. Then use the tool schema from `mcp-cli info ha-mcp <tool>`, call exactly the confirmed action, read back the result, and report the verification and rollback status.
-{{- end }}

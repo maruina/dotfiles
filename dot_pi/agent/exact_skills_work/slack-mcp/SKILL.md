@@ -1,4 +1,3 @@
-{{ if eq .profile "work" -}}
 ---
 name: slack-mcp
 description: Uses Slack MCP through mcp-cli and a local Python stdio proxy backed by Claude Code's macOS keychain token. Use when searching Slack messages, reading channels or threads, finding users/channels, or explicitly sending Slack messages.
@@ -77,4 +76,3 @@ Rules:
 - If auth fails, rerun `slack-mcp-auth.py` and retry.
 - `response_format` accepts only `detailed` or `concise` (default `detailed`); it does not support `markdown`.
 - Messages sent through this MCP are attributed to the Claude Slack app ("sent with Claude") because the client ID belongs to Claude Code, not Datadog/Pi.
-{{- end }}

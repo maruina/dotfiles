@@ -1,4 +1,3 @@
-{{ if eq .profile "work" -}}
 ---
 name: atlassian-mcp
 description: Uses Atlassian MCP through mcp-cli to read Datadog Confluence pages and perform Atlassian-wide search. Use when the user asks about Confluence pages, internal Datadog docs, or documentation stored in datadoghq.atlassian.net. Do NOT use for Jira issue reads or JQL searches — use the jira_issue and jira_search tools instead.
@@ -41,4 +40,3 @@ Rules:
 - Do not create, update, comment, transition, or edit unless the user explicitly asks.
 - Use stdin/heredocs for complex JSON to avoid shell quoting issues.
 - `MCP_NO_DAEMON` and `MCP_STRICT_ENV` are set globally in `~/.config/fish/conf.d/mcp.fish`. Do not set them per-call.
-{{- end }}

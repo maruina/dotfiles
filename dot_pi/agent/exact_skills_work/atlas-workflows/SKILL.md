@@ -1,4 +1,3 @@
-{{ if eq .profile "work" -}}
 ---
 name: atlas-workflows
 description: Investigates Datadog Atlas and Temporal workflow executions from Atlas or Temporal URLs. Use when the user asks about Atlas workflow status, failures, history, input, child workflows, activity failures, or provides atlas.ddbuild.io or temporal.ddbuild.io workflow links.
@@ -193,4 +192,3 @@ Why: <top-level workflow> failed while <phase/action>. The failure chain is <chi
 - Do not paste huge raw histories into chat. Summarize or write them to a temp file.
 - If auth prompts appear, tell the user to complete Atlas/ddtool auth and retry.
 - If multiple contexts match or environment is ambiguous, ask before drawing conclusions.
-{{ end -}}

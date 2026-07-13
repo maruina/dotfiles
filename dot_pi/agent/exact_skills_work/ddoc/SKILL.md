@@ -1,4 +1,3 @@
-{{ if eq .profile "work" -}}
 ---
 name: ddoc
 description: Use Datadog ddoc to sync Markdown documentation from code to Confluence. Use when creating, linking, validating, previewing, or troubleshooting ddoc-managed Markdown pages, ddoc frontmatter, ddoc directives, or Confluence docs-as-code sync.
@@ -75,7 +74,7 @@ Useful `sync` flags:
 - `-y` / `--yes`: skip confirmation, usually for CI.
 - `--force`: re-push unchanged pages and skip confirmation.
 
-Flags can appear before or after positional arguments.
+Common flags: `-default-space`, `-confluence-url`, and `-timeout`. Flags can appear before or after positional arguments.
 
 ## Onboarding docs
 ### Link an existing Confluence page
@@ -116,7 +115,6 @@ ddoc:
   title: "My Page Title"
   emoji: "🚀"
   width: full-width
-  banner: true
   exclude: true
 ---
 ```
@@ -129,7 +127,7 @@ Field rules:
 - `title` overrides the first H1 as the Confluence page title.
 - `emoji` sets the Confluence page icon.
 - `width` accepts `default` or `full-width`. Unset preserves the current Confluence width.
-- `banner: true` is required for every ddoc-managed page. It shows the source banner so readers know to edit the Markdown source rather than Confluence.
+- `banner` defaults to `true`, which shows the source banner so readers know to edit the Markdown source rather than Confluence. Omit it unless the user explicitly asks to disable the banner.
 - `exclude: true` skips the file during sync.
 
 ## Page organization
@@ -160,6 +158,20 @@ Directive notes:
 - Add `id:PAGE_ID` to update an existing page instead of creating a duplicate.
 - Add `emoji:EMOJI` to set a child page icon.
 - `<!-- ddoc:page-end -->` returns content to the parent page.
+- `[[TOC_CHILDREN]]` adds a Confluence children macro for the page's direct child pages.
+
+### Table widths
+Place a table directive immediately before a Markdown table to set its relative column widths:
+
+```markdown
+<!-- ddoc:table widths=1,2 -->
+
+| Field | Description |
+| --- | --- |
+| `--watch` | Watches for changes. |
+```
+
+The number of widths must match the number of table columns. Invalid directives are ignored and reported as warnings by `ddoc check`, `ddoc status`, or `ddoc sync`.
 
 ## Ignore content
 Hide content from Confluence while keeping it in GitHub:
@@ -183,7 +195,7 @@ Use normal GitHub-Flavored Markdown when possible. ddoc supports:
 - Bold-prefix callouts: `> **Note:**`, `> **Warning:**`, `> **Tip:**`.
 - Tables, task lists, strikethrough, images, and local image uploads as Confluence attachments.
 - Status lozenges: `{status:green|Done}`, `{status:yellow|In Progress}`, `{status:red|Blocked}`, `{status:blue|Info}`, `{status:grey|Skipped}`.
-- Table of contents macros: `[TOC]` or `[[_TOC_]]`.
+- Table of contents macros: `[TOC]` or `[[_TOC_]]`; `[[TOC_CHILDREN]]` lists direct child pages.
 - `<details>/<summary>` converted to Confluence expand macros.
 - Links to other ddoc-managed `.md` files rewritten to Confluence page URLs.
 
@@ -210,13 +222,15 @@ Use `ddoc check` for fast offline validation. Use `status` or `sync --dry-run` t
 
 ## Auto-sync requirements
 Auto-sync runs only when:
-- the repo is in the `DataDog` GitHub org,
-- the repo has a `dd-octo-sts` policy,
+- the repo is in the `DataDog`, `ddoghq`, or `ddoghq-sandbox` GitHub org,
+- the repo has a matching `dd-octo-sts` policy,
 - the push is on the repo's default branch, and
 - the changed `.md` file has ddoc frontmatter.
 
+When syncing a directory, ddoc recursively finds Markdown files with `ddoc` frontmatter or `<!-- ddoc:page ... -->` directives and respects `.gitignore`.
+
 ## Safety guidance
-- Every ddoc-managed page must declare `banner: true` in its frontmatter. The banner identifies the GitHub Markdown source as authoritative.
+- Omit `banner` so ddoc shows the source banner by default. Set `banner: false` only when the user explicitly asks to hide it.
 - Do not edit ddoc-managed pages directly in Confluence. Edit the source Markdown in GitHub.
 - After `ddoc sync` creates a page and writes `confluence_id`, commit the frontmatter update.
 - Use `id:PAGE_ID` for existing inline child pages to avoid duplicates.
@@ -227,4 +241,3 @@ Auto-sync runs only when:
 ## Support and source
 - Slack: `#ddoc-ops`
 - Source: `DataDog/dd-source`, `domains/odp/apps/apis/ddoc-sync-consumer/`
-{{- end }}

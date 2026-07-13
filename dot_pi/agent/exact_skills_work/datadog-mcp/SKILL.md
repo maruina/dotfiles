@@ -1,4 +1,3 @@
-{{ if eq .profile "work" -}}
 ---
 name: datadog-mcp
 description: Uses Datadog MCP through mcp-cli and dd-auth to query Datadog metrics, logs, traces, monitors, dashboards, services, incidents, and notebooks. Use when the user asks to inspect Datadog data, especially for cluster, datacenter, service, or Kubernetes investigations.
@@ -80,4 +79,3 @@ Rules:
 - Include telemetry: `{"dd_mcp_source": "pi"}`.
 - Use stdin/heredocs for complex JSON to avoid shell quoting issues.
 - Never print or persist `DD_API_KEY` or `DD_APP_KEY`.
-{{- end }}

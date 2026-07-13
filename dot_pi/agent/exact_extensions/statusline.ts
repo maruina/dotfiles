@@ -59,6 +59,15 @@ function sandboxStatus(): string | undefined {
 	return "🐎 Shadowfax";
 }
 
+function renderLine(left: string, right: string, width: number): string {
+	const maxLeftWidth = width - visibleWidth(right) - 1;
+	if (maxLeftWidth < 1) return truncateToWidth(right, width, "");
+
+	const truncatedLeft = truncateToWidth(left, maxLeftWidth, "");
+	const padding = " ".repeat(Math.max(1, width - visibleWidth(truncatedLeft) - visibleWidth(right)));
+	return truncatedLeft + padding + right;
+}
+
 export default function (pi: ExtensionAPI) {
 	pi.on("session_start", async (_event, ctx) => {
 		ctx.ui.setFooter((tui, theme, footerData) => {
@@ -109,9 +118,8 @@ export default function (pi: ExtensionAPI) {
 
 					const left = theme.fg("accent", leftParts.join("  "));
 					const right = theme.fg("dim", rightParts.join("  "));
-					const padding = " ".repeat(Math.max(1, width - visibleWidth(left) - visibleWidth(right)));
 
-					return [truncateToWidth(left + padding + right, width, "")];
+					return [renderLine(left, right, width)];
 				},
 			};
 		});

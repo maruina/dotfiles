@@ -29,6 +29,9 @@ Load when implementing or modifying a CLI command, its flags, output format, err
 
 ## Domain skills
 
+### Unfamiliar code area — `codebase-research`
+Load before proposing, planning, reviewing, or modifying behavior in an unfamiliar area, especially when correctness depends on callers, existing patterns, or cross-file effects.
+
 ### Chezmoi source files — `chezmoi`
 Load when files under the chezmoi source directory (`~/.local/share/chezmoi/`) are created or modified.
 
@@ -37,6 +40,12 @@ Load when `.md` files inside an Obsidian vault are created or modified, or when 
 
 ### PR creation or update — `reviewable-pr-workflow`
 Load when opening a new PR, amending commits before review, or responding to review feedback that requires a force-push.
+
+### PR review comments — `pr-comment-triage`
+Load when the user provides a GitHub PR or review-discussion URL and asks to assess, address, or decide whether comments apply. Also load `reviewable-pr-workflow` when the result changes commits or PR structure.
+
+### ddoc-managed documentation — `ddoc`
+Load when creating or modifying Markdown with `ddoc:` frontmatter or `<!-- ddoc:... -->` directives, syncing code-adjacent docs to Confluence, or invoking the `ddoc` CLI. Also load `write` for prose changes.
 
 ### Prose and documentation — `write`
 Load when drafting PR descriptions, design docs, runbooks, commit messages, or any freeform user-facing text that will be read by humans.

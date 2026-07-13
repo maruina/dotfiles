@@ -116,7 +116,7 @@ ddoc:
   title: "My Page Title"
   emoji: "🚀"
   width: full-width
-  banner: false
+  banner: true
   exclude: true
 ---
 ```
@@ -129,7 +129,7 @@ Field rules:
 - `title` overrides the first H1 as the Confluence page title.
 - `emoji` sets the Confluence page icon.
 - `width` accepts `default` or `full-width`. Unset preserves the current Confluence width.
-- `banner` defaults to `true`. Set `false` to hide the source banner.
+- `banner: true` is required for every ddoc-managed page. It shows the source banner so readers know to edit the Markdown source rather than Confluence.
 - `exclude: true` skips the file during sync.
 
 ## Page organization
@@ -216,6 +216,7 @@ Auto-sync runs only when:
 - the changed `.md` file has ddoc frontmatter.
 
 ## Safety guidance
+- Every ddoc-managed page must declare `banner: true` in its frontmatter. The banner identifies the GitHub Markdown source as authoritative.
 - Do not edit ddoc-managed pages directly in Confluence. Edit the source Markdown in GitHub.
 - After `ddoc sync` creates a page and writes `confluence_id`, commit the frontmatter update.
 - Use `id:PAGE_ID` for existing inline child pages to avoid duplicates.

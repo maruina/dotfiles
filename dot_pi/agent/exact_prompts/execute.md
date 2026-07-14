@@ -172,15 +172,17 @@ For bare-prompt trivial work, report progress in chat and do not create a plan l
 ## Verification Handoff
 After all tasks are complete, implementation-evidence commands pass, `git status` has been inspected, and the draft PR is opened, summarize changed files, commands and outcomes, and follow-up items. Do not claim final independent verification.
 
-Then emit this copy-paste handoff, naming the implementation model from the injected `## Current Model` context. If that context is absent, state that no implementation model was available; do not invent one.
+Then emit this copy-paste handoff, naming the implementation model from the injected `## Current Model` context. Carry its stable model ID in the `/verify` command so it survives `/new`. If the context is absent, state that no implementation model was available; do not invent one.
 
 > Implementation model: `<name> (<id>)`
 >
 > 1. Run `/model` and select a model different from the implementation model.
 > 2. Run `/new`.
 > 3. Confirm the injected `## Current Model` context (also visible in the statusline) names the selected verifier model.
-> 4. Run `/verify <absolute-plan-path>`.
+> 4. Run `/verify <absolute-plan-path> --implemented-by <id>`.
 
-For trivial bare-prompt work without a plan, use the same handoff but replace step 4 with `/verify`.
+For trivial bare-prompt work without a plan, preserve the original request as one quoted argument and replace step 4 with:
 
-`/verify` independently collects fresh evidence. Do not tell it to commit, apply, repair, or reuse this execution output as verification evidence.
+> 4. Run `/verify --implemented-by <id> --task <quoted-original-request>`.
+
+The copied command is the complete cross-session handoff. `/verify` independently collects fresh evidence. Do not tell it to commit, apply, repair, or reuse this execution output as verification evidence.

@@ -101,25 +101,24 @@ export default function (pi: ExtensionAPI) {
 					const sandbox = sandboxStatus();
 
 					const thinking = pi.getThinkingLevel();
-					const leftParts = [
-						dir ? `📁 ${dir}` : undefined,
-						branch ? `⎇ ${branch}` : "⎇ no git",
-						modelStatus(ctx.model),
-						thinking !== "off" ? thinking : undefined,
-					].filter(Boolean);
+					const location = [dir ? `📁 ${dir}` : undefined, branch ? `⎇ ${branch}` : "⎇ no git"]
+						.filter(Boolean)
+						.join("  ");
+					const llm = [modelStatus(ctx.model), thinking !== "off" ? thinking : undefined].filter(Boolean).join("  ");
 
-					const rightParts = [
-						context,
+					const usageParts = [
 						`↑${formatTokens(input)}`,
 						`↓${formatTokens(output)}`,
 						`$${cost.toFixed(3)}`,
 						sandbox,
 					].filter(Boolean);
 
-					const left = theme.fg("accent", leftParts.join("  "));
-					const right = theme.fg("dim", rightParts.join("  "));
+					const left = theme.fg("accent", location);
+					const right = theme.fg("dim", context);
+					const llmInfo = theme.fg("accent", llm);
+					const usage = theme.fg("dim", usageParts.join("  "));
 
-					return [renderLine(left, right, width)];
+					return [renderLine(left, right, width), renderLine(llmInfo, usage, width)];
 				},
 			};
 		});

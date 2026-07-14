@@ -180,11 +180,11 @@ The verifier SHALL not intentionally mutate the selected worktree and SHALL end 
 
 **Traces to:** Independent semantic review; design decision to surface a Pi-authored `## Current Model` line.
 
-- [ ] Add a small exported pure helper (e.g. `formatCurrentModel(model)`) that returns the `## Current Model` context lines from a `{ id?, name? }` model and returns no lines when the id is absent, mirroring the existing `formatPR` helper style.
-- [ ] Call the helper inside the `before_agent_start` handler using `ctx.model`, appending the `## Current Model` section alongside the existing `## User Identity` block. Add no async work or new external calls.
-- [ ] Add a focused unit test in `user-context.test.mjs` (written failing first) that asserts the helper emits the heading and a `name (id)` line for a populated model and emits nothing for an undefined or id-less model.
-- [ ] Run `npm run test:unit` from `dot_pi/agent`; expect exit 0 with the new test passing.
-- [ ] Confirm `git diff --check` exits 0 for the changed files.
+- [x] Add a small exported pure helper (e.g. `formatCurrentModel(model)`) that returns the `## Current Model` context lines from a `{ id?, name? }` model and returns no lines when the id is absent, mirroring the existing `formatPR` helper style.
+- [x] Call the helper inside the `before_agent_start` handler using `ctx.model`, appending the `## Current Model` section alongside the existing `## User Identity` block. Add no async work or new external calls.
+- [x] Add a focused unit test in `user-context.test.mjs` (written failing first) that asserts the helper emits the heading and a `name (id)` line for a populated model and emits nothing for an undefined or id-less model.
+- [x] Run `npm run test:unit` from `dot_pi/agent`; expect exit 0 with the new test passing.
+- [x] Confirm `git diff --check` exits 0 for the changed files.
 
 ### Task 2: Add the read-only verification contract
 
@@ -192,14 +192,14 @@ The verifier SHALL not intentionally mutate the selected worktree and SHALL end 
 
 **Traces to:** Goal; Candidate and baseline resolution; Fresh deterministic and traceability evidence; Independent semantic review; Read-only binary closeout.
 
-- [ ] Start with Pi prompt frontmatter that describes `/verify` and accepts an optional plan path, then state the strict read-only hard gate and binary verdict contract.
-- [ ] Implement the five ordered prompt phases: target/requirements/base/scope resolution; behavior-risk classification; fresh deterministic and acceptance-scenario traceability evidence; model-separated semantic review; final state comparison and concise report.
-- [ ] Reuse the installed `resolve-worktree` skill for plan paths. Define base selection in the documented precedence, stop on material conflicts, and include committed, staged, unstaged, and intended untracked changes in scope.
-- [ ] Encode the deterministic-layer selection rules: complete state snapshot, `git diff --check`, required plan/repository/package checks, change-specific non-fixing checks, optional supported `maat` diff analysis, and source-explicit chezmoi diff for managed files. Require recorded reason for every selected, skipped, unavailable, or inapplicable layer.
-- [ ] Encode Given/When/Then traceability rules for plan-backed work and current-task baseline rules for work without a plan. Require an implementation path, observable test/check, fresh passing output, and semantic agreement; block gaps instead of accepting plan checkboxes or prior logs.
-- [ ] Encode behavior-bearing classification and the model-separation guard: read the implementation model named in the `/execute` handoff, read the model `/verify` is running under from the injected `## Current Model` context, and stop with a switch-and-retry instruction when the two match or the handoff named no model. Perform the semantic review natively under the current model, and encode reviewer finding triage without invoking a separate review tool or parsing session logs.
-- [ ] Encode command safety review, prohibited mutations, initial/final snapshot comparison, no reuse of green evidence after repair, and the exact required report sections and `VERIFIED`/`BLOCKED` outcomes.
-- [ ] Verify the source file is plain Markdown with valid frontmatter and that it adds no template syntax, secret, or implementation helper: `git diff --check -- dot_pi/agent/exact_prompts/verify.md` exits 0.
+- [x] Start with Pi prompt frontmatter that describes `/verify` and accepts an optional plan path, then state the strict read-only hard gate and binary verdict contract.
+- [x] Implement the five ordered prompt phases: target/requirements/base/scope resolution; behavior-risk classification; fresh deterministic and acceptance-scenario traceability evidence; model-separated semantic review; final state comparison and concise report.
+- [x] Reuse the installed `resolve-worktree` skill for plan paths. Define base selection in the documented precedence, stop on material conflicts, and include committed, staged, unstaged, and intended untracked changes in scope.
+- [x] Encode the deterministic-layer selection rules: complete state snapshot, `git diff --check`, required plan/repository/package checks, change-specific non-fixing checks, optional supported `maat` diff analysis, and source-explicit chezmoi diff for managed files. Require recorded reason for every selected, skipped, unavailable, or inapplicable layer.
+- [x] Encode Given/When/Then traceability rules for plan-backed work and current-task baseline rules for work without a plan. Require an implementation path, observable test/check, fresh passing output, and semantic agreement; block gaps instead of accepting plan checkboxes or prior logs.
+- [x] Encode behavior-bearing classification and the model-separation guard: read the implementation model named in the `/execute` handoff, read the model `/verify` is running under from the injected `## Current Model` context, and stop with a switch-and-retry instruction when the two match or the handoff named no model. Perform the semantic review natively under the current model, and encode reviewer finding triage without invoking a separate review tool or parsing session logs.
+- [x] Encode command safety review, prohibited mutations, initial/final snapshot comparison, no reuse of green evidence after repair, and the exact required report sections and `VERIFIED`/`BLOCKED` outcomes.
+- [x] Verify the source file is plain Markdown with valid frontmatter and that it adds no template syntax, secret, or implementation helper: `git diff --check -- dot_pi/agent/exact_prompts/verify.md` exits 0.
 
 **Focused behavior validation (manual because no prompt-body test harness exists):** After Task 3 is rendered, run the four scenarios in the **Contract Exercise Procedure** below. Record the report output as validation evidence; do not add fixture files to the repository.
 
@@ -209,14 +209,14 @@ The verifier SHALL not intentionally mutate the selected worktree and SHALL end 
 
 **Traces to:** Goal; Read-only binary closeout; design decision to ship the minimal `/execute` handoff with `/verify`.
 
-- [ ] Update only the final verification/terminal-state/handoff language so executor-run checks remain required implementation evidence but are not represented as final independent verification.
-- [ ] Emit a copy-paste handoff block that names the implementation model (read from the injected `## Current Model` context) and directs the user to switch models and verify: `/model` to select a different model, `/new`, then `/verify <absolute-plan-path>` for plan-backed work or `/verify` for trivial bare-prompt work. Tell the user to confirm the injected `## Current Model` (also visible in the statusline) shows the intended model before running `/verify`. Preserve `/execute`'s existing review, execution, PR, and plan-ledger responsibilities.
-- [ ] Ensure `/execute` does not tell the verifier to commit, apply, repair, or reuse executor output as fresh verification evidence.
-- [ ] Review the implementation diff against the design non-goals: `git diff --check` exits 0; after excluding committed lifecycle artifacts under `plans/pi-verification-contract/`, the branch and working-tree diff names only `dot_pi/agent/exact_prompts/verify.md`, `dot_pi/agent/exact_prompts/execute.md`, `dot_pi/agent/exact_extensions/user-context.ts`, and `dot_pi/agent/exact_extensions/user-context.test.mjs` for the implementation slice.
-- [ ] Run `npm test` from `dot_pi/agent`; expect exit 0.
-- [ ] Run `npm run test:all` from `dot_pi/agent`; expect exit 0, including the offline Pi smoke check with no `[Extension issues]` output.
-- [ ] Run `chezmoi --source "$PWD" diff ~/.pi/agent/prompts/verify.md ~/.pi/agent/prompts/execute.md ~/.pi/agent/extensions/user-context.ts` from repository root; expect a diff limited to the new `verify.md` target, the changed `execute.md` target, and the changed `user-context.ts` target. Apply only after review with `chezmoi --source "$PWD" apply ~/.pi/agent/prompts/verify.md ~/.pi/agent/prompts/execute.md ~/.pi/agent/extensions/user-context.ts`.
-- [ ] Confirm Pi discovers the rendered prompt by opening prompt-template completion and finding `/verify`; invoke the handoff text on one plan-backed and one trivial completion case as specified in the Contract Exercise Procedure.
+- [x] Update only the final verification/terminal-state/handoff language so executor-run checks remain required implementation evidence but are not represented as final independent verification.
+- [x] Emit a copy-paste handoff block that names the implementation model (read from the injected `## Current Model` context) and directs the user to switch models and verify: `/model` to select a different model, `/new`, then `/verify <absolute-plan-path>` for plan-backed work or `/verify` for trivial bare-prompt work. Tell the user to confirm the injected `## Current Model` (also visible in the statusline) shows the intended model before running `/verify`. Preserve `/execute`'s existing review, execution, PR, and plan-ledger responsibilities.
+- [x] Ensure `/execute` does not tell the verifier to commit, apply, repair, or reuse executor output as fresh verification evidence.
+- [x] Review the implementation diff against the design non-goals: `git diff --check` exits 0; after excluding committed lifecycle artifacts under `plans/pi-verification-contract/`, the branch and working-tree diff names only `dot_pi/agent/exact_prompts/verify.md`, `dot_pi/agent/exact_prompts/execute.md`, `dot_pi/agent/exact_extensions/user-context.ts`, and `dot_pi/agent/exact_extensions/user-context.test.mjs` for the implementation slice.
+- [x] Run `npm test` from `dot_pi/agent`; expect exit 0.
+- [x] Run `npm run test:all` from `dot_pi/agent`; expect exit 0, including the offline Pi smoke check with no `[Extension issues]` output.
+- [x] Run `chezmoi --source "$PWD" diff ~/.pi/agent/prompts/verify.md ~/.pi/agent/prompts/execute.md ~/.pi/agent/extensions/user-context.ts` from repository root; expect a diff limited to the new `verify.md` target, the changed `execute.md` target, and the changed `user-context.ts` target. Apply only after review with `chezmoi --source "$PWD" apply ~/.pi/agent/prompts/verify.md ~/.pi/agent/prompts/execute.md ~/.pi/agent/extensions/user-context.ts`.
+- [~] Confirm Pi discovers the rendered prompt by opening prompt-template completion and finding `/verify`; invoke the handoff text on one plan-backed and one trivial completion case as specified in the Contract Exercise Procedure.
 - [ ] Commit the implementation files only after validation passes (`verify.md`, `execute.md`, `user-context.ts`, and `user-context.test.mjs`): `feat(pi): add verification closeout contract`.
 
 ### Task 4: Documentation and future-agent guidance review
@@ -246,3 +246,8 @@ For every run, capture only command/status summaries necessary to establish the 
 ## Documentation Impact
 
 The new prompt is self-documenting at its supported interface (`/verify`). No README, runbook, generated reference, or general `AGENTS.md` update is expected because the design explicitly excludes broad workflow-documentation changes. Task 4 verifies this expectation and records any exception in the plan ledger.
+
+## Execution Ledger
+- Task 1: Added the failing formatter test before implementation. After the user approved `npm ci` in `dot_pi/agent`, `npm run test:unit` passes (77 tests); the focused formatter test and `git diff --check` also pass. The install emitted expected pending-script warnings for `@google/genai` and `protobufjs`; no scripts were approved. The untracked `node_modules` directory was removed after validation because its presence conflicts with chezmoi's exact source rendering.
+- Task 2: `verify.md` has valid prompt frontmatter, no Go-template delimiters, and passes `git diff --check`.
+- Task 3: `npm test` and `npm run test:all` pass; the smoke test has no extension issues. Targeted chezmoi diff/apply changed only the three intended targets. API-level prompt-template loading discovered the rendered `/verify` prompt and expanded its plan-path argument. The interactive contract exercises remain pending because they require a human-operated Pi session and deliberate model switch.

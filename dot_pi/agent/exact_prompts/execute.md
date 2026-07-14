@@ -71,7 +71,7 @@ Do not leave the work 80% done. Complete the current approved slice, including t
 11. **Execute —** Execute tasks in order. For bare-prompt trivial work, execute the single approved change.
 12. For each task, update plan checkboxes as work progresses, run the specified verification, and mark steps complete only after verification passes. For trivial bare prompts, track progress in chat instead of a plan file.
 13. Complete the plan's documentation and future-agent guidance task, including every required `AGENTS.md` inspection. For trivial bare prompts, explicitly decide whether docs are unnecessary.
-14. **Verify and hand off —** Run the final verification commands and inspect `git status`.
+14. **Prepare verification handoff —** Run the final implementation-evidence commands and inspect `git status`.
 15. Review plan fidelity: all tasks complete, requirements met, no unapproved scope added, and deviations documented in the plan ledger.
 16. Before opening a PR, evaluate the completed work against the stack-split signals from the `reviewable-pr-workflow` skill:
    - Strong signals: 2+ distinct subsystems that could ship independently; more than ~400 net lines of non-generated, non-test code; more than ~15 non-generated files.
@@ -129,7 +129,7 @@ Before marking a behavior task complete, ask:
 Skip only for leaf-node changes with no behavioral or integration impact.
 
 ## Operational Completion Check
-Before final verification, confirm:
+Before preparing the verification handoff, confirm:
 
 - The implementation follows existing patterns and avoids unnecessary new technology.
 - The implementation reuses existing platform capabilities instead of reimplementing them.
@@ -169,11 +169,18 @@ Use the plan file as the progress ledger:
 
 For bare-prompt trivial work, report progress in chat and do not create a plan ledger.
 
-## Handoff
-After all tasks are complete, verification passes, `git status` has been inspected, and the draft PR is opened, summarize changed files, verification commands, and follow-up items. Then say exactly:
+## Verification Handoff
+After all tasks are complete, implementation-evidence commands pass, `git status` has been inspected, and the draft PR is opened, summarize changed files, commands and outcomes, and follow-up items. Do not claim final independent verification.
 
-> I finished implementing the plan
+Then emit this copy-paste handoff, naming the implementation model from the injected `## Current Model` context. If that context is absent, state that no implementation model was available; do not invent one.
 
-For trivial bare-prompt work without a PR, summarize changed files, verification commands, and follow-up items, then say:
+> Implementation model: `<name> (<id>)`
+>
+> 1. Run `/model` and select a model different from the implementation model.
+> 2. Run `/new`.
+> 3. Confirm the injected `## Current Model` context (also visible in the statusline) names the selected verifier model.
+> 4. Run `/verify <absolute-plan-path>`.
 
-> I finished the requested change
+For trivial bare-prompt work without a plan, use the same handoff but replace step 4 with `/verify`.
+
+`/verify` independently collects fresh evidence. Do not tell it to commit, apply, repair, or reuse this execution output as verification evidence.

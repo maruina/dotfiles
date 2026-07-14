@@ -40,7 +40,7 @@ The primary user is Matteo, using Pi in this dotfiles repository and across othe
 
 ### Unavailable or deferred evidence
 - No workflow-preset implementation was evaluated because preset enforcement is explicitly deferred.
-- The exact independent-review command and model metadata interface will be confirmed during planning; the contract requires proof of model separation regardless of mechanism.
+- The independent review is performed by Pi under a user-switched model; no session-metadata interface is required. The contract relies on a deliberate manual model switch and a soft self-report guard rather than proving model identity from logs.
 - `maat` invocation details were not fixed because applicability and diff-mode syntax vary by repository and should be discovered from the selected repository.
 
 ## Current behavior
@@ -54,7 +54,7 @@ Existing Codex review prompts can provide an independent semantic pass, but they
 | Assumption | Evidence | Impact if wrong | Validation path |
 |---|---|---|---|
 | Prompt-only verification is useful before presets exist | Existing prompts already encode lifecycle gates successfully | The contract could be ignored or applied inconsistently | Exercise representative scenarios and observe real usage before adding an extension |
-| Pi can identify the implementation and reviewer models, or establish separation through available metadata | Current session and independent-review mechanisms expose model choices in normal operation | Behavior-bearing changes would remain blocked when identity is unavailable | Planning must confirm available metadata; the contract fails closed when it cannot prove separation |
+| A different model can review without proving identity from session metadata | The existing `user-context` extension injects a Pi-authored `## Current Model` line via `ctx.model`; `/execute` names it and `/verify` reads its own | Separation is skipped if the user forgets to switch models | `/execute` handoff instructs the switch; `/verify` stops when its injected current model matches the implementation model named in the handoff |
 | Plans and current task context provide a trustworthy requirements baseline | `/plan` now emits normative requirements and observable scenarios | Verification could validate the wrong behavior when inputs conflict or are stale | Read the plan, sibling design, current task context, and diff; block on material ambiguity or contradiction |
 | Repository guidance and changed files are enough to select relevant deterministic checks | Existing plans, AGENTS files, build metadata, and package scripts name checks | Important validators could be omitted | Require the verifier to record selected, skipped, unavailable, and inapplicable checks with reasons |
 | A read-only verifier can run tests and builds without intentionally changing source | Most repository checks support non-fix modes | Commands may mutate generated files or the checkout | Snapshot repository state before checks and block on unexpected final-state changes |
@@ -69,7 +69,7 @@ Add one global Pi prompt, `/verify`, and make the smallest corresponding handoff
 1. Resolve the target, requirements source, base, and complete change scope.
 2. Classify whether the diff is behavior-bearing and select required verification layers.
 3. Run fresh deterministic and requirements-traceability checks without intentional mutation.
-4. For behavior-bearing changes, obtain semantic review from a provably different model and validate its findings against evidence.
+4. For behavior-bearing changes, perform semantic review under a different (user-switched) model and validate its findings against evidence.
 5. Compare final repository state with the initial snapshot and emit exactly one verdict: `VERIFIED` or `BLOCKED`.
 
 A run may stop before expensive semantic review when an earlier prerequisite already blocks. A `VERIFIED` result requires every applicable layer to complete successfully in the same fresh run.
@@ -157,13 +157,16 @@ For chezmoi-managed changes, run targeted `chezmoi diff` against the resolved so
 Compare final repository state with the initial snapshot. Any unexpected tracked or untracked change caused by verification blocks the run and is reported. Expected caches outside the repository do not violate read-only behavior; intentional source mutation does.
 
 ## Independent semantic review
-Behavior-bearing changes require a semantic review produced by a model different from the model that implemented the change. A separate invocation of the same model does not satisfy this requirement.
+Behavior-bearing changes require a semantic review performed by a model different from the one that implemented the change. Separation is enforced by the human operator, not proven by the prompt from session metadata. The review is performed by Pi itself under the switched model; it is not delegated to a separate review tool.
 
-The verifier must record the implementation model and review model when discoverable. If either identity is unavailable or separation cannot be established, the result is `BLOCKED`. A future preset extension should make this selection automatic, but the prompt-only first slice fails closed rather than pretending to enforce it.
+The `user-context` extension injects a Pi-authored `## Current Model` line (from `ctx.model`) into every session, so both ends read the active model from Pi rather than from the model's own memory. `/execute` ends by naming the implementation model (read from that injected context) and instructing the user to switch models, start a fresh session, and run `/verify`:
+- `/model` to select a different model than the implementation model;
+- `/new` to start a context-independent session; and
+- `/verify <plan-path>` (or `/verify` for bare-prompt work).
 
-The reviewer receives the requirements baseline, selected base and diff, relevant tests, and deterministic evidence. It focuses on new correctness, security, operability, compatibility, and maintainability regressions attributable to the candidate. It also compares acceptance scenarios with both tests and implementation so a passing but tautological or incomplete test does not establish false confidence.
+`/verify` runs in that fresh session, so it never carries the executor's context. It reads its own model from the injected `## Current Model` context and records it in its report. If that model matches the implementation model named in the `/execute` handoff, `/verify` stops and instructs the user to switch models and re-run. This is a soft, human-verifiable guard, not a cryptographic proof. Machine-enforced model routing is deferred to a future preset extension; the prompt-only first slice relies on the deliberate manual switch.
 
-An existing Codex review mechanism is the likely first implementation path when its model differs from the implementation model. The contract is mechanism-neutral so a different independent reviewer can be used when Codex would violate model separation.
+The reviewer analyzes the requirements baseline, selected base and diff, relevant tests, and deterministic evidence. It focuses on new correctness, security, operability, compatibility, and maintainability regressions attributable to the candidate. It also compares acceptance scenarios with both tests and implementation so a passing but tautological or incomplete test does not establish false confidence.
 
 ## Finding policy and false-positive control
 The verifier blocks on:
@@ -197,7 +200,7 @@ Commands from an untrusted or suspicious diff must be inspected before execution
 
 ## Output contract
 Every run ends with one top-level verdict:
-- `VERIFIED`: all applicable layers completed with fresh evidence, no blocking findings remain, model separation was proven when required, and repository state was not unexpectedly changed.
+- `VERIFIED`: all applicable layers completed with fresh evidence, no blocking findings remain, the verifier's model differs from the implementation model named in the handoff when semantic review was required, and repository state was not unexpectedly changed.
 - `BLOCKED`: a prerequisite, check, evidence requirement, independence requirement, side-effect check, or material finding prevents a trustworthy success claim.
 
 The report includes:
@@ -205,7 +208,7 @@ The report includes:
 - requirements source and traceability summary;
 - risk classification and semantic-review decision;
 - each deterministic command, result, and relevant output summary;
-- implementation and reviewer model identities when semantic review is required;
+- the implementation model named in the `/execute` handoff and the verifier's current model when semantic review is required;
 - blocking findings;
 - non-blocking or rejected findings with rationale;
 - skipped or unavailable checks with reasons;
@@ -218,9 +221,10 @@ Output should be concise when green. Detailed evidence is concentrated on failur
 | Component | File | Responsibility |
 |---|---|---|
 | Verification contract | `dot_pi/agent/exact_prompts/verify.md` | Target resolution, requirements traceability, layered checks, independent review, verdict, and read-only boundaries |
-| Execution handoff | `dot_pi/agent/exact_prompts/execute.md` | Stop treating executor-only checks as final verification and direct the completed candidate to `/verify` |
+| Execution handoff | `dot_pi/agent/exact_prompts/execute.md` | Stop treating executor-only checks as final verification, name the implementation model from injected context, and direct the user to switch models, start a fresh `/new` session, and run `/verify` |
+| Model context | `dot_pi/agent/exact_extensions/user-context.ts` | Inject a Pi-authored `## Current Model` line (from `ctx.model`) into session context so `/execute` and `/verify` read the active model without self-assertion |
 
-No extension, configuration file, shared helper, or additional workflow prompt is part of this slice.
+No new standalone extension, configuration file, shared helper, or additional workflow prompt is part of this slice; the only extension change is the current-model context line in the existing `user-context` extension.
 
 ## Alternatives considered
 ### Add only `/verify` without changing `/execute`
@@ -244,7 +248,7 @@ Uniform review avoids classification mistakes and creates one simple rule. It wa
 ## Risks and mitigations
 | Risk | Mitigation |
 |---|---|
-| Prompt text cannot enforce model selection | Fail closed when model separation is not proven; add presets only after the contract is validated |
+| Prompt text cannot enforce model selection | The human switches models before `/verify`; `/verify` records its own model and stops when it matches the implementation model; add presets for automatic enforcement later |
 | Verifier trusts tests written to match a flawed implementation | Independently compare requirement, test, and implementation; require observable scenario coverage |
 | Review findings create excessive noise | Require diff attribution and evidence; separate blocking, non-blocking, rejected, and pre-existing findings |
 | Risk classification skips a behavior-bearing Markdown or config change | Classify observable effects rather than extensions; explicitly list Pi prompts, skills, and config as behavior-bearing |
@@ -253,25 +257,25 @@ Uniform review avoids classification mistakes and creates one simple rule. It wa
 | Required check is unavailable | Block and report the missing dependency instead of weakening the gate |
 | Verification becomes slow and expensive | Run cheap prerequisites first; skip semantic review on wholly non-behavioral diffs; allow concise green summaries |
 | Plan and implementation context disagree | Treat design and plan as requirements sources and block on material ambiguity rather than inventing intent |
-| Same model is invoked through a different tool and mislabeled independent | Compare actual model identity, not process or provider name alone |
+| User forgets to switch models before verifying | `/execute` names the implementation model in the handoff and `/verify` stops when its own model matches it |
 
 ## Operability and maintenance
 This is a local developer workflow, not a production service. It requires no metrics, alerts, dashboards, or on-call runbook. Its observable artifacts are command output, reviewer output, the final verification report, and unchanged repository state.
 
 The prompt owner maintains the risk boundary, evidence rules, and integrations with existing Pi workflows. Repository-specific commands remain owned by each repository's plans, AGENTS files, build metadata, and tooling. The prompt should discover those commands rather than accumulate a central hard-coded catalog.
 
-If `/verify` frequently blocks because model identity is unavailable, that is evidence to prioritize the preset extension. If it frequently produces non-actionable semantic findings, refine review framing and evidence thresholds before adding more reviewers.
+If `/verify` frequently blocks because the user forgot to switch models, that is evidence to prioritize the preset extension for automatic routing. If it frequently produces non-actionable semantic findings, refine review framing and evidence thresholds before adding more reviewers.
 
 ## Rollout
-1. Add `/verify` and the minimal `/execute` handoff in one reviewable change.
+1. Add `/verify`, the minimal `/execute` handoff, and the `## Current Model` context line in one reviewable change.
 2. Run Pi-agent validation and inspect targeted chezmoi rendering from the feature worktree.
-3. Apply only the two prompt targets after review.
-4. Exercise the contract on representative behavior-bearing and non-behavioral changes.
+3. Apply only the two prompt targets and the `user-context.ts` extension target after review.
+4. Exercise the contract on representative behavior-bearing and non-behavioral changes, running `/verify` in a `/new` session after `/execute`.
 5. Observe false positives, missing checks, model-identity failures, and runtime cost before designing presets.
 
 ## Rollback
 - Revert the `/execute` handoff change to restore the current terminal workflow.
-- Remove `verify.md` and apply the two affected chezmoi prompt targets.
+- Remove `verify.md`, revert the `## Current Model` context line, and apply the affected chezmoi prompt and extension targets.
 - No state migration, persistent data, or remote service rollback is required.
 
 ## Security and data handling
@@ -287,12 +291,12 @@ Validate the prompt contract structurally and through representative scenarios.
 ### Repository validation
 - Run the Pi agent's resource tests from `dot_pi/agent`.
 - Run the broader smoke suite when practical.
-- Run targeted `chezmoi --source <feature-worktree> diff` for `~/.pi/agent/prompts/verify.md` and `~/.pi/agent/prompts/execute.md`.
-- Confirm no target outside those prompts would be applied by the implementation slice.
+- Run targeted `chezmoi --source <feature-worktree> diff` for `~/.pi/agent/prompts/verify.md`, `~/.pi/agent/prompts/execute.md`, and `~/.pi/agent/extensions/user-context.ts`.
+- Confirm no target outside those files would be applied by the implementation slice.
 
 ### Contract scenarios
-- Behavior-bearing change with a clear requirements baseline, proven different reviewer model, passing deterministic checks, adequate scenario coverage, and no findings results in `VERIFIED`.
-- Behavior-bearing change with an unavailable, unknown, or identical reviewer model results in `BLOCKED`.
+- Behavior-bearing change with a clear requirements baseline, verified under a model different from the one named in the `/execute` handoff, passing deterministic checks, adequate scenario coverage, and no findings results in `VERIFIED`.
+- Behavior-bearing change verified under the same model named in the `/execute` handoff results in `BLOCKED` until the user switches models.
 - A deterministic check failure results in `BLOCKED` with fresh command evidence.
 - A plan scenario without an adequate test or observable evidence results in `BLOCKED`.
 - A passing test that contradicts or incompletely covers its Given/When/Then scenario results in `BLOCKED` after semantic comparison.
@@ -313,10 +317,11 @@ The design was reviewed skeptically against simplicity, enforceability, false-po
 - **Rejected finding:** the first slice should include presets because unknown model identity can block useful work. That would combine contract design with routing implementation before real usage validates the contract. A transparent blocked result is preferable in the first slice.
 
 ## Decision records
-- Decision: ship `/verify` together with a minimal `/execute` handoff. Rationale: the pair creates a closed lifecycle while remaining a two-prompt slice.
+- Decision: ship `/verify` together with a minimal `/execute` handoff and a `## Current Model` context line. Rationale: the set creates a closed lifecycle with a Pi-authored model identity while remaining a small slice.
 - Decision: keep `/verify` strictly read-only. Rationale: repairs invalidate evidence and belong to the executor role.
 - Decision: require independent semantic review only for behavior-bearing changes. Rationale: this preserves zero-trust review where behavior can regress without imposing disproportionate cost on wholly non-behavioral diffs.
-- Decision: require a provably different model, not merely a separate invocation. Rationale: process separation alone does not satisfy the stated trust boundary.
+- Decision: enforce a different model through a deliberate human switch, and surface the active model through the `user-context` extension's injected `## Current Model` line. Rationale: prompt text cannot reliably read its own model identity, but the extension can read `ctx.model` authoritatively; a manual switch plus Pi-authored model context is simpler and robust, and machine enforcement belongs to a future preset.
 - Decision: use layered, change-aware deterministic checks. Rationale: a universal baseline is necessary but insufficient across heterogeneous repositories.
 - Decision: treat Given/When/Then scenarios as verification contracts. Rationale: passing tests are trustworthy only when they demonstrably cover intended observable behavior.
 - Decision: return only `VERIFIED` or `BLOCKED`. Rationale: a binary terminal contract prevents warnings and uncertainty from being presented as success.
+- Decision: run `/verify` in a fresh `/new` session after the user switches models. Rationale: `/new` keeps verification context-independent and forces fresh evidence; the switched model provides semantic independence without parsing session metadata.

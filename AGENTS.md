@@ -36,6 +36,12 @@ Declare Homebrew packages in `run_onchange_brew-install.sh.tmpl`. Do not install
 - **Apply**: `chezmoi apply`.
 - **Re-sync managed files**: `chezmoi re-add`.
 
+## Pi Agent Validation
+
+Runtime dependencies live under `~/.pi/agent/node_modules`; source-worktree dependencies under `dot_pi/agent/node_modules` are disposable and excluded from Git and chezmoi rendering.
+
+Before `/verify` for changes under `dot_pi/agent/`, run `npm ci --ignore-scripts` from `dot_pi/agent/` in the selected source worktree. Leave those dependencies present for the complete verification run so it can execute `npm test` and `npm run test:all` without mutation, then remove them afterward.
+
 ## Completion Workflow
 
 After making and verifying a requested chezmoi source change, apply it to the target and commit/push it by default.

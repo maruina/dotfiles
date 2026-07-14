@@ -4,3 +4,4 @@
 {{- if eq .profile "work" }}
 .pi/agent/skills_personal
 {{- end }}
+.pi/agent/node_modules

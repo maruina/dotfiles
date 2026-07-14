@@ -209,18 +209,18 @@ The managed `/sync-pi-models` prompt SHALL report catalog deltas and run the lif
 - Create `dot_pi/agent/exact_extensions/lifecycle-model-recommender/_policy.test.ts`.
 - Modify `dot_pi/agent/package.json`.
 
-- [ ] From `dot_pi/agent`, run `npm ci --ignore-scripts` so the source worktree has the locked Pi 0.80.6 test dependencies. Leave `node_modules` present and ignored for the later independent verification run.
-- [ ] Register `"$ext"/lifecycle-model-recommender/*.test.ts` in the existing `test:unit` command without changing unrelated scripts.
-- [ ] Add table-driven policy tests for R1.1 and R1.2, including every approved matrix cell, choice metadata, arguments, whitespace boundaries, escaped text, prose, and similar command names.
-- [ ] Add catalog tests for R1.3 that resolve the work-profile catalog with the canonical render command `chezmoi --source "$PWD" execute-template < dot_pi/agent/models.json.tmpl` when in the source tree, and parse `~/.pi/agent/models.json` directly in the rendered layout. Do not use `--init`/`--promptString`: `models.json.tmpl` reads `.profile` from the resolved chezmoi `data` block, so an `--init` render of a piped content template does not receive `profile` and fails with `map has no entry for key "profile"`. The precondition is an initialized chezmoi config whose `data.profile` is `work`.
-- [ ] In the catalog test, use `getSupportedThinkingLevels()` for each choice and add synthetic removed-model and unsupported-level cases to prove the compatibility assertion fails for both forms of drift.
-- [ ] Run `node --experimental-strip-types --test exact_extensions/lifecycle-model-recommender/_policy.test.ts`; verify the red result is `ERR_MODULE_NOT_FOUND` for `_policy.ts`, not a dependency or harness failure.
-- [ ] Implement the smallest typed policy module that makes the tests pass: exact phase parsing, immutable model identities, the approved three choices per phase, labels, cost classes, and rationales. Do not add runtime catalog reads or fallback rankings.
-- [ ] Rerun the focused policy test; expect all policy, parsing, and catalog cases to pass.
-- [ ] Refactor only after green to remove duplication in policy construction while keeping the matrix readable as the single maintenance surface, then rerun the focused test.
-- [ ] Run `npm run test:unit`; expect the existing unit suite plus recommender policy tests to pass.
-- [ ] Run LSP diagnostics for `_policy.ts` and `_policy.test.ts`; expect no errors.
-- [ ] Commit only the Task 1 files with `feat(pi): define lifecycle model policy`.
+- [x] From `dot_pi/agent`, run `npm ci --ignore-scripts` so the source worktree has the locked Pi 0.80.6 test dependencies. Leave `node_modules` present and ignored for the later independent verification run.
+- [x] Register `"$ext"/lifecycle-model-recommender/*.test.ts` in the existing `test:unit` command without changing unrelated scripts.
+- [x] Add table-driven policy tests for R1.1 and R1.2, including every approved matrix cell, choice metadata, arguments, whitespace boundaries, escaped text, prose, and similar command names.
+- [x] Add catalog tests for R1.3 that resolve the work-profile catalog with the canonical render command `chezmoi --source "$PWD" execute-template < dot_pi/agent/models.json.tmpl` when in the source tree, and parse `~/.pi/agent/models.json` directly in the rendered layout. Do not use `--init`/`--promptString`: `models.json.tmpl` reads `.profile` from the resolved chezmoi `data` block, so an `--init` render of a piped content template does not receive `profile` and fails with `map has no entry for key "profile"`. The precondition is an initialized chezmoi config whose `data.profile` is `work`.
+- [x] In the catalog test, use `getSupportedThinkingLevels()` for each choice and add synthetic removed-model and unsupported-level cases to prove the compatibility assertion fails for both forms of drift.
+- [x] Run `node --experimental-strip-types --test exact_extensions/lifecycle-model-recommender/_policy.test.ts`; verify the red result is `ERR_MODULE_NOT_FOUND` for `_policy.ts`, not a dependency or harness failure.
+- [x] Implement the smallest typed policy module that makes the tests pass: exact phase parsing, immutable model identities, the approved three choices per phase, labels, cost classes, and rationales. Do not add runtime catalog reads or fallback rankings.
+- [x] Rerun the focused policy test; expect all policy, parsing, and catalog cases to pass.
+- [x] Refactor only after green to remove duplication in policy construction while keeping the matrix readable as the single maintenance surface, then rerun the focused test.
+- [x] Run `npm run test:unit`; expect the existing unit suite plus recommender policy tests to pass.
+- [x] Run LSP diagnostics for `_policy.ts` and `_policy.test.ts`; expect no errors.
+- [x] Commit only the Task 1 files with `feat(pi): define lifecycle model policy`.
 
 ### Task 2: Add advisory input routing and fail-open behavior
 **Traceability:** R2, R3, R4, and R5.
@@ -229,19 +229,19 @@ The managed `/sync-pi-models` prompt SHALL report catalog deltas and run the lif
 - Create `dot_pi/agent/exact_extensions/lifecycle-model-recommender/index.ts`.
 - Create `dot_pi/agent/exact_extensions/lifecycle-model-recommender/_adapter.test.ts`.
 
-- [ ] Build a minimal mock for the Pi system boundary that captures the registered `input` handler and records UI calls, registry lookup, model selection, and thinking access. Do not mock helpers inside the recommender.
-- [ ] Add focused tests for R2: already-matching notification; undefined `ctx.model` treated as a mismatch that opens the dialog without throwing; stable dialog order and metadata; current-setting markers; untimed TUI selection; and RPC selection with `{ timeout: 30000 }`.
-- [ ] Add focused tests for R3: recommendation, lower-cost, and increase-quality selections; model-before-thinking call order; unchanged arguments; Keep current; cancellation; and RPC timeout represented by an undefined selection.
-- [ ] Add focused tests for R4: print and JSON without UI, both queued delivery modes with and without UI, non-lifecycle input, lookalikes, and extension-injected lifecycle text.
-- [ ] Add focused tests for R5: missing registry model, failed `setModel()`, and effective thinking-level mismatch. Assert every expected path returns `{ action: "continue" }` and never returns `handled` or `transform`.
-- [ ] Run `node --experimental-strip-types --test exact_extensions/lifecycle-model-recommender/_adapter.test.ts`; verify the red result is `ERR_MODULE_NOT_FOUND` for `index.ts`.
-- [ ] Implement the minimal directory entrypoint: register one `input` handler, delegate parsing to `_policy.ts`, compare provider/model/thinking while treating an undefined `ctx.model` as a mismatch, use standard `ui.select()`, resolve the selected model, await `setModel()`, set and verify thinking, notify or warn, and return `continue` on every expected path.
-- [ ] Preserve Pi's normal exception isolation instead of adding broad catches that could hide programming defects. Keep all user-visible failure messages free of credentials, headers, and command arguments.
-- [ ] Rerun the focused adapter test; expect all R2-R5 cases to pass.
-- [ ] Refactor only after green to keep option formatting and selection mapping deterministic and readable, then rerun both recommender test files.
-- [ ] Run `npm run test:unit`; expect all unit tests to pass.
-- [ ] Run LSP diagnostics for `index.ts` and `_adapter.test.ts`; expect no errors.
-- [ ] Commit only the Task 2 files with `feat(pi): recommend models for lifecycle commands`.
+- [x] Build a minimal mock for the Pi system boundary that captures the registered `input` handler and records UI calls, registry lookup, model selection, and thinking access. Do not mock helpers inside the recommender.
+- [x] Add focused tests for R2: already-matching notification; undefined `ctx.model` treated as a mismatch that opens the dialog without throwing; stable dialog order and metadata; current-setting markers; untimed TUI selection; and RPC selection with `{ timeout: 30000 }`.
+- [x] Add focused tests for R3: recommendation, lower-cost, and increase-quality selections; model-before-thinking call order; unchanged arguments; Keep current; cancellation; and RPC timeout represented by an undefined selection.
+- [x] Add focused tests for R4: print and JSON without UI, both queued delivery modes with and without UI, non-lifecycle input, lookalikes, and extension-injected lifecycle text.
+- [x] Add focused tests for R5: missing registry model, failed `setModel()`, and effective thinking-level mismatch. Assert every expected path returns `{ action: "continue" }` and never returns `handled` or `transform`.
+- [x] Run `node --experimental-strip-types --test exact_extensions/lifecycle-model-recommender/_adapter.test.ts`; verify the red result is `ERR_MODULE_NOT_FOUND` for `index.ts`.
+- [x] Implement the minimal directory entrypoint: register one `input` handler, delegate parsing to `_policy.ts`, compare provider/model/thinking while treating an undefined `ctx.model` as a mismatch, use standard `ui.select()`, resolve the selected model, await `setModel()`, set and verify thinking, notify or warn, and return `continue` on every expected path.
+- [x] Preserve Pi's normal exception isolation instead of adding broad catches that could hide programming defects. Keep all user-visible failure messages free of credentials, headers, and command arguments.
+- [x] Rerun the focused adapter test; expect all R2-R5 cases to pass.
+- [x] Refactor only after green to keep option formatting and selection mapping deterministic and readable, then rerun both recommender test files.
+- [x] Run `npm run test:unit`; expect all unit tests to pass.
+- [x] Run LSP diagnostics for `index.ts` and `_adapter.test.ts`; expect no errors.
+- [x] Commit only the Task 2 files with `feat(pi): recommend models for lifecycle commands`.
 
 ### Task 3: Integrate lifecycle-policy review into model synchronization
 **Traceability:** R6.
@@ -251,14 +251,14 @@ The managed `/sync-pi-models` prompt SHALL report catalog deltas and run the lif
 
 Automation is impractical for the prompt's decision semantics: executing `/sync-pi-models` would invoke a model against and potentially mutate the live catalog, while string assertions would overfit prose without proving the agent follows it. Use the automated policy/catalog test as the executable compatibility gate and the rendered-prompt inspection below for the workflow contract.
 
-- [ ] Preserve the existing provider-classification, credential-preservation, source-template editing, render comparison, and model-target apply instructions.
-- [ ] Add an ordered post-reconciliation policy review that identifies provider/model ID additions and removals from the initial catalog diff and locates the managed recommender policy source for reference only.
-- [ ] Require running the focused policy/catalog test after updating `models.json.tmpl`. State that `/sync-pi-models` MUST NOT edit `_policy.ts`; newly added models are candidates only and lifecycle-role changes are handled out of band by a future ad-hoc prompt.
-- [ ] Require the workflow to stop before declaring synchronization complete when the test reports a missing identity or unsupported thinking level, report the incompatibility, and direct the user to the out-of-band policy-update prompt. Do not let the prompt infer replacement quality from names, recency, provider, context size, or reasoning metadata, and do not let it edit `_policy.ts`.
-- [ ] From the repository root, render the managed prompt with `chezmoi --source "$PWD" cat ~/.pi/agent/prompts/sync-pi-models.md`. Starting from the documented precondition that `models.json.tmpl` has just been reconciled, inspect the output in order and verify it: preserves profile classification; reports ID deltas; runs the catalog gate; leaves `_policy.ts` unchanged; and on incompatibility stops before declaring completion and directs the user to the out-of-band policy-update prompt rather than editing `_policy.ts`. No setup files or cleanup are required because `chezmoi cat` is read-only.
-- [ ] From `dot_pi/agent`, run `node --experimental-strip-types --test exact_extensions/lifecycle-model-recommender/_policy.test.ts`; expect the managed catalog and policy to remain compatible.
-- [ ] From the repository root, run `chezmoi --source "$PWD" diff ~/.pi/agent/prompts/sync-pi-models.md`; expect only the approved maintenance-workflow additions.
-- [ ] Commit only the sync prompt with `docs(pi): validate lifecycle policy during model sync`.
+- [x] Preserve the existing provider-classification, credential-preservation, source-template editing, render comparison, and model-target apply instructions.
+- [x] Add an ordered post-reconciliation policy review that identifies provider/model ID additions and removals from the initial catalog diff and locates the managed recommender policy source for reference only.
+- [x] Require running the focused policy/catalog test after updating `models.json.tmpl`. State that `/sync-pi-models` MUST NOT edit `_policy.ts`; newly added models are candidates only and lifecycle-role changes are handled out of band by a future ad-hoc prompt.
+- [x] Require the workflow to stop before declaring synchronization complete when the test reports a missing identity or unsupported thinking level, report the incompatibility, and direct the user to the out-of-band policy-update prompt. Do not let the prompt infer replacement quality from names, recency, provider, context size, or reasoning metadata, and do not let it edit `_policy.ts`.
+- [x] From the repository root, render the managed prompt with `chezmoi --source "$PWD" cat ~/.pi/agent/prompts/sync-pi-models.md`. Starting from the documented precondition that `models.json.tmpl` has just been reconciled, inspect the output in order and verify it: preserves profile classification; reports ID deltas; runs the catalog gate; leaves `_policy.ts` unchanged; and on incompatibility stops before declaring completion and directs the user to the out-of-band policy-update prompt rather than editing `_policy.ts`. No setup files or cleanup are required because `chezmoi cat` is read-only.
+- [x] From `dot_pi/agent`, run `node --experimental-strip-types --test exact_extensions/lifecycle-model-recommender/_policy.test.ts`; expect the managed catalog and policy to remain compatible.
+- [x] From the repository root, run `chezmoi --source "$PWD" diff ~/.pi/agent/prompts/sync-pi-models.md`; expect only the approved maintenance-workflow additions.
+- [x] Commit only the sync prompt with `docs(pi): validate lifecycle policy during model sync`.
 
 ### Task 4: Complete documentation, future-agent guidance, and verification readiness
 **Traceability:** All requirements and the repository's required final documentation task.
@@ -270,23 +270,27 @@ Automation is impractical for the prompt's decision semantics: executing `/sync-
 - `plans/pi-lifecycle-model-recommender/plan.md`.
 - Relevant user/developer docs, READMEs, runbooks, examples, and generated reference docs discovered during implementation.
 
-- [ ] Inspect user-facing docs. Record in the plan execution notes why the self-explanatory dialog and `/sync-pi-models` prompt are sufficient, or update the narrowest existing document if users need additional invocation or failure guidance.
-- [ ] Inspect developer docs and READMEs. Record why the design, policy table, tests, and sync prompt provide sufficient maintenance guidance, or update an existing document if implementation introduces a durable maintenance procedure not captured there.
-- [ ] Inspect runbooks and operational docs. Record that no service, alert, dashboard, or on-call procedure exists or is required for this local advisory extension.
-- [ ] Inspect examples and generated references. Record why no example or generated artifact changes are needed; do not create a duplicate example when the tested extension itself is the canonical implementation.
-- [ ] Inspect every relevant `AGENTS.md`. Add guidance only if implementation reveals a durable repository trap, required command, source-of-truth rule, or rollout procedure not already covered. Do not duplicate lifecycle behavior from prompt or policy files.
-- [ ] If the documentation inspection changes tracked files, run the relevant render or test check and commit those files only with `docs(pi): document lifecycle recommender workflow`. If no files change, record that outcome in the plan execution notes and do not create an empty commit.
-- [ ] From `dot_pi/agent`, run both focused tests together: `node --experimental-strip-types --test exact_extensions/lifecycle-model-recommender/_policy.test.ts exact_extensions/lifecycle-model-recommender/_adapter.test.ts`; expect all cases to pass.
-- [ ] From `dot_pi/agent`, run `npm test`; expect unit, skill, and dependency validation to pass.
-- [ ] From `dot_pi/agent`, run `npm run test:all`; expect the repeated deterministic suites and existing Pi smoke test to pass.
-- [ ] From `dot_pi/agent`, run `PI_OFFLINE=1 pi --no-session --no-context-files --no-extensions --extension "$PWD/exact_extensions/lifecycle-model-recommender/index.ts" --list-models __pi_lifecycle_recommender_smoke_no_match__`; expect exit 0 and no `[Extension issues]` output. This loads the source candidate without applying it or starting a model turn.
-- [ ] Run LSP diagnostics for all four recommender TypeScript files; expect no errors.
-- [ ] From the repository root, run `chezmoi --source "$PWD" execute-template < dot_pi/agent/models.json.tmpl | diff -u - ~/.pi/agent/models.json`; expect exit 0 and no diff. This relies on the initialized chezmoi config's `data.profile` (`work`); do not add `--init`/`--promptString`, which do not populate `.profile` for a piped content template.
-- [ ] Run `chezmoi --source "$PWD" diff ~/.pi/agent/extensions/lifecycle-model-recommender`; expect only the new recommender directory.
-- [ ] Run `chezmoi --source "$PWD" diff ~/.pi/agent/prompts/sync-pi-models.md`; expect only the approved maintenance instructions.
-- [ ] Run `git diff --check origin/main...HEAD` and `git diff --check`; expect no whitespace errors or conflict markers in committed or ledger changes.
-- [ ] Inspect `git status --short` and the complete `origin/main...HEAD` diff. Confirm there are no implementation files outside the plan's affected-file set, no model-catalog or lifecycle-prompt changes, no dependency changes, and no unrelated modifications.
-- [ ] Leave `dot_pi/agent/node_modules` present and ignored for `/verify`. Do not apply either managed target. Follow `/execute`'s stack evaluation and draft-PR workflow, then hand the unchanged source candidate to independent `/verify`.
+- [x] Inspect user-facing docs. Record in the plan execution notes why the self-explanatory dialog and `/sync-pi-models` prompt are sufficient, or update the narrowest existing document if users need additional invocation or failure guidance.
+- [x] Inspect developer docs and READMEs. Record why the design, policy table, tests, and sync prompt provide sufficient maintenance guidance, or update an existing document if implementation introduces a durable maintenance procedure not captured there.
+- [x] Inspect runbooks and operational docs. Record that no service, alert, dashboard, or on-call procedure exists or is required for this local advisory extension.
+- [x] Inspect examples and generated references. Record why no example or generated artifact changes are needed; do not create a duplicate example when the tested extension itself is the canonical implementation.
+- [x] Inspect every relevant `AGENTS.md`. Add guidance only if implementation reveals a durable repository trap, required command, source-of-truth rule, or rollout procedure not already covered. Do not duplicate lifecycle behavior from prompt or policy files.
+- [x] If the documentation inspection changes tracked files, run the relevant render or test check and commit those files only with `docs(pi): document lifecycle recommender workflow`. If no files change, record that outcome in the plan execution notes and do not create an empty commit.
+- [x] From `dot_pi/agent`, run both focused tests together: `node --experimental-strip-types --test exact_extensions/lifecycle-model-recommender/_policy.test.ts exact_extensions/lifecycle-model-recommender/_adapter.test.ts`; expect all cases to pass.
+- [x] From `dot_pi/agent`, run `npm test`; expect unit, skill, and dependency validation to pass.
+- [x] From `dot_pi/agent`, run `npm run test:all`; expect the repeated deterministic suites and existing Pi smoke test to pass.
+- [x] From `dot_pi/agent`, run `PI_OFFLINE=1 pi --no-session --no-context-files --no-extensions --extension "$PWD/exact_extensions/lifecycle-model-recommender/index.ts" --list-models __pi_lifecycle_recommender_smoke_no_match__`; expect exit 0 and no `[Extension issues]` output. This loads the source candidate without applying it or starting a model turn.
+- [x] Run LSP diagnostics for all four recommender TypeScript files; expect no errors.
+- [x] From the repository root, run `chezmoi --source "$PWD" execute-template < dot_pi/agent/models.json.tmpl | diff -u - ~/.pi/agent/models.json`; expect exit 0 and no diff. This relies on the initialized chezmoi config's `data.profile` (`work`); do not add `--init`/`--promptString`, which do not populate `.profile` for a piped content template.
+- [x] Run `chezmoi --source "$PWD" diff ~/.pi/agent/extensions/lifecycle-model-recommender`; expect only the new recommender directory.
+- [x] Run `chezmoi --source "$PWD" diff ~/.pi/agent/prompts/sync-pi-models.md`; expect only the approved maintenance instructions.
+- [x] Run `git diff --check origin/main...HEAD` and `git diff --check`; expect no whitespace errors or conflict markers in committed or ledger changes.
+- [x] Inspect `git status --short` and the complete `origin/main...HEAD` diff. Confirm there are no implementation files outside the plan's affected-file set, no model-catalog or lifecycle-prompt changes, no dependency changes, and no unrelated modifications.
+- [x] Leave `dot_pi/agent/node_modules` present and ignored for `/verify`. Do not apply either managed target. No stack split was needed: the change has one cohesive feature purpose, fewer than 400 net non-test code lines, fewer than 15 non-generated files, and fewer than five review topics. Draft PR #22 is open; neither managed target was applied.
+
+## Execution Notes
+- Documentation inspection: the recommendation dialog and `/sync-pi-models` provide sufficient user guidance; the committed design, policy matrix, focused tests, and synchronization prompt provide maintenance guidance. No separate runbook, alert, dashboard, service ownership, example, generated reference, README, or `AGENTS.md` change is needed for this local advisory extension.
+- No documentation-only commit was created because the inspection did not require a tracked documentation change beyond the Task 3 sync-prompt update.
 
 ## Requirement Traceability
 | Requirement | Primary implementation | Automated evidence | Additional evidence |

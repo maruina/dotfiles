@@ -41,6 +41,11 @@ For multi-step work, use a brief plan:
 3. [Step] → verify: [check]
 ```
 
+## Feature Workflow
+For non-trivial feature work, use `/brainstorm` → `/plan` → `/systematic-review` → `/execute` → `/verify`. Start at `/plan` when the problem framing and design are already agreed. Use `/simplify` only when requested, after `/execute` and before `/verify`; use `/compound` after the work lands when it produced a durable, non-obvious learning.
+
+`/execute` produces an implementation candidate and implementation evidence. `/verify` is the final independent, read-only closeout gate. Do not claim final verification until `/verify` returns `VERIFIED`, and rerun it from scratch after any candidate change. The prompt files are the source of truth for each stage; do not duplicate their detailed contracts in `AGENTS.md`.
+
 ## Workstyle
 
 - Branch naming: `maruina/jira-ticket` when a Jira ticket exists; otherwise `maruina/branch-name`.
@@ -58,7 +63,9 @@ For multi-step work, use a brief plan:
 
 A hidden `user-context` extension injects current repo, branch, PR, Jira-key, worktree, and recent-file context. Treat it as hints; follow explicit user instructions and repository guidance first.
 
-## Pi Extension Layout
+## Pi Source Layout
+Top-level files under `dot_pi/agent/exact_prompts/*.md` are global Pi prompt commands; the filename defines the slash command. Keep lifecycle behavior in those prompt files rather than duplicating it in guidance.
+
 Top-level files under `dot_pi/agent/exact_extensions/*.ts` are Pi-discovered extension entrypoints and must export a default factory function. Put pure helpers, shared modules, and test-only code under `_shared/` or an extension subdirectory so Pi does not try to load them as standalone extensions.
 
 ## Code Style

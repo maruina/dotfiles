@@ -1,13 +1,13 @@
 ---
 description: Verify an implementation candidate with fresh, read-only evidence
-argument-hint: "[path-to-plan.md]"
+argument-hint: "[path-to-plan.md] [--implemented-by <model-id>] [--task <requirement>]"
 ---
 # Verify
 Verification input:
 
 > $ARGUMENTS
 
-Perform a fresh, read-only closeout review of the selected implementation candidate. Return exactly one top-level verdict: `VERIFIED` or `BLOCKED`.
+Perform a fresh, read-only closeout review of the selected implementation candidate. Treat `--implemented-by` and `--task` as handoff metadata, not target paths. Return exactly one top-level verdict: `VERIFIED` or `BLOCKED`.
 
 <HARD-GATE>
 Do not edit, format, generate, apply chezmoi state, stage, commit, push, open or update a PR, switch branches, detach HEAD, or repair anything. Do not run formatter or linter fix modes. If a check would mutate the selected worktree, do not run it; return `BLOCKED` instead. A repair invalidates all prior evidence: hand control back to `/execute` or the user, then require a completely fresh `/verify` run.
@@ -16,10 +16,11 @@ Do not edit, format, generate, apply chezmoi state, stage, commit, push, open or
 ## Target resolution
 
 1. If `$ARGUMENTS` contains a plan path, use the `resolve-worktree` skill with `$GLOB = **/plans/*/plan.md`. Resolve the plan, switch to its owning worktree, and read the complete plan and sibling `design.md` when present. They are the requirements baseline. If the path is unresolved or ambiguous, return `BLOCKED`; do not guess.
-2. Without a plan path, verify the current checkout against the current task or conversation baseline. Do not infer intended behavior solely from the diff. If the task baseline is missing or ambiguous, return `BLOCKED`.
-3. Before running checks, snapshot the selected worktree's absolute path, branch, HEAD, `git status --porcelain=v1 --untracked-files=all`, staged diff, unstaged diff, intended untracked files, and candidate commits.
-4. Resolve the comparison base in this precedence: explicit plan/task context, `git machete show up <branch>`, open-PR base from `gh`, then the repository default branch. Use the base consistently for the branch diff. If available evidence produces a material conflict, return `BLOCKED` rather than selecting a fallback.
-5. Candidate scope MUST include commits relative to the base, staged changes, unstaged changes, and intended untracked files. Confirm the scope is attributable to the requirements baseline and has no unexplained unrelated changes. An empty candidate is `BLOCKED`.
+2. Without a plan path, use the `--task` value copied from the `/execute` handoff as the requirements baseline. Fall back to the current task or conversation only when it contains an equally explicit baseline. Do not infer intended behavior solely from the diff. If the task baseline is missing or ambiguous, return `BLOCKED`.
+3. Read the implementation model ID from `--implemented-by` when present. This explicit handoff metadata survives `/new`; never infer the implementation model from the verifier model or repository state.
+4. Before running checks, snapshot the selected worktree's absolute path, branch, HEAD, `git status --porcelain=v1 --untracked-files=all`, staged diff, unstaged diff, intended untracked files, and candidate commits.
+5. Resolve the comparison base in this precedence: explicit plan/task context, `git machete show up <branch>`, open-PR base from `gh`, then the repository default branch. Use the base consistently for the branch diff. If available evidence produces a material conflict, return `BLOCKED` rather than selecting a fallback.
+6. Candidate scope MUST include commits relative to the base, staged changes, unstaged changes, and intended untracked files. Confirm the scope is attributable to the requirements baseline and has no unexplained unrelated changes. An empty candidate is `BLOCKED`.
 
 ## Risk classification
 
@@ -42,10 +43,10 @@ For plan-backed work, trace every Given/When/Then acceptance scenario to an impl
 
 ## Independent semantic review
 
-For behavior-bearing candidates, require this review to run in a fresh `/new` session under a model different from the implementation model named in the `/execute` handoff.
+For behavior-bearing candidates, require this review to run in a fresh `/new` session under a model different from the implementation model carried by the `/execute` handoff.
 
-- Read the implementation model from that handoff and the verifier model from the injected `## Current Model` context.
-- If the handoff named no implementation model, the verifier has no injected model, or the two model identities match, return `BLOCKED`. Instruct the user to run `/model` to choose a different model, `/new`, confirm `## Current Model` (also shown in the statusline), then rerun `/verify`.
+- Read the implementation model ID from `--implemented-by` and the verifier model ID from the injected `## Current Model` context.
+- If `--implemented-by` is missing, the verifier has no injected model ID, or the two IDs match, return `BLOCKED`. Instruct the user to return to the `/execute` handoff when metadata is missing, or run `/model` to choose a different model, `/new`, confirm `## Current Model` (also shown in the statusline), then rerun the complete copy-paste `/verify` command.
 - Otherwise, review the requirements baseline, base and complete candidate diff, relevant implementation, tests, and fresh deterministic evidence. Focus on new correctness, security, operability, compatibility, and material maintainability regressions attributable to the candidate.
 - Validate every potentially material finding against the diff, code, tests, repository rules, type information, or fresh command output. Confirmed findings and material concerns that cannot be confidently dismissed are `BLOCKED`. Record pre-existing, out-of-scope, duplicate, speculative, unsupported, and non-blocking style findings with concise evidence and rationale.
 

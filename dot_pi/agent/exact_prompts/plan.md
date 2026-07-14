@@ -13,6 +13,8 @@ Brainstorming answers what problem to solve. Planning answers how to implement i
 
 <HARD-GATE>
 Do not write implementation code, scaffold application files, or change files outside the plan document. The default terminal state for non-trivial work is a committed `plan.md` in a feature worktree.
+
+For Medium and Large/Risky work, do not write or commit `plan.md` until the user confirms a planning alignment brief. Skip this confirmation gate only when the user explicitly requests one-shot, fast, no-questions, or chat-only planning.
 </HARD-GATE>
 
 ## Input Handling
@@ -32,10 +34,10 @@ If the input is a broad idea with unclear goal, audience/user, scope, success cr
 
 If a resolved design spec or existing plan has drifted from the current request, decide whether to revise it or restart before writing tasks. Revise the existing artifact when the intent is unchanged and most of the scope still overlaps. Return to `/brainstorm` for a new design when the problem itself changed, the scope grew until the original is unrecognizable, or the original could ship as-is and this is follow-up work.
 
-When asking a blocking planning question, include a recommended answer if there is enough evidence:
+When asking a planning question, include a recommended answer if there is enough evidence:
 
 ```md
-## Blocking question
+## Planning question
 ...
 
 ## Recommended answer
@@ -45,6 +47,21 @@ If that is right, I will plan around ...
 ```
 
 For trivial or explicitly ephemeral work, ask whether the user wants a chat-only plan instead of a committed `plan.md`. Otherwise prefer a durable plan file, and prefer an existing `design.md` as input when one exists.
+
+## Interaction Modes
+### Interactive planning — default
+Use interactive planning for Medium and Large/Risky work unless the user explicitly opts out. A complete design spec does not waive the interaction gate; it settles WHAT, while planning still pressure-tests HOW.
+
+In interactive mode:
+
+1. Research before asking questions.
+2. Ask one question at a time for material implementation choices that evidence cannot settle.
+3. Finish each planning branch as accepted, rejected, deferred, blocked, or split before moving to another branch.
+4. Present a planning alignment brief even when discovery found no material question.
+5. Wait for user confirmation before writing `plan.md`.
+
+### Direct planning — explicit fast path
+Use direct planning for Small work or when the user explicitly requests one-shot, fast, no-questions, or chat-only planning. Skipping the interaction gate does not skip discovery, feasibility validation, skill loading, or self-review.
 
 ## Source of Truth
 Use the upstream alignment brief, design spec, Jira, issue, PR comment, or user request as the source of truth for WHAT.
@@ -73,11 +90,77 @@ If a required mechanism is unavailable, choose exactly one:
 Do not write implementation tasks until every required mechanism has a validation path. A planned command must validate the claimed behavior, not merely a nearby subsystem.
 
 ## Posture
-Plan for a skilled engineer with no local context. Be exact, test-driven, and skeptical. If the input is not ready to plan from, stop and ask for the missing decision.
+Act as a planning partner, not a plan generator. Plan for a skilled engineer with no local context. Be exact, test-driven, and skeptical. If the input is not ready to plan from, stop and ask for the missing decision.
 
 Prefer DRY, YAGNI, small vertical slices, frequent verification, and existing repository patterns. Use boring technology. Reuse existing libraries, services, CLIs, controllers, APIs, and platform primitives instead of reimplementing them.
 
 Do not ask the user to identify files, commands, patterns, or existing behavior if those can be discovered from the repository. Investigate first, then ask only to confirm ambiguous choices or product decisions.
+
+## Planning Questions
+Ask a planning question when multiple reasonable implementation approaches exist and the choice affects one or more of:
+
+- compatibility or migration behavior
+- failure or fallback behavior
+- authorization, security, privacy, or data handling
+- operability, rollout, or rollback
+- public interfaces or future maintenance
+- test seams or the strength of validation evidence
+- task boundaries or reviewability
+
+Do not silently choose among material tradeoffs merely because every option is implementable or satisfies the design. Explain the options, recommend one, and ask one question at a time.
+
+Do not ask about mechanical details that repository evidence or an established local pattern answers. Make those choices from evidence and record them in the planning alignment brief.
+
+Useful planning branches include:
+
+- design-to-code mapping
+- existing patterns and reusable mechanisms
+- compatibility and migration
+- failure and fallback behavior
+- security and data handling
+- test seams and validation evidence
+- vertical task boundaries and commit structure
+- documentation, rollout, and rollback
+
+If planning uncovers a missing product decision, do not disguise it as an implementation detail. Ask the user or recommend returning to `/brainstorm` when the answer changes the agreed problem, behavior, or scope.
+
+## Planning Alignment Gate
+For interactive Medium and Large/Risky work, present this brief after discovery, feasibility checks, and material planning questions are resolved:
+
+```md
+## Planning alignment brief
+Source of truth:
+- ...
+
+Scope classification:
+- ...
+
+Implementation strategy:
+- ...
+
+Design-to-code mapping:
+- [requirement] → [component, files, and mechanism]
+
+Existing patterns to reuse:
+- ...
+
+Proposed vertical slices:
+1. ...
+
+Validation strategy:
+- ...
+
+Planning assumptions:
+- ...
+
+Confirmed and rejected implementation decisions:
+- ...
+
+Risks or design gaps discovered:
+- ...
+```
+
+Ask the user to confirm or adjust the brief. If the user changes it, revise the brief and resolve any newly material question before asking again. Only a confirmed brief authorizes writing and committing `plan.md`.
 
 Capture decisions, boundaries, files, dependencies, risks, and test scenarios. Do not pre-write large implementation blocks or shell-command choreography. Include snippets only when they clarify an interface, schema, command, invariant, or expected behavior.
 
@@ -99,17 +182,20 @@ When creating or updating a durable plan:
 ## Workflow
 1. Read the planning input completely. If it is a path, resolve it to the correct worktree first.
 2. Inspect relevant guidance, code, tests, build commands, package boundaries, existing patterns, tickets, prior plans, architecture decision records, and review threads.
-3. Before writing the plan, pressure-test the input. Ask one question at a time only if the answer materially changes the implementation plan. Prefer inspecting evidence over asking the user. Check whether the problem is framed clearly enough to plan, success criteria are observable, required mechanisms have been validated under the Feasibility Gate, the first slice is small enough to implement and review safely, existing repository or platform patterns can be reused, and rollout, rollback, ownership, and validation are clear enough for the risk level.
-4. Load relevant planning skills before writing tasks. Use the `skill-loader` skill to determine which language and domain skills to read based on files the plan will affect. Prefer specific skills over general ones.
-5. Check scope. If the work spans independent subsystems, suggest separate plans unless the input already decomposes them into independently testable deliverables.
-6. Right-size the plan based on risk and complexity.
-7. Map files before tasks: each file to create or modify, its responsibility, boundaries, and tests.
-8. Decide where the plan should live. Prefer `plans/<ticket-or-feature>/plan.md` relative to the relevant package directory in monorepos. If a design spec was provided, write the plan in the same directory as the design.
-9. Ensure the worktree policy is satisfied before writing a durable plan.
-10. Write the plan document only. Do not change implementation files.
-11. Self-review the plan and fix issues inline.
-12. Commit only the plan: `docs: add <ticket-or-feature> implementation plan`. Do not include unrelated changes. If the branch is `main` or `master`, stop and ask before committing.
-13. Report the exact handoff phrase below.
+3. Load relevant planning skills before making implementation recommendations. Use the `skill-loader` skill to determine which language and domain skills to read based on files the plan will affect. Prefer specific skills over general ones.
+4. Classify the work as Small, Medium, or Large/Risky and select interactive or direct planning according to Interaction Modes.
+5. Pressure-test the input and Feasibility Gate. Prefer evidence over questions. Check whether success criteria are observable, required mechanisms exist, the first slice is reviewable, existing patterns can be reused, and rollout, rollback, ownership, and validation match the risk.
+6. Explore material planning branches one at a time. Ask one planning question at a time when evidence cannot select safely among meaningful tradeoffs. Include a recommended answer.
+7. Check scope. If the work spans independent subsystems, suggest separate plans unless the input already decomposes them into independently testable deliverables.
+8. Map files before tasks: each file to create or modify, its responsibility, boundaries, and tests.
+9. For interactive Medium and Large/Risky work, present the planning alignment brief and wait for explicit user confirmation. Do not create `plan.md` before confirmation.
+10. Right-size the plan based on risk and complexity.
+11. Decide where the plan should live. Prefer `plans/<ticket-or-feature>/plan.md` relative to the relevant package directory in monorepos. If a design spec was provided, write the plan in the same directory as the design.
+12. Ensure the worktree policy is satisfied before writing a durable plan.
+13. Write the plan document only. Do not change implementation files.
+14. Self-review the plan and fix issues inline.
+15. Commit only the plan: `docs: add <ticket-or-feature> implementation plan`. Do not include unrelated changes. If the branch is `main` or `master`, stop and ask before committing.
+16. Report the exact handoff phrase below.
 
 ## Right-Size the Plan
 Match plan detail to risk.
@@ -278,6 +364,7 @@ For Small plans, include documentation impact in validation or explicitly state 
 ## Plan Quality Bar
 Before reporting completion, verify:
 
+- interactive Medium and Large/Risky work has a user-confirmed planning alignment brief
 - every requirement maps to a task or explicit follow-up
 - acceptance requirements are expressed as testable scenarios, each mapped to at least one task
 - tasks are vertical, ordered safely, and independently verifiable

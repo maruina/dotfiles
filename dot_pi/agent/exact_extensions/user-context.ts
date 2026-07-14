@@ -204,6 +204,11 @@ export function formatPR(pr: RecentPullRequest | CurrentPullRequest): string {
   return `- [${state}] #${pr.number}${base}: ${pr.title} [head: ${head}]${link}`;
 }
 
+export function formatCurrentModel(model?: { id?: string; name?: string }): string[] {
+  if (!model?.id) return [];
+  return ["## Current Model", `- ${model.name ?? model.id} (${model.id})`];
+}
+
 export function shouldAddSkillLoaderGuidance(prompt: string): boolean {
   return CODE_TASK_RE.test(prompt) && CODE_CONTEXT_RE.test(prompt);
 }
@@ -232,6 +237,12 @@ export default function (pi: ExtensionAPI) {
       lines.push("## User Identity");
       if (name) lines.push(`- Name: ${name}`);
       if (email) lines.push(`- Email: ${email}`);
+    }
+
+    const currentModelLines = formatCurrentModel(ctx.model);
+    if (currentModelLines.length > 0) {
+      if (lines.length > 0) lines.push("");
+      lines.push(...currentModelLines);
     }
 
     if (isGitRepo(cwd)) {

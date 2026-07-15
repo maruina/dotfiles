@@ -278,7 +278,7 @@ export function selectLearningSections(markdown, terms) {
 }
 
 function usage() {
-  return `Usage: learn-evidence.mjs <command> [options]\n\nCommands:\n  sessions-window --session-dir <directory> --date <YYYY-MM-DD> [--timezone <IANA zone>]\n  sessions-search --session-dir <directory> --term <term> [--term <term>] [--limit <count>]\n  session-context --path <session.jsonl> --entry-id <id> [--entry-id <id>] [--ancestor-limit <count>] [--descendant-limit <count>]\n  learning-sections --term <term> [--term <term>] < markdown`; 
+  return `Usage: learn-evidence.mjs <command> [options]\n\nCommands:\n  sessions-window --session-dir <directory> --date <YYYY-MM-DD> [--timezone <IANA zone>]\n  sessions-search --session-dir <directory> --term <term> [--term <term>] [--limit <count>]\n  session-context --path <session.jsonl> --entry-id <id> [--entry-id <id>] [--ancestor-limit <count>] [--descendant-limit <count>]\n  learning-sections --term <term> [--term <term>] < markdown`;
 }
 
 function parseArguments(args) {

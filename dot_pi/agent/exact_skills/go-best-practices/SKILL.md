@@ -68,6 +68,7 @@ Default to repository conventions. Make small, idiomatic changes. Do not rewrite
 - Copy slices and maps at API boundaries when retaining or exposing them would allow mutation.
 - Prefer nil slices unless JSON/API semantics require non-nil slices.
 - Use `time.Time` for instants and `time.Duration` for durations.
+- Before writing a small helper to sort, dedupe, clone, or extract keys, check `slices`/`maps`/`cmp` (Go 1.21+) for an existing function; prefer it over a hand-rolled loop. Verify nil-vs-empty-slice semantics before swapping an existing helper for a stdlib call — e.g. `slices.Clone(nil)` returns `nil`, not `[]T{}`, which can silently reintroduce `null` where a contract (such as stable JSON output) requires a non-nil empty slice.
 - Use standard helpers (`strings.Cut`, `slices`, `maps`, `cmp.Or`, `min`, `max`, `clear`) when they simplify code.
 
 ## Comments

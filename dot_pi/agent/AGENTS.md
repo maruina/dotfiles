@@ -42,7 +42,7 @@ For multi-step work, use a brief plan:
 ```
 
 ## Feature Workflow
-For non-trivial feature work, use `/brainstorm` → `/plan` → `/systematic-review` → `/execute` → `/verify`. Start at `/plan` when the problem framing and design are already agreed. Use `/simplify` only when requested, after `/execute` and before `/verify`; use `/compound` after the work lands when it produced a durable, non-obvious learning.
+For non-trivial feature work, use `/brainstorm` → `/plan` → `/systematic-review` → `/execute` → `/verify`. Start at `/plan` when the problem framing and design are already agreed. Use `/simplify` only when requested, after `/execute` and before `/verify`; use `/learn` after the work lands when evidence supports durable guidance.
 
 `/execute` produces an implementation candidate and implementation evidence. `/verify` is the final independent, read-only closeout gate. Do not claim final verification until `/verify` returns `VERIFIED`, and rerun it from scratch after any candidate change. The prompt files are the source of truth for each stage; do not duplicate their detailed contracts in `AGENTS.md`.
 

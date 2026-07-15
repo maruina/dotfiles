@@ -75,7 +75,9 @@ set -gx CONFLUENCE_API_TOKEN '{{ onepasswordRead "op://Employee/Confluence API t
 set -gx TAVILY_API_KEY '{{ onepasswordRead "op://Employee/Tavily/api-key" }}'
 {{- end }}
 {{- if eq .profile "personal" }}
-set -gx GOROOT (go env GOROOT)
+# Use Homebrew's stable opt symlink so GOROOT survives Go upgrades;
+# pinning to go env GOROOT breaks when brew deletes the old Cellar dir.
+set -gx GOROOT /opt/homebrew/opt/go/libexec
 set -gx GOPATH (go env GOPATH)
 set -gx GOBIN (go env GOBIN)
 set -gx PATH $PATH $GOBIN $GOPATH/bin

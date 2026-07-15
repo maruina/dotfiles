@@ -5,7 +5,13 @@ argument-hint: "<GitHub PR URL> [familiarity: 0-3 or context sentence]"
 # PR Review
 PR request: `$ARGUMENTS`
 
-Review the PR by understanding the system first, then assessing the change. Do not edit files, post GitHub comments, approve, or request changes unless the user explicitly asks.
+Review the PR by understanding the system first, then assessing the change.
+
+Use `/pr-review` to understand and assess someone else's GitHub PR. Use `/systematic-review` to review a plan or local code before execution, and `/verify` for the final closeout gate after execution.
+
+<HARD-GATE>
+Do not edit files, post GitHub comments, approve, or request changes unless the user explicitly asks. This is a read-only review.
+</HARD-GATE>
 
 ## Inputs
 Parse:
@@ -66,15 +72,9 @@ Classify changed files:
 - schema/API surface
 
 ## Phase 3: Load review guidance
-Before reviewing code, load relevant skills when the PR matches their domain:
-- Kubernetes CRDs/API types/schema evolution: `k8s-api-design`
-- controller-runtime reconcilers, watches, status, finalizers, background runnables: `k8s-controller-dev`
-- Go code not covered by a more specific Kubernetes skill: `go-best-practices`
-- CLI behavior, flags, prompts, output, errors: `cli-best-practices`
-- shell scripts or CI shell snippets: `script-best-practices`
-- prose, docs, PR descriptions, or review comments: `write`
+Before reviewing code, use the `skill-loader` skill to determine which language and domain skills to read based on the PR's changed files. Load them before judging the change. Prefer specific skills over general ones.
 
-Keep a record of each skill actually read and applied: source (`skill-loader`, `prompt-required`, `user-requested`, or `agent-selected`), why it was loaded, and how its guidance affected the review. Skills selected by this phase's domain rules are `prompt-required`; record another source when it caused the load instead. This provenance is feedback for improving `skill-loader`, especially when review-specific rules select skills outside it. Do not infer use from skills that were merely available or named without being read.
+Keep a record of each skill actually read and applied: source (`skill-loader`, `prompt-required`, `user-requested`, or `agent-selected`), why it was loaded, and how its guidance affected the review. This provenance is feedback for improving `skill-loader`, especially when a useful skill was selected outside it. Do not infer use from skills that were merely available or named without being read.
 
 For Datadog repositories, follow repository guidance. Use `bzl` for builds/tests; do not use `bazel` directly or language-specific test commands unless the repo explicitly requires it.
 

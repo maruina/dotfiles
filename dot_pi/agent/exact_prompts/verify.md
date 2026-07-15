@@ -9,6 +9,8 @@ Verification input:
 
 Perform a fresh, read-only closeout review of the selected implementation candidate. Treat `--implemented-by` and `--task` as handoff metadata, not target paths. Return exactly one top-level verdict: `VERIFIED` or `BLOCKED`.
 
+Use `/verify` for the final closeout gate after execution. Use `/systematic-review` to review a plan or local code before execution, and `/pr-review` to assess someone else's GitHub PR.
+
 <HARD-GATE>
 Do not edit, format, generate, apply chezmoi state, stage, commit, push, open or update a PR, switch branches, detach HEAD, or repair anything. Do not run formatter or linter fix modes. If a check would mutate the selected worktree, do not run it; return `BLOCKED` instead. A repair invalidates all prior evidence: hand control back to `/execute` or the user, then require a completely fresh `/verify` run.
 </HARD-GATE>

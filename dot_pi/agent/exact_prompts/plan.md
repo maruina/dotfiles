@@ -400,7 +400,12 @@ Before reporting completion, verify:
 - automation uses the right CLI or script shape
 - the plan reuses existing patterns and does not reimplement platform capabilities without justification
 - the plan does not invent behavior beyond the source of truth or turn an unverified design assumption into a requirement
-- no placeholders, contradictions, duplicated work, or bloated instructions remain: no `TBD`, `TODO`, `implement later`, `add validation`, `handle edge cases`, `write tests for the above`, `exercise the scenario`, `walk the prompt through it`, `confirm in chat`, `similar to Task N`, or references to nonexistent files, types, functions, commands, or validation mechanisms
+- no placeholders, contradictions, duplicated work, or bloated instructions remain. In particular, none of:
+  - `TBD`, `TODO`, or `implement later`
+  - `add validation`, `handle edge cases`, or `write tests for the above`
+  - `exercise the scenario`, `walk the prompt through it`, or `confirm in chat`
+  - `similar to Task N`
+  - references to nonexistent files, types, functions, commands, or validation mechanisms
 
 ## Handoff
 After saving and committing a durable plan, say exactly:

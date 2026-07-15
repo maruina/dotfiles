@@ -20,7 +20,7 @@ Default to recently changed code, not the whole repository. Resolve the target f
 
 - **File path** — simplify only that file.
 - **Worktree / directory path** — simplify the branch diff there against its base.
-- **PR URL** — simplify that PR's diff (see `/codex-review` for base detection and HEAD-restore guards if you must move HEAD).
+- **PR URL** — simplify that PR's diff. Detect the base with `gh pr view <url> --json baseRefName`. If you must move HEAD, capture the current branch and HEAD first and restore them afterward.
 - **No positional** — simplify the current checkout's working-tree changes, or the branch diff against its base when the tree is clean.
 
 Honor a user-supplied `--base`. Stay within the changed lines and their immediate context; do not expand into untouched code.
@@ -45,4 +45,4 @@ If a change is cosmetic-only with no clarity gain, skip it. If nothing is worth 
 ## Handoff
 Report the simplification diff, the verification commands run before and after, and anything you deliberately left alone. Include **Skills loaded and used** as a `Skill | Source | Why loaded | How used` table for every skill read and applied during simplification; explicitly state when none were needed. Then say exactly:
 
-> I finished simplifying the changes
+> I finished simplifying the changes. This changed the diff, so any earlier `/verify` verdict is stale — run a fresh `/verify` closeout before relying on it: choose a model different from the one that made these edits, run `/new`, confirm the injected `## Current Model`, then run `/verify` against the plan or task.

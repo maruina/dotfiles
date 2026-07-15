@@ -9,7 +9,7 @@ Target:
 
 Simplify code for clarity and maintainability while preserving behavior exactly. This is an opt-in refinement pass, distinct from the within-step "refactor after green" in `/execute`: it reviews the whole recent diff and improves it as a unit.
 
-Lifecycle: `/brainstorm` creates a committed design spec, `/plan` creates a committed implementation plan, `/systematic-review` validates code or plans, `/execute` implements verified changes, `/simplify` optionally refines them, and `/compound` captures durable learning after the work lands.
+Lifecycle: `/brainstorm` creates a committed design spec, `/plan` creates a committed implementation plan, `/systematic-review` validates code or plans, `/execute` implements verified changes, `/simplify` optionally refines them, and `/learn` captures evidence-backed guidance after the work lands.
 
 <HARD-GATE>
 Do not change behavior. Existing tests must pass before and after; run the focused tests for the touched code first, and again after simplifying. If no tests cover the touched code, say so and stop rather than guessing at behavior. Do not add features, abstractions, or configurability.

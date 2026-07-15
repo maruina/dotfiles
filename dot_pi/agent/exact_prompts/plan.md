@@ -72,6 +72,13 @@ Do not reinvent goals, scope, user-facing behavior, or success criteria during p
 
 Every major task must trace back to a goal, requirement, or explicit user instruction from the input. Remove tasks that do not map to the source of truth, or mark them as optional follow-up.
 
+## Advisory Learning Lookup
+After resolving the design/input and repository context, but before feasibility decisions, implementation recommendations, or the planning alignment brief, derive narrow terms for the technology, error, API, tool, and pattern. Read `Datadog/Learnings.md` through Obsidian and pipe it locally to `learn-evidence.mjs learning-sections`. Pass only returned complete H2 sections into reasoning; apply no repository filter. Report matched section titles and the material guidance used; do not report unrelated sections.
+
+Learnings are advisory. Current source code, tests, and tool behavior, then authoritative documentation, take precedence over a conflicting learning. Treat an absent `Datadog/Learnings.md` as empty without warning noise. If Obsidian is unavailable, continue planning and record the skipped advisory source in `plan.md`.
+
+Map material guidance into the committed `plan.md`, and record a stale, corrected, or omitted learning when stronger current evidence conflicts. Do not let an advisory learning override the design's agreed WHAT or retrieve the mutable store during `/execute` or `/verify`.
+
 ## Feasibility Gate
 Before writing acceptance criteria or tasks, validate every requirement that depends on a tool, runtime capability, external service, metadata source, or workflow behavior. Record the result in a compact table when the work is Medium or Large/Risky:
 

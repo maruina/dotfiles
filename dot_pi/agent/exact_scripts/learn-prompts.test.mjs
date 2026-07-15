@@ -80,6 +80,35 @@ test("learn uses a transactional, privacy-preserving vault write", () => {
   ]);
 });
 
+test("brainstorm and plan selectively consume advisory learning sections", () => {
+  for (const file of ["brainstorm.md", "plan.md"]) {
+    const text = prompt(file);
+    requireMarkers(text, [
+      /narrow.*terms/i,
+      /technology.*error.*API.*tool.*pattern/is,
+      /Datadog\/Learnings\.md/,
+      /learning-sections/,
+      /complete H2 section/i,
+      /Report matched section titles.*do not report unrelated sections/i,
+      /no repository filter/i,
+      /advisory/i,
+      /Current source code, tests, and tool behavior/i,
+      /material.*guidance.*design\.md|material.*guidance.*plan\.md/is,
+      /absent.*empty/i,
+      /Obsidian.*unavailable.*record/is,
+    ]);
+  }
+});
+
+test("execute and verify do not read the mutable learning store", () => {
+  for (const file of ["execute.md", "verify.md"]) {
+    const text = prompt(file);
+    assert.doesNotMatch(text, /Datadog\/Learnings\.md/);
+    assert.doesNotMatch(text, /learning-sections/);
+    assert.doesNotMatch(text, /obsidian\s+(?:read|create|delete)/i);
+  }
+});
+
 test("lifecycle guidance names learn and has no compound reference", () => {
   for (const file of [path.join(promptsDir, "simplify.md"), path.join(agentDir, "AGENTS.md")]) {
     const text = readFileSync(file, "utf8");

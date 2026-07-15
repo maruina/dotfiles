@@ -267,6 +267,13 @@ If the answer is likely in code, tests, docs, tickets, logs, metrics, PRs, or re
 
 Ask for source-of-truth links when they would materially improve context: Jira, Confluence page, Slack thread, incident, PR, design doc, runbook, dashboard, support ticket, service ownership page, or other durable reference. If the user does not have them, continue with available evidence and mark the gap.
 
+### Advisory learning lookup
+After understanding the request and repository context, but before confirming design decisions, derive narrow terms for the technology, error, API, tool, and pattern. When the request supplies enough terms, do this before the first response or question. Read `Datadog/Learnings.md` through Obsidian and pipe the content locally to `learn-evidence.mjs learning-sections` with those terms. Pass only returned complete H2 sections into reasoning; apply no repository filter. Report matched section titles and the material guidance used; do not report unrelated sections.
+
+Learnings are advisory. Current source code, tests, and tool behavior, then authoritative documentation, take precedence over a conflicting learning. Treat an absent `Datadog/Learnings.md` as empty without warning noise. If Obsidian is unavailable, continue repository discovery and record the skipped advisory source in the proposed `design.md`.
+
+When a returned section materially affects the framing, cite or summarize that material guidance in `design.md`; record a stale, corrected, or omitted learning when stronger current evidence conflicts. Do not retrieve the mutable store after the design decision is committed.
+
 Before proposing a direction for Medium or Large/Risky work, summarize:
 
 - context reviewed

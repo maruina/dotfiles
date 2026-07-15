@@ -20,7 +20,7 @@ The primary user is Matteo Ruina. Future Pi sessions are the primary consumer. T
 - Rename `/compound` to `/learn` without retaining an alias.
 - Support daily retrospective and on-demand analysis through one command.
 - Inspect all relevant Pi conversation branches, including abandoned branches where wrong turns may appear.
-- Inspect Matteo's merged pull requests and their review threads for reusable guidance.
+- Inspect Matteo's merged pull requests, including reviews, inline threads, and PR conversation comments, for reusable guidance.
 - Require adjudicated evidence and future leverage before proposing a learning.
 - Preview all proposed additions and updates, including why each is worth storing, before one human approval gate.
 - Store approved learnings as concise, cross-repository sections in one Obsidian file.
@@ -67,9 +67,9 @@ Every's workflow contributes useful constraints: one learning at a time, failed-
 2. Include every branch with activity during that window, including abandoned branches.
 3. Load only enough preceding context to understand candidate mistakes or decisions.
 4. Find pull requests authored by `maruina` or `matteo-ruina_ddog` and merged during the same window.
-5. Inspect pull-request descriptions, diffs, and review threads.
+5. Inspect pull-request descriptions, diffs, submitted reviews, inline review threads, and PR conversation comments.
 
-`/learn <context>` analyzes the current conversation plus the supplied context. The context may identify a pull request, design or plan path, or a specific wrong turn. It applies the same evidence, preview, and write rules as daily mode.
+`/learn <context>` analyzes the current conversation plus the supplied context. The context may identify a pull request, a specific review or conversation comment URL, a design or plan path, or a wrong turn. It applies the same evidence, preview, and write rules as daily mode. A comment URL may trigger analysis before its pull request merges; daily mode remains limited to pull requests merged during the selected window.
 
 ### Candidate discovery and adjudication
 Candidate discovery and evidence validation are separate stages. The selected day or explicit context produces candidate topics. Each topic then drives a narrow search across all retained Pi session history.
@@ -199,7 +199,7 @@ A daily command can drift into activity summarization. Enforce the qualification
 A learning may outlive the implementation that justified it. Treat learnings as advisory, preserve sources and evidence, and give current code and authoritative documentation precedence.
 
 ### Sensitive session content
-Sessions and review threads can contain private data or credentials. Summarize only the reusable guidance, avoid copying unrelated content, and never store secrets or raw conversation dumps.
+Sessions, review threads, and PR conversation comments can contain private data or credentials. Summarize only the reusable guidance, avoid copying unrelated content, and never store secrets or raw conversation dumps.
 
 ### Runtime and context cost
 Scanning all branches and validating candidates across retained history is slower than summarization. Use the previous day only for candidate discovery, then apply targeted filtering before deep reads. This cost is an explicit tradeoff for a smaller, trusted store.
@@ -252,7 +252,8 @@ Validation must cover observable prompt behavior rather than only file presence.
 ### Evidence adjudication
 - Use fixtures or known sessions containing a real repeated wrong turn, a quoted mention, repeated tool output, and an unrelated match.
 - Confirm only independently adjudicated failures contribute to the evidence count.
-- Confirm one accepted, generalizable review suggestion can qualify without recurrence.
+- Confirm one accepted, generalizable suggestion from an inline review or PR conversation comment can qualify without recurrence.
+- Confirm `/learn <comment-url>` can analyze an open pull request while daily discovery ignores it until merge.
 - Confirm a routine fact or changelog item produces no candidate.
 
 ### Interactive writes

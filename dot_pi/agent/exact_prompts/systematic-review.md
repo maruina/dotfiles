@@ -48,13 +48,14 @@ For `plan.md` targets, check that:
 - security, observability, failure modes, rollout, rollback, docs, and `AGENTS.md` coverage are explicit for the plan's risk level
 - the plan reuses existing patterns and does not reimplement platform capabilities without justification
 - the plan does not invent behavior beyond the source of truth
+- `## Skills loaded and used` records each skill applied during planning, its source, why it was loaded, and how it informed the plan, or explicitly records that none were needed
 - stop conditions, assumptions, and scope boundaries are explicit
 - no placeholders, contradictions, duplicated work, or bloated instructions remain
 
 ## Method
 
 1. Use `codebase-research` to locate the target area, analyze current behavior, and find similar patterns.
-2. Use the `skill-loader` skill to determine which language and domain skills to read based on the target files. Load them before evaluating findings.
+2. Use the `skill-loader` skill to determine which language and domain skills to read based on the target files. Load them before evaluating findings. Keep a record of each skill actually read and applied: source (`skill-loader`, `prompt-required`, `user-requested`, or `agent-selected`), why it was loaded, and how its guidance affected the review. This provenance is feedback for improving `skill-loader`; do not infer use from skills named in an artifact.
 3. Identify the project shape: language, package boundaries, test/build commands, entry points, and relevant guidance files.
 4. Map the target area: core files, tests, dependencies, callers, and ownership boundaries. For plans, also read the sibling `design.md`.
 5. Review from multiple angles: correctness, concurrency, security, performance, API/UX, tests, and maintainability.
@@ -68,16 +69,17 @@ Return a concise review with these sections:
 
 1. **Scope reviewed** — target, extra context used, files/components inspected.
 2. **Discovery summary** — current behavior, existing patterns, and key assumptions from `codebase-research`.
-3. **Executive summary** — highest-risk themes in 3-5 bullets.
-4. **Findings** — sorted by severity. For each finding include:
+3. **Skills loaded and used** — a `Skill | Source | Why loaded | How used` table for every skill read and applied during this review; explicitly state when none were needed.
+4. **Executive summary** — highest-risk themes in 3-5 bullets.
+5. **Findings** — sorted by severity. For each finding include:
    - Severity: Critical / High / Medium / Low
    - Evidence: file path and line/function references
    - Why it matters
    - Suggested fix or alternative
    - Confidence: High / Medium / Low
-5. **Design challenge** — argue against the current design and propose one better alternative, including trade-offs.
-6. **Test gaps** — meaningful missing tests or tests that overfit implementation details.
-7. **Open questions** — only questions that block confidence or change the recommendation.
+6. **Design challenge** — argue against the current design and propose one better alternative, including trade-offs.
+7. **Test gaps** — meaningful missing tests or tests that overfit implementation details.
+8. **Open questions** — only questions that block confidence or change the recommendation.
 
 If no issues are found, say so explicitly and still include the design challenge and any residual risks.
 

@@ -47,7 +47,8 @@ For behavior-bearing candidates, require this review to run in a fresh `/new` se
 
 - Read the implementation model ID from `--implemented-by` and the verifier model ID from the injected `## Current Model` context.
 - If `--implemented-by` is missing, the verifier has no injected model ID, or the two IDs match, return `BLOCKED`. Instruct the user to return to the `/execute` handoff when metadata is missing, or run `/model` to choose a different model, `/new`, confirm `## Current Model` (also shown in the statusline), then rerun the complete copy-paste `/verify` command.
-- Otherwise, review the requirements baseline, base and complete candidate diff, relevant implementation, tests, and fresh deterministic evidence. Focus on new correctness, security, operability, compatibility, and material maintainability regressions attributable to the candidate.
+- Otherwise, use the `skill-loader` skill to determine which language and domain skills to read for the affected files, then load them before judging the candidate. Keep a record of each skill actually read and applied: source (`skill-loader`, `prompt-required`, `user-requested`, or `agent-selected`), why it was loaded, and how its guidance affected verification. This provenance is feedback for improving `skill-loader`; do not infer use from skills named in the design or plan.
+- Review the requirements baseline, base and complete candidate diff, relevant implementation, tests, and fresh deterministic evidence. Focus on new correctness, security, operability, compatibility, and material maintainability regressions attributable to the candidate.
 - Validate every potentially material finding against the diff, code, tests, repository rules, type information, or fresh command output. Confirmed findings and material concerns that cannot be confidently dismissed are `BLOCKED`. Record pre-existing, out-of-scope, duplicate, speculative, unsupported, and non-blocking style findings with concise evidence and rationale.
 
 Do not invoke a separate reviewer tool or parse session logs. Pi performs this semantic review natively under the switched model.
@@ -61,6 +62,7 @@ Report these sections:
 - **Target and scope:** worktree, branch, HEAD, base, requirements source, and committed/staged/unstaged/untracked scope.
 - **Risk and review:** behavior classification, semantic-review decision, implementation model and verifier model when required.
 - **Fresh evidence:** commands, results, requirements traceability, and selected/skipped/unavailable/inapplicable checks with reasons.
+- **Skills loaded and used:** a `Skill | Source | Why loaded | How used` table for every skill read and applied during verification; explicitly state when none were needed.
 - **Findings:** blocking findings plus non-blocking or rejected findings and rationale.
 - **State comparison:** initial versus final snapshot.
 - **Next action:** a non-mutating action.

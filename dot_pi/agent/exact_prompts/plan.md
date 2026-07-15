@@ -132,7 +132,9 @@ Useful planning branches include:
 If planning uncovers a missing product decision, do not disguise it as an implementation detail. Ask the user or recommend returning to `/brainstorm` when the answer changes the agreed problem, behavior, or scope.
 
 ## Planning Alignment Gate
-For interactive Medium and Large/Risky work, present this brief after discovery, feasibility checks, and material planning questions are resolved:
+For interactive Medium and Large/Risky work, present this brief after discovery, feasibility checks, and material planning questions are resolved.
+
+The planning alignment brief and durable plan must include `Skills loaded and used`. Record each skill whose `SKILL.md` was read and whose guidance informed planning. For each skill, capture its source (`skill-loader`, `prompt-required`, `user-requested`, or `agent-selected`), why it was loaded, and how its guidance was applied. This provenance is feedback for improving `skill-loader`, especially when a useful skill was selected outside it. Include workflow skills such as `resolve-worktree` or `skill-loader` when their instructions were actually followed. Do not list skills that were merely available, considered, or named without being read. If no skill was loaded and used, write `None — no matching skill was needed for this stage.`
 
 ```md
 ## Planning alignment brief
@@ -150,6 +152,12 @@ Design-to-code mapping:
 
 Existing patterns to reuse:
 - ...
+
+Skills loaded and used:
+
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `skill-name` | `skill-loader` / `prompt-required` / `user-requested` / `agent-selected` | [trigger] | [guidance applied] |
 
 Proposed vertical slices:
 1. ...
@@ -274,7 +282,14 @@ Start every durable plan with:
 **Tech Stack:** [key technologies]
 
 ---
+
+## Skills loaded and used
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `skill-name` | `skill-loader` / `prompt-required` / `user-requested` / `agent-selected` | [trigger] | [guidance applied] |
 ```
+
+Preserve each skill's source, loading reason, and application notes from the confirmed planning alignment brief, and add any skill loaded and used while writing or self-reviewing the durable plan. Do not copy skills from `design.md` unless they were also loaded and used during planning.
 
 For Medium and Large/Risky plans, include:
 
@@ -379,6 +394,7 @@ Before reporting completion, verify:
 - file paths, commands, types, functions, flags, dependencies, and required mechanisms exist and match the repository
 - every normative requirement has a concrete mechanism and an observable validation path, or is explicitly blocked, deferred with approval, or scoped to add its enabling mechanism
 - all file paths inside the plan are repo-relative
+- `## Skills loaded and used` accurately records every skill applied during planning, its source, why it was loaded, and how it informed the plan, or explicitly records that none were needed
 - loaded skill guidance is reflected
 - security, observability, failure modes, rollout, rollback, docs, and `AGENTS.md` coverage are explicit for the plan's risk level
 - automation uses the right CLI or script shape

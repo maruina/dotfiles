@@ -321,7 +321,9 @@ The durable output of brainstorming is a design spec, not an implementation plan
 
 A chat-only alignment brief is the exception. Use it only when the user explicitly requests lightweight brainstorming, no artifacts, no worktree, or a quick discussion. If the user does not opt out, write and commit a design spec after they confirm the framing.
 
-When the framing is clear, summarize the alignment brief in chat first:
+When the framing is clear, summarize the alignment brief in chat first.
+
+Every alignment brief and durable design spec must include `Skills loaded and used`. Record each skill whose `SKILL.md` was read and whose guidance informed the stage. For each skill, capture its source (`skill-loader`, `prompt-required`, `user-requested`, or `agent-selected`), why it was loaded, and how its guidance was applied. This provenance is feedback for improving `skill-loader`, especially when a useful skill was selected outside it. Do not list skills that were merely available, considered, or named without being read. If no skill was loaded and used, write `None — no matching skill was needed for this stage.`
 
 ```md
 ## Alignment brief
@@ -339,6 +341,12 @@ Non-goals:
 
 Known facts:
 - ...
+
+Skills loaded and used:
+
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `skill-name` | `skill-loader` / `prompt-required` / `user-requested` / `agent-selected` | [trigger] | [guidance applied] |
 
 Assumptions:
 - ...
@@ -379,7 +387,7 @@ After the user confirms the alignment brief:
 
 1. Ensure the worktree policy is satisfied.
 2. Write `plans/<ticket-or-feature>/design.md`. Prefer the relevant package directory in monorepos; otherwise use the repository root.
-3. Include the agreed alignment brief plus enough design detail for planning: goals, non-goals, context reviewed, assumptions, design overview, alternatives considered, risks and mitigations, operability, rollout and rollback, security/data-handling notes, testing strategy, and open questions.
+3. Include the agreed alignment brief plus enough design detail for planning: goals, non-goals, context reviewed, `## Skills loaded and used`, assumptions, design overview, alternatives considered, risks and mitigations, operability, rollout and rollback, security/data-handling notes, testing strategy, and open questions. Preserve each skill's source, loading reason, and application notes from the confirmed alignment brief, and add any skill loaded and used while writing or self-reviewing the spec.
 4. Self-review the spec as a skeptical staff engineer. Fix blocking issues inline; record material rejected findings with rationale. Specifically verify:
    - The chosen direction has at least one explicit downside (no decision is cost-free).
    - Each considered alternative has at least one genuine merit (no straw-man options).

@@ -74,6 +74,8 @@ Before reviewing code, load relevant skills when the PR matches their domain:
 - shell scripts or CI shell snippets: `script-best-practices`
 - prose, docs, PR descriptions, or review comments: `write`
 
+Keep a record of each skill actually read and applied: source (`skill-loader`, `prompt-required`, `user-requested`, or `agent-selected`), why it was loaded, and how its guidance affected the review. Skills selected by this phase's domain rules are `prompt-required`; record another source when it caused the load instead. This provenance is feedback for improving `skill-loader`, especially when review-specific rules select skills outside it. Do not infer use from skills that were merely available or named without being read.
+
 For Datadog repositories, follow repository guidance. Use `bzl` for builds/tests; do not use `bazel` directly or language-specific test commands unless the repo explicitly requires it.
 
 ## Phase 4: Build system context before judging
@@ -185,6 +187,11 @@ Produce Markdown in this structure:
 - Reader profile: ...
 - Verdict: ready as-is | needs discussion | needs changes | not enough evidence
 
+## Skills loaded and used
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `skill-name` | `skill-loader` / `prompt-required` / `user-requested` / `agent-selected` | [trigger] | [guidance applied] |
+
 ## System context
 ...
 
@@ -226,7 +233,7 @@ A concise draft the user can edit before posting. If no comment is needed, say s
 
 Keep the verdict short. Do not post it.
 
-If the user asks for `html` or a shareable artifact, also write an HTML explanation outside the repo at `/tmp/YYYY-MM-DD-pr-review-ORG-REPO-PR_NUMBER.html`. Include CSS and, if using interactive comprehension checks, JavaScript. Use Mermaid diagrams when they reduce cognitive load, rendered from the CDN with `<script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs"; mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "strict" });</script>`. Put Mermaid source in `<pre class="mermaid">` blocks. Note that the HTML artifact needs network access to render Mermaid diagrams. Do not use ASCII diagrams in HTML output. Use simple HTML diagrams when Mermaid is not needed, and use `<pre>` tags for code blocks.
+If the user asks for `html` or a shareable artifact, also write an HTML explanation outside the repo at `/tmp/YYYY-MM-DD-pr-review-ORG-REPO-PR_NUMBER.html`. Include the same skill provenance as the Markdown report. Include CSS and, if using interactive comprehension checks, JavaScript. Use Mermaid diagrams when they reduce cognitive load, rendered from the CDN with `<script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs"; mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "strict" });</script>`. Put Mermaid source in `<pre class="mermaid">` blocks. Note that the HTML artifact needs network access to render Mermaid diagrams. Do not use ASCII diagrams in HTML output. Use simple HTML diagrams when Mermaid is not needed, and use `<pre>` tags for code blocks.
 
 ## Phase 10: Follow-up
 End by saying that follow-up questions should refer to `WORKTREE` when available. Use that worktree for any follow-up reads.

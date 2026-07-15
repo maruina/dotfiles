@@ -30,6 +30,8 @@ Do not restate style rules here. Before proposing or making simplifications, use
 
 If the touched code is in an unfamiliar area, also load `codebase-research` before changing it. Match the repository's existing conventions over any general preference.
 
+Keep a record of each skill actually read and applied: source (`skill-loader`, `prompt-required`, `user-requested`, or `agent-selected`), why it was loaded, and how its guidance affected simplification. This provenance is feedback for improving `skill-loader`; do not infer use from skills merely named in this prompt or another artifact.
+
 ## Guardrail
 Simplicity serves the reader, not brevity. Do not:
 
@@ -41,6 +43,6 @@ Simplicity serves the reader, not brevity. Do not:
 If a change is cosmetic-only with no clarity gain, skip it. If nothing is worth simplifying, say so and stop.
 
 ## Handoff
-Report the simplification diff, the verification commands run before and after, and anything you deliberately left alone. Then say exactly:
+Report the simplification diff, the verification commands run before and after, and anything you deliberately left alone. Include **Skills loaded and used** as a `Skill | Source | Why loaded | How used` table for every skill read and applied during simplification; explicitly state when none were needed. Then say exactly:
 
 > I finished simplifying the changes

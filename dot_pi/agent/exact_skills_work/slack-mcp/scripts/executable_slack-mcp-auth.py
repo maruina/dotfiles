@@ -25,6 +25,7 @@ import subprocess
 import webbrowser
 import sys
 import getpass
+import time
 
 CLIENT_ID = "1601185624273.8899143856786"
 CALLBACK_PORT = 3118
@@ -39,12 +40,7 @@ SCOPES = (
 )
 KEYCHAIN_SERVICE = "Claude Code-credentials"
 KEYCHAIN_ACCOUNT = getpass.getuser()  # resolved at runtime
-# Key suffixes written by Claude Code for this clientId.
-# Auth script writes both so the plugin system and proxy both find the token.
-TOKEN_KEY_SUFFIXES = [
-    f"slack|{CLIENT_ID.split('.')[0][:8]}",   # approximate — will be confirmed below
-]
-# We discover the real keys at write-time by scanning existing entries.
+SLACK_CREDENTIAL_KEY = "slack|38801a7d845718b3"
 
 
 def read_keychain() -> dict:
@@ -150,6 +146,22 @@ def run_local_server(expected_state: str) -> str:
     return code_holder.get("code", "")
 
 
+def token_entry(access_token: str, refresh_token: str, expires_in: int | None) -> dict:
+    entry = {
+        "serverName": "slack",
+        "serverUrl": "https://mcp.slack.com/mcp",
+        "accessToken": access_token,
+        "refreshToken": refresh_token,
+        "discoveryState": {
+            "authorizationServerUrl": "https://mcp.slack.com",
+            "resourceMetadataUrl": "https://mcp.slack.com/.well-known/oauth-protected-resource",
+        },
+    }
+    if expires_in is not None:
+        entry["expiresAt"] = int(time.time() * 1000) + expires_in * 1000
+    return entry
+
+
 def main():
     verifier, challenge = pkce_pair()
     state = secrets.token_urlsafe(16)
@@ -175,30 +187,25 @@ def main():
 
     access_token = result["access_token"]
     refresh_token = result.get("refresh_token", "")
+    expires_in = result.get("expires_in")
+    if expires_in is not None:
+        expires_in = int(expires_in)
     team = result.get("team", {}).get("name", "unknown")
 
-    # Persist to keychain — update any existing Slack keys, or write canonical ones
+    # Update every existing Slack credential. Seed the key used by Claude Code's
+    # Slack plugin when this is the user's first authorization.
     creds = read_keychain()
     mcp = creds.setdefault("mcpOAuth", {})
-
-    # Find existing Slack keys to update; if none exist yet, create canonical ones
     existing_keys = [
-        k for k in mcp
-        if k.startswith("slack|") or k.startswith("plugin:slack:slack|")
+        key for key in mcp
+        if key.startswith("slack|") or key.startswith("plugin:slack:slack|")
     ]
-    write_keys = existing_keys or ["slack|new", "plugin:slack:slack|new"]
-
-    for key in write_keys:
-        entry = mcp.setdefault(key, {})
-        entry["serverName"] = key.split("|")[0]
-        entry["serverUrl"] = "https://mcp.slack.com/mcp"
-        entry["accessToken"] = access_token
-        entry["refreshToken"] = refresh_token
-        entry["expiresAt"] = 0
-        entry["discoveryState"] = {
-            "authorizationServerUrl": "https://mcp.slack.com",
-            "resourceMetadataUrl": "https://mcp.slack.com/.well-known/oauth-protected-resource",
-        }
+    for key in existing_keys or [SLACK_CREDENTIAL_KEY]:
+        previous = mcp.get(key, {})
+        entry = {**previous, **token_entry(access_token, refresh_token, expires_in)}
+        if not refresh_token or expires_in is None:
+            entry.pop("expiresAt", None)
+        mcp[key] = entry
 
     write_keychain(creds)
 

@@ -35,6 +35,7 @@ const allowedCases = [
   "aws logs filter-log-events --log-group-name foo",
   "ddtool clusters list",
   "ddtool datacenters get us1.prod.dog",
+  "ddtool auth gitlab project-token DataDog/experimental",
   "echo kubectl delete pod foo",
 ];
 

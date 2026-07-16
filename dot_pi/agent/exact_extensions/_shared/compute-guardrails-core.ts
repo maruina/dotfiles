@@ -206,6 +206,7 @@ const READ_ONLY_KUBECTL_CONFIG = new Set(["current-context", "get-contexts", "vi
 const READ_ONLY_HELM = new Set(["env", "get", "history", "lint", "list", "search", "show", "status", "template", "version"]);
 const READ_ONLY_HELM_REPO = new Set(["list"]);
 const READ_ONLY_DDTOOL = new Set(["describe", "find", "get", "info", "list", "search", "show"]);
+const ALLOWED_DDTOOL_AUTH = new Set(["auth gitlab project-token"]);
 const READ_ONLY_AWS_PREFIXES = ["describe", "get", "list"];
 const READ_ONLY_AWS_EXACT = new Set(["filter-log-events", "lookup-events", "query", "scan"]);
 
@@ -452,7 +453,9 @@ function isAllowedReadOnly(tool: string, args: string[]): boolean {
     case "aws":
       return isAllowedAws(args);
     case "ddtool":
-      return READ_ONLY_DDTOOL.has(first) || Boolean(second && READ_ONLY_DDTOOL.has(second));
+      return READ_ONLY_DDTOOL.has(first)
+        || Boolean(second && READ_ONLY_DDTOOL.has(second))
+        || ALLOWED_DDTOOL_AUTH.has(args.slice(0, 3).join(" "));
     default:
       return false;
   }

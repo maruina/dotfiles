@@ -128,20 +128,63 @@ def refresh_token(refresh_tok: str) -> tuple[str, str]:
 # HTTP helper
 # ---------------------------------------------------------------------------
 
-def http_post(body: bytes, token: str) -> tuple[int, bytes]:
-    req = urllib.request.Request(
-        MCP_URL, data=body,
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {token}",
-        },
-        method="POST",
-    )
+def http_post(body: bytes, token: str, session_id: str | None) -> tuple[int, str, str | None, bytes]:
+    headers = {
+        "Accept": "application/json, text/event-stream",
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {token}",
+    }
+    if session_id:
+        headers["Mcp-Session-Id"] = session_id
+    req = urllib.request.Request(MCP_URL, data=body, headers=headers, method="POST")
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
-            return resp.status, resp.read()
+            return (
+                resp.status,
+                resp.headers.get("Content-Type", ""),
+                resp.headers.get("Mcp-Session-Id"),
+                resp.read(),
+            )
     except urllib.error.HTTPError as exc:
-        return exc.code, exc.read()
+        return exc.code, exc.headers.get("Content-Type", ""), None, exc.read()
+
+
+def is_initialize(body: bytes) -> bool:
+    try:
+        message = json.loads(body)
+    except json.JSONDecodeError:
+        return False
+    messages = message if isinstance(message, list) else [message]
+    return any(isinstance(item, dict) and item.get("method") == "initialize" for item in messages)
+
+
+def response_messages(content_type: str, response: bytes) -> list[bytes]:
+    """Convert an HTTP MCP response into newline-delimited JSON-RPC messages."""
+    if not response:
+        return []
+    if content_type.split(";", 1)[0].strip().lower() != "text/event-stream":
+        return [response.strip()]
+
+    messages: list[bytes] = []
+    data_lines: list[str] = []
+
+    def append_event():
+        if not data_lines:
+            return
+        data = "\n".join(data_lines)
+        data_lines.clear()
+        try:
+            messages.append(json.dumps(json.loads(data), separators=(",", ":")).encode())
+        except json.JSONDecodeError:
+            log("Ignoring an SSE event with invalid JSON-RPC data")
+
+    for line in response.decode("utf-8").splitlines():
+        if not line:
+            append_event()
+        elif line.startswith("data:"):
+            data_lines.append(line[5:].lstrip())
+    append_event()
+    return messages
 
 
 # ---------------------------------------------------------------------------
@@ -151,6 +194,7 @@ def http_post(body: bytes, token: str) -> tuple[int, bytes]:
 def main():
     log("Starting — reading token from keychain")
     access_token, refresh_tok = get_tokens()
+    session_id: str | None = None
 
     if not access_token:
         log("ERROR: No Slack access token found in keychain.")
@@ -171,9 +215,13 @@ def main():
         if not line:
             continue
 
-        status, response = http_post(line, access_token)
+        initializing = is_initialize(line)
+        request_session = None if initializing else session_id
+        status, content_type, returned_session, response = http_post(
+            line, access_token, request_session
+        )
 
-        # Attempt one token refresh on 401
+        # Attempt one token refresh on 401.
         if status == 401:
             if not refresh_tok:
                 log("Got 401 and no refresh_token — re-authentication required")
@@ -182,17 +230,24 @@ def main():
             log("Got 401 — refreshing token")
             try:
                 access_token, refresh_tok = refresh_token(refresh_tok)
-                status, response = http_post(line, access_token)
+                status, content_type, returned_session, response = http_post(
+                    line, access_token, request_session
+                )
             except Exception as exc:
                 log(f"Token refresh failed: {exc}")
                 log("Run slack-mcp-auth.py to re-authenticate")
                 sys.exit(1)
 
-        if response:
-            stdout.write(response)
-            if not response.endswith(b"\n"):
-                stdout.write(b"\n")
-            stdout.flush()
+        if status == 404 and request_session:
+            session_id = None
+            log("MCP session expired; waiting for the client to reinitialize")
+        elif initializing and returned_session:
+            session_id = returned_session
+
+        for message in response_messages(content_type, response):
+            stdout.write(message)
+            stdout.write(b"\n")
+        stdout.flush()
 
 
 if __name__ == "__main__":

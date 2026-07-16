@@ -77,7 +77,7 @@ Classify links:
 
 For Mosaic links, extract IDs:
 ```bash
-request_id=$(echo "$link" | sed -E 's#.*/request/([0-9]+).*#\1#')
+request_id=$(echo "$link" | sed -nE 's#.*/(change-)?request/([0-9]+).*#\2#p')
 job_id=$(echo "$link" | sed -nE 's#.*[?&]taskExecutionId=([0-9]+).*#\1#p')
 pipeline_id=$(echo "$link" | sed -nE 's#.*[?&]pipelineId=([0-9]+).*#\1#p')
 ```
@@ -91,9 +91,10 @@ GITLAB_HOST=gitlab.ddbuild.io GITLAB_TOKEN="$token" \
 ```
 If `glab ci trace` is unavailable in the installed version, fall back to GitLab API through `glab api`:
 ```bash
-project_path=$(python3 - <<'PY'
-import urllib.parse, os
-print(urllib.parse.quote(os.environ['OWNER'] + '/' + os.environ['REPO'], safe=''))
+project_path=$(python3 - "$owner" "$repo" <<'PY'
+import sys
+import urllib.parse
+print(urllib.parse.quote(f"{sys.argv[1]}/{sys.argv[2]}", safe=""))
 PY
 )
 GITLAB_HOST=gitlab.ddbuild.io GITLAB_TOKEN="$token" \
@@ -108,33 +109,13 @@ GITLAB_HOST=gitlab.ddbuild.io GITLAB_TOKEN="$token" \
 ```
 Then fetch each failed job trace as above.
 
-If the Mosaic link includes `taskExecutionId`, that value is the GitLab native `job_id`; fetch it directly with `glab ci trace` or the DDCI helper.
+If the Mosaic link includes `taskExecutionId`, that value is the GitLab native `job_id`; fetch it directly with `glab ci trace`.
 
-If only the Mosaic DDCI request is available, use the DDCI helper to map request tasks to GitLab native job IDs:
-```bash
-${CLAUDE_PLUGIN_ROOT}/skills/fetch-ci-results/scripts/get_ddci_logs.sh --list-failed <request_id>
-```
-Output is tab-separated: `job_id`, `job_name`, `status`, `failure_reason`.
-
-Fetch logs with an AI-generated failure summary (uses the CI Visibility log-summarization endpoint):
-```bash
-${CLAUDE_PLUGIN_ROOT}/skills/fetch-ci-results/scripts/get_ddci_logs.sh <job_id> <request_id> --summary
-```
-The `--summary` output includes task name, status, failure reason, and a human-readable CI Visibility summary written to stderr before the raw log lines.
-
-Use `glab` after that if you need the raw GitLab trace for the same `job_id`.
+If only the Mosaic DDCI request is available, report its URL and request ID. This skill has no supported local client for mapping a request to GitLab job IDs; ask for a GitLab job or pipeline link before fetching logs or retrying jobs.
 
 ### 5. Retry a failed job
 
-If the failure looks flaky or the user asks to retry, use the DDCI retry script:
-```bash
-${CLAUDE_PLUGIN_ROOT}/skills/fetch-ci-results/scripts/retry_ddci_job.sh <job_id> [request_id]
-```
-The script locates the internal `task_id` from the request status, then calls:
-```
-POST /internal/v1/requests/{request_id}/tasks/{task_id}/execution/{job_id}/retry
-```
-On success it prints the new `task_execution_id`. Pass `request_id` explicitly when you have it to avoid auto-discovery overhead.
+If the failure looks flaky or the user asks to retry, use the GitLab job page or ask the job owner to retry it. Do not call undocumented Mosaic endpoints.
 
 ### 6. Analyze logs
 For each failed job, report:

@@ -29,6 +29,11 @@ Load when implementing or modifying a CLI command, its flags, output format, err
 
 ## Domain skills
 
+### Atlas Go workflows — `atlas-best-practices`
+Load when Go Atlas workflow, activity, worker, client, generated-client, or worker-bootstrap code changes; when Atlas Temporal proto definitions or options change; or when work involves determinism, version gates, Breaking Change Detection, replay tests, signals, queries, child workflows, Continue-As-New, retries, timeouts, schedules, checkpoints, or worker deployment configuration using `atlas_domain`, `atlas_context`, task queues, or Atlas worker routing.
+
+For affected `.go` files, also load `go-best-practices`. Follow `atlas-best-practices` when Atlas SDK choice, workflow semantics, determinism, retry or timeout behavior, compatibility, or Atlas testing differs from ordinary Go guidance.
+
 ### Unfamiliar code area — `codebase-research`
 Load before proposing, planning, reviewing, or modifying behavior in an unfamiliar area, especially when correctness depends on callers, existing patterns, or cross-file effects.
 
@@ -59,6 +64,7 @@ Before editing, confirm each of these:
 
 - [ ] Identified all file extensions and paths affected by the task.
 - [ ] Loaded every skill whose trigger matches.
+- [ ] For Atlas: determined whether affected Go, proto, or deployment files define or invoke Atlas workflows; loaded `atlas-best-practices` when they do.
 - [ ] For Go: confirmed whether any Kubernetes interaction is involved (controller-runtime, webhooks, `client-go`, `k8s.io/*`, `sigs.k8s.io/*`); loaded `k8s-controller-dev` if available, otherwise noted the missing skill and continued with `go-best-practices`.
 - [ ] For Go CRD types: confirmed whether API type evolution is involved; loaded `k8s-api-design` if available, otherwise noted the missing skill and continued with `go-best-practices`.
 - [ ] For Terraform/OpenTofu: confirmed whether any `.tf`, `.tfvars`, or Terragrunt `.hcl` file or state/plan workflow is involved; loaded `terraform-best-practices` if so.

@@ -16,16 +16,27 @@
 | `write` | skill-loader | The change edits user-facing skill documentation. | Keep guidance concise, imperative, and precise. |
 | `atlas-best-practices` | user-requested | The user asked to extend this skill from the Atlas Anti Patterns source. | Compared current skill guidance to the specified Confluence page. |
 
+### Execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `chezmoi` | skill-loader | The implementation changes managed source files. | Edited the source worktree and selected targeted chezmoi diff/apply validation. |
+| `write` | skill-loader | The implementation changes user-facing Markdown. | Kept additions concise and imperative. |
+| `atlas-best-practices` | user-requested | The target skill is the requested subject. | Ensured new guidance preserves its source-precedence and conceptual scope. |
+
 ## Scope
 - Modify `dot_pi/agent/exact_skills_work/atlas-best-practices/SKILL.md` and its existing references.
 - Add only guidance supported by the Atlas Anti Patterns page and consistent with the current skill’s source-precedence rule.
 - Do not change the skill’s trigger description, templates, tooling, or runtime behavior.
 
 ## Implementation
-- [ ] Update `dot_pi/agent/exact_skills_work/atlas-best-practices/SKILL.md` with an explicit bounded, partitioned-history non-negotiable.
-- [ ] Update `dot_pi/agent/exact_skills_work/atlas-best-practices/references/platform-and-sdk.md` with cross-worker dependency-boundary guidance.
-- [ ] Update `dot_pi/agent/exact_skills_work/atlas-best-practices/references/workflow-authoring.md` with workload-fit, fan-out, history bounds, signal draining, business-result, local-activity, query, and asynchronous HTTP guidance.
-- [ ] Update `dot_pi/agent/exact_skills_work/atlas-best-practices/references/worker-and-deployment.md` with activity-slot capacity and default-monitor guidance.
+- [x] Update `dot_pi/agent/exact_skills_work/atlas-best-practices/SKILL.md` with an explicit bounded, partitioned-history non-negotiable.
+- [x] Update `dot_pi/agent/exact_skills_work/atlas-best-practices/references/platform-and-sdk.md` with cross-worker dependency-boundary guidance.
+- [x] Update `dot_pi/agent/exact_skills_work/atlas-best-practices/references/workflow-authoring.md` with workload-fit, fan-out, history bounds, signal draining, business-result, local-activity, query, and asynchronous HTTP guidance.
+- [x] Update `dot_pi/agent/exact_skills_work/atlas-best-practices/references/worker-and-deployment.md` with activity-slot capacity and default-monitor guidance.
+
+### Execution notes
+- 2026-07-16: Applied the four planned documentation edits. No behavior-bearing code or automated test surface exists for this skill; validation is targeted source rendering and Markdown diff checks.
+- 2026-07-16: `npm run test:skills:profiles`, `npm test`, and `npm run test:all` passed from `dot_pi/agent`; targeted chezmoi rendering matched the applied target.
 
 ## Validation
 ### Requirement: Anti-pattern guidance is discoverable

@@ -10,7 +10,7 @@ Start with the workflow's proto definitions. Generated interfaces, clients, and 
 Use generated Atlas clients for calls within the same worker and across workers. Generated APIs preserve registered names, request types, and supported invocation patterns. Do not bypass an Atlas abstraction with a direct Temporal client, worker API, or test-suite API when an Atlas equivalent exists.
 
 ## Cross-worker calls
-Treat another worker's generated client as a contract boundary. Confirm its proto request and response types, retry behavior, and current call pattern. In tests, use generated helpers and dependency support rather than manually registering names unless the repository already requires a documented exception.
+Treat another worker's generated client as a contract boundary. Confirm its proto request and response types, retry behavior, and current call pattern. Each cross-worker call is also an availability and break-glass dependency; keep the dependency graph deliberately small. In tests, use generated helpers and dependency support rather than manually registering names unless the repository already requires a documented exception.
 
 ## Source precedence
 Current `dd-source` code and generated output are authoritative. Nearby production workers establish repository conventions. This reference explains durable choices but must not override either source.

@@ -23,5 +23,6 @@ Current generated APIs take precedence over all written guidance. Current reposi
 ## Non-negotiables
 - Keep workflow code deterministic; move external side effects into activities.
 - Make activities idempotent, give them explicit timeouts, and heartbeat long-running work.
+- Bound and partition workflow histories: fan out high-volume work and drain signals before completion or Continue-As-New.
 - Protect history-sensitive changes with monotonic version gates and evidence from Breaking Change Detection.
 - Run the repository-native tests and validation for the detected worker and deployment mode.

@@ -10,7 +10,7 @@ Context:
 Find compact, evidence-backed guidance that would improve a future `/brainstorm` or `/plan` decision. This is not a work log, daily digest, fact collection, or automatic write workflow.
 
 <HARD-GATE>
-Do not modify repository files, Git state, branches, or managed targets. Do not mutate the Obsidian vault until the user explicitly approves one exact complete preview. Before approval, the only permitted writes are mode 0600 temporary snapshots and a mode 0600 staged final document outside the repository and vault. After approval, mutate only the exact approved `Datadog/Learnings.md` rewrite and the approved legacy deletion, then verify or compensate both paths.
+Do not modify repository files, Git state, branches, or managed targets. Do not mutate the Obsidian vault until the user explicitly approves one exact complete preview. Before approval, the only permitted writes are mode 0600 temporary snapshots and a mode 0600 staged final document outside the repository and vault. After approval, mutate only the exact approved `Datadog/Learnings.md` rewrite, then verify or compensate that path.
 </HARD-GATE>
 
 Load the `obsidian-cli` and `obsidian-markdown` skills before vault operations. Do not use another model or external service to analyze session or vault content.
@@ -89,14 +89,12 @@ Before asking for approval, show every addition and update in final form:
 <exact final H2 section>
 ```
 
-Also adjudicate `Datadog/Compound/dotfiles-chezmoi-execute-template-profile.md` through this same process and PR #22 evidence. Preview its exact deletion in all migration outcomes, including when no replacement qualifies. The deletion is the sole exception to the no-candidate rule.
-
-If no learning qualifies and no legacy migration deletion is pending, report the rejected candidates and why, do not ask for approval, and do not write. Otherwise ask once: approve or reject the complete preview. Treat any response other than clear approval of the complete set as rejection. Rejection or ambiguous approval removes snapshots and changes nothing.
+If no learning qualifies, report the rejected candidates and why, do not ask for approval, and do not write. Otherwise ask once: approve or reject the complete preview. Treat any response other than clear approval of the complete set as rejection. Rejection or ambiguous approval removes snapshots and changes nothing.
 
 ## Apply an approved transaction
-1. Before preview, create a mode 0600 temporary directory outside the repository and vault. Snapshot the existence and exact content of `Datadog/Learnings.md` and the legacy note, including missing-file markers, into mode 0600 files.
+1. Before preview, create a mode 0600 temporary directory outside the repository and vault. Snapshot the existence and exact content of `Datadog/Learnings.md`, including a missing-file marker, into mode 0600 files.
 2. Produce one exact staged final `Learnings.md` document. Do not append individual sections.
-3. After one approval, use `obsidian create path="Datadog/Learnings.md" content="..." overwrite` for the staged document and `obsidian delete path="Datadog/Compound/dotfiles-chezmoi-execute-template-profile.md"` only when the approved preview includes deletion. Inspect Obsidian output as well as exit status.
-4. Read back both exact paths with `obsidian read` and compare them to the approved staged content and expected existence. A status-0 missing-file message is failure unless absence was expected.
-5. If either operation or read-back fails, compensate both paths from the mode 0600 snapshots, verify restoration byte-for-byte/existence-for-existence, report transaction failure, and never claim partial success. If compensation fails, stop and report the path and manual recovery needed.
-6. On success, remove all temporary snapshots and staged files. Report the selected range or context, inspected and incomplete sources, original/final GitHub login, rejected and qualifying candidates, approval outcome, transaction result, and final affected vault paths.
+3. After one approval, use `obsidian create path="Datadog/Learnings.md" content="..." overwrite` for the staged document. Inspect Obsidian output as well as exit status.
+4. Read back `Datadog/Learnings.md` with `obsidian read` and compare it to the approved staged content. A status-0 missing-file message is failure.
+5. If the operation or read-back fails, compensate from the mode 0600 snapshot, verify restoration byte-for-byte/existence-for-existence, report transaction failure, and never claim partial success. If compensation fails, stop and report the path and manual recovery needed.
+6. On success, remove all temporary snapshots and staged files. Report the selected range or context, inspected and incomplete sources, original/final GitHub login, rejected and qualifying candidates, approval outcome, transaction result, and final affected vault path.

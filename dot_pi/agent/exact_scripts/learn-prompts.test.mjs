@@ -55,10 +55,9 @@ test("learn requires adjudicated, safe evidence before a single exact approval",
     /one approval/i,
     /ambiguous.*approval.*changes nothing/is,
     /no learning qualifies.*do not ask for approval/is,
-    /legacy.*deletion/is,
-    /Datadog\/Compound\/dotfiles-chezmoi-execute-template-profile\.md/,
     /one code span per distinct source repository/i,
   ]);
+  assert.doesNotMatch(text, /Datadog\/Compound\//);
 });
 
 test("learn uses a transactional, privacy-preserving vault write", () => {
@@ -69,7 +68,6 @@ test("learn uses a transactional, privacy-preserving vault write", () => {
     /snapshot/i,
     /obsidian read/i,
     /obsidian create/i,
-    /obsidian delete/i,
     /read-back/i,
     /compensat|restore/i,
     /credentials|secrets/i,

@@ -72,7 +72,7 @@ Classify changed files:
 - schema/API surface
 
 ## Phase 3: Load review guidance
-Before reviewing code, use the `skill-loader` skill to determine which language and domain skills to read based on the PR's changed files. Load them before judging the change. Prefer specific skills over general ones.
+Before reviewing code, use the `skill-loader` skill to determine which language and domain skills to read based on the PR's changed files. Load them before judging the change. Prefer specific skills over general ones. These domain rules are `prompt-required`.
 
 Keep a record of each skill actually read and applied: source (`skill-loader`, `prompt-required`, `user-requested`, or `agent-selected`), why it was loaded, and how its guidance affected the review. This provenance is feedback for improving `skill-loader`, especially when a useful skill was selected outside it. Do not infer use from skills that were merely available or named without being read.
 

@@ -1,78 +1,20 @@
 # Dotfiles (chezmoi)
+This is the chezmoi source repository. Edit files here, never rendered targets under `$HOME`.
 
-Chezmoi source directory. Edit files here, never in `$HOME`. Preview with `chezmoi diff`; apply with `chezmoi apply`.
+## Rules
+- Preview relevant changes with `chezmoi diff`; apply verified changes with `chezmoi apply`.
+- Read secrets only through `onepasswordRead "op://vault/item/field"`; never hardcode them.
+- `.tmpl` files use Go `text/template`. Gate profile-specific configuration on `.profile`.
+- Write Fish for shell configuration and scripts.
+- Declare Homebrew packages in `run_onchange_brew-install.sh.tmpl`; do not install them directly.
+- Keep `mcp_servers.json.tmpl` profile-gated. Home Assistant configuration is personal-profile-only.
 
-## Critical Rules
+## Path terminology
+`~` means `/Users/matteo.ruina`; do not treat absolute and `~`-relative spellings as separate files.
 
-- **Never edit target files** (`~/.config/...`). Edit the chezmoi source.
-- **Secrets via 1Password only**: `onepasswordRead "op://vault/item/field"`. Never hardcode secrets.
-- **Templates** (`.tmpl`): use Go `text/template` syntax. Key variables: `.profile` (`work`|`personal`), `.email`, `.signingKey`, `.chezmoi.os`.
-- **Profile conditions**: use `{{- if eq .profile "work" -}}` for work-only config (Datadog devtools, global git hooks, pyenv/rbenv). Use `personal` for personal signing keys and API config.
+For chezmoi-managed files, distinguish the source from the rendered target. They are separate filesystem files representing one managed configuration. Edit only the source path.
 
-## File Naming
+## Completion
+After a requested change is verified, apply the changed target, commit the source with a Conventional Commit message, and push by default.
 
-Chezmoi prefixes map source names to target files:
-- `dot_` → `.`
-- `private_` → `0600`
-- `exact_` → remove untracked files from the target directory
-- `run_onchange_` → run script when its content hash changes
-
-## Shell
-
-Use Fish for all scripts and functions.
-- Main config: `dot_config/private_fish/private_config.fish.tmpl`
-- Auto-loaded config: `dot_config/private_fish/conf.d/`
-- Functions: `dot_config/private_fish/exact_functions/` (`exact_` removes stale functions)
-
-## Packages
-
-Declare Homebrew packages in `run_onchange_brew-install.sh.tmpl`. Do not install packages manually with `brew install`.
-
-## CLI Usage
-
-- **Add or update a file**: `chezmoi add <target-path>` reads from `$HOME` and writes to source with the right prefixes. Never `cp` manually.
-- **Change attributes**: `chezmoi chattr +private <target-path>` marks a file as `0600` (`private_`). `chezmoi chattr +exact <target-dir>` marks a directory as exact (`exact_`).
-- **Preview**: `chezmoi diff`.
-- **Apply**: `chezmoi apply`.
-- **Re-sync managed files**: `chezmoi re-add`.
-
-## Pi Agent Validation
-
-Runtime dependencies live under `~/.pi/agent/node_modules`; source-worktree dependencies under `dot_pi/agent/node_modules` are disposable and excluded from Git and chezmoi rendering.
-
-Before `/verify` for changes under `dot_pi/agent/`, run `npm ci --ignore-scripts` from `dot_pi/agent/` in the selected source worktree. Leave those dependencies present for the complete verification run so it can execute `npm test` and `npm run test:all` without mutation, then remove them afterward.
-
-## Completion Workflow
-
-After making and verifying a requested chezmoi source change, apply it to the target and commit/push it by default.
-
-Default sequence:
-1. Run `chezmoi diff` for the relevant target or full source.
-2. Run `chezmoi apply` for the changed target(s).
-3. Commit the source changes with a Conventional Commit message.
-4. Push the branch.
-
-Do not auto-commit/push when:
-- the user asks for a preview only
-- the change is incomplete or unverified
-- there are unrelated local changes
-- applying would affect broad or unreviewed targets
-- the branch or repository state makes the operation unsafe
-
-If unsure, stop and ask.
-
-## Key Tools
-
-Ghostty, Starship, 1Password (secrets and SSH agent), SOPS + Age, Kubernetes (`kctx` for per-shell context isolation).
-
-## Pi MCP and Home Assistant
-
-Pi has no native MCP. MCP servers are templated under `dot_config/mcp/` into `~/.config/mcp/mcp_servers.json` and driven by `mcp-cli` skills. Keep `mcp_servers.json.tmpl` profile-gated with separate work and personal branches; Home Assistant capability is personal-profile-only.
-
-## Git Worktree
-
-- Start from an updated `main`.
-- Keep Datadog repositories under `~/dd`.
-- Create Datadog worktrees under `~/dd/.worktrees/<repo-name>-<branch-slug>`.
-- Use one worktree per feature branch or PR; keep the base repository checkout on `main`.
-- Open the worktree directory itself in JetBrains IDEs such as GoLand.
+Do not apply, commit, or push when the user requested a preview, changes are incomplete or unverified, unrelated changes exist, or the operation would be unsafe. If uncertain, stop and ask.

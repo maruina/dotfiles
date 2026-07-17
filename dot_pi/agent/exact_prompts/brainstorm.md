@@ -397,11 +397,11 @@ After the user confirms the alignment brief:
 
 For lightweight chat-only brainstorming, end with:
 
-> If this captures the problem and first slice, I can turn it into a plan next.
+If this captures the problem and first slice, I can turn it into a plan next.
 
 For durable brainstorming, after saving and committing the spec, say:
 
-> Spec complete, committed, and saved to `<absolute-path-to-design.md>`. Review it before handing off to `/plan <absolute-path-to-design.md>`, or run `/plan` with no arguments to choose from discovered design specs.
+Spec complete, committed, and saved to `<absolute-path-to-design.md>`. Review it before handing off to `/plan <absolute-path-to-design.md>`, or run `/plan` with no arguments to choose from discovered design specs.
 
 ## Update or Restart
 When the work already has a committed `design.md` and the framing has shifted, decide whether to revise the existing spec or start a new one before writing anything.

@@ -433,10 +433,10 @@ Before reporting completion, verify:
 ## Handoff
 After saving and committing a durable plan, say exactly:
 
-> Plan complete, committed, and saved to `<absolute-path-to-plan.md>`. Run `/systematic-review <absolute-path-to-plan.md>` to validate it before handing off to `/execute <absolute-path-to-plan.md>`.
+Plan complete, committed, and saved to `<absolute-path-to-plan.md>`. Run `/systematic-review <absolute-path-to-plan.md>` to validate it before handing off to `/execute <absolute-path-to-plan.md>`.
 
 Replace `<absolute-path-to-plan.md>` with the absolute path to the plan file in the worktree.
 
 For a chat-only plan, end with:
 
-> Plan complete. If you want to execute it with the standard workflow, I can write this to a durable `plan.md` next.
+Plan complete. If you want to execute it with the standard workflow, I can write this to a durable `plan.md` next.

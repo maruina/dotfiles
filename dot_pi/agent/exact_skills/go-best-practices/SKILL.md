@@ -7,12 +7,24 @@ Use for general Go changes. For controller-runtime, reconcilers, CRDs, watches, 
 
 Default to repository conventions. Make small, idiomatic changes. Do not rewrite working code for style alone.
 
+## Principles
+
+Optimize for simplicity, readability, and developer productivity:
+
+- Write code for the reader. Prefer the clearest correct form over brevity, novelty, or local cleverness.
+- Let identifier length scale with scope and lifetime: short names suit small local scopes; public and long-lived concepts need precise names.
+- Prefer designs that eliminate expected errors and misuse rather than requiring every caller to avoid them correctly.
+- Treat concurrency as an optimization. Introduce it only when it provides a measured or necessary benefit.
+
 ## Design
 - Prefer simple, explicit code over clever abstractions.
 - Match package style before adding a new pattern.
-- Keep packages focused and domain-oriented; avoid `util`, `common`, and `helpers`.
+- Keep packages focused and domain-oriented. Name packages for what they provide, not what they contain; avoid vague buckets such as `util`, `common`, `helpers`, `models`, and `types`.
+- Use `internal/` to enforce package boundaries when code is not a supported import surface.
+- Prefer a useful zero value when it provides a clear and safe default. Add constructors only when callers need required setup, validation, or non-zero defaults.
 - Return concrete types. Accept small interfaces at the consumer boundary.
 - Do not create interfaces only for tests.
+- Prefer a small amount of local duplication over coupling unrelated packages through a shared dependency.
 - Avoid package-level mutable state unless it is read-only, lazily initialized, or synchronized.
 - Prefer explicit initialization over `init`; never start unmanaged goroutines in `init`.
 - Avoid `unsafe`, `reflect`, `go:linkname`, cgo, and `syscall` unless the need is clear and documented.
@@ -21,7 +33,8 @@ Default to repository conventions. Make small, idiomatic changes. Do not rewrite
 - Keep validation and fail-safe defaults alongside boundary parsing; pass only the resulting typed configuration to internal components.
 
 ## Naming
-- Use short names for narrow scopes and longer names for wider scopes or unfamiliar concepts.
+- Choose names for clarity and predictability, not minimum length. Use short names for narrow, conventional scopes and precise names for wider scopes or unfamiliar concepts.
+- Do not repeat type information in a name when the type or surrounding scope already makes it clear.
 - Use short, type-based receiver names (`c`, `u`), consistently for a type. Never use `self` or `this`.
 - Use mixedCaps. Capitalize initialisms consistently: `ID`, `HTTP`, `URL`, `JSON`, `API`.
 - Avoid stutter: `user.Config`, not `user.UserConfig`.
@@ -40,7 +53,9 @@ Default to repository conventions. Make small, idiomatic changes. Do not rewrite
 - Handle every error.
 - Add concise operation and input context: `read config: %w`.
 - Use `%w` only when callers should inspect the cause with `errors.Is` or `errors.As`.
-- Do not log and return the same error without a specific reason.
+- Prevent expected errors at the API boundary when a clearer type, signature, or invariant can make the invalid operation impossible.
+- Handle an error once: add useful context, recover, translate it at a boundary, or return it. Do not log it and return it without a distinct operational reason.
+- Keep error strings human-readable context, not a machine-readable protocol. Use typed errors, sentinel errors, or structured results when callers need to branch on failure.
 - Do not parse error strings.
 - Return `error` or `(value, bool)` instead of in-band sentinels.
 - Keep process exit in `main`; put testable command logic in a `run` function.
@@ -54,7 +69,8 @@ Default to repository conventions. Make small, idiomatic changes. Do not rewrite
 - Use `cmp.Diff` for complex values and semantic error checks instead of exact error strings.
 
 ## Concurrency
-- Give every goroutine a lifetime, stop condition, and wait path when callers must observe completion.
+- Treat concurrency as an optimization, not a default. Introduce it only for a stated latency, throughput, responsiveness, or isolation need.
+- Give every goroutine a lifetime, stop condition, owner, and wait path when callers must observe completion.
 - Prefer synchronous functions; let callers choose `go f()`.
 - Pass `context.Context` as the first parameter except in established signatures. Do not store contexts in structs.
 - Call `WaitGroup.Add` before starting goroutines.
@@ -72,8 +88,9 @@ Default to repository conventions. Make small, idiomatic changes. Do not rewrite
 - Use standard helpers (`strings.Cut`, `slices`, `maps`, `cmp.Or`, `min`, `max`, `clear`) when they simplify code.
 
 ## Comments
-- Document exported APIs.
-- Explain why, constraints, contracts, and non-obvious behavior. Do not restate code.
+- Document exported APIs when their name and signature do not fully establish their contract.
+- Write doc comments as complete sentences. Start them with the documented identifier when that improves discoverability.
+- Explain contracts, constraints, ownership, invariants, compatibility behavior, and non-obvious decisions. Do not restate code.
 - Keep directives exact, such as `//go:build`.
 
 ## Finish

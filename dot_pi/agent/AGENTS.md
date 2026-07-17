@@ -10,12 +10,14 @@ Before implementing:
 - Call out simpler approaches and tradeoffs.
 - Stop and ask when requirements are unclear.
 
-## 2. Simplicity First
+## 2. Simplicity and Readability
 
-Write the minimum code that solves the problem:
+Write the minimum code that solves the problem. Optimize for the next reader:
+- Prefer simple, explicit code over clever or compressed code.
+- Choose names, package boundaries, and APIs that make the common path obvious.
 - No unrequested features, abstractions, or configurability.
 - No speculative handling for impossible scenarios.
-- If the solution feels overcomplicated, simplify.
+- If the solution feels overcomplicated, simplify it before extending it.
 
 ## 3. Surgical Changes
 
@@ -46,7 +48,9 @@ For behavior-bearing technical work, optimize in this order: safety and correctn
 
 - Safety: keep control flow explicit, bound resource growth, validate inputs, make failure modes observable, and test invalid cases.
 - Performance: consider scale and resource costs during design, not only after profiling. Watch for unbounded fan-out, retries, queues, polling, allocations, and N+1 behavior.
-- Developer experience: prefer clear domain names, include units in names when useful, keep scopes small, make APIs hard to misuse, and avoid clever abstractions or new dependencies unless they simplify the whole system.
+- Developer experience: prefer clear domain names, include units in names when useful, keep scopes small, and avoid clever abstractions or new dependencies unless they simplify the whole system.
+- Prefer APIs that make invalid states and misuse difficult to express. Design away expected misuse and invalid calls when a simple API can do so; keep operational failures observable.
+- Keep ownership, lifetime, and cancellation explicit for resources and concurrent work.
 - Apply these principles idiomatically for the language and repository; do not override established Go, Kubernetes, Terraform, or repository-specific best practices.
 
 ## Feature Workflow

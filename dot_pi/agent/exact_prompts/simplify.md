@@ -45,4 +45,4 @@ If a change is cosmetic-only with no clarity gain, skip it. If nothing is worth 
 ## Handoff
 Report the simplification diff, the verification commands run before and after, and anything you deliberately left alone. Include **Skills loaded and used** as a `Skill | Source | Why loaded | How used` table for every skill read and applied during simplification; explicitly state when none were needed. Then say exactly:
 
-> I finished simplifying the changes. This changed the diff, so any earlier `/verify` verdict is stale — run a fresh `/verify` closeout before relying on it: choose a model different from the one that made these edits, run `/new`, confirm the injected `## Current Model`, then run `/verify` against the plan or task.
+I finished simplifying the changes. This changed the diff, so any earlier `/verify` verdict is stale — run a fresh `/verify` closeout before relying on it: choose a model different from the one that made these edits, run `/new`, confirm the injected `## Current Model`, then run `/verify` against the plan or task.

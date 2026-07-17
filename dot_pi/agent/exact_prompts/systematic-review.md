@@ -100,7 +100,7 @@ If no issues are found, say so explicitly and still include the design challenge
 Close with the recommended next step:
 
 - For a `plan.md` target with no blocking findings, say exactly:
-  > Review complete. Run /execute <absolute-path-to-plan.md> to implement it.
+  Review complete. Run /execute <absolute-path-to-plan.md> to implement it.
 - For a `plan.md` target with blocking findings, say exactly:
-  > Review complete. Address the findings above, then re-run /systematic-review <absolute-path-to-plan.md>, or return to /plan to revise.
+  Review complete. Address the findings above, then re-run /systematic-review <absolute-path-to-plan.md>, or return to /plan to revise.
 - For a code-only target with no plan: recommend the highest-priority next action instead of a pipeline handoff.

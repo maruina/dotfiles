@@ -37,6 +37,14 @@ For code targets, look for:
 - Tests that assert implementation details instead of meaningful behavior
 - Code that is inordinately complicated for what it does
 
+For behavior-bearing code, also check that:
+
+- resource growth is bounded or intentionally constrained: loops, queues, goroutines, retries, polling, fan-out, memory, and disk
+- failure behavior is explicit for invalid input, partial failure, cancellation, timeout, retries, and corrupt or inconsistent data
+- performance-sensitive paths have a stated scale assumption or measured evidence appropriate to the risk
+- names and APIs are hard to misuse, include units or qualifiers when useful, and avoid needless dependencies, wrappers, or clever abstractions
+- language-specific style guidance is applied idiomatically; do not reject idiomatic Go, Kubernetes, Terraform, or repository patterns because they differ from another ecosystem
+
 Also argue against the design: explain what you would do differently, why, and the trade-offs.
 
 ## Plan review checklist
@@ -50,6 +58,7 @@ For `plan.md` targets, check that:
 - file paths, commands, types, functions, flags, and dependencies exist and match the repository
 - all file paths are repo-relative
 - security, observability, failure modes, rollout, rollback, docs, and `AGENTS.md` coverage are explicit for the plan's risk level
+- safety, performance, and developer-experience decisions are explicit for behavior-bearing work, or the plan explains why they are inapplicable
 - the plan reuses existing patterns and does not reimplement platform capabilities without justification
 - the plan does not invent behavior beyond the source of truth
 - `## Skills loaded and used` records each skill applied during planning, its source, why it was loaded, and how it informed the plan, or explicitly records that none were needed

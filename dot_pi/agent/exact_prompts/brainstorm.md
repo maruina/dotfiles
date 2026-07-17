@@ -249,6 +249,7 @@ For technical work, pressure-test operability before recommending a direction:
 
 - Prefer boring, existing technology and repository patterns over novelty.
 - Reuse existing libraries, services, CLIs, controllers, APIs, and platform primitives. Do not reimplement what the system already provides.
+- Identify the highest-risk safety, performance, or developer-experience concern before planning: unbounded resource growth, missing failure behavior, an untested scale assumption, or an API that is easy to misuse.
 - Identify ownership, rollout, rollback, and support boundaries.
 - Ask how the system will be observed: logs, metrics, traces, alerts, dashboards, and runbooks.
 - Ask what happens when dependencies are slow, unavailable, inconsistent, or partially successful.

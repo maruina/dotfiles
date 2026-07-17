@@ -5,3 +5,6 @@
 .pi/agent/skills_personal
 {{- end }}
 .pi/agent/node_modules
+
+# Keep repository-specific agent guidance out of ~/AGENTS.md.
+AGENTS.md

@@ -148,9 +148,11 @@ git push -u origin (git branch --show-current)
 
 ## Phase 5: Plan the review narrative and collect commits
 
-The reviewer guide is a commit-ordered narrative: one row per commit, in the order a reviewer should read them so the change tells a story. This assumes commits are already one-per-topic. If they are not, fix that before creating the PR.
+The reviewer guide is a concise, topic-ordered narrative: use one row per distinct reviewer question, in the order that best explains why and what is changing. It is not a chronological commit log. Use the fewest rows that cover the meaningful review topics.
 
-Each row links to the commit inside the PR review flow so comments there are first-class PR review comments, not commit-scoped comments:
+A topic may link to multiple commits when an implementation and its meaningful follow-ups belong together. Omit merge-only, generated, mechanical, lint-only, superseded, or otherwise non-reviewable commits. When useful, state in the guide lead-in that those commits are intentionally summarized. Before review, reshape noisy commits when doing so improves the commit story, but do not make the table mirror the resulting commits.
+
+Each linked commit uses the PR review flow so comments there are first-class PR review comments, not commit-scoped comments:
 
 ```text
 https://github.com/<owner>/<repo>/pull/<pr-number>/changes/<full-sha>
@@ -158,7 +160,7 @@ https://github.com/<owner>/<repo>/pull/<pr-number>/changes/<full-sha>
 
 Never link the bare `https://github.com/<owner>/<repo>/commit/<sha>` form. Comments on that surface are commit comments: they do not appear in the PR review and orphan when history changes.
 
-The `/pull/<pr-number>/changes/<sha>` URL needs the PR number, which does not exist until Phase 7. In this phase, collect the commit SHAs and draft the narrative order. Fill in the links in Phase 8 after the PR is created.
+The `/pull/<pr-number>/changes/<sha>` URL needs the PR number, which does not exist until Phase 7. In this phase, group meaningful commit SHAs by review topic and draft the topic order. Fill in the links in Phase 8 after the PR is created.
 
 ```fish
 set repo (gh repo view --json nameWithOwner -q .nameWithOwner)
@@ -226,13 +228,15 @@ Two to four sentences explaining why this change exists. Include relevant ticket
 
 ## Reviewer guide
 
-> Read the commits in this order. Open each via its link below and comment there — those are first-class PR review comments. Do **not** open commits via the `/commit/<sha>` URL; comments there do not show up in the PR.
+> Review these topics in order. Open the linked commits and comment there — those are first-class PR review comments. Do **not** open commits via the `/commit/<sha>` URL; comments there do not show up in the PR.
+
+> Summarize merge-only, mechanical, lint-only, and superseded commits instead of listing them as separate rows when they do not add a reviewer question.
 
 > The stack-navigation block at the top of the body already shows this PR's place in the stack; do not duplicate that here.
 
-| # | Commit | Files | What to look for |
-|---|--------|-------|------------------|
-| 1 | [short-sha](https://github.com/<owner>/<repo>/pull/<pr-number>/changes/<full-sha>) | `file1.go`, `file2.go` | specific things to verify or scrutinize |
+| # | Topic | Commits | Files | What to look for |
+|---|-------|---------|-------|------------------|
+| 1 | concise reviewer question | [short-sha](https://github.com/<owner>/<repo>/pull/<pr-number>/changes/<full-sha>) | `file1.go`, `file2.go` | specific behavior, tradeoff, or invariant to verify |
 
 ## Lessons learned
 

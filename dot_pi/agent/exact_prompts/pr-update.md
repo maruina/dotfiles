@@ -145,13 +145,17 @@ Do not create a `backup/` branch unless a risky manual rewrite needs a recovery 
 
 If the existing PR title is stale, propose a new title that reflects the final PR scope. Keep the existing title if it is still accurate.
 
-The reviewer guide is a commit-ordered narrative: one row per commit in reading order. Each row links to the commit inside the PR review flow so comments there are first-class PR review comments:
+The reviewer guide is a concise, topic-ordered narrative: use one row per distinct reviewer question, in the order that best explains why and what is changing. It is not a chronological commit log. Use the fewest rows that cover the meaningful review topics.
+
+A topic may link to multiple commits when an implementation and its meaningful follow-ups belong together. Omit merge-only, generated, mechanical, lint-only, superseded, or otherwise non-reviewable commits. When useful, state in the guide lead-in that those commits are intentionally summarized. Preserve post-review follow-up commits in history, but group them with their topic rather than giving each a separate row.
+
+Each linked commit uses the PR review flow so comments there are first-class PR review comments:
 
 ```text
 https://github.com/<owner>/<repo>/pull/<pr-number>/changes/<full-sha>
 ```
 
-The PR number comes from Phase 1. Collect SHAs in reading order with:
+The PR number comes from Phase 1. Collect SHAs, then group the meaningful ones by review topic:
 
 ```fish
 git log --reverse --format="%H %s" origin/$base..HEAD
@@ -202,13 +206,15 @@ Two to four sentences explaining why this change exists.
 
 ## Reviewer guide
 
-> Read the commits in this order. Open each via its link below and comment there — those are first-class PR review comments. Do **not** open commits via the `/commit/<sha>` URL; comments there do not show up in the PR.
+> Review these topics in order. Open the linked commits and comment there — those are first-class PR review comments. Do **not** open commits via the `/commit/<sha>` URL; comments there do not show up in the PR.
+
+> Summarize merge-only, mechanical, lint-only, and superseded commits instead of listing them as separate rows when they do not add a reviewer question.
 
 > The stack-navigation block at the top of the body already shows this PR's place in the stack; do not duplicate that here.
 
-| # | Commit | Files | What to look for |
-|---|--------|-------|------------------|
-| 1 | [short-sha](https://github.com/<owner>/<repo>/pull/<pr-number>/changes/<full-sha>) | `file1.go`, `file2.go` | specific things to verify or scrutinize |
+| # | Topic | Commits | Files | What to look for |
+|---|-------|---------|-------|------------------|
+| 1 | concise reviewer question | [short-sha](https://github.com/<owner>/<repo>/pull/<pr-number>/changes/<full-sha>) | `file1.go`, `file2.go` | specific behavior, tradeoff, or invariant to verify |
 
 ## Lessons learned
 

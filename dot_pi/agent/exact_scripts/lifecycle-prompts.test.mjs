@@ -74,3 +74,16 @@ test("simplify and PR review report skill provenance", () => {
 
   assert.match(prompt("pr-review.md"), /domain rules are `prompt-required`/i);
 });
+
+test("PR prompts make reviewer guides topic-ordered rather than commit logs", () => {
+  for (const file of ["pr-create.md", "pr-update.md"]) {
+    const text = prompt(file);
+    requireMarkers(text, [
+      /topic-ordered narrative/i,
+      /not a chronological commit log/i,
+      /multiple commits/i,
+      /merge-only, generated, mechanical, lint-only, superseded/i,
+      /\| # \| Topic \| Commits \| Files \| What to look for \|/,
+    ]);
+  }
+});

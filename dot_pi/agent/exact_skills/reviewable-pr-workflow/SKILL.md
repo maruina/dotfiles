@@ -35,8 +35,8 @@ A reviewable PR has:
 - a title that says what changed,
 - a `## What` section with the final state,
 - a `## Why` section with motivation and tradeoffs,
-- a reviewer guide with reading order and scrutiny points,
-- commits that match the guide,
+- a reviewer guide with a coherent topic order and concrete scrutiny points,
+- commits that support the guide without turning it into a chronological changelog,
 - tests or validation notes,
 - evidence links when external proof helps,
 - no accidental files, temporary scripts, noisy fixups, or confusing commit order before review.
@@ -100,11 +100,11 @@ One sentence describing the final state.
 Two to four sentences explaining motivation, context, and tradeoffs.
 
 ## Reviewer guide
-> Read the commits in this order. Open each via its link below and comment there — those are first-class PR review comments. Do **not** open commits via the `/commit/<sha>` URL; comments there do not show up in the PR.
+> Review these topics in order. Open the linked commits and comment there — those are first-class PR review comments. Do **not** open commits via the `/commit/<sha>` URL; comments there do not show up in the PR.
 
-| # | Commit | Files | What to look for |
-|---|--------|-------|------------------|
-| 1 | [short-sha](https://github.com/<owner>/<repo>/pull/<pr-number>/changes/<full-sha>) | `file.go` | specific scrutiny |
+| # | Topic | Commits | Files | What to look for |
+|---|-------|---------|-------|------------------|
+| 1 | `topic` | [short-sha](https://github.com/<owner>/<repo>/pull/<pr-number>/changes/<full-sha>) | `file.go` | specific scrutiny |
 
 ## Evidence
 - Links or commands that support the change.
@@ -114,6 +114,8 @@ Two to four sentences explaining motivation, context, and tradeoffs.
 ```
 
 Omit `## Evidence` when code and tests are enough. Add `## Lessons learned` only for reviewer-relevant surprises or tradeoffs.
+
+Make the guide a concise, topic-ordered review path, not a commit list. Use the fewest rows that cover the distinct reviewer questions. A row may link to multiple commits when an implementation and its meaningful follow-ups form one topic. Omit merge-only, generated, mechanical, lint-only, superseded, or otherwise non-reviewable commits; briefly state that they are intentionally summarized when that context helps. Do not duplicate commit messages.
 
 Commit links in reviewer guides must use `/pull/<pr>/changes/<full-sha>`, never bare `/commit/<sha>` links.
 

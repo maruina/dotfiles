@@ -103,6 +103,29 @@ Prefer DRY, YAGNI, small vertical slices, frequent verification, and existing re
 
 Do not ask the user to identify files, commands, patterns, or existing behavior if those can be discovered from the repository. Investigate first, then ask only to confirm ambiguous choices or product decisions.
 
+## Safety, Performance, and Developer Experience
+For behavior-bearing technical plans, apply this quality bar without overriding language, domain, or repository best practices.
+
+Safety:
+
+- Identify untrusted inputs, invalid states, partial failures, and corrupt or inconsistent data that the implementation must handle or reject.
+- Bound loops, queues, goroutines, retries, polling, fan-out, memory, and disk growth, or state why a bound is not relevant.
+- Prefer explicit cancellation, timeout, idempotency, and rollback behavior over implicit best-effort recovery.
+
+Performance:
+
+- Reason about scale during design: expected item counts, request rate, latency, bandwidth, allocations, storage, and CPU work when material.
+- Distinguish hot paths, control-plane paths, batch jobs, and one-off admin flows; right-size validation accordingly.
+- Prefer batching, backpressure, and existing platform mechanisms over ad hoc parallelism or polling.
+
+Developer experience:
+
+- Choose names and APIs that make misuse hard. Include units or qualifiers in names when they disambiguate values.
+- Keep scopes small, place calculations near use, and avoid unnecessary wrappers, new dependencies, and clever abstractions.
+- Do not copy language-specific style rules across ecosystems. Preserve idiomatic Go, Kubernetes, Terraform, and repository conventions.
+
+Record material decisions in the planning alignment brief, acceptance criteria, tasks, or explicit non-goals. Do not expand a small plan into ceremony when these concerns are inapplicable; state why they are inapplicable.
+
 ## Planning Questions
 Ask a planning question when multiple reasonable implementation approaches exist and the choice affects one or more of:
 

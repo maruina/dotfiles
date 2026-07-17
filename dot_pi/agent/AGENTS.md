@@ -41,6 +41,14 @@ For multi-step work, use a brief plan:
 3. [Step] → verify: [check]
 ```
 
+## Engineering Quality Bar
+For behavior-bearing technical work, optimize in this order: safety and correctness, performance, then developer experience.
+
+- Safety: keep control flow explicit, bound resource growth, validate inputs, make failure modes observable, and test invalid cases.
+- Performance: consider scale and resource costs during design, not only after profiling. Watch for unbounded fan-out, retries, queues, polling, allocations, and N+1 behavior.
+- Developer experience: prefer clear domain names, include units in names when useful, keep scopes small, make APIs hard to misuse, and avoid clever abstractions or new dependencies unless they simplify the whole system.
+- Apply these principles idiomatically for the language and repository; do not override established Go, Kubernetes, Terraform, or repository-specific best practices.
+
 ## Feature Workflow
 For non-trivial feature work, use `/brainstorm` → `/plan` → `/systematic-review` → `/execute` → `/verify`. Start at `/plan` when the problem framing and design are already agreed. Use `/simplify` only when requested, after `/execute` and before `/verify`; use `/learn` after the work lands when evidence supports durable guidance.
 

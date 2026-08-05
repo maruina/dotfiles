@@ -12,7 +12,8 @@
         "x-dd-tag-ml_app": "pi",
         "x-dd-tag-dd.user_email": "matteo.ruina@datadoghq.com",
         "x-dd-tag-dd.team": "unknown",
-        "x-dd-tag-client_session_id": "$PI_CLIENT_SESSION_ID"
+        "x-dd-tag-client_session_id": "$PI_CLIENT_SESSION_ID",
+        "x-dd-tag-ml_app_id": "aidevx.pi"
       },
       "models": [
         {
@@ -109,42 +110,10 @@
         "x-dd-tag-dd.user_email": "matteo.ruina@datadoghq.com",
         "x-dd-tag-dd.team": "unknown",
         "provider": "anthropic",
-        "x-dd-tag-client_session_id": "$PI_CLIENT_SESSION_ID"
+        "x-dd-tag-client_session_id": "$PI_CLIENT_SESSION_ID",
+        "x-dd-tag-ml_app_id": "aidevx.pi"
       },
       "models": [
-        {
-          "id": "anthropic/claude-opus-4-8",
-          "name": "Claude Opus 4.8 (AI Gateway, 200k)",
-          "api": "anthropic-messages",
-          "reasoning": true,
-          "input": [
-            "text",
-            "image"
-          ],
-          "contextWindow": 200000,
-          "maxTokens": 128000,
-          "thinkingLevelMap": {
-            "xhigh": "xhigh"
-          },
-          "compat": {
-            "forceAdaptiveThinking": true
-          }
-        },
-        {
-          "id": "anthropic/claude-sonnet-4-6",
-          "name": "Claude Sonnet 4.6 (AI Gateway, 200k)",
-          "api": "anthropic-messages",
-          "reasoning": true,
-          "input": [
-            "text",
-            "image"
-          ],
-          "contextWindow": 200000,
-          "maxTokens": 64000,
-          "compat": {
-            "forceAdaptiveThinking": true
-          }
-        },
         {
           "id": "anthropic/claude-sonnet-5",
           "name": "Claude Sonnet 5 (AI Gateway, 200k)",
@@ -156,6 +125,21 @@
           ],
           "contextWindow": 200000,
           "maxTokens": 16384,
+          "compat": {
+            "forceAdaptiveThinking": true
+          }
+        },
+        {
+          "id": "anthropic/claude-opus-5",
+          "name": "Claude Opus 5 (AI Gateway, 200k)",
+          "api": "anthropic-messages",
+          "reasoning": true,
+          "input": [
+            "text",
+            "image"
+          ],
+          "contextWindow": 200000,
+          "maxTokens": 64000,
           "compat": {
             "forceAdaptiveThinking": true
           }
@@ -176,42 +160,10 @@
         "x-dd-tag-dd.user_email": "matteo.ruina@datadoghq.com",
         "x-dd-tag-dd.team": "unknown",
         "provider": "anthropic",
-        "x-dd-tag-client_session_id": "$PI_CLIENT_SESSION_ID"
+        "x-dd-tag-client_session_id": "$PI_CLIENT_SESSION_ID",
+        "x-dd-tag-ml_app_id": "aidevx.pi"
       },
       "models": [
-        {
-          "id": "anthropic/claude-opus-4-8",
-          "name": "Claude Opus 4.8 (AI Gateway, 1M)",
-          "api": "anthropic-messages",
-          "reasoning": true,
-          "input": [
-            "text",
-            "image"
-          ],
-          "contextWindow": 1000000,
-          "maxTokens": 128000,
-          "thinkingLevelMap": {
-            "xhigh": "xhigh"
-          },
-          "compat": {
-            "forceAdaptiveThinking": true
-          }
-        },
-        {
-          "id": "anthropic/claude-sonnet-4-6",
-          "name": "Claude Sonnet 4.6 (AI Gateway, 1M)",
-          "api": "anthropic-messages",
-          "reasoning": true,
-          "input": [
-            "text",
-            "image"
-          ],
-          "contextWindow": 1000000,
-          "maxTokens": 64000,
-          "compat": {
-            "forceAdaptiveThinking": true
-          }
-        },
         {
           "id": "anthropic/claude-sonnet-5",
           "name": "Claude Sonnet 5 (AI Gateway, 1M)",
@@ -226,9 +178,63 @@
           "compat": {
             "forceAdaptiveThinking": true
           }
+        },
+        {
+          "id": "anthropic/claude-opus-5",
+          "name": "Claude Opus 5 (AI Gateway, 1M)",
+          "api": "anthropic-messages",
+          "reasoning": true,
+          "input": [
+            "text",
+            "image"
+          ],
+          "contextWindow": 1000000,
+          "maxTokens": 64000,
+          "compat": {
+            "forceAdaptiveThinking": true
+          }
         }
       ],
       "authHeader": true
+    },
+    "ai-gw-baseten": {
+      "baseUrl": "https://ai-gateway.us1.ddbuild.io/v1",
+      "api": "openai-responses",
+      "apiKey": "!sh -c \"ddtool auth token rapid-ai-platform --datacenter us1.ddbuild.io 2>/dev/null | grep -E '^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$' | head -1\"",
+      "headers": {
+        "source": "pi",
+        "org-id": "2",
+        "x-llmo-force-redaction": "true",
+        "x-dd-tag-ml_app": "pi",
+        "x-dd-tag-ml_app_id": "aidevx.pi",
+        "x-dd-tag-client_session_id": "$PI_CLIENT_SESSION_ID",
+        "x-dd-tag-dd.user_email": "matteo.ruina@datadoghq.com",
+        "x-dd-tag-dd.team": "unknown"
+      },
+      "models": [
+        {
+          "id": "baseten/zai-org/GLM-5.2",
+          "name": "Zai Org/glm 5.2 (Baseten)",
+          "api": "openai-completions",
+          "reasoning": true,
+          "input": [
+            "text"
+          ],
+          "contextWindow": 128000,
+          "maxTokens": 16384
+        },
+        {
+          "id": "baseten/deepseek-ai/DeepSeek-V4-Flash-0731",
+          "name": "Deepseek Ai/deepseek V4 Flash 0731 (Baseten)",
+          "api": "openai-completions",
+          "reasoning": false,
+          "input": [
+            "text"
+          ],
+          "contextWindow": 128000,
+          "maxTokens": 16384
+        }
+      ]
     }
   }
 }

@@ -41,8 +41,8 @@ const expected = {
   },
   "/systematic-review": {
     lowerCost: ["ai-gw-anthropic-200k", "anthropic/claude-sonnet-5", "medium", "Economy", "Claude Sonnet 5 200K"],
-    recommended: ["ai-gw-anthropic-200k", "anthropic/claude-opus-4-8", "high", "Balanced", "Claude Opus 4.8 200K"],
-    increaseQuality: ["ai-gw-anthropic-200k", "anthropic/claude-opus-4-8", "xhigh", "Premium", "Claude Opus 4.8 200K"],
+    recommended: ["ai-gw-anthropic-200k", "anthropic/claude-opus-5", "high", "Balanced", "Claude Opus 5 200K"],
+    increaseQuality: ["ai-gw-anthropic-200k", "anthropic/claude-opus-5", "high", "Premium", "Claude Opus 5 200K"],
   },
   "/execute": {
     lowerCost: ["ai-gw-openai", "openai/gpt-5.6-terra", "medium", "Economy", "GPT-5.6 Terra"],

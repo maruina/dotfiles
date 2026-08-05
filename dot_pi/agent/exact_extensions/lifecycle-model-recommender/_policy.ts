@@ -32,7 +32,7 @@ const terra = (thinking: ModelThinkingLevel, costClass: CostClass, rationale: st
 const sol = (thinking: ModelThinkingLevel, costClass: CostClass, rationale: string): Recommendation =>
   recommendation("ai-gw-openai", "openai/gpt-5.6-sol", "GPT-5.6 Sol", thinking, costClass, rationale);
 const opus200k = (thinking: ModelThinkingLevel, costClass: CostClass, rationale: string): Recommendation =>
-  recommendation("ai-gw-anthropic-200k", "anthropic/claude-opus-4-8", "Claude Opus 4.8 200K", thinking, costClass, rationale);
+  recommendation("ai-gw-anthropic-200k", "anthropic/claude-opus-5", "Claude Opus 5 200K", thinking, costClass, rationale);
 const sonnet200k = (thinking: ModelThinkingLevel, costClass: CostClass, rationale: string): Recommendation =>
   recommendation("ai-gw-anthropic-200k", "anthropic/claude-sonnet-5", "Claude Sonnet 5 200K", thinking, costClass, rationale);
 const sonnet1m = (thinking: ModelThinkingLevel, costClass: CostClass, rationale: string): Recommendation =>
@@ -52,7 +52,7 @@ export const LIFECYCLE_POLICY: LifecyclePolicy = {
   "/systematic-review": {
     lowerCost: sonnet200k("medium", "Economy", "Review the plan with an independent, efficient perspective."),
     recommended: opus200k("high", "Balanced", "Apply adversarial, independent review to the plan."),
-    increaseQuality: opus200k("xhigh", "Premium", "Use deeper adversarial review for high-risk plans."),
+    increaseQuality: opus200k("high", "Premium", "Use adversarial review for high-risk plans."),
   },
   "/execute": {
     lowerCost: terra("medium", "Economy", "Implement the reviewed plan efficiently."),

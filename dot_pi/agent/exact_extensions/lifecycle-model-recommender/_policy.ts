@@ -36,7 +36,7 @@ const glm = (thinking: ModelThinkingLevel, costClass: CostClass, rationale: stri
 
 export const LIFECYCLE_POLICY: LifecyclePolicy = {
   "/brainstorm": {
-    lowerCost: glm("medium", "Economy", "Explore the problem with a cost-effective reasoning budget."),
+    lowerCost: glm("high", "Economy", "Explore the problem with a cost-effective reasoning budget."),
     recommended: terra("medium", "Balanced", "Frame durable decisions with balanced reasoning."),
     increaseQuality: sol("high", "Premium", "Use deeper flagship reasoning for difficult framing."),
   },
@@ -46,17 +46,17 @@ export const LIFECYCLE_POLICY: LifecyclePolicy = {
     increaseQuality: sol("xhigh", "Premium", "Use the deepest approved planning reasoning."),
   },
   "/systematic-review": {
-    lowerCost: glm("medium", "Economy", "Review the plan with an independent, cost-effective perspective."),
+    lowerCost: glm("high", "Economy", "Review the plan with an independent, cost-effective perspective."),
     recommended: terra("high", "Balanced", "Apply adversarial, independent review to the plan."),
     increaseQuality: sol("high", "Premium", "Use adversarial review for high-risk plans."),
   },
   "/execute": {
-    lowerCost: glm("medium", "Economy", "Implement the reviewed plan cost-effectively."),
+    lowerCost: glm("high", "Economy", "Implement the reviewed plan cost-effectively."),
     recommended: terra("high", "Balanced", "Execute the reviewed plan with balanced high-effort reasoning."),
     increaseQuality: sol("high", "Premium", "Escalate implementation reasoning for difficult changes."),
   },
   "/verify": {
-    lowerCost: glm("medium", "Economy", "Check implementation evidence with a cost-effective reviewer."),
+    lowerCost: glm("high", "Economy", "Check implementation evidence with a cost-effective reviewer."),
     recommended: terra("medium", "Balanced", "Verify with independent review."),
     increaseQuality: sol("high", "Premium", "Use deeper review for difficult verification."),
   },

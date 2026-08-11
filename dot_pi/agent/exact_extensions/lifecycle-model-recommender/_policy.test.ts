@@ -30,7 +30,7 @@ type CatalogModel = Pick<Model<any>, "provider" | "id" | "api" | "name" | "reaso
 
 const expected = {
   "/brainstorm": {
-    lowerCost: ["ai-gw-baseten", "baseten/zai-org/GLM-5.2", "medium", "Economy", "GLM-5.2 (Baseten)"],
+    lowerCost: ["ai-gw-baseten", "baseten/zai-org/GLM-5.2", "high", "Economy", "GLM-5.2 (Baseten)"],
     recommended: ["ai-gw-openai", "openai/gpt-5.6-terra", "medium", "Balanced", "GPT-5.6 Terra"],
     increaseQuality: ["ai-gw-openai", "openai/gpt-5.6-sol", "high", "Premium", "GPT-5.6 Sol"],
   },
@@ -40,17 +40,17 @@ const expected = {
     increaseQuality: ["ai-gw-openai", "openai/gpt-5.6-sol", "xhigh", "Premium", "GPT-5.6 Sol"],
   },
   "/systematic-review": {
-    lowerCost: ["ai-gw-baseten", "baseten/zai-org/GLM-5.2", "medium", "Economy", "GLM-5.2 (Baseten)"],
+    lowerCost: ["ai-gw-baseten", "baseten/zai-org/GLM-5.2", "high", "Economy", "GLM-5.2 (Baseten)"],
     recommended: ["ai-gw-openai", "openai/gpt-5.6-terra", "high", "Balanced", "GPT-5.6 Terra"],
     increaseQuality: ["ai-gw-openai", "openai/gpt-5.6-sol", "high", "Premium", "GPT-5.6 Sol"],
   },
   "/execute": {
-    lowerCost: ["ai-gw-baseten", "baseten/zai-org/GLM-5.2", "medium", "Economy", "GLM-5.2 (Baseten)"],
+    lowerCost: ["ai-gw-baseten", "baseten/zai-org/GLM-5.2", "high", "Economy", "GLM-5.2 (Baseten)"],
     recommended: ["ai-gw-openai", "openai/gpt-5.6-terra", "high", "Balanced", "GPT-5.6 Terra"],
     increaseQuality: ["ai-gw-openai", "openai/gpt-5.6-sol", "high", "Premium", "GPT-5.6 Sol"],
   },
   "/verify": {
-    lowerCost: ["ai-gw-baseten", "baseten/zai-org/GLM-5.2", "medium", "Economy", "GLM-5.2 (Baseten)"],
+    lowerCost: ["ai-gw-baseten", "baseten/zai-org/GLM-5.2", "high", "Economy", "GLM-5.2 (Baseten)"],
     recommended: ["ai-gw-openai", "openai/gpt-5.6-terra", "medium", "Balanced", "GPT-5.6 Terra"],
     increaseQuality: ["ai-gw-openai", "openai/gpt-5.6-sol", "high", "Premium", "GPT-5.6 Sol"],
   },

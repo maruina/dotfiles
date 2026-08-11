@@ -98,3 +98,4 @@ Optimize for simplicity, readability, and developer productivity:
 - Run relevant tests.
 - Run `go vet` or the repo lint target when practical.
 - Run race tests when touching concurrency.
+- After writing new Go code and before committing, run the [modernize analyzer](https://pkg.go.dev/golang.org/x/tools/go/analysis/passes/modernize): `go run golang.org/x/tools/go/analysis/passes/modernize/cmd/modernize@latest ./...`.

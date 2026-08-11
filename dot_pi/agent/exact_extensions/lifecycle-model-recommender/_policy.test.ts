@@ -30,29 +30,29 @@ type CatalogModel = Pick<Model<any>, "provider" | "id" | "api" | "name" | "reaso
 
 const expected = {
   "/brainstorm": {
-    lowerCost: ["ai-gw-openai", "openai/gpt-5.6-terra", "medium", "Economy", "GPT-5.6 Terra"],
-    recommended: ["ai-gw-openai", "openai/gpt-5.6-sol", "medium", "Balanced", "GPT-5.6 Sol"],
+    lowerCost: ["ai-gw-baseten", "baseten/zai-org/GLM-5.2", "medium", "Economy", "GLM-5.2 (Baseten)"],
+    recommended: ["ai-gw-openai", "openai/gpt-5.6-terra", "medium", "Balanced", "GPT-5.6 Terra"],
     increaseQuality: ["ai-gw-openai", "openai/gpt-5.6-sol", "high", "Premium", "GPT-5.6 Sol"],
   },
   "/plan": {
-    lowerCost: ["ai-gw-openai", "openai/gpt-5.6-terra", "high", "Economy", "GPT-5.6 Terra"],
-    recommended: ["ai-gw-openai", "openai/gpt-5.6-sol", "high", "Balanced", "GPT-5.6 Sol"],
+    lowerCost: ["ai-gw-baseten", "baseten/zai-org/GLM-5.2", "high", "Economy", "GLM-5.2 (Baseten)"],
+    recommended: ["ai-gw-openai", "openai/gpt-5.6-terra", "high", "Balanced", "GPT-5.6 Terra"],
     increaseQuality: ["ai-gw-openai", "openai/gpt-5.6-sol", "xhigh", "Premium", "GPT-5.6 Sol"],
   },
   "/systematic-review": {
-    lowerCost: ["ai-gw-anthropic-200k", "anthropic/claude-sonnet-5", "medium", "Economy", "Claude Sonnet 5 200K"],
-    recommended: ["ai-gw-anthropic-200k", "anthropic/claude-opus-5", "high", "Balanced", "Claude Opus 5 200K"],
-    increaseQuality: ["ai-gw-anthropic-200k", "anthropic/claude-opus-5", "high", "Premium", "Claude Opus 5 200K"],
+    lowerCost: ["ai-gw-baseten", "baseten/zai-org/GLM-5.2", "medium", "Economy", "GLM-5.2 (Baseten)"],
+    recommended: ["ai-gw-openai", "openai/gpt-5.6-terra", "high", "Balanced", "GPT-5.6 Terra"],
+    increaseQuality: ["ai-gw-openai", "openai/gpt-5.6-sol", "high", "Premium", "GPT-5.6 Sol"],
   },
   "/execute": {
-    lowerCost: ["ai-gw-openai", "openai/gpt-5.6-terra", "medium", "Economy", "GPT-5.6 Terra"],
+    lowerCost: ["ai-gw-baseten", "baseten/zai-org/GLM-5.2", "medium", "Economy", "GLM-5.2 (Baseten)"],
     recommended: ["ai-gw-openai", "openai/gpt-5.6-terra", "high", "Balanced", "GPT-5.6 Terra"],
     increaseQuality: ["ai-gw-openai", "openai/gpt-5.6-sol", "high", "Premium", "GPT-5.6 Sol"],
   },
   "/verify": {
-    lowerCost: ["ai-gw-anthropic-200k", "anthropic/claude-sonnet-5", "medium", "Economy", "Claude Sonnet 5 200K"],
-    recommended: ["ai-gw-anthropic-1m", "anthropic/claude-sonnet-5", "medium", "Balanced", "Claude Sonnet 5 1M"],
-    increaseQuality: ["ai-gw-anthropic-1m", "anthropic/claude-sonnet-5", "high", "Premium", "Claude Sonnet 5 1M"],
+    lowerCost: ["ai-gw-baseten", "baseten/zai-org/GLM-5.2", "medium", "Economy", "GLM-5.2 (Baseten)"],
+    recommended: ["ai-gw-openai", "openai/gpt-5.6-terra", "medium", "Balanced", "GPT-5.6 Terra"],
+    increaseQuality: ["ai-gw-openai", "openai/gpt-5.6-sol", "high", "Premium", "GPT-5.6 Sol"],
   },
 } as const;
 

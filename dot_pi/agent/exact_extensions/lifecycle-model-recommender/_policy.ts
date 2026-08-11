@@ -31,38 +31,34 @@ const terra = (thinking: ModelThinkingLevel, costClass: CostClass, rationale: st
   recommendation("ai-gw-openai", "openai/gpt-5.6-terra", "GPT-5.6 Terra", thinking, costClass, rationale);
 const sol = (thinking: ModelThinkingLevel, costClass: CostClass, rationale: string): Recommendation =>
   recommendation("ai-gw-openai", "openai/gpt-5.6-sol", "GPT-5.6 Sol", thinking, costClass, rationale);
-const opus200k = (thinking: ModelThinkingLevel, costClass: CostClass, rationale: string): Recommendation =>
-  recommendation("ai-gw-anthropic-200k", "anthropic/claude-opus-5", "Claude Opus 5 200K", thinking, costClass, rationale);
-const sonnet200k = (thinking: ModelThinkingLevel, costClass: CostClass, rationale: string): Recommendation =>
-  recommendation("ai-gw-anthropic-200k", "anthropic/claude-sonnet-5", "Claude Sonnet 5 200K", thinking, costClass, rationale);
-const sonnet1m = (thinking: ModelThinkingLevel, costClass: CostClass, rationale: string): Recommendation =>
-  recommendation("ai-gw-anthropic-1m", "anthropic/claude-sonnet-5", "Claude Sonnet 5 1M", thinking, costClass, rationale);
+const glm = (thinking: ModelThinkingLevel, costClass: CostClass, rationale: string): Recommendation =>
+  recommendation("ai-gw-baseten", "baseten/zai-org/GLM-5.2", "GLM-5.2 (Baseten)", thinking, costClass, rationale);
 
 export const LIFECYCLE_POLICY: LifecyclePolicy = {
   "/brainstorm": {
-    lowerCost: terra("medium", "Economy", "Explore the problem with a balanced reasoning budget."),
-    recommended: sol("medium", "Balanced", "Frame durable decisions with flagship reasoning."),
+    lowerCost: glm("medium", "Economy", "Explore the problem with a cost-effective reasoning budget."),
+    recommended: terra("medium", "Balanced", "Frame durable decisions with balanced reasoning."),
     increaseQuality: sol("high", "Premium", "Use deeper flagship reasoning for difficult framing."),
   },
   "/plan": {
-    lowerCost: terra("high", "Economy", "Build an implementation plan with balanced high-effort reasoning."),
-    recommended: sol("high", "Balanced", "Plan durable implementation decisions with flagship reasoning."),
+    lowerCost: glm("high", "Economy", "Build an implementation plan with cost-effective high-effort reasoning."),
+    recommended: terra("high", "Balanced", "Plan durable implementation decisions with balanced high-effort reasoning."),
     increaseQuality: sol("xhigh", "Premium", "Use the deepest approved planning reasoning."),
   },
   "/systematic-review": {
-    lowerCost: sonnet200k("medium", "Economy", "Review the plan with an independent, efficient perspective."),
-    recommended: opus200k("high", "Balanced", "Apply adversarial, independent review to the plan."),
-    increaseQuality: opus200k("high", "Premium", "Use adversarial review for high-risk plans."),
+    lowerCost: glm("medium", "Economy", "Review the plan with an independent, cost-effective perspective."),
+    recommended: terra("high", "Balanced", "Apply adversarial, independent review to the plan."),
+    increaseQuality: sol("high", "Premium", "Use adversarial review for high-risk plans."),
   },
   "/execute": {
-    lowerCost: terra("medium", "Economy", "Implement the reviewed plan efficiently."),
+    lowerCost: glm("medium", "Economy", "Implement the reviewed plan cost-effectively."),
     recommended: terra("high", "Balanced", "Execute the reviewed plan with balanced high-effort reasoning."),
     increaseQuality: sol("high", "Premium", "Escalate implementation reasoning for difficult changes."),
   },
   "/verify": {
-    lowerCost: sonnet200k("medium", "Economy", "Check implementation evidence with an independent reviewer."),
-    recommended: sonnet1m("medium", "Balanced", "Verify with independent long-context review."),
-    increaseQuality: sonnet1m("high", "Premium", "Use deeper long-context review for difficult verification."),
+    lowerCost: glm("medium", "Economy", "Check implementation evidence with a cost-effective reviewer."),
+    recommended: terra("medium", "Balanced", "Verify with independent review."),
+    increaseQuality: sol("high", "Premium", "Use deeper review for difficult verification."),
   },
 };
 

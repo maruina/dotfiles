@@ -19,7 +19,6 @@ printf '%s\n' "$input" | jq '
   .packages = [
     "../../go/src/github.com/DataDog/datadog-pi-packages/packages/refresh-models",
     "../../go/src/github.com/DataDog/datadog-pi-packages/packages/confluence-adf",
-    "../../go/src/github.com/DataDog/datadog-pi-packages/packages/npm-guarddog-scan",
     "../../go/src/github.com/DataDog/datadog-pi-packages/packages/pi-npm-guard",
     "../../go/src/github.com/DataDog/datadog-pi-packages/packages/prompt-stash"
   ] |
@@ -29,7 +28,6 @@ printf '%s\n' "$input" | jq '
     "{{ .chezmoi.homeDir }}/.pi/agent/skills_personal"
   ] |
   .packages = [
-    "../../go/src/github.com/DataDog/datadog-pi-packages/packages/npm-guarddog-scan",
     "../../go/src/github.com/DataDog/datadog-pi-packages/packages/pi-npm-guard",
     "../../go/src/github.com/DataDog/datadog-pi-packages/packages/prompt-stash"
   ] |

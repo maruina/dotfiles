@@ -117,7 +117,7 @@ describe("lifecycle model recommender", () => {
 
     assertContinues(await harness.invoke());
     assert.equal(harness.selects.length, 0);
-    assert.deepEqual(harness.notifications, [{ message: "/plan: already using recommended GPT-5.6 Sol / high", type: "info" }]);
+    assert.deepEqual(harness.notifications, [{ message: `/plan: already using recommended ${choice.label} / ${choice.thinking}`, type: "info" }]);
     assert.deepEqual(harness.calls, ["get-thinking"]);
   });
 
@@ -127,9 +127,17 @@ describe("lifecycle model recommender", () => {
     assertContinues(await harness.invoke());
     assert.equal(harness.selects.length, 1);
     assert.deepEqual(harness.selects[0].optionsArg, undefined);
-    assert.match(harness.selects[0].options[0], /^Apply recommendation: GPT-5\.6 Sol \| high \| Balanced \| /);
-    assert.match(harness.selects[0].options[1], /^Lower cost: GPT-5\.6 Terra \| high \| Economy \| /);
-    assert.match(harness.selects[0].options[2], /^Increase quality: GPT-5\.6 Sol \| xhigh \| Premium \| /);
+    const recommendations = LIFECYCLE_POLICY["/plan"];
+    for (const [index, label, choice] of [
+      [0, "Apply recommendation", recommendations.recommended],
+      [1, "Lower cost", recommendations.lowerCost],
+      [2, "Increase quality", recommendations.increaseQuality],
+    ] as const) {
+      assert.equal(
+        harness.selects[0].options[index],
+        `${label}: ${choice.label} | ${choice.thinking} | ${choice.costClass} | ${choice.rationale}`,
+      );
+    }
     assert.equal(harness.selects[0].options[3], "Keep current settings");
     assert.equal(new Set(harness.selects[0].options).size, 4);
   });
@@ -207,15 +215,16 @@ describe("lifecycle model recommender", () => {
   it("warns and continues when the selected model is unavailable or unauthenticated", async () => {
     const missing = createHarness({ foundModel: undefined, select: (choices) => choices[0] });
     assertContinues(await missing.invoke());
-    assert.deepEqual(missing.calls, ["get-thinking", "find:ai-gw-openai/openai/gpt-5.6-sol"]);
+    const choice = LIFECYCLE_POLICY["/plan"].recommended;
+    assert.deepEqual(missing.calls, ["get-thinking", `find:${choice.provider}/${choice.model}`]);
     assert.equal(missing.notifications[0].type, "warning");
 
     const unauthenticated = createHarness({ setModel: () => false, select: (choices) => choices[0] });
     assertContinues(await unauthenticated.invoke());
     assert.deepEqual(unauthenticated.calls, [
       "get-thinking",
-      "find:ai-gw-openai/openai/gpt-5.6-sol",
-      "model:ai-gw-openai/openai/gpt-5.6-sol",
+      `find:${choice.provider}/${choice.model}`,
+      `model:${choice.provider}/${choice.model}`,
     ]);
     assert.equal(unauthenticated.notifications[0].type, "warning");
   });

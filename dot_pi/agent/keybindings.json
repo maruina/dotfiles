@@ -1,4 +1,5 @@
 {
   "app.models.save": "alt+s",
+  "app.session.toggleSort": "alt+shift+s",
   "tui.altScreen.search": []
 }

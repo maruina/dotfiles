@@ -175,22 +175,19 @@ npx tsc --noEmit \
   extensions/context-kit/*.ts
 ```
 
+## Session observability
+
+Run `/context-kit status` to inspect additional context this extension handled in the current session:
+
+- injected source files, their source kind, discovery mechanism, and byte size;
+- total injected messages, source files, and bytes;
+- files suppressed by `.pi/agentsignore` or `.pi/ruleignore`.
+
+The command reports extension-local state only. It does not reconstruct prior sessions or list skills filtered by `.pi/skillignore`.
+
 ## Future improvements
 
 These were discussed but intentionally not implemented during initial adoption.
-
-### Add `/context-kit status`
-
-Add a slash command that explains what the extension currently knows:
-
-- discovered `AGENTS.md` / `CLAUDE.md` files;
-- discovered `.local.md` siblings;
-- matching rule files;
-- active ignore files;
-- skills hidden by `.pi/skillignore`;
-- recent touched paths that caused discovery.
-
-This should be the first improvement if the extension becomes confusing. Prompt mutation is otherwise hard to debug.
 
 ### Add debug markers behind an env var
 

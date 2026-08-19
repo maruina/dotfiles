@@ -13,6 +13,13 @@ import { exciseContextBlock, pruneEmptySection } from "./_inject.ts";
 import { defaultRuleSources, findMatchingRules } from "./_rules.ts";
 import { traceHook } from "../_shared/tracing.ts";
 import { filterSkillsFromPrompt } from "./_skills.ts";
+import {
+  contextKind,
+  formatContextKitStatus,
+  type ContextKitDiscovery,
+  type IgnoredContextFile,
+  type InjectedContextFile,
+} from "./_status.ts";
 
 /**
  * Context-kit — per-session policy over which context blocks appear in the
@@ -87,6 +94,35 @@ export default function (pi: ExtensionAPI) {
   // injected at most once — the message persists in conversation history and
   // benefits from normal prefix caching on subsequent turns.
   const injectedAsMessages = new Set<string>();
+  const injectedFiles: InjectedContextFile[] = [];
+  const ignoredFiles = new Map<string, IgnoredContextFile>();
+  let injectionMessages = 0;
+
+  const recordIgnored = (
+    path: string,
+    discovery: ContextKitDiscovery,
+    reason: IgnoredContextFile["reason"],
+  ) => {
+    if (ignoredFiles.has(path)) return;
+    ignoredFiles.set(path, { path, kind: contextKind(path), discovery, reason });
+  };
+
+  pi.registerCommand("context-kit", {
+    description: "Show context-kit injections and ignored files for this session",
+    handler: async (args, ctx) => {
+      const action = (args || "status").trim().toLowerCase();
+      if (action !== "status") {
+        ctx.ui.notify("Usage: /context-kit [status]", "error");
+        return;
+      }
+      ctx.ui.notify(formatContextKitStatus({
+        cwd: ctx.cwd,
+        injectionMessages,
+        injected: injectedFiles,
+        ignored: [...ignoredFiles.values()],
+      }), "info");
+    },
+  });
 
   pi.on("tool_call", traceHook<ToolCallEvent, ToolCallEventResult>(pi, "context-kit.tool_call", async (event, ctx) => {
     let filePath: string | undefined;
@@ -136,6 +172,7 @@ export default function (pi: ExtensionAPI) {
     const survivingPi: { path: string; content: string }[] = [];
     for (const cf of piContextFiles) {
       if (isIgnored(agentsIgnore, cf.path, cwd)) {
+        recordIgnored(cf.path, "Pi-loaded context", ".pi/agentsignore");
         prompt = exciseContextBlock(prompt, cf.path, cf.content);
       } else {
         survivingPi.push(cf);
@@ -159,7 +196,15 @@ export default function (pi: ExtensionAPI) {
     // gets served from Anthropic's prefix cache — no re-injection needed, and no
     // system-prompt modification that would bust the cache for prior turns.
 
-    const newBlocks: { heading: string; content: string }[] = [];
+    const newBlocks: Array<{ heading: string; content: string; file: InjectedContextFile }> = [];
+    const addBlock = (path: string, content: string, discovery: ContextKitDiscovery) => {
+      newBlocks.push({
+        heading: path,
+        content,
+        file: { path, kind: contextKind(path), discovery, bytes: Buffer.byteLength(content, "utf8") },
+      });
+      injectedAsMessages.add(path);
+    };
 
     // 3. AGENTS.local.md siblings of surviving Pi-loaded files. These are always
     //    relevant from session start, so they typically land on turn 1.
@@ -167,11 +212,13 @@ export default function (pi: ExtensionAPI) {
       const local = findLocalSibling(cf.path);
       if (!local) continue;
       if (piContextPaths.has(local) || injectedAsMessages.has(local)) continue;
-      if (isIgnored(agentsIgnore, local, cwd)) continue;
+      if (isIgnored(agentsIgnore, local, cwd)) {
+        recordIgnored(local, "Pi-loaded local sibling", ".pi/agentsignore");
+        continue;
+      }
       const content = readContent(local);
       if (content === null) continue;
-      newBlocks.push({ heading: local, content });
-      injectedAsMessages.add(local);
+      addBlock(local, content, "Pi-loaded local sibling");
     }
 
     // 4. Subdir AGENTS.md files discovered this session (walk-up from touched
@@ -179,32 +226,40 @@ export default function (pi: ExtensionAPI) {
     //    ordering within the injection batch.
     for (const agentsPath of [...discoveredAgents].sort()) {
       if (piContextPaths.has(agentsPath) || injectedAsMessages.has(agentsPath)) continue;
-      if (isIgnored(agentsIgnore, agentsPath, cwd)) continue;
-      const content = readContent(agentsPath);
-      if (content !== null) {
-        newBlocks.push({ heading: agentsPath, content });
-        injectedAsMessages.add(agentsPath);
+      if (isIgnored(agentsIgnore, agentsPath, cwd)) {
+        recordIgnored(agentsPath, "nested instruction discovery", ".pi/agentsignore");
+        continue;
       }
+      const content = readContent(agentsPath);
+      if (content !== null) addBlock(agentsPath, content, "nested instruction discovery");
       const local = findLocalSibling(agentsPath);
       if (!local || piContextPaths.has(local) || injectedAsMessages.has(local)) continue;
-      if (isIgnored(agentsIgnore, local, cwd)) continue;
+      if (isIgnored(agentsIgnore, local, cwd)) {
+        recordIgnored(local, "nested instruction discovery", ".pi/agentsignore");
+        continue;
+      }
       const localContent = readContent(local);
       if (localContent === null) continue;
-      newBlocks.push({ heading: local, content: localContent });
-      injectedAsMessages.add(local);
+      addBlock(local, localContent, "nested instruction discovery");
     }
 
     // 5. Rule files whose frontmatter glob/paths matched a touched file.
     for (const rulePath of [...discoveredRules].sort()) {
       if (piContextPaths.has(rulePath) || injectedAsMessages.has(rulePath)) continue;
-      if (isIgnored(ruleIgnore, rulePath, cwd)) continue;
+      if (isIgnored(ruleIgnore, rulePath, cwd)) {
+        recordIgnored(rulePath, "path-scoped rule match", ".pi/ruleignore");
+        continue;
+      }
       const content = readContent(rulePath);
       if (content === null) continue;
-      newBlocks.push({ heading: rulePath, content });
-      injectedAsMessages.add(rulePath);
+      addBlock(rulePath, content, "path-scoped rule match");
     }
 
     if (!systemPromptChanged && newBlocks.length === 0) return;
+    if (newBlocks.length > 0) {
+      injectionMessages++;
+      injectedFiles.push(...newBlocks.map((block) => block.file));
+    }
 
     return {
       ...(systemPromptChanged ? { systemPrompt: prompt } : {}),

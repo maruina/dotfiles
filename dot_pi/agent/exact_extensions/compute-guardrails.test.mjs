@@ -13,6 +13,10 @@ const blockedCases = [
   "bash -lc 'kubectl delete pod foo'",
   "sh -c \"aws s3 rm s3://bucket --recursive\"",
   "sudo env FOO=bar kubectl delete node n1",
+  "command -p kubectl delete pod foo",
+  "env -- kubectl delete pod foo",
+  "$(command -v kubectl) delete pod foo",
+  "$(which aws) ec2 terminate-instances --instance-ids i-123",
   "rm -rf /tmp/foo",
   "kubectl plugin-that-mutates stuff",
   "helm repo update",
@@ -36,6 +40,7 @@ const allowedCases = [
   "ddtool clusters list",
   "ddtool datacenters get us1.prod.dog",
   "ddtool auth gitlab project-token DataDog/experimental",
+  "command -v kubectl",
   "echo kubectl delete pod foo",
 ];
 

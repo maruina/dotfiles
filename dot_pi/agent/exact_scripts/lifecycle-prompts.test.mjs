@@ -74,3 +74,8 @@ test("simplify and PR review report skill provenance", () => {
 
   assert.match(prompt("pr-review.md"), /domain rules are `prompt-required`/i);
 });
+
+test("weekly summary has no obsolete session-note command reference", () => {
+  assert.equal(existsSync(path.join(promptsDir, "session-note.md")), false);
+  assert.doesNotMatch(prompt("weekly-summary.md"), /\/prompt:session-note|\/session-note/);
+});

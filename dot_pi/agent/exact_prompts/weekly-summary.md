@@ -41,7 +41,7 @@ Read the existing note with:
 obsidian read file="Datadog/Snippets/Week of <YYYY-MM-DD>.md" 2>/dev/null | tail -n +3
 ```
 
-If the note exists, treat its content as an important source. It may contain `/prompt:session-note` output from the week. Preserve useful details, links, open questions, and next steps when drafting the final weekly page.
+If the note exists, treat its content as an important source. Preserve useful details, links, open questions, and next steps when drafting the final weekly page.
 
 If the note does not exist, continue and create it in the final phase.
 

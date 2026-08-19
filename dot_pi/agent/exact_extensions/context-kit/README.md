@@ -29,13 +29,13 @@ This is needed for local tests and for the extension's TypeScript/ESM style.
 
 ## What it does
 
-On every Pi turn, `context-kit` rewrites the system prompt to apply local context policy:
+On every Pi turn, `context-kit` applies local context policy:
 
-1. Removes ignored context files using `.pi/agentsignore`.
-2. Adds local personal siblings such as `AGENTS.local.md` and `CLAUDE.local.md`.
-3. Discovers nested instruction files when the agent touches files below the current working directory.
-4. Adds matching Claude/Cursor rule files based on frontmatter globs.
-5. Removes ignored skills using `.pi/skillignore`.
+1. Removes ignored Pi-loaded context files from the system prompt using `.pi/agentsignore`.
+2. Removes ignored skills from the system prompt using `.pi/skillignore`.
+3. Injects local personal siblings such as `AGENTS.local.md` and `CLAUDE.local.md` as hidden messages.
+4. Discovers nested instruction files when the agent touches files below the current working directory and injects them as hidden messages.
+5. Injects matching Claude/Cursor rule files based on frontmatter globs as hidden messages.
 
 Nested context discovery happens when tools touch files through `read`, `write`, or `edit`. Discovered context is injected on the next user turn, not mid-turn.
 

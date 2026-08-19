@@ -256,7 +256,11 @@ function stripPrefixes(tokens: string[]): string[] {
       out = stripEnv(out.slice(1));
       continue;
     }
-    if (["command", "nohup", "time", "xargs"].includes(command)) {
+    if (command === "command") {
+      out = stripCommand(out.slice(1));
+      continue;
+    }
+    if (["nohup", "time", "xargs"].includes(command)) {
       out = out.slice(1);
       continue;
     }
@@ -284,10 +288,21 @@ function stripSudo(tokens: string[]): string[] {
   return tokens.slice(i);
 }
 
+function stripCommand(tokens: string[]): string[] {
+  let i = 0;
+  while (i < tokens.length && isFlag(tokens[i])) {
+    if (tokens[i] === "--") return tokens.slice(i + 1);
+    if (/^-[A-Za-z]*[vV][A-Za-z]*$/.test(tokens[i])) return [];
+    i++;
+  }
+  return tokens.slice(i);
+}
+
 function stripEnv(tokens: string[]): string[] {
   let i = 0;
   while (i < tokens.length) {
     const token = tokens[i];
+    if (token === "--") return tokens.slice(i + 1);
     if (isAssignment(token)) {
       i++;
       continue;
@@ -479,7 +494,18 @@ function inspectCommandSubstitutions(command: string, depth: number): DenyRecord
   return null;
 }
 
+function resolvedProtectedTool(segment: string): { tool: string; args: string[] } | null {
+  const match = /^\s*\$\(\s*(?:command(?:\s+-[A-Za-z]*)*\s+-[A-Za-z]*v[A-Za-z]*|which|type\s+-p)\s+(aws|ddtool|helm|kubectl)\s*\)/.exec(segment);
+  if (!match) return null;
+
+  const tool = match[1];
+  return { tool, args: skipGlobalFlags(tool, tokenize(segment.slice(match[0].length))) };
+}
+
 function checkSegment(segment: string, depth: number): DenyRecord | null {
+  const resolved = resolvedProtectedTool(segment);
+  if (resolved) return protectedToolDecision(resolved.tool, resolved.args);
+
   const tokens = stripPrefixes(tokenize(segment));
   if (tokens.length === 0) return null;
 

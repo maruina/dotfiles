@@ -177,13 +177,25 @@ npx tsc --noEmit \
 
 ## Session observability
 
-Run `/context-kit status` to inspect additional context this extension handled in the current session:
+Run `/context-kit status` to inspect context-kit activity:
 
-- injected source files, their source kind, discovery mechanism, and byte size;
-- total injected messages, source files, and bytes;
-- files suppressed by `.pi/agentsignore` or `.pi/ruleignore`.
+- **current session**: injected source files, their source kind, discovery mechanism, and byte size; total injected messages, source files, and bytes; files suppressed by `.pi/agentsignore` or `.pi/ruleignore`.
+- **all sessions**: how many sessions are recorded, how many used context-kit, total injected messages/files/bytes, total ignored files, the top injected files ranked by how many sessions pulled them in, and a by-kind breakdown. This is the view that tells you whether the extension earns its keep.
 
-The command reports extension-local state only. It does not reconstruct prior sessions or list skills filtered by `.pi/skillignore`.
+Per-session usage is persisted to `~/.pi/agent/context-kit-usage/<sessionId>.json` (one file per session, written atomically, capped at the 1000 most recent). Historical sessions from before this store shipped are reconstructed once by the `backfill-context-kit-usage` script (see below); going forward every session gets a record automatically.
+
+The command reports extension-local state plus the persisted aggregate. It does not list skills filtered by `.pi/skillignore`.
+
+## Backfilling historical sessions
+
+After upgrading to the usage store, run the one-shot migration once so `/context-kit status` reflects past sessions, not just future ones:
+
+```bash
+cd ~/.pi/agent
+node --experimental-strip-types exact_scripts/backfill-context-kit-usage.mjs
+```
+
+It parses every `context-kit-discovery` message in `~/.pi/agent/sessions/` and writes one record per session into `~/.pi/agent/context-kit-usage/`. It is idempotent: re-running skips sessions that already have a record, and it never clobbers a live record (which is richer — it includes ignored files). Override the dirs with `--sessions-dir` and `--usage-dir` for testing.
 
 ## Future improvements
 

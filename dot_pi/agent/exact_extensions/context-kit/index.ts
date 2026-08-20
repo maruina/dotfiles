@@ -1,7 +1,8 @@
 import type { BeforeAgentStartEvent, BeforeAgentStartEventResult, ExtensionAPI, Skill, ToolCallEvent, ToolCallEventResult } from "@earendil-works/pi-coding-agent";
-import { isToolCallEventType } from "@earendil-works/pi-coding-agent";
-import { readFileSync } from "node:fs";
-import { dirname, relative, resolve } from "node:path";
+import { getAgentDir, isToolCallEventType } from "@earendil-works/pi-coding-agent";
+import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, join, relative, resolve } from "node:path";
 import { findLocalSibling, walkUpForAgents } from "./_agents.ts";
 import {
   isIgnored,
@@ -15,11 +16,17 @@ import { traceHook } from "../_shared/tracing.ts";
 import { filterSkillsFromPrompt } from "./_skills.ts";
 import {
   contextKind,
+  formatContextKitAggregate,
   formatContextKitStatus,
   type ContextKitDiscovery,
   type IgnoredContextFile,
   type InjectedContextFile,
 } from "./_status.ts";
+import {
+  loadAllUsageRecords,
+  saveUsageRecord,
+  usageRecordPath,
+} from "./_usage.ts";
 
 /**
  * Context-kit — per-session policy over which context blocks appear in the
@@ -97,6 +104,17 @@ export default function (pi: ExtensionAPI) {
   const injectedFiles: InjectedContextFile[] = [];
   const ignoredFiles = new Map<string, IgnoredContextFile>();
   let injectionMessages = 0;
+  // Count of files first recorded as ignored this turn. Reset at the top of
+  // each before_agent_start; used to decide whether to persist the usage
+  // record even when nothing was injected.
+  let newIgnoresThisTurn = 0;
+
+  // Usage store: one record per session, aggregated by /context-kit status to
+  // show whether the extension earns its keep. The dir is overridable via env
+  // var so tests can point at a temp dir instead of the real ~/.pi/agent.
+  // Historical sessions are backfilled once via the `backfill-context-kit-usage`
+  // script; the extension itself only persists live records and reads them back.
+  const usageDir = process.env.PI_CONTEXT_KIT_USAGE_DIR ?? join(getAgentDir(), "context-kit-usage");
 
   const recordIgnored = (
     path: string,
@@ -105,6 +123,7 @@ export default function (pi: ExtensionAPI) {
   ) => {
     if (ignoredFiles.has(path)) return;
     ignoredFiles.set(path, { path, kind: contextKind(path), discovery, reason });
+    newIgnoresThisTurn++;
   };
 
   pi.registerCommand("context-kit", {
@@ -115,12 +134,17 @@ export default function (pi: ExtensionAPI) {
         ctx.ui.notify("Usage: /context-kit [status]", "error");
         return;
       }
-      ctx.ui.notify(formatContextKitStatus({
-        cwd: ctx.cwd,
-        injectionMessages,
-        injected: injectedFiles,
-        ignored: [...ignoredFiles.values()],
-      }), "info");
+      const records = loadAllUsageRecords(usageDir);
+      const report =
+        formatContextKitStatus({
+          cwd: ctx.cwd,
+          injectionMessages,
+          injected: injectedFiles,
+          ignored: [...ignoredFiles.values()],
+        }) +
+        "\n\n" +
+        formatContextKitAggregate(records, homedir());
+      ctx.ui.notify(report, "info");
     },
   });
 
@@ -152,7 +176,8 @@ export default function (pi: ExtensionAPI) {
     }
   }));
 
-  pi.on("before_agent_start", traceHook<BeforeAgentStartEvent, BeforeAgentStartEventResult>(pi, "context-kit.before_agent_start", async (event) => {
+  pi.on("before_agent_start", traceHook<BeforeAgentStartEvent, BeforeAgentStartEventResult>(pi, "context-kit.before_agent_start", async (event, ctx) => {
+    newIgnoresThisTurn = 0;
     const cwd = resolve(event.systemPromptOptions.cwd);
 
     // Loaders are called every turn so edits to the ignore files take effect
@@ -255,11 +280,31 @@ export default function (pi: ExtensionAPI) {
       addBlock(rulePath, content, "path-scoped rule match");
     }
 
-    if (!systemPromptChanged && newBlocks.length === 0) return;
     if (newBlocks.length > 0) {
       injectionMessages++;
       injectedFiles.push(...newBlocks.map((block) => block.file));
     }
+
+    // Persist this session's usage so /context-kit status can aggregate across
+    // sessions. Write when something changed this turn, or on the first turn
+    // so sessions where context-kit injects nothing still count as recorded.
+    const sessionId = ctx.sessionManager.getSessionId();
+    const shouldSave =
+      newBlocks.length > 0 ||
+      newIgnoresThisTurn > 0 ||
+      !existsSync(usageRecordPath(usageDir, sessionId));
+    if (shouldSave) {
+      saveUsageRecord(usageDir, {
+        sessionId,
+        cwd,
+        mtime: Date.now(),
+        injectionMessages,
+        injected: injectedFiles,
+        ignored: [...ignoredFiles.values()],
+      });
+    }
+
+    if (!systemPromptChanged && newBlocks.length === 0) return;
 
     return {
       ...(systemPromptChanged ? { systemPrompt: prompt } : {}),

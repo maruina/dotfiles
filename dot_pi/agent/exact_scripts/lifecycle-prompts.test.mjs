@@ -79,3 +79,19 @@ test("weekly summary has no obsolete session-note command reference", () => {
   assert.equal(existsSync(path.join(promptsDir, "session-note.md")), false);
   assert.doesNotMatch(prompt("weekly-summary.md"), /\/prompt:session-note|\/session-note/);
 });
+
+test("PR commands have distinct roles and aligned review artifacts", () => {
+  const review = prompt("pr-review.md");
+  const addressFeedback = prompt("pr-address-feedback.md");
+  const create = prompt("pr-create.md");
+  const update = prompt("pr-update.md");
+  const cleanup = prompt("pr-cleanup.md");
+
+  assert.match(review, /Use `\/pr-address-feedback` to decide whether feedback on your own PR applies/);
+  assert.match(review, /~\/dd\/\.worktrees\/REPO-pr-PR_NUMBER-review\.html/);
+  assert.match(addressFeedback, /Build a \*\*targeted model\*\*, not a full `\/pr-review` narrative/);
+  assert.match(create, /post one `@codex review` comment/);
+  assert.match(update, /Do not post `@codex review` unless the user explicitly asks/);
+  assert.match(cleanup, /git worktree remove "\$WORKTREE"/);
+  assert.doesNotMatch(cleanup, /git worktree remove[^\n]*--force/);
+});

@@ -7,7 +7,7 @@ PR request: `$ARGUMENTS`
 
 Review the PR by understanding the system first, then assessing the change.
 
-Use `/pr-review` to understand and assess someone else's GitHub PR. Use `/systematic-review` to review a plan or local code before execution, and `/verify` for the final closeout gate after execution.
+Use `/pr-review` to understand and independently assess someone else's GitHub PR. Use `/pr-address-feedback` to decide whether feedback on your own PR applies. Use `/systematic-review` to review a plan or local code before execution, and `/verify` for the final closeout gate after execution.
 
 <HARD-GATE>
 Do not edit files, post GitHub comments, approve, or request changes unless the user explicitly asks. This is a read-only review.
@@ -225,6 +225,8 @@ Produce Markdown in this structure:
 - ...
 
 ## Reviewer comprehension checks
+> Include only when the user asks for a teaching-oriented review or the familiarity level is `0` or `1`.
+
 - 3-5 short questions a reviewer should be able to answer after reading the review. Focus on behavior, edge cases, invariants, rollout, and tests. Do not make them gotchas.
 
 ## Suggested review comment
@@ -233,7 +235,7 @@ A concise draft the user can edit before posting. If no comment is needed, say s
 
 Keep the verdict short. Do not post it.
 
-If the user asks for `html` or a shareable artifact, also write an HTML explanation outside the repo at `/tmp/YYYY-MM-DD-pr-review-ORG-REPO-PR_NUMBER.html`. Include the same skill provenance as the Markdown report. Include CSS and, if using interactive comprehension checks, JavaScript. Use Mermaid diagrams when they reduce cognitive load, rendered from the CDN with `<script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs"; mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "strict" });</script>`. Put Mermaid source in `<pre class="mermaid">` blocks. Note that the HTML artifact needs network access to render Mermaid diagrams. Do not use ASCII diagrams in HTML output. Use simple HTML diagrams when Mermaid is not needed, and use `<pre>` tags for code blocks.
+If the user asks for `html` or a shareable artifact, also write an HTML explanation outside the repo at `~/dd/.worktrees/REPO-pr-PR_NUMBER-review.html`. Include the same skill provenance as the Markdown report. Include CSS and, if using interactive comprehension checks, JavaScript. Use Mermaid diagrams when they reduce cognitive load, rendered from the CDN with `<script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs"; mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "strict" });</script>`. Put Mermaid source in `<pre class="mermaid">` blocks. Note that the HTML artifact needs network access to render Mermaid diagrams. Do not use ASCII diagrams in HTML output. Use simple HTML diagrams when Mermaid is not needed, and use `<pre>` tags for code blocks.
 
 ## Phase 10: Follow-up
 End by saying that follow-up questions should refer to `WORKTREE` when available. Use that worktree for any follow-up reads.

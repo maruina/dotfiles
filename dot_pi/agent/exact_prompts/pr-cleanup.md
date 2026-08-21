@@ -1,46 +1,40 @@
 ---
-description: Clean up artifacts left by /pr-review for a completed PR
-argument-hint: "<GitHub PR URL, e.g. https://github.com/DataDog/dd-source/pull/12345>"
+description: Safely remove the review worktree and optional HTML artifact for a completed PR
+argument-hint: "<GitHub PR URL>"
 ---
 # PR Cleanup
-
 PR URL: `$ARGUMENTS`
 
-Clean up the worktree and HTML file created by `/pr-review` for this PR.
+Remove only the local artifacts created by `/pr-review` for this PR.
 
-## Phase 1: Parse
+## Parse and locate artifacts
+Require a PR URL in this form:
 
-Extract from the URL:
-- `REPO` (e.g. `dd-source`)
-- `PR_NUMBER` (e.g. `352925`)
-
-Derive artifact paths:
-
+```text
+https://github.com/ORG/REPO/pull/NUMBER
 ```
+
+Extract `REPO` and `PR_NUMBER`. If the URL is missing or invalid, ask for it and stop.
+
+```text
 WORKTREE = ~/dd/.worktrees/REPO-pr-PR_NUMBER-review
 HTML     = ~/dd/.worktrees/REPO-pr-PR_NUMBER-review.html
 ```
 
-## Phase 2: Remove worktree
+## Remove safely
+If `WORKTREE` does not exist, report it as absent. Otherwise:
+1. Verify that it is a Git worktree with `git -C "$WORKTREE" rev-parse --is-inside-work-tree`. If that fails, do not remove it.
+2. Check for uncommitted changes with `git -C "$WORKTREE" status --short`.
+3. If it is dirty, do not remove it. Report the path and ask for explicit confirmation to discard its changes.
+4. If it is clean, remove it without `--force`:
 
 ```bash
-git worktree remove ~/dd/.worktrees/REPO-pr-PR_NUMBER-review --force 2>/dev/null || true
+git worktree remove "$WORKTREE"
 ```
 
-If the worktree does not exist, skip silently.
+Remove `HTML` with `rm -f "$HTML"` when it exists.
 
-## Phase 3: Remove HTML file
-
-```bash
-rm -f ~/dd/.worktrees/REPO-pr-PR_NUMBER-review.html
-```
-
-## Phase 4: Confirm
-
-Print a one-line summary of what was removed, e.g.:
-
-> Cleaned up PR #PR_NUMBER: removed worktree `~/dd/.worktrees/REPO-pr-PR_NUMBER-review` and HTML file.
-
-If neither artifact existed, print:
+## Report
+State separately whether the worktree and HTML artifact were removed, absent, or retained because the worktree was dirty. If neither artifact existed, say:
 
 > Nothing to clean up for PR #PR_NUMBER.

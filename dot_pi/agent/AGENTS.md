@@ -15,6 +15,8 @@ Write the minimum code that solves the problem. Optimize for the next reader:
 - Do not add unrequested features, abstractions, or configurability.
 - Do not add speculative handling for scenarios the system makes impossible.
 - If the solution feels overcomplicated, simplify it before extending it.
+- Before adding code, follow the decision ladder: skip the work if it isn't needed → reuse existing code → use the standard library → use native platform features → use an already-installed dependency → write the smallest new code that works. Each step is a gate; only descend when the previous one is genuinely unavailable.
+- When a deliberate simplification has a known ceiling, annotate it with a `deliberate:` comment naming the limit and the likely upgrade path, so the next reader knows the shortcut was intentional and when to revisit it.
 
 ## Surgical Changes
 Change only what the task requires:

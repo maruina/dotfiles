@@ -25,7 +25,7 @@ import registerToHtml, {
 
 const require = createRequire(import.meta.url);
 const mermaidBundle = await readFile(
-  require.resolve("mermaid/dist/mermaid.esm.min.mjs"),
+  require.resolve("mermaid/dist/mermaid.min.js"),
   "utf8",
 );
 
@@ -35,6 +35,8 @@ function assistant(content, stopReason = "stop") {
     message: { role: "assistant", content, stopReason },
   };
 }
+
+const renderedMain = (html) => html.match(/<main>([\s\S]*?)<\/main>/)?.[1] ?? "";
 
 function createHarness() {
   const commands = new Map();
@@ -114,6 +116,26 @@ test("renders Markdown, code, and Mermaid in source order", () => {
   assert.match(html, /Diagram unavailable/);
 });
 
+test("embeds Mermaid's standalone browser bundle instead of unresolved ESM chunks", () => {
+  const html = renderHtml(
+    [
+      "```mermaid",
+      " sequenceDiagram",
+      "     participant Trigger as Provision or child upgrade",
+      "     participant Account as Account workflow",
+      "     Trigger->>Account: start lifecycle operation",
+      "```",
+    ].join("\n"),
+    mermaidBundle,
+  );
+
+  assert.match(html, /<pre class="mermaid"> sequenceDiagram/);
+  assert.match(html, /globalThis\["mermaid"\]/);
+  assert.match(html, /const mermaid = globalThis\.mermaid/);
+  assert.match(html, /error instanceof Error \? error\.message : String\(error\)/);
+  assert.doesNotMatch(html, /from"\.\/chunks\/mermaid/);
+});
+
 test("escapes untrusted markup and keeps media and unsafe links inert", () => {
   const html = renderHtml(
     [
@@ -128,13 +150,14 @@ test("escapes untrusted markup and keeps media and unsafe links inert", () => {
     mermaidBundle,
   );
 
-  assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
-  assert.doesNotMatch(html, /<img\b/);
-  assert.match(html, /remote image/);
-  assert.match(html, /href="https:\/\/example\.test\/path"/);
-  assert.doesNotMatch(html, /href="javascript:/);
-  assert.match(html, /&lt;\/pre&gt;&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
-  assert.doesNotMatch(html, /https:\/\/cdn\.|https:\/\/fonts\.|<script[^>]+src=/);
+  const body = renderedMain(html);
+  assert.match(body, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  assert.doesNotMatch(body, /<img\b/);
+  assert.match(body, /remote image/);
+  assert.match(body, /href="https:\/\/example\.test\/path"/);
+  assert.doesNotMatch(body, /href="javascript:/);
+  assert.match(body, /&lt;\/pre&gt;&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  assert.doesNotMatch(html, /<(?:script|link|img)\b[^>]+(?:src|href)="https?:\/\//);
 });
 
 test("rejects response input beyond byte and complete Mermaid-fence limits", () => {

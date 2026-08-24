@@ -1,13 +1,13 @@
 ---
-description: Safely remove the review worktree and optional HTML artifact for a completed PR
+description: Safely remove the review worktree for a completed PR
 argument-hint: "<GitHub PR URL>"
 ---
 # PR Cleanup
 PR URL: `$ARGUMENTS`
 
-Remove only the local artifacts created by `/pr-review` for this PR.
+Remove only the local review worktree created by `/pr-review` for this PR.
 
-## Parse and locate artifacts
+## Parse and locate worktree
 Require a PR URL in this form:
 
 ```text
@@ -18,7 +18,6 @@ Extract `REPO` and `PR_NUMBER`. If the URL is missing or invalid, ask for it and
 
 ```text
 WORKTREE = ~/dd/.worktrees/REPO-pr-PR_NUMBER-review
-HTML     = ~/dd/.worktrees/REPO-pr-PR_NUMBER-review.html
 ```
 
 ## Remove safely
@@ -32,9 +31,7 @@ If `WORKTREE` does not exist, report it as absent. Otherwise:
 git worktree remove "$WORKTREE"
 ```
 
-Remove `HTML` with `rm -f "$HTML"` when it exists.
-
 ## Report
-State separately whether the worktree and HTML artifact were removed, absent, or retained because the worktree was dirty. If neither artifact existed, say:
+State whether the worktree was removed, absent, or retained because it was dirty. If it was absent, say:
 
 > Nothing to clean up for PR #PR_NUMBER.

@@ -32,7 +32,15 @@ test("troubleshoot enforces a read-only gate and hands off remediation", () => {
   const text = prompt("troubleshoot.md");
 
   requireMarkers(text, [
-    /apply|delete|scale|restart|cancel|terminate|signal|rollback|retry/i,
+    /apply/i,
+    /delete/i,
+    /scale/i,
+    /restart/i,
+    /cancel/i,
+    /terminate/i,
+    /signal/i,
+    /rollback/i,
+    /retry/i,
     /read-only/i,
     /handoff|lifecycle|owner|runbook/i,
   ]);
@@ -50,14 +58,25 @@ test("troubleshoot requires evidence labels and reserves root cause", () => {
   ]);
 });
 
-test("troubleshoot routes Atlas/Temporal URLs and loads the matching skill", () => {
+test("troubleshoot routes only from explicit skill-description matches", () => {
+  const text = prompt("troubleshoot.md");
+
+  requireMarkers(text, [
+    /skill only when its description explicitly matches a supplied identifier or confirmed evidence/i,
+    /Do not infer a route from a plausible correlation/i,
+    /If no skill description explicitly matches, emit a bounded source-of-truth gap and ask for a pointer/i,
+    /load.*matching skill|matching skill.*load/is,
+  ]);
+});
+
+test("troubleshoot routes Atlas/Temporal URLs to a bounded failure-chain investigation", () => {
   const text = prompt("troubleshoot.md");
 
   requireMarkers(text, [
     /atlas-workflows/,
     /atlas\.ddbuild\.io/,
     /temporal\.ddbuild\.io/,
-    /load.*matching skill|matching skill.*load/is,
+    /collect a bounded visible failure chain/i,
   ]);
 });
 
@@ -96,6 +115,18 @@ test("troubleshoot defines a routing-candidate format and forbids mutation", () 
     /Confidence:/,
     /Promotion path:/,
     /do not modify|must not modify|never.*modify/is,
+  ]);
+});
+
+test("troubleshoot encodes the required behavior-specific scenario contracts", () => {
+  const text = prompt("troubleshoot.md");
+
+  requireMarkers(text, [
+    /lead with confirmed impact and recommend the smallest stabilizing action and owner/i,
+    /Read-only diagnosis must not delay that recommendation/i,
+    /dependency explanation remains a hypothesis or unknown/i,
+    /Treat an ambiguous environment, account, cluster, namespace, domain, or context as a stop condition/i,
+    /Do not modify skills, prompts, or routing knowledge during the investigation/i,
   ]);
 });
 

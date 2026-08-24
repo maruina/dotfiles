@@ -141,19 +141,8 @@ const createMarkdownRenderer = (): Marked => {
   return new Marked({ gfm: true, renderer });
 };
 
-const inlineMermaidBundle = (bundle: string): string => {
-  const matches = [...bundle.matchAll(/export\s*\{([^}]*)\};?/g)];
-  const exported = matches.findLast((match) => /\bas default\b/.test(match[1]));
-  const defaultBinding = exported?.[1].match(/([A-Za-z_$][\w$]*)\s+as default/)?.[1];
-  if (!exported || !defaultBinding || exported.index === undefined) {
-    throw new Error("Mermaid bundle does not expose a default export");
-  }
-
-  const before = bundle.slice(0, exported.index);
-  const after = bundle.slice(exported.index + exported[0].length);
-  return `${before}globalThis.__piToHtmlMermaid = ${defaultBinding};${after}`
-    .replaceAll("</script", "<\\/script");
-};
+const inlineMermaidBundle = (bundle: string): string =>
+  bundle.replace(/<\/script/gi, "<\\/script");
 
 export const renderHtml = (source: string, mermaidBundle: string): string => {
   const { tokens } = tokenize(source);
@@ -179,27 +168,30 @@ a { color: #4c8bf5; }
 </head>
 <body>
 <main>${body}</main>
-<script type="module">
+<script>
 ${bundle}
-const mermaid = globalThis.__piToHtmlMermaid;
-delete globalThis.__piToHtmlMermaid;
+const mermaid = globalThis.mermaid;
 mermaid.initialize({ securityLevel: "strict", startOnLoad: false });
-for (const [index, placeholder] of document.querySelectorAll("pre.mermaid").entries()) {
-  const source = placeholder.textContent ?? "";
-  try {
-    const { svg } = await mermaid.render("pi-to-html-" + index, source);
-    placeholder.outerHTML = svg;
-  } catch (error) {
-    const panel = document.createElement("div");
-    panel.className = "mermaid-error";
-    const message = document.createElement("p");
-    message.textContent = "Diagram unavailable";
-    const fallback = document.createElement("pre");
-    fallback.textContent = source;
-    panel.append(message, fallback);
-    placeholder.replaceWith(panel);
+void (async () => {
+  for (const [index, placeholder] of document.querySelectorAll("pre.mermaid").entries()) {
+    const source = placeholder.textContent ?? "";
+    try {
+      const { svg } = await mermaid.render("pi-to-html-" + index, source);
+      placeholder.outerHTML = svg;
+    } catch (error) {
+      const panel = document.createElement("div");
+      panel.className = "mermaid-error";
+      const message = document.createElement("p");
+      message.textContent = "Diagram unavailable";
+      const detail = document.createElement("p");
+      detail.textContent = error instanceof Error ? error.message : String(error);
+      const fallback = document.createElement("pre");
+      fallback.textContent = source;
+      panel.append(message, detail, fallback);
+      placeholder.replaceWith(panel);
+    }
   }
-}
+})();
 </script>
 </body>
 </html>`;
@@ -221,7 +213,7 @@ export const selectLatestAssistantText = (entries: readonly SessionEntry[]): Res
 };
 
 const loadMermaidBundle = (): Promise<string> =>
-  readFile(require.resolve("mermaid/dist/mermaid.esm.min.mjs"), "utf8");
+  readFile(require.resolve("mermaid/dist/mermaid.min.js"), "utf8");
 
 type PreviewEntry = {
   path: string;

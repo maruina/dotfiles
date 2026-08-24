@@ -160,6 +160,23 @@ test("escapes untrusted markup and keeps media and unsafe links inert", () => {
   assert.doesNotMatch(html, /<(?:script|link|img)\b[^>]+(?:src|href)="https?:\/\//);
 });
 
+test("renders GFM tables with legible local styling", () => {
+  const html = renderHtml(
+    [
+      "| Component | Result |",
+      "| --- | --- |",
+      "| Renderer | Passed |",
+    ].join("\n"),
+    mermaidBundle,
+  );
+
+  assert.match(renderedMain(html), /<table>/);
+  assert.match(renderedMain(html), /<th>Component<\/th>/);
+  assert.match(renderedMain(html), /<td>Passed<\/td>/);
+  assert.match(html, /table \{ border-collapse: collapse;/);
+  assert.match(html, /th, td \{ border: 1px solid/);
+});
+
 test("rejects response input beyond byte and complete Mermaid-fence limits", () => {
   assert.deepEqual(validateInput("x".repeat(1024 * 1024 + 1)), {
     ok: false,

@@ -161,6 +161,9 @@ body { max-width: 72rem; margin: 2rem auto; padding: 0 1rem; }
 pre { overflow-x: auto; padding: 1rem; border-radius: .4rem; background: #1e1e1e; color: #f8f8f2; }
 code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 a { color: #4c8bf5; }
+table { border-collapse: collapse; margin: 1rem 0; max-width: 100%; }
+th, td { border: 1px solid currentColor; padding: .5rem; text-align: left; vertical-align: top; }
+th { font-weight: 700; }
 .image { color: #6b7280; }
 .mermaid-error { border: 1px solid #b45309; }
 .mermaid-error p { color: #b45309; font-weight: 600; }

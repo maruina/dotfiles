@@ -65,6 +65,7 @@ gantt
 - Keep arrow direction consistent unless bidirectional flow is intentional.
 - Avoid subgraphs deeper than two levels.
 - In sequence diagrams, declare readable participants with `participant X as Label`.
+- In sequence-diagram message labels, escape semicolons as `#59;` when the renderer treats `;` as a statement separator.
 - In flowcharts, choose one edge-label style and stick to it.
 - For `xychart-beta`, data point count must match category count.
 - For `gantt`, always set `dateFormat` and use `after <id>` for dependencies.

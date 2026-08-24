@@ -15,14 +15,17 @@
     "test:skills": "sh -c 'scripts=$([ -d exact_scripts ] && echo exact_scripts || echo scripts); node \"$scripts\"/validate-skills.mjs'",
     "test:skills:profiles": "sh -c 'scripts=$([ -d exact_scripts ] && echo exact_scripts || echo scripts); CHEZMOI_VALIDATE_PROFILE=work node \"$scripts\"/validate-skills.mjs && CHEZMOI_VALIDATE_PROFILE=personal node \"$scripts\"/validate-skills.mjs'",
     "test:smoke": "sh -c 'output=$(PI_OFFLINE=1 pi --no-session --no-context-files --list-models __pi_smoke_no_match__ 2>&1); status=$?; printf \"%s\\n\" \"$output\"; if [ $status -ne 0 ]; then exit $status; fi; ! printf \"%s\\n\" \"$output\" | grep -q \"\\[Extension issues\\]\"'",
-    "test:unit": "sh -c 'ext=$([ -d exact_extensions ] && echo exact_extensions || echo extensions); node --experimental-strip-types --test \"$ext\"/context-kit/*.test.ts \"$ext\"/files/*.test.ts \"$ext\"/lsp/__tests__/lsp.test.mjs \"$ext\"/compute-guardrails.test.mjs \"$ext\"/cost-optimization.test.mjs \"$ext\"/user-context.test.mjs \"$ext\"/lifecycle-model-recommender/*.test.ts'"
+    "test:unit": "sh -c 'ext=$([ -d exact_extensions ] && echo exact_extensions || echo extensions); node --experimental-strip-types --test \"$ext\"/context-kit/*.test.ts \"$ext\"/files/*.test.ts \"$ext\"/lsp/__tests__/lsp.test.mjs \"$ext\"/compute-guardrails.test.mjs \"$ext\"/cost-optimization.test.mjs \"$ext\"/to-html.test.mjs \"$ext\"/user-context.test.mjs \"$ext\"/lifecycle-model-recommender/*.test.ts'"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "module",
   "dependencies": {
+    "highlight.js": "11.12.0",
     "ignore": "^7.0.5",
+    "marked": "18.0.10",
+    "mermaid": "11.17.0",
     "minimatch": "^10.2.5"
   },
   "devDependencies": {

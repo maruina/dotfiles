@@ -235,7 +235,7 @@ A concise draft the user can edit before posting. If no comment is needed, say s
 
 Keep the verdict short. Do not post it.
 
-If the user asks for `html` or a shareable artifact, also write an HTML explanation outside the repo at `~/dd/.worktrees/REPO-pr-PR_NUMBER-review.html`. Include the same skill provenance as the Markdown report. Include CSS and, if using interactive comprehension checks, JavaScript. Use Mermaid diagrams when they reduce cognitive load, rendered from the CDN with `<script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs"; mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "strict" });</script>`. Put Mermaid source in `<pre class="mermaid">` blocks. Note that the HTML artifact needs network access to render Mermaid diagrams. Do not use ASCII diagrams in HTML output. Use simple HTML diagrams when Mermaid is not needed, and use `<pre>` tags for code blocks.
+If the user requests a local browser rendering, keep the report as Markdown and direct them to run `/to-html` after the response settles.
 
 ## Phase 10: Follow-up
 End by saying that follow-up questions should refer to `WORKTREE` when available. Use that worktree for any follow-up reads.

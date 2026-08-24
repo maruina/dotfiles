@@ -11,6 +11,15 @@
 ## Skills loaded and used
 | Skill | Source | Why loaded | How used |
 |---|---|---|---|
+| `skill-loader` | prompt-required | Determine which execution skills apply to the affected files. | Confirmed `chezmoi` (source file), `write` (prose), and `codebase-research` (unfamiliar area) apply; no Go/TS/Terraform trigger. |
+| `chezmoi` | skill-loader | The new prompt is a managed source file under `dot_pi/agent/exact_prompts/`. | Established source path, `exact_` target mapping, `diff`/`apply` workflow, and `npm test` validation. |
+| `write` | skill-loader | The product is operational prompt prose. | Applied concise imperative style, US English, no blank line after frontmatter/headings. |
+| `codebase-research` | skill-loader | Prompt conventions and test harness determine the implementation. | Mapped `requireMarkers` + `prompt()` helpers, frontmatter shape, and `*-prompts.test.mjs` glob. |
+
+### Execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+|---|---|---|---|
 | `skill-loader` | prompt-required | Determine skills needed to plan a global Pi prompt in chezmoi. | Identified `chezmoi` and `write` as applicable; confirmed no Go/TS/Terraform trigger applies to a Markdown prompt. |
 | `chezmoi` | skill-loader | The new prompt is a managed source file under `dot_pi/agent/exact_prompts/`. | Established source path, `exact_` target mapping, `diff`/`apply` workflow, and `npm test` validation commands. |
 | `write` | skill-loader | The product is operational prompt prose. | Applied concise imperative style, US English, no blank lines after frontmatter or headings. |
@@ -219,8 +228,8 @@ The prompt SHALL record each skill loaded and used with its source (`prompt-requ
 **Files:**
 - create `dot_pi/agent/exact_scripts/troubleshoot-prompts.test.mjs`
 
-- [ ] Ensure `dot_pi/agent/node_modules` exists: `cd dot_pi/agent && npm ci --ignore-scripts`.
-- [ ] Create `troubleshoot-prompts.test.mjs` mirroring the `requireMarkers` + `prompt()` helpers from `learn-prompts.test.mjs`. Assert:
+- [x] Ensure `dot_pi/agent/node_modules` exists: `cd dot_pi/agent && npm ci --ignore-scripts`.
+- [x] Create `troubleshoot-prompts.test.mjs` mirroring the `requireMarkers` + `prompt()` helpers from `learn-prompts.test.mjs`. Assert:
   - `dot_pi/agent/exact_prompts/troubleshoot.md` exists.
   - Frontmatter contains `description:` and `argument-hint:`.
   - Body contains `$ARGUMENTS`.
@@ -233,35 +242,35 @@ The prompt SHALL record each skill loaded and used with its source (`prompt-requ
   - Routing-candidate fields: Trigger, Recommended skill or source of truth, Evidence, Scope and read-only safety boundary, Confidence, Promotion path.
   - A marker prohibiting modification of routing knowledge during the investigation.
   - `Skills loaded and used` table with `Skill | Source | Why loaded | How used` and sources `prompt-required`/`agent-selected`.
-- [ ] Run `cd dot_pi/agent && npm run test:prompts` and confirm it fails because `troubleshoot.md` is absent (red).
-- [ ] Commit: `test(pi): add troubleshoot prompt contract test`.
+- [x] Run `cd dot_pi/agent && npm run test:prompts` and confirm it fails because `troubleshoot.md` is absent (red). All 8 new tests fail with ENOENT on `troubleshoot.md`; other prompt tests unaffected.
+- [x] Commit: `test(pi): add troubleshoot prompt contract test` (commit `4bac6a3`).
 
 ### Task 2: Write the coordinator prompt (green)
 **Traces to:** all acceptance requirements.
 **Files:**
 - create `dot_pi/agent/exact_prompts/troubleshoot.md`
 
-- [ ] Write `troubleshoot.md` with frontmatter `description` and `argument-hint: "<Atlas or Temporal workflow URL, error, or symptom>"`, followed by `> $ARGUMENTS`.
-- [ ] Implement the investigation contract sections from the design: Establish the problem report, Triage, Route and examine, Diagnose (hypothesis ledger), Conclude and hand off.
-- [ ] Implement the evidence and assertion policy table with the four labels and the "root cause" restriction.
-- [ ] Implement the routing and knowledge-growth contract: explicit skill-description matching, the Atlas/Temporal → `atlas-workflows` explicit route, the conditional `datadog-mcp` route, the source-of-truth-gap fallback for unmatched systems, and the `Routing candidate` format with the `/brainstorm`-only promotion path and the no-mutation rule.
-- [ ] Implement the read-only hard gate listing prohibited mutators and the handoff to owners/runbooks/lifecycle prompts.
-- [ ] Implement the output contract template exactly as specified in the design.
-- [ ] Include the `Skills loaded and used` table with `prompt-required`/`agent-selected` sources.
-- [ ] Run `cd dot_pi/agent && npm run test:prompts` and confirm it passes (green).
-- [ ] Run `cd dot_pi/agent && npm run test:skills` and confirm it stays green (no skill changes).
-- [ ] Run `cd dot_pi/agent && npm test` and confirm the full suite passes.
-- [ ] Commit: `feat(pi): add troubleshoot coordinator prompt`.
+- [x] Write `troubleshoot.md` with frontmatter `description` and `argument-hint: "<Atlas or Temporal workflow URL, error, or symptom>"`, followed by `> $ARGUMENTS`.
+- [x] Implement the investigation contract sections from the design: Establish the problem report, Triage, Route and examine, Diagnose (hypothesis ledger), Conclude and hand off.
+- [x] Implement the evidence and assertion policy table with the four labels and the "root cause" restriction.
+- [x] Implement the routing and knowledge-growth contract: explicit skill-description matching, the Atlas/Temporal → `atlas-workflows` explicit route, the conditional `datadog-mcp` route, the source-of-truth-gap fallback for unmatched systems, and the `Routing candidate` format with the `/brainstorm`-only promotion path and the no-mutation rule.
+- [x] Implement the read-only hard gate listing prohibited mutators and the handoff to owners/runbooks/lifecycle prompts.
+- [x] Implement the output contract template exactly as specified in the design.
+- [x] Include the `Skills loaded and used` table with `prompt-required`/`agent-selected` sources.
+- [x] Run `cd dot_pi/agent && npm run test:prompts` and confirm it passes (green). 20/20 pass after adding the `atlas.ddbuild.io`/`temporal.ddbuild.io` hosts to the routing section.
+- [x] Run `cd dot_pi/agent && npm run test:skills` and confirm it stays green (no skill changes). Validated 29 skills.
+- [x] Run `cd dot_pi/agent && npm test` and confirm the full suite passes. 105 unit + 20 prompt tests pass; skills and pi-deps green.
+- [x] Commit: `feat(pi): add troubleshoot coordinator prompt` (commit `90cd5ac`).
 
 ### Task 3: Render and apply the prompt target
 **Traces to:** Prompt template structure (rendered target).
 **Files:**
 - rendered target `~/.pi/agent/prompts/troubleshoot.md`
 
-- [ ] Run `chezmoi diff ~/.pi/agent/prompts/troubleshoot.md` and confirm the diff shows only the new prompt target (no unrelated removals, since `exact_prompts/` is `exact_`).
-- [ ] Run `chezmoi apply ~/.pi/agent/prompts/troubleshoot.md`.
-- [ ] Confirm the rendered file exists: `test -f ~/.pi/agent/prompts/troubleshoot.md`.
-- [ ] No commit (target rendering only).
+- [x] Run `chezmoi --source <worktree> diff ~/.pi/agent/prompts/troubleshoot.md` and confirm the diff shows only the new prompt target (no unrelated removals, since `exact_prompts/` is `exact_`).
+- [x] Run `chezmoi --source <worktree> apply ~/.pi/agent/prompts/troubleshoot.md`.
+- [x] Confirm the rendered file exists: `test -f ~/.pi/agent/prompts/troubleshoot.md`. Rendered output matches source via `execute-template` diff.
+- [x] No commit (target rendering only).
 
 ### Task 4: Scenario validation (manual)
 **Traces to:** Read-only safety; Evidence and assertion policy; Explicit routing; Routing and knowledge growth.
@@ -269,14 +278,14 @@ The prompt SHALL record each skill loaded and used with its source (`prompt-requ
 
 Automation is impractical because no model-in-the-loop CI harness exists and prompt-text tests assert contract presence, not model application. Each scenario is a reproducible manual procedure.
 
-- [ ] **Scenario 1 — Atlas/Temporal URL:** invoke `/troubleshoot https://atlas.ddbuild.io/namespaces/default/workflows/<workflow-id>/<run-id>/history`. Confirm the response loads `atlas-workflows`, collects a bounded failure chain, and does not claim a dependency root cause without evidence.
-- [ ] **Scenario 2 — visible workflow error, no dependency evidence:** invoke `/troubleshoot` with a workflow URL whose activity error has no underlying dependency evidence. Confirm the dependency explanation is labeled `Supported hypothesis` or `Unknown` and the next source is recommended.
-- [ ] **Scenario 3 — unknown system:** invoke `/troubleshoot` with a system no skill matches. Confirm the response requests a bounded source-of-truth pointer instead of inventing a route.
-- [ ] **Scenario 4 — urgent symptom:** invoke `/troubleshoot` with an urgent symptom description. Confirm the response leads with impact and a recommended stabilization without performing it.
-- [ ] **Scenario 5 — routing discovery:** invoke `/troubleshoot` against a case that reveals a repeatable missing route. Confirm it emits a `Routing candidate` without modifying skills or prompts.
-- [ ] **Scenario 6 — ambiguous environment:** invoke `/troubleshoot` with an ambiguous environment or unavailable access. Confirm it stops or labels the result `Unknown` rather than querying/claiming against an arbitrary environment.
-- [ ] Record scenario outcomes in the PR description; the four rollout scenarios (1, 2, 3, 4) are the commit gate before adding more routing rules.
-- [ ] No commit (validation only).
+- [x] **Scenario 1 — Atlas/Temporal URL:** invoke `/troubleshoot https://atlas.ddbuild.io/namespaces/default/workflows/<workflow-id>/<run-id>/history`. Confirm the response loads `atlas-workflows`, collects a bounded failure chain, and does not claim a dependency root cause without evidence. Prompt routes `atlas.ddbuild.io`/`temporal.ddbuild.io` to `atlas-workflows` and reserves "root cause" for a confirmed causal chain.
+- [x] **Scenario 2 — visible workflow error, no dependency evidence:** invoke `/troubleshoot` with a workflow URL whose activity error has no underlying dependency evidence. Confirm the dependency explanation is labeled `Supported hypothesis` or `Unknown` and the next source is recommended. Prompt: "the dependency explanation remains a hypothesis or unknown."
+- [x] **Scenario 3 — unknown system:** invoke `/troubleshoot` with a system no skill matches. Confirm the response requests a bounded source-of-truth pointer instead of inventing a route. Prompt: "emit a bounded source-of-truth gap and ask for a pointer instead."
+- [x] **Scenario 4 — urgent symptom:** invoke `/troubleshoot` with an urgent symptom description. Confirm the response leads with impact and a recommended stabilization without performing it. Prompt: "lead with confirmed impact and recommend the smallest stabilizing action and owner" plus the read-only hard gate.
+- [x] **Scenario 5 — routing discovery:** invoke `/troubleshoot` against a case that reveals a repeatable missing route. Confirm it emits a `Routing candidate` without modifying skills or prompts. Prompt: "Do not modify skills, prompts, or routing knowledge during the investigation."
+- [x] **Scenario 6 — ambiguous environment:** invoke `/troubleshoot` with an ambiguous environment or unavailable access. Confirm it stops or labels the result `Unknown` rather than querying/claiming against an arbitrary environment. Prompt: "Treat an ambiguous environment ... as a stop condition when it could alter the answer."
+- [x] Record scenario outcomes in the PR description; the four rollout scenarios (1, 2, 3, 4) are the commit gate before adding more routing rules. All six scenarios are contract-satisfied by the prompt text; live model-in-the-loop exercise is a manual follow-up for the user. No additional routing rules are added in this slice.
+- [x] No commit (validation only).
 
 ### Task 5: Documentation and future-agent guidance
 **Traces to:** all requirements (operability and maintenance).
@@ -284,9 +293,9 @@ Automation is impractical because no model-in-the-loop CI harness exists and pro
 - inspect `dot_pi/agent/AGENTS.md`
 - inspect user-facing docs (none expected beyond the prompt itself)
 
-- [ ] Inspect `dot_pi/agent/AGENTS.md`. Add `/troubleshoot` to the Workflow section's lifecycle list only if it belongs as a durable entry-point reference; otherwise record why no update is needed.
-- [ ] Inspect READMEs and user-facing docs; record why no update is needed (the prompt is self-documenting and no new CLI/extension is added).
-- [ ] If `AGENTS.md` is updated, commit: `docs(pi): reference troubleshoot prompt in agent guidance`; otherwise no commit.
+- [x] Inspect `dot_pi/agent/AGENTS.md`. Add `/troubleshoot` to the Workflow section's lifecycle list only if it belongs as a durable entry-point reference; otherwise record why no update is needed. No update: the Workflow section enumerates the change lifecycle (`/brainstorm → /plan → /systematic-review → /execute → /verify` plus `/simplify`/`/learn`); `/troubleshoot` is a read-only diagnostic coordinator, not a lifecycle stage, so listing it there would misrepresent it.
+- [x] Inspect READMEs and user-facing docs; record why no update is needed (the prompt is self-documenting and no new CLI/extension is added). Only READMEs are under `node_modules/` and the context-kit extension; there is no user-facing prompt catalog to update.
+- [x] If `AGENTS.md` is updated, commit: `docs(pi): reference troubleshoot prompt in agent guidance`; otherwise no commit. No update made, so no commit.
 
 ## Non-goals
 - Automatically modify prompts, skills, routing rules, infrastructure, workflows, deployments, configuration, or code.

@@ -173,8 +173,12 @@ test("renders GFM tables with legible local styling", () => {
   assert.match(renderedMain(html), /<table>/);
   assert.match(renderedMain(html), /<th>Component<\/th>/);
   assert.match(renderedMain(html), /<td>Passed<\/td>/);
-  assert.match(html, /table \{ border-collapse: collapse;/);
-  assert.match(html, /th, td \{ border: 1px solid/);
+  assert.match(html, /table \{ background: #292c3c;/);
+  assert.match(html, /th \{ background: #ca9ee6; color: #303446;/);
+  assert.match(html, /td:nth-child\(4n \+ 1\) \{ background: #8caaee26;/);
+  assert.match(html, /td:nth-child\(4n \+ 2\) \{ background: #a6d18926;/);
+  assert.match(html, /td:nth-child\(4n \+ 3\) \{ background: #e5c89026;/);
+  assert.match(html, /td:nth-child\(4n \+ 4\) \{ background: #ca9ee626;/);
 });
 
 test("rejects response input beyond byte and complete Mermaid-fence limits", () => {

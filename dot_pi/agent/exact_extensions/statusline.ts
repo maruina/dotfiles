@@ -85,14 +85,12 @@ export default function (pi: ExtensionAPI) {
 				render(width: number): string[] {
 					let input = 0;
 					let output = 0;
-					let cost = 0;
 
 					for (const entry of ctx.sessionManager.getBranch()) {
 						if (entry.type !== "message" || entry.message.role !== "assistant") continue;
 						const message = entry.message as AssistantMessage;
 						input += message.usage?.input ?? 0;
 						output += message.usage?.output ?? 0;
-						cost += message.usage?.cost?.total ?? 0;
 					}
 
 					const context = formatContext(ctx.getContextUsage());
@@ -106,17 +104,22 @@ export default function (pi: ExtensionAPI) {
 						.join("  ");
 					const llm = [modelStatus(ctx.model), thinking !== "off" ? thinking : undefined].filter(Boolean).join("  ");
 
+					// Cost comes from the session-cost extension's AI Gateway estimate (via setStatus),
+					// not client-side usage.cost, which is $0 for AI-Gateway-routed models with no per-token price.
+					const costStatus = footerData.getExtensionStatuses().get("session-cost");
+					const costText = costStatus ?? theme.fg("dim", "$—");
+
 					const usageParts = [
-						`↑${formatTokens(input)}`,
-						`↓${formatTokens(output)}`,
-						`$${cost.toFixed(3)}`,
-						sandbox,
+						theme.fg("dim", `↑${formatTokens(input)}`),
+						theme.fg("dim", `↓${formatTokens(output)}`),
+						costText,
+						sandbox ? theme.fg("dim", sandbox) : undefined,
 					].filter(Boolean);
 
 					const left = theme.fg("accent", location);
 					const right = theme.fg("dim", context);
 					const llmInfo = theme.fg("accent", llm);
-					const usage = theme.fg("dim", usageParts.join("  "));
+					const usage = usageParts.join("  ");
 
 					return [renderLine(left, right, width), renderLine(llmInfo, usage, width)];
 				},

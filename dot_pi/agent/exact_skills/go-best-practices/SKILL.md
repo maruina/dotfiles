@@ -16,6 +16,15 @@ Optimize for simplicity, readability, and developer productivity:
 - Prefer designs that eliminate expected errors and misuse rather than requiring every caller to avoid them correctly.
 - Treat concurrency as an optimization. Introduce it only when it provides a measured or necessary benefit.
 
+## Version-gated Go features
+- Before using a language feature, standard-library API, or runtime behavior introduced in Go X.Y, require Go X.Y: set the module's `go` directive to `X.Y` and ensure local development and CI use Go X.Y or later. If the project supports an earlier Go version, do not use the feature; use the established compatible alternative instead.
+- Let `go test` run its default `stdversion` vet check. Resolve findings by using the declared Go-version baseline or by raising that baseline deliberately.
+
+### Go 1.27
+- Generic methods are available in Go 1.27. Do not use them to satisfy interfaces: interface methods still cannot have type parameters, and generic methods cannot implement interface methods.
+- Use `bytes.CutLast`, `strings.CutLast`, and `uuid` when they replace clear local code. Do not introduce `encoding/json/v2` as a mechanical migration: its stricter defaults can change JSON validation and duplicate-key behavior, so make the migration explicit and test contract-sensitive inputs.
+- In Go 1.27, `time` timer channels are always unbuffered. Do not rely on the former asynchronous timer-channel behavior; review timeout and timer code for assumptions about buffered delivery when moving a module to Go 1.27.
+
 ## Design
 - Prefer simple, explicit code over clever abstractions.
 - Match package style before adding a new pattern.

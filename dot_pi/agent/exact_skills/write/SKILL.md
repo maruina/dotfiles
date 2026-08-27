@@ -19,6 +19,7 @@ Say exactly what you mean. Remove every word that does not help the reader.
 - Split long sentences. Use whitespace, headings, lists, and tables to make scanning easy.
 - Spell out acronyms on first use and add brief context for unfamiliar concepts.
 - Keep tone consistent. Avoid jargon, clichés, and mixed formal/colloquial phrasing.
+- Make writing unsummarizable: cut fluff until removing any words, as summaries by definition do, loses interesting ideas.
 - Use US English.
 
 ## Output

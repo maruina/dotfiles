@@ -8,13 +8,13 @@ Use `mcp-cli` to access Datadog Slack through the `slack` MCP server.
 Config:
 - Server: `slack`
 - Endpoint: `https://mcp.slack.com/mcp`
-- Proxy: `~/.pi/agent/skills/slack-mcp/scripts/slack-mcp-proxy.py`
+- Proxy: `~/.pi/agent/skills_work/slack-mcp/scripts/slack-mcp-proxy.py`
 - Auth: macOS keychain service `Claude Code-credentials`, account `$(whoami)`
 - Client ID: `1601185624273.8899143856786`
 
 Setup and auth:
 ```fish
-python3 ~/.pi/agent/skills/slack-mcp/scripts/slack-mcp-auth.py
+python3 ~/.pi/agent/skills_work/slack-mcp/scripts/slack-mcp-auth.py
 ```
 
 Use the Slack-only config to avoid resolving unrelated Datadog MCP environment variables:

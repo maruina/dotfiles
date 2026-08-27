@@ -93,7 +93,7 @@ The policy module SHALL map every supported lifecycle invocation to the approved
 - WHEN the policy lookup runs for each command
 - THEN every lower-cost, recommended, and increase-quality choice matches the provider, model ID, thinking level, qualitative cost class, and model label approved in the design
 - AND every choice has a concise phase-specific rationale
-- AND no choice uses `max` or GPT-5.6 Luna
+- AND the lower-cost (Economy) tier does not use `max`; no choice uses GPT-5.6 Luna
 
 #### Scenario R1.2: Exact command matching
 - GIVEN commands with arguments, similar prefixes such as `/planning`, escaped command text, and prose containing `/plan`

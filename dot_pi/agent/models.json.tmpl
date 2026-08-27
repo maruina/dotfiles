@@ -247,14 +247,14 @@
       "models": [
         {
           "id": "baseten/zai-org/GLM-5.2",
-          "name": "Zai Org/glm 5.2 (Baseten)",
+          "name": "GLM 5.2 (Baseten)",
           "api": "openai-completions",
           "reasoning": true,
           "input": [
             "text"
           ],
-          "contextWindow": 128000,
-          "maxTokens": 16384,
+          "contextWindow": 1048576,
+          "maxTokens": 131072,
           "compat": {
             "supportsDeveloperRole": false
           },
@@ -270,14 +270,14 @@
         },
         {
           "id": "baseten/deepseek-ai/DeepSeek-V4-Flash-0731",
-          "name": "Deepseek Ai/deepseek V4 Flash 0731 (Baseten)",
+          "name": "DeepSeek V4 Flash 0731 (Baseten)",
           "api": "openai-completions",
-          "reasoning": false,
+          "reasoning": true,
           "input": [
             "text"
           ],
-          "contextWindow": 128000,
-          "maxTokens": 16384,
+          "contextWindow": 900000,
+          "maxTokens": 262144,
           "compat": {
             "supportsDeveloperRole": false
           },

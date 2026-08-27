@@ -233,7 +233,7 @@ These downsides are acceptable for the first slice because the extension remains
 | Runtime and managed model catalogs drift later | Resolve through the runtime registry on every invocation and validate the managed work-profile rendering during rollout |
 | Dialog fatigue | Skip the dialog when settings already match and keep notifications compact |
 | Static policy overspends on trivial work | Offer a one-step lower-cost choice on every phase |
-| Static policy underspends on difficult work | Offer an increase-quality choice without using `max` automatically |
+| Static policy underspends on difficult work | Default to GLM-5.2 at `max` and offer the Sol flagship as the increase-quality escalation |
 | Cross-provider review is lost | Keep Opus as the systematic reviewer and Sonnet as the verifier while Terra remains the default executor |
 | Partial application leaves surprising settings | Set thinking only after model selection succeeds and report any clamping |
 | Extension breaks non-interactive workflows | Never require confirmation or mutate settings when confirmation is unavailable |

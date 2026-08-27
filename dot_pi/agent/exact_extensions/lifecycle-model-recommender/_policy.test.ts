@@ -30,28 +30,28 @@ type CatalogModel = Pick<Model<any>, "provider" | "id" | "api" | "name" | "reaso
 
 const expected = {
   "/brainstorm": {
-    lowerCost: ["ai-gw-baseten", "baseten/zai-org/GLM-5.2", "high", "Economy", "GLM-5.2 (Baseten)"],
-    recommended: ["ai-gw-openai", "openai/gpt-5.6-terra", "medium", "Balanced", "GPT-5.6 Terra"],
+    lowerCost: ["ai-gw-baseten", "baseten/deepseek-ai/DeepSeek-V4-Flash-0731", "high", "Economy", "DeepSeek V4 Flash (Baseten)"],
+    recommended: ["ai-gw-baseten", "baseten/zai-org/GLM-5.2", "max", "Balanced", "GLM-5.2 (Baseten)"],
     increaseQuality: ["ai-gw-openai", "openai/gpt-5.6-sol", "high", "Premium", "GPT-5.6 Sol"],
   },
   "/plan": {
-    lowerCost: ["ai-gw-baseten", "baseten/zai-org/GLM-5.2", "high", "Economy", "GLM-5.2 (Baseten)"],
-    recommended: ["ai-gw-openai", "openai/gpt-5.6-terra", "high", "Balanced", "GPT-5.6 Terra"],
+    lowerCost: ["ai-gw-baseten", "baseten/deepseek-ai/DeepSeek-V4-Flash-0731", "high", "Economy", "DeepSeek V4 Flash (Baseten)"],
+    recommended: ["ai-gw-baseten", "baseten/zai-org/GLM-5.2", "max", "Balanced", "GLM-5.2 (Baseten)"],
     increaseQuality: ["ai-gw-openai", "openai/gpt-5.6-sol", "xhigh", "Premium", "GPT-5.6 Sol"],
   },
   "/systematic-review": {
-    lowerCost: ["ai-gw-baseten", "baseten/zai-org/GLM-5.2", "high", "Economy", "GLM-5.2 (Baseten)"],
-    recommended: ["ai-gw-openai", "openai/gpt-5.6-terra", "high", "Balanced", "GPT-5.6 Terra"],
+    lowerCost: ["ai-gw-baseten", "baseten/deepseek-ai/DeepSeek-V4-Flash-0731", "high", "Economy", "DeepSeek V4 Flash (Baseten)"],
+    recommended: ["ai-gw-baseten", "baseten/zai-org/GLM-5.2", "max", "Balanced", "GLM-5.2 (Baseten)"],
     increaseQuality: ["ai-gw-openai", "openai/gpt-5.6-sol", "high", "Premium", "GPT-5.6 Sol"],
   },
   "/execute": {
-    lowerCost: ["ai-gw-baseten", "baseten/zai-org/GLM-5.2", "high", "Economy", "GLM-5.2 (Baseten)"],
-    recommended: ["ai-gw-openai", "openai/gpt-5.6-terra", "high", "Balanced", "GPT-5.6 Terra"],
+    lowerCost: ["ai-gw-baseten", "baseten/deepseek-ai/DeepSeek-V4-Flash-0731", "high", "Economy", "DeepSeek V4 Flash (Baseten)"],
+    recommended: ["ai-gw-baseten", "baseten/zai-org/GLM-5.2", "max", "Balanced", "GLM-5.2 (Baseten)"],
     increaseQuality: ["ai-gw-openai", "openai/gpt-5.6-sol", "high", "Premium", "GPT-5.6 Sol"],
   },
   "/verify": {
-    lowerCost: ["ai-gw-baseten", "baseten/zai-org/GLM-5.2", "high", "Economy", "GLM-5.2 (Baseten)"],
-    recommended: ["ai-gw-openai", "openai/gpt-5.6-terra", "medium", "Balanced", "GPT-5.6 Terra"],
+    lowerCost: ["ai-gw-baseten", "baseten/deepseek-ai/DeepSeek-V4-Flash-0731", "high", "Economy", "DeepSeek V4 Flash (Baseten)"],
+    recommended: ["ai-gw-baseten", "baseten/zai-org/GLM-5.2", "max", "Balanced", "GLM-5.2 (Baseten)"],
     increaseQuality: ["ai-gw-openai", "openai/gpt-5.6-sol", "high", "Premium", "GPT-5.6 Sol"],
   },
 } as const;
@@ -109,7 +109,11 @@ describe("lifecycle model policy", () => {
           label,
         ]);
         assert.ok(choice.rationale.length > 0, `${phase} ${position} has a rationale`);
-        assert.notEqual(choice.thinking, "max");
+        // `max` is the approved default effort for the GLM-5.2 recommended slot;
+        // the lower-cost (Economy) tier must not use it.
+        if (position === "lowerCost") {
+          assert.notEqual(choice.thinking, "max", `${phase} lowerCost: Economy tier must not use max`);
+        }
         assert.notEqual(choice.model, "openai/gpt-5.6-luna");
       }
     }
@@ -134,17 +138,17 @@ describe("lifecycle model policy", () => {
 
   it("detects catalog model and thinking-level drift", () => {
     const models = catalogModels(renderedCatalog());
-    const removed = models.filter((model) => !(model.provider === "ai-gw-openai" && model.id === "openai/gpt-5.6-sol"));
-    assert.throws(() => assertCatalogCompatibility(LIFECYCLE_POLICY, removed), /missing ai-gw-openai\/openai\/gpt-5\.6-sol/);
+    const removed = models.filter((model) => !(model.provider === "ai-gw-baseten" && model.id === "baseten/zai-org/GLM-5.2"));
+    assert.throws(() => assertCatalogCompatibility(LIFECYCLE_POLICY, removed), /missing ai-gw-baseten\/baseten\/zai-org\/GLM-5\.2/);
 
     const unsupported = models.map((model) =>
-      model.provider === "ai-gw-openai" && model.id === "openai/gpt-5.6-sol"
-        ? { ...model, thinkingLevelMap: { off: "none", xhigh: null, max: "max" } }
+      model.provider === "ai-gw-baseten" && model.id === "baseten/zai-org/GLM-5.2"
+        ? { ...model, thinkingLevelMap: { off: "none", minimal: null, low: null, medium: null, high: "high", xhigh: null, max: null } }
         : model,
     );
     assert.throws(
       () => assertCatalogCompatibility(LIFECYCLE_POLICY, unsupported),
-      /ai-gw-openai\/openai\/gpt-5\.6-sol does not support xhigh/,
+      /ai-gw-baseten\/baseten\/zai-org\/GLM-5\.2 does not support max/,
     );
   });
 });

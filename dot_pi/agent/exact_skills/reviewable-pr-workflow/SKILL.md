@@ -97,7 +97,7 @@ Keep labels short, list PRs in dependency order, and keep the block consistent a
 One sentence describing the final state.
 
 ## Why
-Two to four sentences explaining motivation, context, and tradeoffs.
+Explain the motivation in plain language, as if to a newcomer to this subsystem: lead with the problem and its consequence, then what this change does about it. Keep the relevant context and tradeoffs, but use short sentences and avoid jargon-dense run-ons; split a long explanation into a few short paragraphs.
 
 ## Reviewer guide
 > Read the commits in this order. Open each via its link below and comment there — those are first-class PR review comments. Do **not** open commits via the `/commit/<sha>` URL; comments there do not show up in the PR.

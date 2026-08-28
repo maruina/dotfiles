@@ -1,8 +1,8 @@
 # Herdr configuration. See https://herdr.dev/docs/configuration/
 {{- if eq .profile "work" }}
 # Datadog worktrees live under ~/dd/.worktrees (see AGENTS.md). Herdr lays out
-# checkouts as <directory>/<repo>/<branch-slug>, nesting by repo alongside the
-# flat <repo>-<branch-slug> worktrees created by the manual git/GoLand flow.
+# checkouts as <directory>/<repo>/<branch-slug>, nesting by repo; wt.fish uses
+# the same layout and slug (lowercase, slash -> dash) so both tools agree.
 [worktrees]
 directory = "~/dd/.worktrees"
 {{- else if eq .profile "personal" }}

@@ -115,7 +115,7 @@ function getWorktreeInfo(cwd: string): string[] {
     lines.push(`- Main checkout convention: ${DATA_DOG_ROOT}/<repo>`);
   } else if (DATA_DOG_ROOT && pathInside(root, DATA_DOG_ROOT)) {
     lines.push(`- Repository root: ${root}`);
-    lines.push(`- Worktree convention: ${DATA_DOG_WORKTREES}/<repo-name>-<branch-slug>`);
+    lines.push(`- Worktree convention: ${DATA_DOG_WORKTREES}/<repo>/<branch-slug>`);
   }
   return lines;
 }

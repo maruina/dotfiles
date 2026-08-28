@@ -38,11 +38,11 @@ Familiarity levels:
    - If `ORG` is `DataDog`, clone into `~/dd/REPO`: `git clone git@github.com:DataDog/REPO ~/dd/REPO`. Do not ask first.
    - Otherwise, ask the user where to clone before proceeding.
 5. For full review, create an isolated worktree from the PR head:
-   - path: `~/dd/.worktrees/REPO-pr-PR_NUMBER-review`
+   - path: `~/dd/.worktrees/REPO/pr-PR_NUMBER-review`
    - if a worktree already exists at that path, fetch and reset it to the current PR head before reusing it:
      ```bash
-     git -C ~/dd/.worktrees/REPO-pr-PR_NUMBER-review fetch origin
-     git -C ~/dd/.worktrees/REPO-pr-PR_NUMBER-review reset --hard origin/<headRefName>
+     git -C ~/dd/.worktrees/REPO/pr-PR_NUMBER-review fetch origin
+     git -C ~/dd/.worktrees/REPO/pr-PR_NUMBER-review reset --hard origin/<headRefName>
      ```
    - otherwise create it fresh, removing a stale worktree at that path only after confirming it is for the same PR
    - store the path as `WORKTREE`

@@ -17,7 +17,7 @@ https://github.com/ORG/REPO/pull/NUMBER
 Extract `REPO` and `PR_NUMBER`. If the URL is missing or invalid, ask for it and stop.
 
 ```text
-WORKTREE = ~/dd/.worktrees/REPO-pr-PR_NUMBER-review
+WORKTREE = ~/dd/.worktrees/REPO/pr-PR_NUMBER-review
 ```
 
 ## Remove safely

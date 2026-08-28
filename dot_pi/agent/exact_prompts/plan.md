@@ -212,7 +212,7 @@ When creating or updating a durable plan:
 - Fetch the latest default branch.
 - Branch from the latest default branch, not from the current HEAD.
 - Use branch name `maruina/<ticket-or-feature>` unless repository guidance specifies otherwise.
-- Follow repository worktree guidance. For Datadog repositories, use `~/dd/.worktrees/<repo-name>-<branch-slug>`.
+- Follow repository worktree guidance. For Datadog repositories, use `~/dd/.worktrees/<repo>/<branch-slug>`.
 - If already in the correct feature worktree, continue there.
 - If in a base checkout on `main` or `master`, create a feature worktree before writing the plan unless the user explicitly asks not to.
 - If the default branch, branch name, or worktree location is ambiguous, ask before creating.

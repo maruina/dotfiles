@@ -33,7 +33,7 @@ Prefer feature worktrees for implementation.
 - If a plan path resolves to a worktree, switch to that worktree and continue there.
 - If already in the correct feature worktree, continue there.
 - If in a base checkout on `main` or `master`, create or switch to a feature worktree before implementation unless the user explicitly asks not to.
-- For Datadog repositories, use `~/dd/.worktrees/<repo-name>-<branch-slug>` unless repository guidance says otherwise.
+- For Datadog repositories, use `~/dd/.worktrees/<repo>/<branch-slug>` unless repository guidance says otherwise.
 - Stop and ask if the branch, base branch, or worktree location is ambiguous.
 
 ## Posture

@@ -1,0 +1,13 @@
+# Herdr configuration. See https://herdr.dev/docs/configuration/
+{{- if eq .profile "work" }}
+# Datadog worktrees live under ~/dd/.worktrees (see AGENTS.md). Herdr lays out
+# checkouts as <directory>/<repo>/<branch-slug>, nesting by repo; wt.fish uses
+# the same layout and slug (lowercase, slash -> dash) so both tools agree.
+[worktrees]
+directory = "~/dd/.worktrees"
+{{- else if eq .profile "personal" }}
+# Personal repos live under ~/go/src/github.com/maruina; worktrees mirror the
+# ~/dd/.worktrees layout under ~/go/src/github.com/maruina/.worktrees.
+[worktrees]
+directory = "~/go/src/github.com/maruina/.worktrees"
+{{- end }}

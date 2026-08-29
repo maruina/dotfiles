@@ -7,7 +7,7 @@ Arguments: `$ARGUMENTS`
 
 Create the first GitHub PR for the current branch. Use `/pr-update` when the branch already has a PR.
 
-Read `reviewable-pr-workflow` before acting. It is the source of truth for PR scope, commit story, rewrite policy, stacks, reviewer guides, PR bodies, evidence, and reporting. Read `git-machete` only when using git-machete.
+Read `reviewable-pr-workflow` before acting. It is the source of truth for PR bodies, history, stacks, reviewer guides, and reporting. Read `git-machete` only when using git-machete.
 
 Creating a PR is the explicit side effect of this command. Create it as a draft, then post one `@codex review` comment after its final title and body are set. Do not post duplicate triggers.
 
@@ -74,11 +74,8 @@ gh pr comment <pr-url> --body "@codex review"
 ```
 
 ## Report
-Report:
-- PR URL and base branch;
-- whether commits were rewritten or a stack was proposed;
-- whether downstream stack branches were pushed;
+Report per the workflow skill, plus:
+- the base branch;
+- whether a stack was proposed;
 - the final reviewer-guide topics;
-- evidence added or intentionally omitted;
-- that the Codex review trigger was posted;
-- assumptions and tradeoffs.
+- that the Codex review trigger was posted.

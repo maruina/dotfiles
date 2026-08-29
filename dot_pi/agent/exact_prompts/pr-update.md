@@ -7,7 +7,7 @@ Arguments: `$ARGUMENTS`
 
 Update the current branch's existing GitHub PR after implementation or review feedback. Use `/pr-create` to open the first PR for a branch.
 
-Read `reviewable-pr-workflow` before acting. It is the source of truth for review-state discipline, history rewriting, stacks, reviewer guides, PR bodies, and reporting. Read `git-machete` only when using git-machete.
+Read `reviewable-pr-workflow` before acting. It is the source of truth for PR bodies, history, stacks, reviewer guides, and reporting. Read `git-machete` only when using git-machete.
 
 Do not post `@codex review` unless the user explicitly asks.
 
@@ -56,11 +56,6 @@ gh pr edit <number> --body-file <temp-file>
 Include `--title <new-title>` only after approval or an explicit title-update request.
 
 ## Report
-Report:
-- PR URL and whether human review started;
-- whether history was rewritten or preserved, including any `--force-with-lease` push;
-- stack retargeting, merges, restacks, and downstream pushes;
+Report per the workflow skill, plus:
 - title and generated-section changes;
-- reviewer-guide links regenerated;
-- evidence added, updated, removed, or omitted;
-- assumptions and tradeoffs.
+- reviewer-guide links regenerated.

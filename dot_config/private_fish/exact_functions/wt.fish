@@ -13,9 +13,8 @@ function wt --description "Create or jump to a git worktree for a branch"
     end
 
     set -l repo_name (basename "$repo_root")
-    # Match herdr's worktree slug: lowercase, slash -> dash. herdr worktree create
-    # lays out <root>/<repo>/<slug>; keep wt.fish in lockstep so both tools land
-    # in the same checkout for a given branch.
+    # Worktree slug: lowercase, slash -> dash. wt lays out checkouts as
+    # ~/dd/.worktrees/<repo>/<slug>, nesting by repo.
     set -l branch_slug (string replace -a / - "$branch" | string lower)
     set -l worktree_root ~/dd/.worktrees
     set -l worktree_path "$worktree_root/$repo_name/$branch_slug"

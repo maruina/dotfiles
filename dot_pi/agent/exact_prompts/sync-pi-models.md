@@ -8,6 +8,9 @@ Context:
 - `models.json` is a templated chezmoi target. Do not use `chezmoi re-add ~/.pi/agent/models.json`.
 - The template has separate `.profile == "work"` and `.profile == "personal"` branches.
 
+Prerequisite:
+- Run `/refresh-models repair` (then press `s` to save) before this command. A default `/refresh-models` save preserves stale existing model fields via an existing-entry-wins merge, so the target can carry outdated `contextWindow`, `maxTokens`, or `thinkingLevelMap` values. `repair` overwrites managed fields with fresh curation while preserving unknown user fields, giving this command an accurate source of truth to reconcile into chezmoi.
+
 Classify each refreshed provider before editing:
 - Treat a provider as **work** if its `baseUrl` points at Datadog infrastructure, especially `https://ai-gateway.us1.ddbuild.io` or `https://ai-gateway.us1.prod.dog`.
 - Also treat a provider as **work** if its headers include `"x-dd-tag-dd.user_email": "matteo.ruina@datadoghq.com"`.

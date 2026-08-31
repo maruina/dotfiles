@@ -31,27 +31,27 @@ type CatalogModel = Pick<Model<any>, "provider" | "id" | "api" | "name" | "reaso
 const expected = {
   "/brainstorm": {
     lowerCost: ["ai-gw-baseten", "baseten/deepseek-ai/DeepSeek-V4-Flash-0731", "high", "Economy", "DeepSeek V4 Flash (Baseten)"],
-    recommended: ["ai-gw-baseten", "baseten/zai-org/GLM-5.2", "max", "Balanced", "GLM-5.2 (Baseten)"],
+    recommended: ["ai-gw-baseten", "baseten/zai-org/GLM-5.2", "xhigh", "Balanced", "GLM-5.2 (Baseten)"],
     increaseQuality: ["ai-gw-openai", "openai/gpt-5.6-sol", "high", "Premium", "GPT-5.6 Sol"],
   },
   "/plan": {
     lowerCost: ["ai-gw-baseten", "baseten/deepseek-ai/DeepSeek-V4-Flash-0731", "high", "Economy", "DeepSeek V4 Flash (Baseten)"],
-    recommended: ["ai-gw-baseten", "baseten/zai-org/GLM-5.2", "max", "Balanced", "GLM-5.2 (Baseten)"],
+    recommended: ["ai-gw-baseten", "baseten/zai-org/GLM-5.2", "xhigh", "Balanced", "GLM-5.2 (Baseten)"],
     increaseQuality: ["ai-gw-openai", "openai/gpt-5.6-sol", "xhigh", "Premium", "GPT-5.6 Sol"],
   },
   "/systematic-review": {
     lowerCost: ["ai-gw-baseten", "baseten/deepseek-ai/DeepSeek-V4-Flash-0731", "high", "Economy", "DeepSeek V4 Flash (Baseten)"],
-    recommended: ["ai-gw-baseten", "baseten/zai-org/GLM-5.2", "max", "Balanced", "GLM-5.2 (Baseten)"],
+    recommended: ["ai-gw-baseten", "baseten/zai-org/GLM-5.2", "xhigh", "Balanced", "GLM-5.2 (Baseten)"],
     increaseQuality: ["ai-gw-openai", "openai/gpt-5.6-sol", "high", "Premium", "GPT-5.6 Sol"],
   },
   "/execute": {
     lowerCost: ["ai-gw-baseten", "baseten/deepseek-ai/DeepSeek-V4-Flash-0731", "high", "Economy", "DeepSeek V4 Flash (Baseten)"],
-    recommended: ["ai-gw-baseten", "baseten/zai-org/GLM-5.2", "max", "Balanced", "GLM-5.2 (Baseten)"],
+    recommended: ["ai-gw-baseten", "baseten/zai-org/GLM-5.2", "xhigh", "Balanced", "GLM-5.2 (Baseten)"],
     increaseQuality: ["ai-gw-openai", "openai/gpt-5.6-sol", "high", "Premium", "GPT-5.6 Sol"],
   },
   "/verify": {
     lowerCost: ["ai-gw-baseten", "baseten/deepseek-ai/DeepSeek-V4-Flash-0731", "high", "Economy", "DeepSeek V4 Flash (Baseten)"],
-    recommended: ["ai-gw-baseten", "baseten/zai-org/GLM-5.2", "max", "Balanced", "GLM-5.2 (Baseten)"],
+    recommended: ["ai-gw-baseten", "baseten/zai-org/GLM-5.2", "xhigh", "Balanced", "GLM-5.2 (Baseten)"],
     increaseQuality: ["ai-gw-openai", "openai/gpt-5.6-sol", "high", "Premium", "GPT-5.6 Sol"],
   },
 } as const;
@@ -109,10 +109,10 @@ describe("lifecycle model policy", () => {
           label,
         ]);
         assert.ok(choice.rationale.length > 0, `${phase} ${position} has a rationale`);
-        // `max` is the approved default effort for the GLM-5.2 recommended slot;
+        // `xhigh` is the approved default effort for the GLM-5.2 recommended slot;
         // the lower-cost (Economy) tier must not use it.
         if (position === "lowerCost") {
-          assert.notEqual(choice.thinking, "max", `${phase} lowerCost: Economy tier must not use max`);
+          assert.notEqual(choice.thinking, "xhigh", `${phase} lowerCost: Economy tier must not use xhigh`);
         }
         assert.notEqual(choice.model, "openai/gpt-5.6-luna");
       }
@@ -148,7 +148,7 @@ describe("lifecycle model policy", () => {
     );
     assert.throws(
       () => assertCatalogCompatibility(LIFECYCLE_POLICY, unsupported),
-      /ai-gw-baseten\/baseten\/zai-org\/GLM-5\.2 does not support max/,
+      /ai-gw-baseten\/baseten\/zai-org\/GLM-5\.2 does not support xhigh/,
     );
   });
 });

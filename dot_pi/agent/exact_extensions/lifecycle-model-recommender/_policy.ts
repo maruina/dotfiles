@@ -37,27 +37,27 @@ const deepseek = (thinking: ModelThinkingLevel, costClass: CostClass, rationale:
 export const LIFECYCLE_POLICY: LifecyclePolicy = {
   "/brainstorm": {
     lowerCost: deepseek("high", "Economy", "Explore the problem with a cost-effective reasoning budget."),
-    recommended: glm("max", "Balanced", "Frame durable decisions with maximum-effort reasoning."),
+    recommended: glm("xhigh", "Balanced", "Frame durable decisions with maximum-effort reasoning."),
     increaseQuality: sol("high", "Premium", "Use deeper flagship reasoning for difficult framing."),
   },
   "/plan": {
     lowerCost: deepseek("high", "Economy", "Build an implementation plan with cost-effective high-effort reasoning."),
-    recommended: glm("max", "Balanced", "Plan durable implementation decisions with maximum-effort reasoning."),
+    recommended: glm("xhigh", "Balanced", "Plan durable implementation decisions with maximum-effort reasoning."),
     increaseQuality: sol("xhigh", "Premium", "Use the deepest approved planning reasoning."),
   },
   "/systematic-review": {
     lowerCost: deepseek("high", "Economy", "Review the plan with an independent, cost-effective perspective."),
-    recommended: glm("max", "Balanced", "Apply independent, maximum-effort review to the plan."),
+    recommended: glm("xhigh", "Balanced", "Apply independent, maximum-effort review to the plan."),
     increaseQuality: sol("high", "Premium", "Use adversarial review for high-risk plans."),
   },
   "/execute": {
     lowerCost: deepseek("high", "Economy", "Implement the reviewed plan cost-effectively."),
-    recommended: glm("max", "Balanced", "Execute the reviewed plan with maximum-effort reasoning."),
+    recommended: glm("xhigh", "Balanced", "Execute the reviewed plan with maximum-effort reasoning."),
     increaseQuality: sol("high", "Premium", "Escalate implementation reasoning for difficult changes."),
   },
   "/verify": {
     lowerCost: deepseek("high", "Economy", "Check implementation evidence with a cost-effective reviewer."),
-    recommended: glm("max", "Balanced", "Verify with independent, maximum-effort review."),
+    recommended: glm("xhigh", "Balanced", "Verify with independent, maximum-effort review."),
     increaseQuality: sol("high", "Premium", "Use deeper review for difficult verification."),
   },
 };

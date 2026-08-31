@@ -234,6 +234,6 @@ describe("lifecycle model recommender", () => {
 
     assertContinues(await harness.invoke());
     assert.equal(harness.notifications[0].type, "warning");
-    assert.match(harness.notifications[0].message, /requested max; using medium/);
+    assert.match(harness.notifications[0].message, /requested xhigh; using medium/);
   });
 });

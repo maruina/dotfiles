@@ -5,7 +5,7 @@ description: "Create and update GitHub PRs that are easy, fast, and confidence-b
 # Reviewable PR Workflow
 Use when creating, updating, splitting, restacking, cleaning up, or reviewing a GitHub PR.
 
-Goal: make the PR easy to review. The reviewer should see the motivation, focused scope, reading order, evidence, tests, and no accidental commit noise.
+Goal: make the PR easy to review. When authoring the PR title or body (the `## What`/`## Why` narrative and reviewer-guide prose), read `write` and apply its plain-language principles. The reviewer should see the motivation, focused scope, reading order, evidence, tests, and no accidental commit noise.
 
 ## Core principle
 Treat a PR as a review artifact. Because PRs are squash-merged, branch commits should tell the best review story, not preserve every intermediate mistake.

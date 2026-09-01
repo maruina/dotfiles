@@ -5,28 +5,32 @@ description: Write, rewrite, and edit text for clarity, concision, and precision
 # Write
 Say exactly what you mean. Remove every word that does not help the reader.
 
-## Editing process
-1. Identify the audience and purpose. If the text cannot be summarized in one or two sentences, fix the structure first.
-2. Preserve intent. Change expression, not meaning.
-3. Cut, clarify, then polish.
+## Process
+1. Identify the purpose and requested format. Unless the request says otherwise, assume the audience is software engineers who may not know the subsystem. Formulate the main point in one or two sentences; if you cannot, fix the structure before the wording.
+2. When editing, preserve intent and meaningful uncertainty. Change expression, not meaning.
+3. Do not invent rationale, evidence, risks, or tradeoffs that the request or source does not support. Ask for context or identify the gap.
+4. Cut, clarify, then polish.
 
-## Principles
-- Assume engineering fluency, not subsystem fluency. Don't explain what a webhook or a controller is; do explain what *this* webhook or *this* controller does.
-- Lead with the point. Every paragraph should support it.
-- Use concrete nouns. Replace vague `this` or `that` when the referent may be unclear.
-- Use the imperative. Prefer “Run the script” over “You should run the script.”
+## Audience and structure
+- Assume software-engineering fluency, not subsystem fluency. Do not explain common engineering concepts from first principles; explain what *this* component does and why it matters here.
+- Lead with the main point. Give each paragraph a clear purpose that supports the text's goal.
+- When a concept may be unfamiliar, explain behavior the reader can picture before introducing the technical term.
+- Expand unfamiliar acronyms on first use and explain their function, not only what the letters mean.
+- Split sentences that carry more than one main idea. Use headings, lists, and tables when they make the text easier to scan.
+
+## Language
+- Use concrete nouns. Replace vague pronouns such as `this` or `that` when their referents may be unclear.
+- Use the imperative for instructions. Prefer “Run the script” over “You should run the script.”
 - Prefer active voice. Name the actor when it matters.
-- Replace hedging and adverbs with precise wording, or delete them.
-- Split long sentences. Use whitespace, headings, lists, and tables to make scanning easy.
-- Spell out acronyms on first use and add brief context for unfamiliar concepts.
-- Lead with what a thing does, then name it. Show the behavior a reader can picture before attaching the technical term; readers who don't know the term follow anyway, and those who do lose nothing.
-- Define jargon by its function, not just by expanding the acronym. A plain one-line gloss of what the thing does teaches more than the letters alone.
-- When rejecting an alternative, state why a reasonable person would choose it before explaining why it fails here. Readers follow reasoning better than verdicts.
-- Make an abstract risk concrete: name the specific failure, not its category. "A caller could reuse a token meant for one cluster against another" beats "Cross-cluster replay risk."
-- When a design picks a default, name what changing it would cost. "Starts fail-open; switching to fail-closed needs an availability target, monitoring, and a tested bypass" teaches the decision space, not just the current choice.
-- Keep tone consistent. Avoid jargon, clichés, and mixed formal/colloquial phrasing.
-- Make writing unsummarizable: cut fluff until removing any words, as summaries by definition do, loses interesting ideas.
+- Remove empty hedging and intensifiers. Preserve words that communicate meaningful uncertainty.
+- Choose a tone that fits the audience and keep it consistent. Avoid clichés and unnecessary or unexplained jargon.
+- Cut repetition and filler, but stop when further removal would lose meaning or necessary context.
 - Use US English.
 
+## Technical decisions
+- When rejecting an alternative, state its benefit before explaining why it does not fit this case.
+- Describe risks as specific failures, not abstract categories. “A caller could reuse a token meant for one cluster against another” is clearer than “Cross-cluster replay risk.”
+- When selecting a default, state what changing it would require or cost. “By default, requests continue when the dependency is unavailable (fail-open). Rejecting them instead (fail-closed) requires an availability target, monitoring, and a tested bypass” explains the decision space.
+
 ## Output
-Return the revised text directly. If the rewrite is substantial, add a short note explaining what changed and why.
+Follow the requested delivery format. If none is specified, return the draft or revised text directly. After a substantial rewrite, briefly explain the material changes when the requested format permits commentary.

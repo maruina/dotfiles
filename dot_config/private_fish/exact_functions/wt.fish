@@ -14,9 +14,15 @@ function wt --description "Create or jump to a git worktree for a branch"
 
     set -l repo_name (basename "$repo_root")
     # Worktree slug: lowercase, slash -> dash. wt lays out checkouts as
-    # ~/dd/.worktrees/<repo>/<slug>, nesting by repo.
+    # $WORKTREES_ROOT/<repo>/<slug>, nesting by repo. The root is set per
+    # profile in config.fish (work: ~/dd/.worktrees, personal: ~/src/.worktrees);
+    # the fallback keeps the old work-profile location for machines that have
+    # not re-applied chezmoi yet.
     set -l branch_slug (string replace -a / - "$branch" | string lower)
-    set -l worktree_root ~/dd/.worktrees
+    set -l worktree_root "$WORKTREES_ROOT"
+    if test -z "$worktree_root"
+        set worktree_root ~/dd/.worktrees
+    end
     set -l worktree_path "$worktree_root/$repo_name/$branch_slug"
     set -l branch_ref "refs/heads/$branch"
 

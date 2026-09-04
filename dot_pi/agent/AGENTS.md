@@ -55,7 +55,7 @@ For non-trivial feature work, use `/brainstorm` → `/plan` → `/systematic-rev
 ## Git Worktree
 - Start from an updated `main`.
 - Keep Datadog repositories under `~/dd`.
-- Create Datadog worktrees under `~/dd/.worktrees/<repo>/<branch-slug>`; `wt.fish` slugs branches as lowercase, slash → dash.
+- Create Datadog worktrees under `~/dd/.worktrees/<repo>/<branch-slug>`; `wt.fish` slugs branches as lowercase, slash → dash. `wt` reads the root from `$WORKTREES_ROOT` (`~/dd/.worktrees` on work, `~/src/.worktrees` on personal).
 - Use one worktree per feature branch or pull request; keep the base repository checkout on `main`.
 - Open the worktree directory itself in JetBrains IDEs such as GoLand.
 

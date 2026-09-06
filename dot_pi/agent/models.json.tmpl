@@ -95,6 +95,18 @@
             "minimal": "low",
             "xhigh": "xhigh"
           }
+        },
+        {
+          "id": "openai/gpt-6-astra",
+          "name": "GPT-6 Astra (OpenAI)",
+          "api": "openai-responses",
+          "reasoning": true,
+          "input": [
+            "text",
+            "image"
+          ],
+          "contextWindow": 400000,
+          "maxTokens": 128000
         }
       ]
     },
@@ -115,8 +127,8 @@
       "authHeader": true,
       "models": [
         {
-          "id": "gemini-3.7-flash",
-          "name": "Gemini 3.7 Flash (Google)",
+          "id": "gemini-3.8-flash",
+          "name": "Gemini 3.8 Flash (Google)",
           "api": "google-generative-ai",
           "reasoning": true,
           "input": [
@@ -246,6 +258,20 @@
       },
       "models": [
         {
+          "id": "baseten/zai-org/GLM-5.3-Flash",
+          "name": "Zai Org/glm 5.3 Flash (Baseten)",
+          "api": "openai-completions",
+          "reasoning": true,
+          "input": [
+            "text"
+          ],
+          "contextWindow": 128000,
+          "maxTokens": 16384,
+          "compat": {
+            "supportsDeveloperRole": false
+          }
+        },
+        {
           "id": "baseten/zai-org/GLM-5.3",
           "name": "GLM 5.3 (Baseten)",
           "api": "openai-completions",
@@ -313,6 +339,34 @@
             "xhigh": "xhigh",
             "max": null
           }
+        }
+      ]
+    },
+    "ai-gw-databricks": {
+      "baseUrl": "https://ai-gateway.us1.ddbuild.io/v1",
+      "api": "openai-responses",
+      "apiKey": "!sh -c \"ddtool auth token rapid-ai-platform --datacenter us1.ddbuild.io 2>/dev/null | grep -E '^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$' | head -1\"",
+      "headers": {
+        "source": "pi",
+        "org-id": "2",
+        "x-llmo-force-redaction": "true",
+        "x-dd-tag-ml_app": "pi",
+        "x-dd-tag-ml_app_id": "aidevx.pi",
+        "x-dd-tag-client_session_id": "$PI_CLIENT_SESSION_ID",
+        "x-dd-tag-dd.user_email": "matteo.ruina@datadoghq.com",
+        "x-dd-tag-dd.team": "unknown"
+      },
+      "models": [
+        {
+          "id": "databricks/system.ai.kimi-k3",
+          "name": "System.ai.kimi K3 (Databricks)",
+          "api": "openai-completions",
+          "reasoning": false,
+          "input": [
+            "text"
+          ],
+          "contextWindow": 128000,
+          "maxTokens": 16384
         }
       ]
     }

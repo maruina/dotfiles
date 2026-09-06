@@ -9,7 +9,7 @@ Default to repository conventions and make small, idiomatic changes because cons
 
 ## Version baseline
 - Before using a language feature, standard-library API, or runtime behavior introduced in Go X.Y, require Go X.Y in the module's `go` directive and ensure local development and CI use Go X.Y or later. This keeps the source contract aligned with every supported toolchain.
-- If the project supports an earlier Go version, use the established compatible alternative and let `go test` run its default `stdversion` vet check. Otherwise, a locally successful change can fail for users or CI on the declared baseline.
+- If the project supports an earlier Go version, use the established compatible alternative and run `go vet` so its `stdversion` analyzer catches too-new standard-library references (`go test` runs that check by default only from Go 1.27). Otherwise, a locally successful change can fail for users or CI on the declared baseline.
 
 ## 1. Introduction
 - Evaluate designs in this order: integrity, readability, simplicity, then performance. Later concerns cannot compensate for incorrect behavior or code that maintainers cannot safely change.
@@ -70,7 +70,7 @@ Default to repository conventions and make small, idiomatic changes because cons
 - If a caller may abandon one result from non-cancelable work, use a one-result buffer so the worker can publish the result and terminate instead of blocking forever after the caller leaves.
 - Use non-blocking `select` and dropping only as deliberate overload policies because a `default` case silently trades delivery for latency. Bound the queue and expose dropped work through metrics or errors so overload remains observable.
 - Treat `sync.RWMutex` as a measured optimization rather than a default because its coordination overhead and write contention can make read-heavy code slower than a regular mutex.
-- Do not rely on buffered delivery from `time` timer channels: they are unbuffered for modules declaring Go 1.23 or later, and Go 1.27 removes the `asynctimerchan` GODEBUG escape hatch. Review timeout and timer code when raising a module's Go version because code that previously observed a stale tick buffered before `Stop` or `Reset` no longer receives it.
+- Do not rely on buffered delivery from `time` timer channels: they are unbuffered when the main module's `go.mod` declares Go 1.23 or later, and Go 1.27 removes the `asynctimerchan` GODEBUG escape hatch. Review timeout and timer code when raising a module's Go version because code that previously observed a stale tick buffered before `Stop` or `Reset` no longer receives it.
 
 ## 7. Testing
 - Test exported behavior from an external test package when package boundaries are part of the contract because this catches accidental reliance on unexported state. Use internal-package tests only when exercising unexported behavior is necessary.
@@ -121,4 +121,4 @@ Default to repository conventions and make small, idiomatic changes because cons
 - Run relevant tests because compilation alone does not validate the changed behavior or failure paths.
 - Run `go vet` or the repository lint target when practical because static analysis catches correctness and compatibility problems that tests may not execute.
 - Run race tests when touching concurrency because ordinary tests can pass despite unsynchronized accesses that only instrumentation reveals.
-- After writing new Go code and before committing, run the [modernize analyzer](https://pkg.go.dev/golang.org/x/tools/go/analysis/passes/modernize): `go run golang.org/x/tools/go/analysis/passes/modernize/cmd/modernize@latest ./...`. This identifies standard-library and language improvements while the module's Go version prevents unsupported rewrites.
+- After writing new Go code and before committing, run a modernization check. On Go 1.26 or later, use the supported built-in `go fix -diff ./...`. On earlier Go, run the [modernize analyzer](https://pkg.go.dev/golang.org/x/tools/go/analysis/passes/modernize) at a pinned `golang.org/x/tools` version, not `@latest`, because the standalone command is an unsupported interface and a moving release can drift. The module's Go version prevents unsupported rewrites either way.

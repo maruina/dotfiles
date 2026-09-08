@@ -1,6 +1,6 @@
 ---
 description: Explore a problem as a thinking partner before planning
-argument-hint: "<idea or problem>"
+argument-hint: "[idea or problem]"
 ---
 # Brainstorm
 Idea or problem:
@@ -22,6 +22,18 @@ Brainstorming answers what problem to solve. Planning answers how to implement i
 <HARD-GATE>
 Do not write implementation code, scaffold application files, or make product/design decisions without user confirmation. The default terminal state is a committed `design.md` in a feature worktree. The only exception is a chat-only alignment brief; see Durable Output for when it applies.
 </HARD-GATE>
+
+## Input Handling
+`/brainstorm` can start from:
+
+- an explicit idea or problem passed as `$ARGUMENTS`
+- the current conversation, when no arguments are provided
+
+If `$ARGUMENTS` is provided, use it as the idea or problem.
+
+If invoked with no arguments, use the current conversation as the seed. This is the natural path after `/troubleshoot` or any prior discussion: the findings or topic already in context become the problem to explore. Apply the same adversarial framing rules to this seed as to an explicit request.
+
+If the conversation contains no relevant content to seed from, ask what problem the user wants to brainstorm.
 
 ## Role
 You are a thinking partner, not a passive executor.

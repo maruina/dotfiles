@@ -368,14 +368,21 @@
       "models": [
         {
           "id": "databricks/system.ai.kimi-k3",
-          "name": "System.ai.kimi K3 (Databricks)",
+          "name": "Kimi K3 (Databricks)",
           "api": "openai-completions",
-          "reasoning": false,
+          "reasoning": true,
           "input": [
-            "text"
+            "text",
+            "image"
           ],
-          "contextWindow": 128000,
-          "maxTokens": 16384
+          "contextWindow": 1048576,
+          "maxTokens": 65536,
+          "thinkingLevelMap": {
+            "off": null,
+            "low": "low",
+            "high": "high",
+            "max": "max"
+          }
         }
       ]
     }

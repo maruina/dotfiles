@@ -4,12 +4,13 @@ description: Sync refreshed Pi models into the chezmoi models template
 Reconcile refreshed Pi models from `~/.pi/agent/models.json` into the chezmoi source template at `~/.local/share/chezmoi/dot_pi/agent/models.json.tmpl`.
 
 Context:
-- `/refresh-models` updates the rendered target file, not the chezmoi source template.
-- `models.json` is a templated chezmoi target. Do not use `chezmoi re-add ~/.pi/agent/models.json`.
+- `/refresh-models` writes the refreshed catalog to `~/.pi/agent/models.json`. Every save overwrites managed metadata (name, context window, max output tokens, thinking level map, compat) with fresh curation while preserving unknown user fields. `repair` and a default save differ only in preselection (`repair` keeps your selection, `reset` re-seeds the default preset); both refresh metadata.
+- `~/.pi/agent/models.json` is the source of truth for the model catalog. This command reflects it into the chezmoi source template, never the reverse.
+- `models.json` is a templated chezmoi target. Do not use `chezmoi re-add ~/.pi/agent/models.json`; edit the template.
 - The template has separate `.profile == "work"` and `.profile == "personal"` branches.
 
 Prerequisite:
-- Run `/refresh-models repair` (then press `s` to save) before this command. A default `/refresh-models` save preserves stale existing model fields via an existing-entry-wins merge, so the target can carry outdated `contextWindow`, `maxTokens`, or `thinkingLevelMap` values. `repair` overwrites managed fields with fresh curation while preserving unknown user fields, giving this command an accurate source of truth to reconcile into chezmoi.
+- Run `/refresh-models` (then press `s` to save) before this command so `~/.pi/agent/models.json` carries the fresh catalog. Any save produces an accurate source of truth; `repair` is not required.
 
 Classify each refreshed provider before editing:
 - Treat a provider as **work** if its `baseUrl` points at Datadog infrastructure, especially `https://ai-gateway.us1.ddbuild.io` or `https://ai-gateway.us1.prod.dog`.

@@ -1,6 +1,6 @@
 ---
 description: Execute a committed implementation plan with review checkpoints
-argument-hint: "<path-to-plan.md | trivial work prompt> [extra instructions]"
+argument-hint: "[path-to-plan.md | trivial work prompt] [extra instructions]"
 ---
 # Execute
 Execution input:
@@ -19,6 +19,8 @@ Do not start implementation on `main` or `master` without explicit user consent.
 
 ## Input Handling
 If the first argument resolves to a plan path, follow the normal plan workflow.
+
+If invoked with no arguments, first use the `resolve-worktree` skill with `$GLOB = **/plans/*/plan.md` to discover existing plans across worktrees. If a plan is resolved, switch context to the owning worktree and follow the normal plan workflow. If no plan is found, treat the current conversation as the bare prompt and apply the complexity triage below.
 
 If invoked with a bare prompt instead of a plan path, classify complexity before editing:
 

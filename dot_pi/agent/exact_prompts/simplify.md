@@ -95,6 +95,6 @@ Stop and ask rather than continuing when:
 - a loaded skill or repository guidance conflicts with the proposed simplification
 
 ## Handoff
-Report the simplification diff, the verification commands run before and after, and anything you deliberately left alone. Include **Skills loaded and used** as a `Skill | Source | Why loaded | How used` table for every skill read and applied during simplification; explicitly state when none were needed. Then say exactly:
+Report the exact handoff phrase below. First summarize the simplification diff, the verification commands run before and after, and anything you deliberately left alone, and include **Skills loaded and used** as a `Skill | Source | Why loaded | How used` table for every skill read and applied during simplification; explicitly state when none were needed. Then say exactly:
 
 I finished simplifying the changes. This changed the diff, so any earlier `/verify` verdict is stale — run a fresh `/verify` closeout before relying on it: choose a model different from the one that made these edits, run `/new`, confirm the injected `## Current Model`, then run `/verify` against the plan or task.

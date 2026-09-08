@@ -75,6 +75,7 @@ For `plan.md` targets, check that:
 6. Prefer structural findings over low-value nits.
 7. Validate high-confidence findings with code references, tests, type information, or command output where practical.
 8. Avoid speculative noise. If a concern depends on an assumption, state the assumption and confidence.
+9. Report the exact handoff phrase below.
 
 ## Output format
 
@@ -93,6 +94,7 @@ Return a concise review with these sections:
 6. **Design challenge** — argue against the current design and propose one better alternative, including trade-offs.
 7. **Test gaps** — meaningful missing tests or tests that overfit implementation details.
 8. **Open questions** — only questions that block confidence or change the recommendation.
+9. **Handoff** — close with the exact phrase from `## Handoff`.
 
 If no issues are found, say so explicitly and still include the design challenge and any residual risks.
 
@@ -103,4 +105,5 @@ Close with the recommended next step:
   Review complete. Run /execute <absolute-path-to-plan.md> to implement it.
 - For a `plan.md` target with blocking findings, say exactly:
   Review complete. Address the findings above, then re-run /systematic-review <absolute-path-to-plan.md>, or return to /plan to revise.
-- For a code-only target with no plan: recommend the highest-priority next action instead of a pipeline handoff.
+- For a code-only target with no plan, say exactly:
+  Review complete. Recommended next step: <highest-priority action>.

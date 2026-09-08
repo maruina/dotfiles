@@ -259,16 +259,25 @@
       "models": [
         {
           "id": "baseten/zai-org/GLM-5.3-Flash",
-          "name": "Zai Org/glm 5.3 Flash (Baseten)",
+          "name": "GLM 5.3 Flash (Baseten)",
           "api": "openai-completions",
           "reasoning": true,
           "input": [
             "text"
           ],
-          "contextWindow": 128000,
-          "maxTokens": 16384,
+          "contextWindow": 1048576,
+          "maxTokens": 131072,
           "compat": {
             "supportsDeveloperRole": false
+          },
+          "thinkingLevelMap": {
+            "off": null,
+            "minimal": null,
+            "low": "low",
+            "medium": null,
+            "high": "high",
+            "xhigh": null,
+            "max": "max"
           }
         },
         {
@@ -285,7 +294,7 @@
             "supportsDeveloperRole": false
           },
           "thinkingLevelMap": {
-            "off": "none",
+            "off": null,
             "minimal": null,
             "low": "low",
             "medium": null,
@@ -313,8 +322,8 @@
             "low": null,
             "medium": null,
             "high": "high",
-            "xhigh": "xhigh",
-            "max": null
+            "xhigh": null,
+            "max": "max"
           }
         },
         {
@@ -332,12 +341,12 @@
           },
           "thinkingLevelMap": {
             "off": "none",
-            "minimal": "minimal",
+            "minimal": null,
             "low": "low",
-            "medium": "medium",
+            "medium": null,
             "high": "high",
-            "xhigh": "xhigh",
-            "max": null
+            "xhigh": null,
+            "max": "max"
           }
         }
       ]

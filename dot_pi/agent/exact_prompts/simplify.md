@@ -16,7 +16,7 @@ Do not change behavior. Existing tests must pass before and after; run the focus
 </HARD-GATE>
 
 ## Scope
-Default to recently changed code, not the whole repository. Stay within the changed lines and their immediate context; do not expand into untouched code.
+Default to recently changed code, not the whole repository. Read beyond the diff as needed to trace the affected flow, understand invariants, inspect callers, and find canonical helpers or ownership boundaries. Keep edits within changed code and its immediate context. If a worthwhile simplification requires broader edits, report it and stop rather than expanding scope automatically.
 
 ## Target Resolution
 Resolve the target from the first positional in `$ARGUMENTS` and switch context to the owning worktree before reading repository files or modifying code. Strip a trailing `--base <ref>` before resolving; use `<ref>` as the diff base when supplied.
@@ -53,6 +53,26 @@ Do not restate style rules here. Before proposing or making simplifications, use
 If the touched code is in an unfamiliar area, also load `codebase-research` before changing it. Match the repository's existing conventions over any general preference.
 
 Keep a record of each skill actually read and applied: source (`skill-loader`, `prompt-required`, `user-requested`, or `agent-selected`), why it was loaded, and how its guidance affected simplification. Include workflow skills such as `resolve-worktree` or `skill-loader` when their instructions were actually followed. This provenance is feedback for improving `skill-loader`; do not infer use from skills merely named in this prompt or another artifact.
+
+## Simplification Lens
+Understand the affected behavior before minimizing its implementation. Apply the decision ladder from the active instructions and stop at the first option that fully preserves behavior.
+
+Look for bounded "code-judo" changes that remove complexity rather than rearrange it:
+
+- eliminate concepts, branches, modes, wrappers, or duplicate paths
+- reuse an existing canonical helper or ownership boundary
+- make an existing invariant explicit when that simplifies control flow
+- delete indirection that does not improve naming, testing, ownership, or reuse
+
+A simplification must materially reduce at least one of:
+
+- concepts a reader must hold in mind
+- branches or special cases
+- duplicate logic
+- unnecessary indirection
+- ambiguity at a type, API, or ownership boundary
+
+Reject changes that only move complexity between files, reduce line count without improving comprehension, introduce a new abstraction, or alter sequencing, atomicity, error behavior, security, accessibility, or observability. If no material simplification exists, make no change.
 
 ## Guardrail
 Simplicity serves the reader, not brevity. Do not:

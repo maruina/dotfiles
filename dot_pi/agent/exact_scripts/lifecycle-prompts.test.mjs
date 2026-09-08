@@ -46,6 +46,42 @@ test("plan records skill provenance before approval and in durable plans", () =>
   ]);
 });
 
+test("brainstorm and plan stay within prompt context budgets", () => {
+  const budgets = new Map([
+    ["brainstorm.md", 14_000],
+    ["plan.md", 18_000],
+  ]);
+
+  for (const [file, budgetBytes] of budgets) {
+    const actualBytes = Buffer.byteLength(prompt(file), "utf8");
+    assert.ok(actualBytes <= budgetBytes, `${file} is ${actualBytes} bytes; budget is ${budgetBytes}`);
+  }
+});
+
+test("brainstorm and plan preserve dependency-aware lifecycle contracts", () => {
+  const brainstorm = prompt("brainstorm.md");
+  requireMarkers(brainstorm, [
+    /skeptical throughout the design/i,
+    /failure conditions.*simpler alternatives/is,
+    /^## Operational Soundness$/m,
+    /confident carrying the pager.*4am/i,
+    /dependency-aware decision tree/i,
+    /prerequisites are settled/i,
+    /every material branch.*no material assumption remains implicit/is,
+    /Do not move to planning or execution until the user confirms the framing/i,
+  ]);
+  assert.doesNotMatch(brainstorm, /^## Pressure-test mode$/im);
+
+  requireMarkers(prompt("plan.md"), [
+    /highest supported interface.*deterministically/is,
+    /existing test seam.*fewest new seams/is,
+    /\*\*Out of Scope:\*\*/,
+    /\*\*Blocked by:\*\*/,
+    /blockers before dependents.*`\/execute`.*sequentially/is,
+    /expand–migrate–contract/,
+  ]);
+});
+
 test("downstream lifecycle stages preserve or report skill provenance", () => {
   const execute = prompt("execute.md");
   requireMarkers(execute, [

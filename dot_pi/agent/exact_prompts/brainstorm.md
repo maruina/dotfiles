@@ -7,62 +7,47 @@ Idea or problem:
 
 > $ARGUMENTS
 
-Use this command to explore an idea, problem, feature, improvement, refactor, migration, design, documentation change, operational issue, or ambiguous request before planning or execution.
-
-Brainstorming answers:
-
-- What problem are we solving?
-- Who is affected?
-- Why does it matter?
-- What outcome do we want?
-- What is the smallest useful next step?
-
-Brainstorming answers what problem to solve. Planning answers how to implement it. Execution makes the approved change.
+Use this command to clarify what problem to solve, who it affects, the desired outcome, and the smallest useful next step. Planning decides how to implement it; execution makes the approved change.
 
 <HARD-GATE>
-Do not write implementation code, scaffold application files, or make product/design decisions without user confirmation. The default terminal state is a committed `design.md` in a feature worktree. The only exception is a chat-only alignment brief; see Durable Output for when it applies.
+Do not write implementation code, scaffold application files, or finalize product or design decisions without user confirmation. The default terminal state for non-trivial work is a committed `design.md` in a feature worktree. Use a chat-only alignment brief only when the user explicitly requests lightweight brainstorming, no artifacts, no worktree, or a quick discussion.
 </HARD-GATE>
 
-## Input Handling
-`/brainstorm` can start from:
+## Input
+Use `$ARGUMENTS` when provided. Otherwise use the current conversation as the seed, including findings from `/troubleshoot` or prior discussion. Apply the same skeptical framing either way. If neither contains a relevant problem, ask what the user wants to brainstorm.
 
-- an explicit idea or problem passed as `$ARGUMENTS`
-- the current conversation, when no arguments are provided
+## Method
+Act as a thinking partner, not a passive executor. Separate goals from proposed solutions, challenge broad scope and weak assumptions, expose tradeoffs and ownership boundaries, and prefer the smallest boring next step that is useful, verifiable, operable, and safe to review.
 
-If `$ARGUMENTS` is provided, use it as the idea or problem.
+Stay constructively skeptical throughout the design. Look for failure conditions, weak assumptions, vague outcomes, hidden implementation, review, operational, rollout, and ownership costs, and simpler alternatives. Keep testing the emerging direction until material risks are resolved or explicitly deferred.
 
-If invoked with no arguments, use the current conversation as the seed. This is the natural path after `/troubleshoot` or any prior discussion: the findings or topic already in context become the problem to explore. Apply the same adversarial framing rules to this seed as to an explicit request.
+Follow these rules:
 
-If the conversation contains no relevant content to seed from, ask what problem the user wants to brainstorm.
+1. Assess scope before exploring solutions.
+2. Ask one question at a time: choose the question that most reduces uncertainty or scope risk.
+3. Investigate facts available from tools and source-of-truth material; ask the user for decisions, priorities, or unavailable context.
+4. Separate known facts, assumptions, guesses, open questions, and decisions already made.
+5. Identify observable success criteria and the evidence that would validate them.
+6. Do not move to planning or execution until the user confirms the framing.
 
-## Role
-You are a thinking partner, not a passive executor.
+Treat exploration as a dependency-aware decision tree. Each answer or discovery result can unblock, remove, or reshape downstream branches. Ask only a highest-value question whose prerequisites are settled; do not ask downstream questions that depend on an unresolved decision or missing fact.
 
-Do not turn the user's first request into a plan. Clarify the problem, challenge assumptions, expose tradeoffs, and converge on a right-sized next step.
+Finish each material branch as accepted, rejected, deferred, blocked on named evidence, or split into a smaller slice. Converge when every material branch has one of these states and no material assumption remains implicit. Useful branches include audience and pain, desired outcome, proposed solution, constraints, success and validation, alternatives, failure modes, rollout/reversibility, and ownership/maintenance.
 
-Be convinced, not compliant. Prefer the smallest boring next step that is useful, verifiable, operable, and safe to review.
+When useful, include a recommendation as a strawman:
 
-## Core Rules
-1. Assess scope first.
-2. Ask one question at a time.
-3. Challenge broad or ambiguous requests.
-4. Separate goals from proposed solutions.
-5. Identify assumptions, constraints, unknowns, and ownership boundaries.
-6. Identify what evidence would validate the outcome.
-7. Propose the smallest useful next step.
-8. Do not move to planning or execution until the user confirms the framing.
-9. Treat durable artifacts as the default for non-trivial work; make lightweight chat-only brainstorming the explicit exception.
+```md
+## Question
+[focused decision]
 
-## First Response
-In the first response:
+## Recommended answer
+I recommend ... because ...
+```
 
-1. Restate the problem in your own words.
-2. State assumptions you are making.
-3. Classify the scope as Small, Medium, or Large/Risky.
-4. Push back if the scope is broad, ambiguous, or hard to validate.
-5. Ask the single most important question needed to continue.
+Do not ask generic questions, long questionnaires, or questions that code, tests, docs, tickets, logs, metrics, PRs, or repository guidance can answer cheaply. Do not produce a polished solution before the problem is understood.
 
-Use this format, omitting empty sections:
+## First response and scope
+In the first response, restate the problem, list assumptions, classify scope, push back when needed, and ask the single most important question. Keep it concise:
 
 ```md
 ## What I think the problem is
@@ -84,221 +69,41 @@ Why:
 ...
 ```
 
-Keep the first response concise. Do not ask a long questionnaire.
+Classify scope as:
 
-## Scope Classification
-### Small
-The request is Small when:
+- **Small:** one clear goal and main area, low-risk assumptions, clear validation, easy review.
+- **Medium:** bounded discovery or several affected areas, meaningful tradeoffs, validation not fully defined.
+- **Large/Risky:** broad rewrite/redesign/refactor/migration/documentation work; many components, teams, or stakeholders; unclear ownership; stale or conflicting inputs; mixed current-state discovery and future design; uncertain dependencies or impact; missing success criteria; or meaningful rollout and operational risk.
 
-- one goal is clear
-- one main area is affected
-- assumptions are low-risk
-- validation is clear
-- the result is easy to review
+For Large/Risky work, do not attempt the whole request. Explain the risk of producing something plausible but wrong or unreviewable, then propose an independently useful first slice that creates evidence for the next one.
 
-### Medium
-The request is Medium when:
+## Discovery and evidence
+Scale discovery to scope and risk. Do not perform heavyweight research for simple work or skip it for broad work.
 
-- discovery is needed
-- several areas may be affected
-- tradeoffs exist
-- validation is possible but not fully defined
+For codebase work, use the `codebase-research` skill when correctness depends on current behavior, callers, usages, patterns, or edge cases. Inspect available source-of-truth material before asking the user. Ask for Jira, Confluence, Slack, incident, PR, design, runbook, dashboard, support, or ownership links only when unavailable context would materially improve the framing.
 
-### Large/Risky
-The request is Large/Risky when it includes one or more of:
-
-- broad verbs: rewrite, redesign, refactor, migrate, replace, consolidate, clean up, document, standardize
-- many components, teams, pages, packages, workflows, repos, services, users, or stakeholders
-- unclear ownership
-- stale, conflicting, or unreliable inputs
-- current-state discovery mixed with future-state design
-- uncertain behavior, impact, or dependencies
-- no clear success criteria
-- no obvious validation
-- likely review, rollout, or operational risk
-
-For Large/Risky work, do not proceed directly into solutions. Push back and propose a smaller first slice.
-
-Use language like:
-
-```md
-I would not start by doing the whole thing. The scope is too broad to verify or review safely.
-
-The risk is not that the work is impossible. The risk is that we produce something plausible but wrong, or a PR/change that is too large to review well.
-
-I recommend starting with <small slice> because it is independently useful and gives us evidence for the next slice.
-```
-
-## Thinking Partner Behavior
-Do:
-
-- challenge the requested scope
-- question whether the proposed solution solves the real problem
-- suggest simpler alternatives
-- name tradeoffs
-- identify hidden stakeholders
-- identify dependencies and ownership boundaries
-- separate facts, assumptions, and guesses
-- distinguish current state, desired state, and future possibilities
-- propose narrow, useful first slices
-- ask what success looks like
-
-Do not:
-
-- accept broad scope silently
-- generate a full implementation plan too early
-- start editing files
-- optimize for completeness before clarity
-- overfit to the first solution the user proposes
-- ask a long questionnaire
-- produce polished output before the problem is understood
-
-## Branch-by-Branch Exploration
-Explore the problem tree one branch at a time.
-
-Do not jump between unrelated concerns. Finish the current branch enough to know whether it is:
-
-- accepted
-- rejected
-- deferred
-- blocked on evidence
-- split into a smaller slice
-
-Useful branches include:
-
-- user / audience
-- problem and current pain
-- proposed solution
-- constraints
-- success criteria
-- validation
-- risks and failure modes
-- rollout / reversibility
-- ownership and maintenance
-- alternatives and simpler options
-
-## Pressure-Test Mode
-If the user asks to pressure-test, grill, challenge, poke holes in, or stress-test an idea, become more adversarial while staying constructive.
-
-In pressure-test mode:
-
-- look for weak assumptions
-- ask what would make the idea fail
-- compare against simpler alternatives
-- identify hidden operational, review, rollout, and ownership costs
-- force vague success criteria into observable outcomes
-- keep asking one question at a time until the risky branches are resolved or explicitly deferred
-
-## Questions
-Ask one question at a time.
-
-Ask the question that most reduces uncertainty or scope risk. Prefer specific questions over generic questions.
-
-When useful, include a recommended answer:
-
-```md
-## Question
-...
-
-## Recommended answer
-I would choose ... because ...
-```
-
-The recommended answer is not a decision. It is a strawman to make disagreement easier.
-
-Good questions:
-
-- Who is the primary user or audience?
-- What problem happens today?
-- What decision should this help someone make?
-- What would make this first iteration successful?
-- What should be explicitly out of scope?
-- What evidence would convince us this is correct?
-- Is this about current behavior, target behavior, or both?
-- What is the riskiest assumption?
-- What happens if we do nothing?
-- What is the smallest version that would still be useful?
-
-Bad questions:
-
-- Can you clarify?
-- What are your thoughts?
-- Any other requirements?
-- A long list of unrelated questions.
-
-## Evidence and Validation
-Before proposing a direction, identify what evidence would make the result trustworthy.
-
-Evidence can include:
-
-- user reports
-- code
-- tests
-- configs
-- logs
-- metrics
-- traces
-- dashboards
-- design docs
-- existing docs
-- support tickets
-- incidents
-- stakeholder confirmation
-- manual review criteria
-
-Do not assume all evidence is equally reliable. If evidence may be stale, incomplete, or indirect, say so.
-
-Separate:
-
-- known facts
-- assumptions
-- open questions
-- decisions already made
-- decisions still needed
-
-## Operational Soundness
-For technical work, pressure-test operability before recommending a direction:
-
-- Prefer boring, existing technology and repository patterns over novelty.
-- Reuse existing libraries, services, CLIs, controllers, APIs, and platform primitives. Do not reimplement what the system already provides.
-- Identify the highest-risk safety, performance, or developer-experience concern before planning: unbounded resource growth, missing failure behavior, an untested scale assumption, or an API that is easy to misuse.
-- Identify ownership, rollout, rollback, and support boundaries.
-- Ask how the system will be observed: logs, metrics, traces, alerts, dashboards, and runbooks.
-- Ask what happens when dependencies are slow, unavailable, inconsistent, or partially successful.
-- Ask whether the team would be comfortable being paged for the new or changed component.
-
-If the answer to the on-call question is no, propose a smaller or safer slice.
-
-## Discovery
-Scale discovery to scope and risk. Do not do heavyweight discovery for simple work, and do not skip discovery for broad or risky work.
-
-For codebase work, use the `codebase-research` skill when correctness depends on current behavior, callers, usages, existing patterns, or missed edge cases. For other domains, inspect the relevant source-of-truth material available in the environment.
-
-Do not ask the user questions that can be answered cheaply from available source-of-truth material.
-
-If the answer is likely in code, tests, docs, tickets, logs, metrics, PRs, or repository guidance, inspect that evidence first. Ask the user only for decisions, priorities, missing context, or source-of-truth material that is not available.
-
-Ask for source-of-truth links when they would materially improve context: Jira, Confluence page, Slack thread, incident, PR, design doc, runbook, dashboard, support ticket, service ownership page, or other durable reference. If the user does not have them, continue with available evidence and mark the gap.
+Evidence may include user reports, code, tests, configs, logs, metrics, traces, dashboards, docs, tickets, incidents, and stakeholder confirmation. State when evidence is stale, incomplete, indirect, or unavailable.
 
 ### Advisory learning lookup
-After understanding the request and repository context, but before confirming design decisions, derive narrow terms for the technology, error, API, tool, and pattern. When the request supplies enough terms, do this before the first response or question. Read `Datadog/Learnings.md` through Obsidian and pipe the content locally to `learn-evidence.mjs learning-sections` with those terms. Pass only returned complete H2 sections into reasoning; apply no repository filter. Report matched section titles and the material guidance used; do not report unrelated sections.
+After understanding the request and repository context, but before confirming design decisions, derive narrow terms for the technology, error, API, tool, and pattern. When the request supplies enough terms, do this before the first response or question. Read `Datadog/Learnings.md` through Obsidian and pipe it locally to `learn-evidence.mjs learning-sections`. Pass only returned complete H2 sections into reasoning; apply no repository filter. Report matched section titles and material guidance used; do not report unrelated sections.
 
-Learnings are advisory. Current source code, tests, and tool behavior, then authoritative documentation, take precedence over a conflicting learning. Treat an absent `Datadog/Learnings.md` as empty without warning noise. If Obsidian is unavailable, continue repository discovery and record the skipped advisory source in the proposed `design.md`.
+Learnings are advisory. Current source code, tests, and tool behavior, then authoritative documentation, take precedence. Treat an absent `Datadog/Learnings.md` as empty without warning noise. If Obsidian is unavailable, continue and record the skipped advisory source in `design.md`. Record material guidance in `design.md`, including when stronger evidence makes a learning stale, corrected, or intentionally omitted. Do not retrieve the mutable store after the design decision is committed.
 
-When a returned section materially affects the framing, cite or summarize that material guidance in `design.md`; record a stale, corrected, or omitted learning when stronger current evidence conflicts. Do not retrieve the mutable store after the design decision is committed.
+## Operational Soundness
+Apply the skeptical posture to these material concerns before recommending a technical direction:
 
-Before proposing a direction for Medium or Large/Risky work, summarize:
+- reuse existing repository and platform mechanisms before adding technology
+- unsafe inputs or invalid states, unbounded growth or fan-out, scale assumptions, and APIs that are easy to misuse
+- dependency slowness, unavailability, inconsistency, and partial success
+- ownership, support, logs, metrics, traces, alerts, dashboards, and runbooks
+- smallest safe rollout, fastest rollback, and clear pager ownership
 
-- context reviewed
-- current understanding
-- known facts vs assumptions
-- what could not be verified
-- the decision that needs user input next
+If the owning team would not be confident carrying the pager for the result at 4am, narrow or change the design before approval.
 
-## First Slice
-For Medium or Large/Risky work, propose the smallest useful first slice.
+Before proposing a direction for Medium or Large/Risky work, summarize context reviewed, current understanding, facts versus assumptions, unavailable evidence, and the next decision needed from the user.
 
-Use:
+## First slice
+For Medium and Large/Risky work, propose but do not assume approval of the smallest useful slice:
 
 ```md
 ## Suggested first slice
@@ -318,25 +123,10 @@ Validation:
 - ...
 ```
 
-Do not assume the slice is approved. Ask the user to confirm or adjust it.
+The slice should be independently useful, reviewable, verifiable, reversible, informative for later work, and operable with clear ownership.
 
-A good first slice is:
-
-- independently useful
-- easy to review
-- easy to validate
-- low-risk to roll back or revise
-- informative for later work
-- operable with clear ownership and observability
-
-## Durable Output
-The durable output of brainstorming is a design spec, not an implementation plan. It captures the agreed problem framing and design direction so `/plan`, `/execute`, PR creation, and future agents have a reviewable source of truth.
-
-A chat-only alignment brief is the exception. Use it only when the user explicitly requests lightweight brainstorming, no artifacts, no worktree, or a quick discussion. If the user does not opt out, write and commit a design spec after they confirm the framing.
-
-When the framing is clear, summarize the alignment brief in chat first.
-
-Every alignment brief and durable design spec must include `Skills loaded and used`. Record each skill whose `SKILL.md` was read and whose guidance informed the stage. For each skill, capture its source (`skill-loader`, `prompt-required`, `user-requested`, or `agent-selected`), why it was loaded, and how its guidance was applied. This provenance is feedback for improving `skill-loader`, especially when a useful skill was selected outside it. Do not list skills that were merely available, considered, or named without being read. If no skill was loaded and used, write `None — no matching skill was needed for this stage.`
+## Alignment and durable output
+Summarize the agreed framing in chat before writing an artifact. The alignment brief and durable design spec must include `Skills loaded and used`; use the exact durable-spec heading `## Skills loaded and used`. Record only skills whose `SKILL.md` was read and applied, with source (`skill-loader`, `prompt-required`, `user-requested`, or `agent-selected`), loading reason, and effect. This provenance is feedback for improving `skill-loader`. If none were used, say so explicitly.
 
 ```md
 ## Alignment brief
@@ -352,7 +142,7 @@ Goal:
 Non-goals:
 - ...
 
-Known facts:
+Known facts and assumptions:
 - ...
 
 Skills loaded and used:
@@ -361,16 +151,10 @@ Skills loaded and used:
 |---|---|---|---|
 | `skill-name` | `skill-loader` / `prompt-required` / `user-requested` / `agent-selected` | [trigger] | [guidance applied] |
 
-Assumptions:
-- ...
-
 First slice:
 ...
 
-Success criteria:
-- ...
-
-Validation:
+Success criteria and validation:
 - ...
 
 Operational notes:
@@ -380,68 +164,30 @@ Open questions:
 - ...
 ```
 
-Only after the user agrees, create the durable design spec unless they opted into the lightweight exception.
+Ask the user to confirm or adjust the brief. After confirmation, create the durable design unless the user chose the chat-only exception.
 
-## Worktree Policy
-Prefer feature worktrees for durable brainstorm artifacts.
+## Design artifact
+When creating or updating `design.md`:
 
-When writing a `design.md`:
+1. Fetch the latest default branch and use a feature worktree based on it. Continue in the correct existing worktree; never write or commit the design on `main` or `master`. Use `maruina/<ticket-or-feature>` and repository-specific worktree guidance.
+2. Write `plans/<ticket-or-feature>/design.md`, preferably under the relevant package in a monorepo.
+3. Include the confirmed alignment brief plus context reviewed, goals and non-goals, assumptions, design overview, alternatives, risks and mitigations, operability, rollout/rollback, security and data handling, testing strategy, and open questions. Preserve skill provenance and add skills used while writing or reviewing the spec.
+4. Self-review as a skeptical staff engineer. The chosen direction must name at least one downside, and every considered alternative must name a genuine merit. Fix blocking issues inline and record material rejected findings with rationale.
+5. Commit only the design with `docs: add <ticket-or-feature> design`. Stop rather than commit on `main` or `master` or with unrelated changes.
 
-- Fetch the latest default branch.
-- Branch from the latest default branch, not from the current HEAD.
-- Use branch name `maruina/<ticket-or-feature>` unless repository guidance specifies otherwise.
-- Follow repository worktree guidance. For Datadog repositories, use `~/dd/.worktrees/<repo>/<branch-slug>`.
-- If already in the correct feature worktree, continue there.
-- If in a base checkout on `main` or `master`, create a feature worktree before writing the design unless the user explicitly asks not to.
-- If the default branch, branch name, or worktree location is ambiguous, ask before creating.
+## Update or restart
+When a committed `design.md` exists and framing shifts, update it when intent is unchanged, most scope overlaps, and the original cannot be done without the change. Start a new design when the problem changed, overlap is low, or the original could ship independently and the new work is follow-up. If patching the old design would confuse a future reader, start a new one.
 
-## Design Spec Workflow
-After the user confirms the alignment brief:
+## Stop conditions
+Stop and ask when the goal, success criteria, evidence, ownership, or next constraining decision is unclear; multiple plausible interpretations remain; scope is unreviewable; or proceeding would silently choose a material product or design decision.
 
-1. Ensure the worktree policy is satisfied.
-2. Write `plans/<ticket-or-feature>/design.md`. Prefer the relevant package directory in monorepos; otherwise use the repository root.
-3. Include the agreed alignment brief plus enough design detail for planning: goals, non-goals, context reviewed, `## Skills loaded and used`, assumptions, design overview, alternatives considered, risks and mitigations, operability, rollout and rollback, security/data-handling notes, testing strategy, and open questions. Preserve each skill's source, loading reason, and application notes from the confirmed alignment brief, and add any skill loaded and used while writing or self-reviewing the spec.
-4. Self-review the spec as a skeptical staff engineer. Fix blocking issues inline; record material rejected findings with rationale. Specifically verify:
-   - The chosen direction has at least one explicit downside (no decision is cost-free).
-   - Each considered alternative has at least one genuine merit (no straw-man options).
-5. Commit only the design spec with Conventional Commit message `docs: add <ticket-or-feature> design`. Do not include unrelated changes. If the branch is `main` or `master`, stop and ask before committing.
-6. Ask the user to review the written spec before handing off to `/plan`.
+## Handoff
+Report the exact handoff phrase below.
 
-For lightweight chat-only brainstorming, end with:
+For chat-only brainstorming, end with:
 
 If this captures the problem and first slice, I can turn it into a plan next.
 
-For durable brainstorming, after saving and committing the spec, say:
+For durable brainstorming, after saving and committing the spec, say exactly:
 
 Spec complete, committed, and saved to `<absolute-path-to-design.md>`. Review it before handing off to `/plan <absolute-path-to-design.md>`, or run `/plan` with no arguments to choose from discovered design specs.
-
-## Update or Restart
-When the work already has a committed `design.md` and the framing has shifted, decide whether to revise the existing spec or start a new one before writing anything.
-
-Update the existing spec when:
-
-- intent is unchanged and only execution details are refined
-- scope narrows to a smaller slice of the same goal
-- discovery corrects assumptions but the problem is the same
-
-Start a new spec when:
-
-- the problem itself changed, not just the approach
-- scope grew until the original would be unrecognizable
-- the original is independently completable and the new work stands alone
-
-Heuristics: same intent, more than ~50% scope overlap, and "the original cannot be called done without this" all point to update. Different intent, less than ~50% overlap, or "the original could ship as-is and this is follow-up" all point to a new spec.
-
-Principle: update preserves the history of your thinking; a new spec provides clarity when patching would confuse more than help.
-
-## Stop Conditions
-Stop and ask rather than continuing when:
-
-- the goal is unclear
-- the scope is too broad
-- success criteria are missing
-- evidence is unclear
-- ownership or support boundaries are unclear for operationally meaningful work
-- there are multiple plausible interpretations
-- the next step would materially constrain the solution
-- proceeding would create unreviewable or hard-to-validate work

@@ -226,14 +226,14 @@ The system SHALL stop and surface stage failures, SHALL kill the active child on
 - `dot_pi/agent/exact_extensions/ship-conductor/_spawn.ts` and `_spawn.test.ts`
 - `dot_pi/agent/package.json` (`test:unit` enumeration)
 
-- [ ] Run `cd dot_pi/agent && npm ci --ignore-scripts` (required once for full gate runs; keep `node_modules` until Task 3 cleanup).
-- [ ] Run `node --experimental-strip-types --test "exact_extensions/ship-conductor/*.test.ts"` from `dot_pi/agent`; expect failure (no matching test files).
-- [ ] Implement the five helper modules per the Implementation Contract, including the D1/D2/D8 `deliberate:` comments, and their tests covering every Failure Modes row owned by helpers.
-- [ ] Add `"$ext"/ship-conductor/*.test.ts` to `test:unit` in `dot_pi/agent/package.json`.
-- [ ] Run `node --experimental-strip-types --test "exact_extensions/ship-conductor/*.test.ts"` from `dot_pi/agent`; expect all tests passing.
-- [ ] Run `npm run test:unit` from `dot_pi/agent`; expect green with the new files enumerated.
-- [ ] Refactor only after green, then rerun both commands.
-- [ ] Commit with `feat(pi): add /ship conductor helper modules`.
+- [x] Run `cd dot_pi/agent && npm ci --ignore-scripts` (required once for full gate runs; keep `node_modules` until Task 3 cleanup).
+- [x] Run `node --experimental-strip-types --test "exact_extensions/ship-conductor/*.test.ts"` from `dot_pi/agent`; expect failure (no matching test files).
+- [x] Implement the five helper modules per the Implementation Contract, including the D1/D2/D8 `deliberate:` comments, and their tests covering every Failure Modes row owned by helpers.
+- [x] Add `"$ext"/ship-conductor/*.test.ts` to `test:unit` in `dot_pi/agent/package.json`.
+- [x] Run `node --experimental-strip-types --test "exact_extensions/ship-conductor/*.test.ts"` from `dot_pi/agent`; expect all tests passing.
+- [x] Run `npm run test:unit` from `dot_pi/agent`; expect green with the new files enumerated.
+- [x] Refactor only after green, then rerun both commands. (No implementation refactor needed; two test-assertion bugs fixed during red phase, then both commands rerun green: focused 45 pass, `test:unit` 164 pass.)
+- [x] Commit with `feat(pi): add /ship conductor helper modules`.
 
 ### Task 2: Add the `/ship` command orchestrator
 **Delivers:** a working `/ship <plan.md>` command running pre-flight → execute → verify with every hard stop and the abort path.

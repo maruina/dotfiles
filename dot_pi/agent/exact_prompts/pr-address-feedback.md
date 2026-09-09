@@ -9,9 +9,16 @@ You are the author of this PR. Build a shared model of the changed system before
 
 This command is not a second full PR review. `/pr-review` explains and evaluates the PR as a whole. `/pr-address-feedback` develops only the system context needed to make well-supported decisions about review feedback.
 
-<HARD-GATE>
-Read-only by default. Do not edit files, commit, push, post GitHub comments, reply, or resolve review threads unless the user explicitly asks.
-</HARD-GATE>
+<AUTONOMY>
+Default to action; do not ask for confirmation:
+- `adopt as suggested`: implement the fix, run relevant tests, commit, push, and resolve the review thread without asking.
+- `adopt different approach`: do NOT implement. Present the proposed alternative and discuss it with the user first.
+- `push back`, `already addressed`, `needs clarification`: no code changes; leave the thread open for the user.
+- Never post GitHub comments or replies; the user replies manually.
+- Resolve a review thread only when its fix is included in the push.
+
+Stop and ask instead when: the checkout is dirty or not on the PR head branch, tests fail after the fix, or the required change is ambiguous.
+</AUTONOMY>
 
 ## Inputs
 Parse:
@@ -82,6 +89,8 @@ For each selected comment, answer the following in order:
    - `already addressed` — the current PR head handles the concern; the comment is stale or superseded.
    - `needs clarification` — reviewer intent, expected behavior, or evidence is ambiguous.
 
+Act on `adopt as suggested` autonomously per the autonomy contract. Treat `adopt different approach` as a discussion item: present it and wait for the user's decision before implementing.
+
 Do not manufacture a reason to accept or reject feedback. If the evidence is insufficient, use `needs clarification` and name the exact unanswered question.
 
 For `adopt different approach`, include:
@@ -91,7 +100,17 @@ For `adopt different approach`, include:
 - required test coverage;
 - why it is safer or simpler than the suggestion.
 
-## Phase 5: Produce concise author-facing output
+## Phase 5: Implement, push, and resolve
+For every comment adjudicated `adopt as suggested`:
+1. Implement the smallest change that addresses the concern, including required tests.
+2. Run the relevant tests or validation. If they fail, stop, report the failure, and do not commit or push.
+3. Commit on the PR head branch with a Conventional Commit message. If the checkout is dirty or not on the PR head branch, stop and ask.
+4. Push to the PR head branch.
+5. Resolve each implemented comment's review thread using the GraphQL mechanics in the `pr-comment-triage` skill (step 10). Resolve only threads whose fix is in this push.
+
+Do not implement `adopt different approach` items; present them for discussion. Never post GitHub comments or replies.
+
+## Phase 6: Produce concise author-facing output
 Keep system context brief and shared across comments. Do not repeat it per comment.
 
 ```markdown
@@ -125,16 +144,25 @@ Keep system context brief and shared across comments. Do not repeat it per comme
 
 **Recommended action:** State the smallest code change, alternative approach, or reason not to change code.
 
-**Draft reply:**
+**Draft reply (for the user to post manually):**
 > Concise reply the author can edit before posting. For `already addressed`, omit it unless a response would help the reviewer.
 
-## Next steps
-- **Implement:** comments with `adopt as suggested` or `adopt different approach`, including the required tests.
-- **Reply without code changes:** comments with `push back`, `already addressed`, or `needs clarification`.
-- **Open questions / unverified assumptions:** ...
+## Actions taken
+- Implemented and pushed: comments #N, ... (commit SHA, `head-branch`)
+- Threads resolved: #N, ...
+- Tests/validation: ...
+
+## To discuss before implementing
+- Comment #K (@reviewer): one-line summary of the proposed alternative — awaiting your decision.
+
+## Replies to post manually
+- Comment #Z (@reviewer): `push back` / `needs clarification` — draft above.
+
+## Open questions / unverified assumptions
+- ...
 ```
 
 Keep each comment assessment proportional to its importance. Prefer a compact, evidence-backed paragraph over a mini code review.
 
 ## Follow-up
-End by stating that implementation, commits, pushes, replies, and thread resolution require explicit confirmation. Use `WORKTREE` for any follow-up investigation.
+End by listing: what was implemented and pushed, which threads were resolved, which `adopt different approach` proposals await the user's decision, and which comments need a manual reply. Use `WORKTREE` for any follow-up investigation.

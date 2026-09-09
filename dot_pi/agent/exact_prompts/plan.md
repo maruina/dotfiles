@@ -108,7 +108,7 @@ Assumptions, confirmed/rejected decisions, and risks:
 - ...
 ```
 
-Ask the user to confirm or adjust the brief, including slice granularity, genuine blocking edges, and merge/split boundaries. Resolve changes and newly material questions before asking again. In interactive mode, only confirmation authorizes writing and committing `plan.md`.
+In interactive mode: ask the user to confirm or adjust the brief, including slice granularity, genuine blocking edges, and merge/split boundaries; resolve changes and newly material questions before asking again; only confirmation authorizes writing and committing `plan.md`.
 
 ## Durable plan contract
 For a durable plan:

@@ -111,6 +111,27 @@ test("simplify and PR review report skill provenance", () => {
   assert.match(prompt("pr-review.md"), /domain rules are `prompt-required`/i);
 });
 
+// verify.md and learn.md are terminal stages: no downstream handoff by design.
+const pipelineHandoffPrompts = [
+  "brainstorm.md",
+  "plan.md",
+  "systematic-review.md",
+  "execute.md",
+  "simplify.md",
+];
+
+test("pipeline prompts close with a wired lifecycle handoff", () => {
+  for (const file of pipelineHandoffPrompts) {
+    const text = prompt(file);
+    assert.match(text, /## Handoff/, `${file} must have a ## Handoff section`);
+    assert.match(
+      text,
+      /Report the exact handoff phrase below/,
+      `${file} must wire the handoff into its workflow or output contract`,
+    );
+  }
+});
+
 test("weekly summary has no obsolete session-note command reference", () => {
   assert.equal(existsSync(path.join(promptsDir, "session-note.md")), false);
   assert.doesNotMatch(prompt("weekly-summary.md"), /\/prompt:session-note|\/session-note/);

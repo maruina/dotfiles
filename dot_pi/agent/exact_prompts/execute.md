@@ -172,7 +172,7 @@ Use the plan file as the progress ledger:
 
 For bare-prompt trivial work, report progress in chat and do not create a plan ledger.
 
-## Verification Handoff
+## Handoff
 After all tasks are complete, implementation-evidence commands pass, `git status` has been inspected, and the draft PR is opened, summarize changed files, commands and outcomes, skills loaded and used with their source, loading reason, and effect on execution, and follow-up items. Do not claim final independent verification.
 
 Then emit this copy-paste handoff, naming the implementation model from the injected `## Current Model` context. Carry its stable model ID in the `/verify` command so it survives `/new`. If the context is absent, state that no implementation model was available; do not invent one.

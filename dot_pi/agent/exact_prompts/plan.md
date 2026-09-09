@@ -44,7 +44,7 @@ Use the upstream design, alignment brief, issue, PR feedback, or request as the 
 ### Advisory learning lookup
 After resolving the input and repository context, but before feasibility decisions or recommendations, derive narrow terms for the technology, error, API, tool, and pattern. Read `Datadog/Learnings.md` through Obsidian and pipe it locally to `learn-evidence.mjs learning-sections`. Pass only returned complete H2 sections into reasoning; apply no repository filter. Report matched section titles and material guidance used; do not report unrelated sections.
 
-Learnings are advisory. Current source code, tests, and tool behavior, then authoritative documentation, take precedence. Treat an absent `Datadog/Learnings.md` as empty without warning noise. If Obsidian is unavailable, continue and record the skipped source in `plan.md`. Record material guidance in `plan.md`, including when stronger evidence makes a learning stale, corrected, or intentionally omitted. Do not retrieve the mutable store during `/execute` or `/verify`.
+Learnings are advisory. Current source code, tests, and tool behavior, then authoritative documentation, take precedence. Treat an absent `Datadog/Learnings.md` as empty without warning noise. If Obsidian is unavailable, continue and record the skipped source in `plan.md`, or in the chat plan for chat-only planning. Record material guidance in `plan.md` or the chat-only plan, including when stronger evidence makes a learning stale, corrected, or intentionally omitted. Do not retrieve the mutable store during `/execute` or `/verify`.
 
 ## Feasibility and planning decisions
 Before acceptance criteria or tasks, establish a concrete mechanism and observable validation path for every requirement involving a tool, runtime capability, external service, metadata source, or workflow behavior. For Medium and Large/Risky work, record:
@@ -108,7 +108,7 @@ Assumptions, confirmed/rejected decisions, and risks:
 - ...
 ```
 
-Ask the user to confirm or adjust the brief, including slice granularity, genuine blocking edges, and merge/split boundaries. Resolve changes and newly material questions before asking again. Only confirmation authorizes writing and committing `plan.md`.
+Ask the user to confirm or adjust the brief, including slice granularity, genuine blocking edges, and merge/split boundaries. Resolve changes and newly material questions before asking again. In interactive mode, only confirmation authorizes writing and committing `plan.md`.
 
 ## Durable plan contract
 For a durable plan:

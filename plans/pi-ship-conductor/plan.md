@@ -258,12 +258,12 @@ The system SHALL stop and surface stage failures, SHALL kill the active child on
 **Files:**
 - `dot_pi/agent/AGENTS.md` (one durable trap line, if absent)
 
-- [ ] Inspect `dot_pi/agent/AGENTS.md` and the repository-root `AGENTS.md`; add or record why not. Expected addition under Pi Agent Development: `exact_prompts/execute.md` and `verify.md` terminal markers are parsed by `exact_extensions/ship-conductor/`; update its fixtures when changing those contracts. No READMEs, runbooks, or generated references exist for extensions — record that.
-- [ ] Run `npm test` from `dot_pi/agent`; expect green.
-- [ ] Run `npm run test:all` from `dot_pi/agent`; expect green including smoke.
-- [ ] Remove `dot_pi/agent/node_modules` per repository rule.
-- [ ] Run `chezmoi diff ~/.pi/agent/extensions ~/.pi/agent/package.json` from the worktree; confirm the preview shows only the new extension directory and the `test:unit` change.
-- [ ] Commit any `AGENTS.md` change with `docs: note ship conductor prompt-marker coupling`.
+- [x] Inspect `dot_pi/agent/AGENTS.md` and the repository-root `AGENTS.md`; add or record why not. Expected addition under Pi Agent Development: `exact_prompts/execute.md` and `verify.md` terminal markers are parsed by `exact_extensions/ship-conductor/`; update its fixtures when changing those contracts. No READMEs, runbooks, or generated references exist for extensions — record that. (Added one durable bullet to the repository-root `AGENTS.md` under `## Pi Agent Development`; `dot_pi/agent/AGENTS.md` is the global-instructions file with no Pi Agent Development section. No READMEs, runbooks, or generated references exist for extensions — recorded here.)
+- [x] Run `npm test` from `dot_pi/agent`; expect green.
+- [x] Run `npm run test:all` from `dot_pi/agent`; expect green including smoke.
+- [x] Remove `dot_pi/agent/node_modules` per repository rule.
+- [x] Run `chezmoi diff ~/.pi/agent/extensions ~/.pi/agent/package.json` from the worktree; confirm the preview shows only the new extension directory and the `test:unit` change.
+- [x] Commit any `AGENTS.md` change with `docs: note ship conductor prompt-marker coupling`.
 
 ### Task 4: Apply and run manual end-to-end validation
 **Delivers:** the rendered extension applied, loading cleanly, and `/ship` observed end-to-end against a disposable plan.

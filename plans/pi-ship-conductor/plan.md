@@ -243,13 +243,13 @@ The system SHALL stop and surface stage failures, SHALL kill the active child on
 - `dot_pi/agent/exact_extensions/ship-conductor/_conductor.ts` and `_conductor.test.ts`
 - `dot_pi/agent/exact_extensions/ship-conductor/index.ts`
 
-- [ ] Write `_conductor.test.ts` first: refusal paths (R1 scenarios), prompt-file failure, marker gating (verify never spawned on absent/inconsistent marker), verdict surfacing (`VERIFIED`, `BLOCKED`, absent), stage-failure stop, abort kills the injected child. Use injected spawner, registry, prompt reader, and ui sinks.
-- [ ] Run the focused test command; expect failures (module missing).
-- [ ] Implement `_conductor.ts` (state machine over injected dependencies) and `index.ts` (`pi.registerCommand("ship", …)` building real dependencies, `ctx.hasUI` guards, `SIGINT` wiring, usage error when the argument is missing).
-- [ ] Run `node --experimental-strip-types --test "exact_extensions/ship-conductor/*.test.ts"` from `dot_pi/agent`; expect all tests passing.
-- [ ] Run `npm run test:unit` from `dot_pi/agent`; expect green.
-- [ ] Refactor only after green, then rerun both commands.
-- [ ] Commit with `feat(pi): add /ship conductor command`.
+- [x] Write `_conductor.test.ts` first: refusal paths (R1 scenarios), prompt-file failure, marker gating (verify never spawned on absent/inconsistent marker), verdict surfacing (`VERIFIED`, `BLOCKED`, absent), stage-failure stop, abort kills the injected child. Use injected spawner, registry, prompt reader, and ui sinks.
+- [x] Run the focused test command; expect failures (module missing).
+- [x] Implement `_conductor.ts` (state machine over injected dependencies) and `index.ts` (`pi.registerCommand("ship", …)` building real dependencies, `ctx.hasUI` guards, `SIGINT` wiring, usage error when the argument is missing).
+- [x] Run `node --experimental-strip-types --test "exact_extensions/ship-conductor/*.test.ts"` from `dot_pi/agent`; expect all tests passing.
+- [x] Run `npm run test:unit` from `dot_pi/agent`; expect green.
+- [x] Refactor only after green, then rerun both commands. (No refactor needed; extension load-checked with `pi -e` — loads cleanly, no `[Extension issues]`.)
+- [x] Commit with `feat(pi): add /ship conductor command`.
 
 ### Task 3: Complete documentation review and full gate validation
 **Delivers:** the marker-coupling trap recorded for future agents, full npm gates green, and dependencies cleaned up.

@@ -21,6 +21,14 @@
 ### Advisory learning lookup
 `Datadog/Learnings.md` (9 H2 sections, read via `obsidian-cli read` piped to `learn-evidence.mjs learning-sections`) returned **0 matching sections** for `pi extension`, `subprocess`, `child_process`, `node test runner`, `prompt template`, `model pool`, `JSON event stream`. Obsidian was available; the store had no relevant content. No advisory guidance applies to this plan.
 
+### Execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `skill-loader` | `prompt-required` | `/execute` workflow mandates loading it before editing | Determined the affected-file skills: `chezmoi` (chezmoi source tree) and `cli-best-practices` (new `/ship` command); no TS-specific skill exists in the catalog. |
+| `chezmoi` | `skill-loader` | Files under the chezmoi source tree are created and modified | Applied the `exact_extensions` entrypoint contract (directory with `index.ts` default export), the `npm ci --ignore-scripts` / `npm test` / `npm run test:all` validation commands, the `chezmoi diff` → `chezmoi apply` preview/apply flow, and the `node_modules` cleanup rule. |
+| `cli-best-practices` | `skill-loader` | New `/ship` command with arguments, output, and errors | Single explicit required argument with a usage error; structured hard-stop messages naming stage and reason; no mid-run interactivity. |
+| `resolve-worktree` | `prompt-required` | `/execute` workflow step 1 resolves plan paths to their owning worktree | Resolved `/Users/matteo.ruina/.worktrees/dotfiles-pi-ship-conductor/plans/pi-ship-conductor/plan.md` and switched context to that worktree; its algorithm is also the one `_worktree.ts` replicates. |
+
 ## Goal and Scope
 Implement the behavior approved in `plans/pi-ship-conductor/design.md` and the confirmed planning alignment brief:
 
@@ -271,13 +279,13 @@ The system SHALL stop and surface stage failures, SHALL kill the active child on
 **Traces to:** R1-R6 (end-to-end evidence)
 **Files:** none (rendered targets only)
 
-- [ ] Run `chezmoi apply ~/.pi/agent/extensions ~/.pi/agent/package.json`.
-- [ ] Run `cd ~/.pi/agent && npm run test:smoke`; expect no `[Extension issues]`.
-- [ ] Run `/reload` in the interactive session; confirm `/ship` appears.
-- [ ] Negative pre-flight checks (spawn no models): `/ship` against a plan on `main` and against an uncommitted plan; expect the R1 refusals.
-- [ ] Positive run: create a disposable worktree off `main` (branch `maruina/ship-smoke`) with a trivial committed `plans/ship-smoke/plan.md` (one small file change with an exact verification command); run `/ship <path>`; expect execute under the first impl-pool model, verify under a distinct model, and a terminal verdict. Redact credentials from any captured output.
-- [ ] Delete the disposable worktree and branch.
-- [ ] Record the validation outcome in this plan's Execution section; no source commit results from this task. Automation is impractical here because stages spawn real gateway models with user-scoped credentials.
+- [x] Run `chezmoi apply ~/.pi/agent/extensions ~/.pi/agent/package.json`.
+- [x] Run `cd ~/.pi/agent && npm run test:smoke`; expect no `[Extension issues]`.
+- [ ] Run `/reload` in the interactive session; confirm `/ship` appears. (User action in the interactive TUI; cannot be run from this agent session.)
+- [ ] Negative pre-flight checks (spawn no models): `/ship` against a plan on `main` and against an uncommitted plan; expect the R1 refusals. (User action; `/ship` requires `ctx.hasUI`.)
+- [ ] Positive run: create a disposable worktree off `main` (branch `maruina/ship-smoke`) with a trivial committed `plans/ship-smoke/plan.md` (one small file change with an exact verification command); run `/ship <path>`; expect execute under the first impl-pool model, verify under a distinct model, and a terminal verdict. Redact credentials from any captured output. (Worktree prepared at `/Users/matteo.ruina/.worktrees/dotfiles-ship-smoke` with committed `plans/ship-smoke/plan.md`; the `/ship` run itself is a user action in the interactive TUI.)
+- [ ] Delete the disposable worktree and branch. (After the positive run.)
+- [ ] Record the validation outcome in this plan's Execution section; no source commit results from this task. (Partial record below; final outcome to be appended after the interactive run.) Automation is impractical here because stages spawn real gateway models with user-scoped credentials.
 
 ## Requirement Traceability
 | Requirement | Tasks | Primary validation |

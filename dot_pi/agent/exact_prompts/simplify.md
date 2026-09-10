@@ -21,6 +21,7 @@ Default to recently changed code, not the whole repository. Read beyond the diff
 ## Target Resolution
 Resolve the target from the first positional in `$ARGUMENTS` and switch context to the owning worktree before reading repository files or modifying code. Strip a trailing `--base <ref>` before resolving; use `<ref>` as the diff base when supplied.
 
+- **Plan path** — resolve it with the `resolve-worktree` skill with `$GLOB = **/plans/*/plan.md`. Switch to the owning worktree and simplify the branch diff there against its base; do not treat a plan path as a single-file target.
 - **File path** — resolve it with the `resolve-worktree` skill (no `$GLOB`). Simplify only that file.
 - **Worktree or directory path** — resolve it with the `resolve-worktree` skill (no `$GLOB`). Simplify the branch diff there against its base.
 - **PR URL** — follow PR URL resolution below.
@@ -84,6 +85,15 @@ Simplicity serves the reader, not brevity. Do not:
 
 If a change is cosmetic-only with no clarity gain, skip it. If nothing is worth simplifying, say so and stop.
 
+## Commit
+Snapshot `git status --porcelain=v1 --untracked-files=all` before editing, and commit the simplification only when the worktree started clean:
+
+- After the post-simplification tests pass, stage only files changed by this pass and commit with a `refactor:` conventional message describing the simplification.
+- When a plan file exists, append a short note about the simplification pass to the plan ledger and include it in the same commit. This keeps a fresh `/verify` from treating the extra commit as an unexplained change.
+- When the branch has an open PR or a configured upstream, push the new commit; never force-push. Otherwise leave the commit local and report that.
+
+When the worktree had uncommitted changes before simplification started, do not commit; commit boundaries belong to the plan or `/execute`. Report the simplification as uncommitted alongside the pre-existing changes.
+
 ## Stop Conditions
 Stop and ask rather than continuing when:
 
@@ -95,6 +105,21 @@ Stop and ask rather than continuing when:
 - a loaded skill or repository guidance conflicts with the proposed simplification
 
 ## Handoff
-Report the exact handoff phrase below. First summarize the simplification diff, the verification commands run before and after, and anything you deliberately left alone, and include **Skills loaded and used** as a `Skill | Source | Why loaded | How used` table for every skill read and applied during simplification; explicitly state when none were needed. Then say exactly:
+Report the exact handoff phrase below. First summarize the simplification diff, the verification commands run before and after, anything deliberately left alone, and the commit made (message and hash) or why no commit was made, and include **Skills loaded and used** as a `Skill | Source | Why loaded | How used` table for every skill read and applied during simplification; explicitly state when none were needed.
 
-I finished simplifying the changes. This changed the diff, so any earlier `/verify` verdict is stale — run a fresh `/verify` closeout before relying on it: choose a model different from the one that made these edits, run `/new`, confirm the injected `## Current Model`, then run `/verify` against the plan or task.
+If nothing was worth simplifying and no change was made, say the diff is unchanged, any earlier `/verify` verdict still stands, and no fresh closeout is needed.
+
+When changes were made, any earlier `/verify` verdict is stale. Before emitting the handoff, determine the requirements source for the fresh `/verify`: the plan path from this session, else resolve it with the `resolve-worktree` skill with `$GLOB = **/plans/*/plan.md` in the simplified worktree, else the plan linked from the open PR body; for planless trivial work, the original request. If neither is determinable, ask the user for the plan path or the original task before emitting the handoff.
+
+Name the simplification model from the injected `## Current Model` context and carry its stable model ID in the `/verify` command so it survives `/new`. If the context is absent, state that no simplification model was available; do not invent one. Then say exactly:
+
+Simplification model: `<name> (<id>)`
+
+1. Run `/model` and select a model different from the simplification model.
+2. Run `/new`.
+3. Confirm the injected `## Current Model` context (also visible in the statusline) names the selected verifier model.
+4. Run `/verify <absolute-plan-path> --implemented-by <id>`.
+
+For planless trivial work, replace step 4 with:
+
+4. Run `/verify --implemented-by <id> --task <quoted-original-request>`.

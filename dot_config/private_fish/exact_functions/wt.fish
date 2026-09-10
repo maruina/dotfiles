@@ -40,5 +40,13 @@ function wt --description "Create or jump to a git worktree for a branch"
     git worktree add "$worktree_path" "$branch"
     or return $status
 
+    # AGENTS.local.md is personal, gitignored, and lives only in the main
+    # checkout; new worktrees start without it. Link it so pi sessions in
+    # the worktree see the same guidance as the main checkout.
+    set -l main_checkout (git worktree list --porcelain | awk '/^worktree/ {print $2; exit}')
+    if test -f "$main_checkout/AGENTS.local.md"; and not test -e "$worktree_path/AGENTS.local.md"
+        ln -s "$main_checkout/AGENTS.local.md" "$worktree_path/AGENTS.local.md"
+    end
+
     cd "$worktree_path"
 end

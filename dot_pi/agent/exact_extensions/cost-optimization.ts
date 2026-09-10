@@ -1,14 +1,16 @@
-import { createLocalBashOperations, formatSize, truncateTail, type BashToolDetails, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { createLocalBashOperations, formatSize, isToolCallEventType, truncateTail, type BashToolDetails, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { spawn } from "node:child_process";
-import { createWriteStream } from "node:fs";
+import { createReadStream, createWriteStream } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { extname, isAbsolute, join, resolve as resolvePath } from "node:path";
 import { Type } from "typebox";
 
 const BASH_MAX_BYTES = 16 * 1024;
 const MCP_MAX_BYTES = 6 * 1024;
 const MAX_OUTPUT_LINES = 2_000;
+const READ_MAX_LINES = 800;
+const IMAGE_EXTENSIONS = new Set([".bmp", ".gif", ".jpeg", ".jpg", ".png", ".webp"]);
 
 interface CommandOutput {
   text: string;
@@ -106,6 +108,29 @@ function mcpIdentifier(value: string, name: string): string {
   return value;
 }
 
+// deliberate: stop counting once the limit is exceeded so guarding a pathological read
+// (multi-GB log) stays cheap; the exact line count is not worth reading the whole file.
+async function readExceedsLineLimit(path: string, maxLines: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    let lines = 0;
+    const stream = createReadStream(path);
+    stream.on("data", (chunk: Buffer) => {
+      for (const byte of chunk) {
+        if (byte !== 0x0a) continue;
+        lines++;
+        if (lines > maxLines) {
+          stream.destroy();
+          resolve(true);
+          return;
+        }
+      }
+    });
+    stream.on("end", () => resolve(false));
+    // Unreadable files fail open so the read tool surfaces the real error.
+    stream.on("error", () => resolve(false));
+  });
+}
+
 async function runMcpCli(args: string[], signal: AbortSignal | undefined): Promise<{ exitCode: number | null; output: CommandOutput }> {
   return captureCommandOutput(
     (onData) =>
@@ -127,6 +152,19 @@ async function runMcpCli(args: string[], signal: AbortSignal | undefined): Promi
 
 export default function (pi: ExtensionAPI) {
   const bashOperations = createLocalBashOperations();
+
+  pi.on("tool_call", async (event, ctx) => {
+    if (!isToolCallEventType("read", event)) return;
+    const { path, offset, limit } = event.input;
+    if (offset !== undefined || limit !== undefined) return;
+    if (IMAGE_EXTENSIONS.has(extname(path).toLowerCase())) return;
+    const absolutePath = isAbsolute(path) ? path : resolvePath(ctx.cwd, path);
+    if (!(await readExceedsLineLimit(absolutePath, READ_MAX_LINES))) return;
+    return {
+      block: true,
+      reason: `Read blocked: ${path} has more than ${READ_MAX_LINES} lines. Find the relevant lines first (e.g. rg -n "pattern" ${path}), then re-read a targeted chunk with offset/limit.`,
+    };
+  });
 
   pi.registerTool({
     name: "bash",

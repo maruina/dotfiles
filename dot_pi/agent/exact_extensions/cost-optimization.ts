@@ -1,16 +1,17 @@
 import { createLocalBashOperations, formatSize, isToolCallEventType, truncateTail, type BashToolDetails, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { spawn } from "node:child_process";
 import { createReadStream, createWriteStream } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, open, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { extname, isAbsolute, join, resolve as resolvePath } from "node:path";
+import { isAbsolute, join, resolve as resolvePath } from "node:path";
 import { Type } from "typebox";
 
 const BASH_MAX_BYTES = 16 * 1024;
 const MCP_MAX_BYTES = 6 * 1024;
 const MAX_OUTPUT_LINES = 2_000;
 const READ_MAX_LINES = 800;
-const IMAGE_EXTENSIONS = new Set([".bmp", ".gif", ".jpeg", ".jpg", ".png", ".webp"]);
+const IMAGE_HEADER_BYTES = 30;
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 interface CommandOutput {
   text: string;
@@ -108,16 +109,82 @@ function mcpIdentifier(value: string, name: string): string {
   return value;
 }
 
+// deliberate: mirror the formats supported by Pi's read tool with a small signature
+// check; replace this with Pi's detector once the pinned dependency exports it.
+function isSupportedImageHeader(header: Buffer): boolean {
+  const isJpeg = header.length >= 3 && header[0] === 0xff && header[1] === 0xd8 && header[2] === 0xff && header[3] !== 0xf7;
+  const isPng =
+    header.length >= 16 &&
+    header.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE) &&
+    header.readUInt32BE(PNG_SIGNATURE.length) === 13 &&
+    header.toString("ascii", 12, 16) === "IHDR";
+  const gifVersion = header.toString("ascii", 0, 6);
+  const isGif = gifVersion === "GIF87a" || gifVersion === "GIF89a";
+  const isWebp = header.toString("ascii", 0, 4) === "RIFF" && header.toString("ascii", 8, 12) === "WEBP";
+  return isJpeg || isPng || isGif || isWebp || isBmpHeader(header);
+}
+
+function isBmpHeader(header: Buffer): boolean {
+  if (header.length < 26 || header.toString("ascii", 0, 2) !== "BM") return false;
+  const declaredFileSize = header.readUInt32LE(2);
+  const pixelDataOffset = header.readUInt32LE(10);
+  const dibHeaderSize = header.readUInt32LE(14);
+  if (declaredFileSize !== 0 && declaredFileSize < 26) return false;
+  if (pixelDataOffset < 14 + dibHeaderSize) return false;
+  if (declaredFileSize !== 0 && pixelDataOffset >= declaredFileSize) return false;
+
+  let colorPlanes: number;
+  let bitsPerPixel: number;
+  if (dibHeaderSize === 12) {
+    colorPlanes = header.readUInt16LE(22);
+    bitsPerPixel = header.readUInt16LE(24);
+  } else if (dibHeaderSize >= 40 && dibHeaderSize <= 124 && header.length >= 30) {
+    colorPlanes = header.readUInt16LE(26);
+    bitsPerPixel = header.readUInt16LE(28);
+  } else {
+    return false;
+  }
+  return colorPlanes === 1 && [1, 4, 8, 16, 24, 32].includes(bitsPerPixel);
+}
+
+async function hasSupportedImageSignature(path: string): Promise<boolean> {
+  try {
+    const file = await open(path, "r");
+    try {
+      const header = Buffer.alloc(IMAGE_HEADER_BYTES);
+      const { bytesRead } = await file.read(header, 0, header.length, 0);
+      return isSupportedImageHeader(header.subarray(0, bytesRead));
+    } finally {
+      await file.close();
+    }
+  } catch {
+    return false;
+  }
+}
+
 // deliberate: stop counting once the limit is exceeded so guarding a pathological read
 // (multi-GB log) stays cheap; the exact line count is not worth reading the whole file.
-async function readExceedsLineLimit(path: string, maxLines: number): Promise<boolean> {
+async function readExceedsLineLimit(path: string, maxLines: number, signal: AbortSignal | undefined): Promise<boolean> {
+  try {
+    if (!(await stat(path)).isFile()) return false;
+    if (signal?.aborted || (await hasSupportedImageSignature(path))) return false;
+  } catch {
+    return false;
+  }
+  if (signal?.aborted) return false;
+
   return new Promise((resolve) => {
     let lines = 0;
-    const stream = createReadStream(path);
+    let hasOpenLine = false;
+    const stream = createReadStream(path, { signal });
     stream.on("data", (chunk: Buffer) => {
       for (const byte of chunk) {
-        if (byte !== 0x0a) continue;
+        if (byte !== 0x0a) {
+          hasOpenLine = true;
+          continue;
+        }
         lines++;
+        hasOpenLine = false;
         if (lines > maxLines) {
           stream.destroy();
           resolve(true);
@@ -125,9 +192,9 @@ async function readExceedsLineLimit(path: string, maxLines: number): Promise<boo
         }
       }
     });
-    stream.on("end", () => resolve(false));
-    // Unreadable files fail open so the read tool surfaces the real error.
-    stream.on("error", () => resolve(false));
+    stream.once("end", () => resolve(lines + (hasOpenLine ? 1 : 0) > maxLines));
+    // Unreadable and aborted reads fail open so the read tool surfaces the final result.
+    stream.once("error", () => resolve(false));
   });
 }
 
@@ -157,9 +224,8 @@ export default function (pi: ExtensionAPI) {
     if (!isToolCallEventType("read", event)) return;
     const { path, offset, limit } = event.input;
     if (offset !== undefined || limit !== undefined) return;
-    if (IMAGE_EXTENSIONS.has(extname(path).toLowerCase())) return;
     const absolutePath = isAbsolute(path) ? path : resolvePath(ctx.cwd, path);
-    if (!(await readExceedsLineLimit(absolutePath, READ_MAX_LINES))) return;
+    if (!(await readExceedsLineLimit(absolutePath, READ_MAX_LINES, ctx.signal))) return;
     return {
       block: true,
       reason: `Read blocked: ${path} has more than ${READ_MAX_LINES} lines. Find the relevant lines first (e.g. rg -n "pattern" ${path}), then re-read a targeted chunk with offset/limit.`,

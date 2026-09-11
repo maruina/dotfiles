@@ -150,6 +150,11 @@ func (r *MyReconciler) reconcileNormal(ctx context.Context, obj *myv1.MyResource
 
 SSA declares desired state and lets the API server compute the diff, eliminating read-modify-write races. Field ownership lets multiple controllers manage different fields of the same resource. Fully supported for both spec and status in controller-runtime.
 
+- **Apply is an upsert** — the API server creates the object when it is absent, instead of failing `NotFound` like merge or strategic patch (apiserver `patch.go`: only the apply patcher has `createNewObject`). SSA callers need the RBAC `create` verb, not just `patch`.
+- **Apply recreates deleted objects on retry** — in delete/cleanup flows that must tolerate absence (e.g. annotate-via-apply to bypass an admission guard, then delete), `Get` first and skip the apply on `NotFound`.
+- **Fake clientsets differ** — `fake.NewClientset` (field-managed tracker) reproduces the upsert; the deprecated `NewSimpleClientset` fails apply on missing objects.
+- **Assert actions, not just errors** — an error-only test passes even when the code recreates the object; assert the recorded sequence (`get` → `patch` → `delete`).
+
 ```go
 func (r *MyReconciler) reconcileDeployment(ctx context.Context, obj *myv1.MyResource) error {
     dep := r.buildDeployment(obj)

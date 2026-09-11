@@ -163,7 +163,7 @@ Set owner references on child resources via `controllerutil.SetControllerReferen
 
 ## Multi-Resource Reconciliation
 
-Aggregate errors with `errors.Join` — early returns leave the system partially converged. Default to SSA (`client.Apply`) for child resources: no read-modify-write races, field ownership lets controllers coexist. SSA requires `TypeMeta`. See `references/advanced-patterns.md`.
+Aggregate errors with `errors.Join` — early returns leave the system partially converged. Default to SSA (`client.Apply`) for child resources: no read-modify-write races, field ownership lets controllers coexist. SSA requires `TypeMeta`. Apply is an upsert: it creates the object when missing, so callers need the RBAC `create` verb, not just `patch`. In retried delete/cleanup paths, `Get` first and skip the apply on `NotFound` — otherwise the apply recreates the object the delete was meant to remove. See `references/advanced-patterns.md`.
 
 ## Design Rules
 

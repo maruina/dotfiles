@@ -160,4 +160,6 @@ test("lifecycle guidance names learn and has no compound reference", () => {
     assert.match(text, /\/learn/);
     assert.doesNotMatch(text, /\/compound/);
   }
+
+  assert.match(readFileSync(path.join(agentDir, "AGENTS.md"), "utf8"), /plain.*\/learn.*resolves the work's plan/is);
 });

@@ -210,6 +210,9 @@ Before committing, confirm:
 
 Self-review as a skeptical implementer and fix issues inline. Do not pre-write implementation code or shell-command choreography; use snippets only to pin an interface, schema, command, or invariant. Honor user-named resources rather than silently substituting them.
 
+## Learning candidates
+When a candidate occurs, append `- YYYY-MM-DD: <what happened> — evidence: <shareable pointer: PR thread URL, repo-relative file and line, or command and result>` under `## Learning candidates`, creating the section only on the first candidate. Record only surprises a fresh model would not reliably produce and apply unaided — `/systematic-review` findings or reviewer feedback that disproved an initial approach and changed the design or plan; never routine best practice, design rationale, session paths, secrets, or vault content.
+
 ## Handoff
 Report the exact handoff phrase below.
 

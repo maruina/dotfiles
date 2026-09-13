@@ -19,6 +19,18 @@
 
 Advisory learning lookup: ran `Datadog/Learnings.md` through `learn-evidence.mjs learning-sections` with terms `confluence`, `pi package`, `dogbrew`, `pi extension`, `skill`; 0 of 10 sections matched, so no advisory guidance applies.
 
+### Execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `resolve-worktree` | prompt-required | `/execute` requires resolving the plan path and switching to the owning worktree | Resolved plan to `~/.worktrees/dotfiles-confluence-cli-migration` (branch `maruina/confluence-cli-migration`); all work done there |
+| `skill-loader` | prompt-required | `/execute` requires the loading checklist before editing | Identified `chezmoi` + `script-best-practices`; no Go/Terraform/Mermaid/K8s triggers; no TS skill exists for `user-context.ts` |
+| `chezmoi` | skill-loader | All changed files live under the chezmoi source dir | Source-not-target rule, `exact_` semantics, diff → apply → commit flow, `.profile` gating pattern |
+| `script-best-practices` | skill-loader | `run_onchange_mcp-cli-install.sh.tmpl` and `mcp.fish` edits | Comment-only edits matched to existing style; no script logic touched |
+
+Execution notes:
+- `chezmoi source-path` resolves to the base checkout (`~/.local/share/chezmoi` on `main`), so every plan `chezmoi diff`/`apply`/`execute-template` command runs as `chezmoi -S /Users/matteo.ruina/.worktrees/dotfiles-confluence-cli-migration ...`; equivalent command required by the plan's worktree constraint.
+- Plan gap: `dot_pi/agent/exact_extensions/jira/index.ts` also references `atlassian-mcp` (two `promptGuidelines` lines comparing native `jira_issue`/`jira_search` against the removed MCP tools). The Task 2 acceptance sweep (`rg -il 'atlassian-mcp' dot_pi/ dot_config/` → no matches) requires these gone; fixed within Task 2's "stale comment/guidance references" scope.
+
 ## Source of truth and confirmed decisions
 - **v1.2.0 announcement** (Slack thread `C0AU45Z1FFC`, thread `1788857660.251069`, reply `1789130418.041289`, CLI author, 2026-09-11): `.cc` authoring needs no Python, virtualenvs, or the `confluence-adf` package; "If you previously installed `confluence-adf` in Pi, you can remove it".
 - **dd-source roadmap** (`domains/alerting/apps/confluence/docs/roadmap.md`): "Move Confluence ADF authoring directly into the Go CLI … eliminating the Python runtime and Python packages entirely"; "Retire `packages/confluence-adf` completely". Annotation-splicing port is roadmap, not shipped in v1.2.0 (no comment commands; verified against the installed binary).
@@ -134,11 +146,11 @@ The system SHALL keep `dot_pi/agent` tests passing.
 **Traces to:** v1.2.0 announcement ("remove `confluence-adf`"); work-profile guard instruction.
 **Files:** `dot_pi/agent/modify_private_settings.json.tmpl`
 
-- [ ] In the work block's `.packages`, replace `"../../go/src/github.com/DataDog/datadog-pi-packages/packages/confluence-adf",` with `"../../go/src/github.com/DataDog/datadog-pi-packages/packages/confluence-cli",`.
-- [ ] Run `chezmoi diff ~/.pi/agent/settings.json`; expect a single `.packages` delta (ad-f line out, cli line in) and no changes to pi-owned runtime fields.
-- [ ] Run `chezmoi apply ~/.pi/agent/settings.json`, then `jq '.packages' ~/.pi/agent/settings.json`; expect `confluence-cli` present, `confluence-adf` absent.
-- [ ] Confirm the entry sits only inside the work `{{- if eq .profile "work" }}` block.
-- [ ] Commit with `feat(pi): replace confluence-adf with the confluence-cli pi package`.
+- [x] In the work block's `.packages`, replace `"../../go/src/github.com/DataDog/datadog-pi-packages/packages/confluence-adf",` with `"../../go/src/github.com/DataDog/datadog-pi-packages/packages/confluence-cli",`.
+- [x] Run `chezmoi diff ~/.pi/agent/settings.json`; expect a single `.packages` delta (ad-f line out, cli line in) and no changes to pi-owned runtime fields.
+- [x] Run `chezmoi apply ~/.pi/agent/settings.json`, then `jq '.packages' ~/.pi/agent/settings.json`; expect `confluence-cli` present, `confluence-adf` absent.
+- [x] Confirm the entry sits only inside the work `{{- if eq .profile "work" }}` block.
+- [x] Commit with `feat(pi): replace confluence-adf with the confluence-cli pi package`.
 
 ### Task 2: Remove the atlassian MCP and repoint dependents
 **Delivers:** No atlassian MCP server, config file, skill, or stale reference remains; `/self-evaluation` uses the `confluence-cli` skill.
@@ -146,18 +158,18 @@ The system SHALL keep `dot_pi/agent` tests passing.
 **Traces to:** User-confirmed Option A; "delete the atlassian MCP".
 **Files:** delete `dot_pi/agent/exact_skills_work/atlassian-mcp/` (SKILL.md, .keep); `dot_config/mcp/mcp_servers.json.tmpl`; delete `dot_config/mcp/atlassian_mcp_servers.json.tmpl`; `dot_pi/agent/exact_prompts/self-evaluation.md`; `dot_pi/agent/exact_extensions/user-context.ts`; `run_onchange_mcp-cli-install.sh.tmpl`; `dot_config/private_fish/conf.d/mcp.fish`
 
-- [ ] Delete `dot_pi/agent/exact_skills_work/atlassian-mcp/` (git rm).
-- [ ] In `dot_config/mcp/mcp_servers.json.tmpl`, remove the `atlassian` server object from the work branch; keep `datadog-prod`, `datadog-staging`, `slack`.
-- [ ] Delete `dot_config/mcp/atlassian_mcp_servers.json.tmpl` (orphan; nothing references the rendered file).
-- [ ] In `dot_pi/agent/exact_prompts/self-evaluation.md`, change `Load and follow the \`atlassian-mcp\` and \`write\` skills.` to `Load and follow the \`confluence-cli\` and \`write\` skills.`
-- [ ] In `dot_pi/agent/exact_extensions/user-context.ts` (line ~149), change `- Prefer \`gh\` for GitHub operations and Datadog MCP/Atlassian MCP for internal Datadog data and docs.` to `- Prefer \`gh\` for GitHub operations and Datadog MCP for internal Datadog data and docs.`
-- [ ] In `run_onchange_mcp-cli-install.sh.tmpl`, change `# (atlassian/slack/datadog on work, ha-mcp on personal).` to `# (slack/datadog on work, ha-mcp on personal).`
-- [ ] In `dot_config/private_fish/conf.d/mcp.fish`, drop `(e.g. Atlassian)` from the `MCP_STRICT_ENV` comment so it reads `so unrelated servers still work even when Datadog keys are not loaded`.
-- [ ] Validate the render: `chezmoi execute-template < dot_config/mcp/mcp_servers.json.tmpl | jq -e '.mcpServers | keys == ["datadog-prod","datadog-staging","slack"]'`; expect `true`.
-- [ ] Run `chezmoi diff`; expect the skill-dir removal (via `exact_`), the config delta, and no unrelated changes. Run `chezmoi apply` for the touched targets; then `rm ~/.config/mcp/atlassian_mcp_servers.json` (non-exact target, chezmoi will not remove it).
-- [ ] Verify: `ls ~/.pi/agent/skills_work/ | grep atlassian` finds nothing; `rg -il 'atlassian-mcp' dot_pi/ dot_config/` finds nothing.
-- [ ] Run `cd dot_pi/agent && npm test`; expect green (user-context test has no assertion on the edited line).
-- [ ] Commit with `feat(pi): remove atlassian MCP in favor of the confluence CLI`.
+- [x] Delete `dot_pi/agent/exact_skills_work/atlassian-mcp/` (git rm).
+- [x] In `dot_config/mcp/mcp_servers.json.tmpl`, remove the `atlassian` server object from the work branch; keep `datadog-prod`, `datadog-staging`, `slack`.
+- [x] Delete `dot_config/mcp/atlassian_mcp_servers.json.tmpl` (orphan; nothing references the rendered file).
+- [x] In `dot_pi/agent/exact_prompts/self-evaluation.md`, change `Load and follow the \`atlassian-mcp\` and \`write\` skills.` to `Load and follow the \`confluence-cli\` and \`write\` skills.`
+- [x] In `dot_pi/agent/exact_extensions/user-context.ts` (line ~149), change `- Prefer \`gh\` for GitHub operations and Datadog MCP/Atlassian MCP for internal Datadog data and docs.` to `- Prefer \`gh\` for GitHub operations and Datadog MCP for internal Datadog data and docs.`
+- [x] In `run_onchange_mcp-cli-install.sh.tmpl`, change `# (atlassian/slack/datadog on work, ha-mcp on personal).` to `# (slack/datadog on work, ha-mcp on personal).`
+- [x] In `dot_config/private_fish/conf.d/mcp.fish`, drop `(e.g. Atlassian)` from the `MCP_STRICT_ENV` comment so it reads `so unrelated servers still work even when Datadog keys are not loaded`.
+- [x] Validate the render: `chezmoi execute-template < dot_config/mcp/mcp_servers.json.tmpl | jq -e '.mcpServers | keys == ["datadog-prod","datadog-staging","slack"]'`; expect `true`.
+- [x] Run `chezmoi diff`; expect the skill-dir removal (via `exact_`), the config delta, and no unrelated changes. Run `chezmoi apply` for the touched targets; then `rm ~/.config/mcp/atlassian_mcp_servers.json` (non-exact target, chezmoi will not remove it).
+- [x] Verify: `ls ~/.pi/agent/skills_work/ | grep atlassian` finds nothing; `rg -il 'atlassian-mcp' dot_pi/ dot_config/` finds nothing.
+- [x] Run `cd dot_pi/agent && npm test`; expect green (user-context test has no assertion on the edited line).
+- [x] Commit with `feat(pi): remove atlassian MCP in favor of the confluence CLI`.
 
 ### Task 3: Integration verification
 **Delivers:** Proof that pi loads the new backend and the old ones are gone, with suites green.
@@ -165,11 +177,11 @@ The system SHALL keep `dot_pi/agent` tests passing.
 **Traces to:** All acceptance criteria.
 **Files:** none (verification only)
 
-- [ ] In `dot_pi/agent`: run `npm ci --ignore-scripts`, then `npm test` and `npm run test:all`; expect all green. Remove the installed dependencies afterward per the AGENTS.md contract.
-- [ ] Run full `chezmoi diff`; expect only the intended deltas, then `chezmoi apply`.
-- [ ] In a pi session, run `/reload`; expect the `confluence` custom tool and `/skill:confluence-cli` present, `confluence-adf` and `atlassian-mcp` skills absent.
-- [ ] Optional live checks: `confluence auth verify` (may trigger a 1Password approval), then a read such as `confluence page search cql 'type = "page" AND creator = currentUser()' --limit 5`.
-- [ ] Confirm the personal block of `modify_private_settings.json.tmpl` still lists only `pi-npm-guard` and `prompt-stash`.
+- [x] In `dot_pi/agent`: run `npm ci --ignore-scripts`, then `npm test` and `npm run test:all`; expect all green. Remove the installed dependencies afterward per the AGENTS.md contract. *(Suites green: unit 125/125, prompts 25/25, 30 skills validated, pi-deps + smoke pass, `test:all` exit 0. `node_modules` removal is blocked by the compute-guardrails recursive-delete policy in this session — run `rm -rf dot_pi/agent/node_modules` manually.)*
+- [x] Run full `chezmoi diff`; expect only the intended deltas, then `chezmoi apply`. *(All managed config targets were applied and verified per-target in Tasks 1–2. A later full `chezmoi diff` failed with a 1Password `authorization timeout` while rendering `private_config.fish.tmpl` — environment session state, not a config defect. Remaining pending deltas, both intentionally deferred: (a) the `run_onchange_mcp-cli-install.sh` idempotent re-run on next full apply (recorded hash `3a8a57bd…` ≠ rendered `d27cd7c5…`, plan-accepted tradeoff); (b) `~/plans/confluence-cli-migration/plan.md` would be rendered by a full apply (chezmoiignore does not exclude `plans/`; `~/plans/` holds 20 state entries from past executions — owner's call whether to let it render).*
+- [ ] In a pi session, run `/reload`; expect the `confluence` custom tool and `/skill:confluence-cli` present, `confluence-adf` and `atlassian-mcp` skills absent. *(User step — cannot be executed from inside this session's bash tool.)*
+- [x] Optional live checks: `confluence auth verify` (may trigger a 1Password approval), then a read such as `confluence page search cql 'type = "page" AND creator = currentUser()' --limit 5`. *(Both passed: authenticated as Matteo Ruina against datadoghq.atlassian.net; CQL search returned pages.)*
+- [x] Confirm the personal block of `modify_private_settings.json.tmpl` still lists only `pi-npm-guard` and `prompt-stash`.
 
 ### Task 4: Documentation, push, and cleanup
 **Delivers:** Branch pushed with docs impact recorded.
@@ -177,7 +189,7 @@ The system SHALL keep `dot_pi/agent` tests passing.
 **Traces to:** Documentation-impact requirement for Medium plans.
 **Files:** none beyond this plan (record rationale here)
 
-- [ ] Record: `dot_pi/agent/AGENTS.md` needs no change — its "Pi MCP and Home Assistant" section stays accurate (MCP servers templated from `dot_config/mcp/`, profile-gated) and names no specific server; the repo-root `AGENTS.md` has no atlassian references. Prompts and skills carry their own routing descriptions.
+- [x] Record: `dot_pi/agent/AGENTS.md` needs no change — its "Pi MCP and Home Assistant" section stays accurate (MCP servers templated from `dot_config/mcp/`, profile-gated) and names no specific server; the repo-root `AGENTS.md` has no atlassian references. Prompts and skills carry their own routing descriptions. *(Verified: `rg -i atlassian AGENTS.md dot_pi/agent/AGENTS.md` → no matches.)*
 - [ ] Push with `git push -u origin maruina/confluence-cli-migration`.
 - [ ] Ask the owner whether to open a PR per the repo's `maruina/*` pattern or merge directly.
 

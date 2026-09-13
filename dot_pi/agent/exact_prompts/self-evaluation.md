@@ -15,7 +15,7 @@ I am a Senior Software Engineer developing toward Staff Engineer. Read my compet
 Use `pdftotext -layout` if needed. Assess my performance and indicator against Senior expectations. Identify sustained Staff-level signals separately, and use Staff expectations to frame development and my next six-month action. Do not treat an isolated example as proof of Staff-level performance or turn the evaluation into a promotion argument.
 
 ## Research
-Load and follow the `atlassian-mcp` and `write` skills. Keep source-system operations read-only.
+Load and follow the `confluence-cli` and `write` skills. Keep source-system operations read-only.
 
 First read:
 

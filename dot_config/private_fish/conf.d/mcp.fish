@@ -6,6 +6,6 @@ set -gx MCP_NO_DAEMON 1
 
 # mcp_servers.json references ${DD_API_KEY} and ${DD_APP_KEY} for the Datadog
 # MCP servers. When those vars are unset, mcp-cli exits with an error instead
-# of a warning. Set strict mode to false so unrelated servers (e.g. Atlassian)
-# still work even when Datadog keys are not loaded in the current shell.
+# of a warning. Set strict mode to false so unrelated servers still work even
+# when Datadog keys are not loaded in the current shell.
 set -gx MCP_STRICT_ENV false

@@ -53,7 +53,7 @@ export default function jiraExtension(pi: ExtensionAPI): void {
     description:
       "Fetch a Jira issue with a trimmed field set. Returns key, summary, type, status, priority, assignee, reporter, labels, dates, description (plain text), parent, and optionally comments. No custom fields, no ADF blobs, no rendered HTML duplicates.",
     promptGuidelines: [
-      "Use jira_issue (not the atlassian-mcp getJiraIssue tool) when reading a Jira ticket — it returns a compact response that fits in context without field bloat.",
+      "Use jira_issue when reading a Jira ticket — it returns a compact response that fits in context without field bloat.",
     ],
     parameters: Type.Object({
       key: Type.String({
@@ -94,7 +94,7 @@ export default function jiraExtension(pi: ExtensionAPI): void {
     description:
       "Search Jira with a JQL query. Returns a trimmed list: key, summary, type, status, priority, assignee. Use jira_issue for full issue detail including description and comments.",
     promptGuidelines: [
-      "Use jira_search (not the atlassian-mcp searchJiraIssuesUsingJql tool) when running a JQL query — it returns compact results without field bloat.",
+      "Use jira_search when running a JQL query — it returns compact results without field bloat.",
     ],
     parameters: Type.Object({
       jql: Type.String({

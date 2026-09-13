@@ -146,7 +146,7 @@ function repoHints(cwd: string, repoName: string | null): string[] {
   }
 
   if (lowerRepo.includes("datadog")) {
-    lines.push("- Prefer `gh` for GitHub operations and Datadog MCP/Atlassian MCP for internal Datadog data and docs.");
+    lines.push("- Prefer `gh` for GitHub operations and Datadog MCP for internal Datadog data and docs.");
   }
 
   return [...new Set(lines)];

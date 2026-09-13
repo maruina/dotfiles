@@ -1,14 +1,6 @@
 {{ if eq .profile "work" -}}
 {
   "mcpServers": {
-    "atlassian": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "mcp-remote",
-        "https://mcp.atlassian.com/v1/mcp"
-      ]
-    },
     "datadog-prod": {
       "type": "remote",
       "url": "https://mcp.datadoghq.com/api/unstable/mcp-server/mcp",

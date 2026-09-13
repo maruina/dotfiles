@@ -17,26 +17,29 @@ function requireMarkers(text, markers) {
   for (const marker of markers) assert.match(text, marker);
 }
 
-test("learn replaces compound and supports daily and contextual evidence discovery", () => {
+test("learn replaces compound and supports plain and contextual evidence discovery", () => {
   assert.equal(existsSync(path.join(promptsDir, "learn.md")), true, "learn.md must exist");
   assert.equal(existsSync(path.join(promptsDir, "compound.md")), false, "compound.md must be removed");
   const text = prompt("learn.md");
 
   requireMarkers(text, [
-    /argument-hint: "\[context\]"/,
-    /previous local calendar day/,
+    /argument-hint: "\[<PR URL \| plan\/design path \| context>\]"/,
     /contextual mode/,
-    /sessions-window/,
     /sessions-search/,
     /session-context/,
     /maruina/,
     /matteo-ruina_ddog/,
     /ddoghq/,
     /ddoghq-sandbox/,
-    /mergedAt/,
     /gh auth switch/,
     /restore.*original.*login/is,
   ]);
+
+  // The retrospective daily scan was removed; pin that no daily-mode markers remain.
+  assert.doesNotMatch(text, /previous local calendar day/);
+  assert.doesNotMatch(text, /sessions-window/);
+  assert.doesNotMatch(text, /\/learn daily/);
+  assert.doesNotMatch(text, /--merged/);
 });
 
 test("learn requires adjudicated, safe evidence before a single exact approval", () => {
@@ -77,6 +80,47 @@ test("learn uses a transactional, privacy-preserving vault write", () => {
     /tool-call arguments/i,
     /Datadog\/Learnings\.md/,
     /Current source code, tests, and tool behavior/i,
+  ]);
+});
+
+test("learn resolves plain mode through branch-correlated plan discovery", () => {
+  const text = prompt("learn.md");
+
+  requireMarkers(text, [
+    /plain mode/i,
+    /current branch/i,
+    /branch.*slug/is,
+    /current worktree/i,
+    /resolve-worktree/,
+    /\*\*\/plans\/\*\/plan\.md/,
+    /preflight/i,
+    /stop.*suggest/is,
+    /suggest.*explicit context/is,
+    /zero.*multiple|multiple.*zero/is,
+    /--state all/,
+    /--limit/,
+    /## Learning candidates/,
+  ]);
+});
+
+test("learn rejects derivable candidates and routes agent-behavior guidance to proposals", () => {
+  const text = prompt("learn.md");
+
+  requireMarkers(text, [
+    /non-derivab/i,
+    /fresh model/i,
+    /improvement proposal/i,
+  ]);
+});
+
+test("learn re-adjudicates aged sections and previews removals in one approval", () => {
+  const text = prompt("learn.md");
+
+  requireMarkers(text, [
+    /six calendar months/i,
+    /strictly earlier/i,
+    /missing.*malformed|malformed.*missing/is,
+    /### Removal:/,
   ]);
 });
 

@@ -30,6 +30,7 @@ Declare Homebrew packages in `run_onchange_brew-install.sh.tmpl`. Do not install
 ## Pi Agent Development
 - `dot_pi/agent/exact_prompts/*.md` defines global slash commands. The filename defines the command; keep lifecycle behavior in these prompts rather than duplicating it in guidance.
 - `dot_pi/agent/exact_extensions/*.ts` contains auto-discovered extension entrypoints, which must export a default factory. Put helpers and tests under `_shared/` or an extension subdirectory.
+- `dot_pi/agent/exact_prompts/execute.md` and `verify.md` terminal markers (the `Implementation model:` handoff and the final `VERIFIED`/`BLOCKED` verdict) are parsed by `dot_pi/agent/exact_extensions/ship-conductor/`; update its `_markers.test.ts` fixtures when changing those contracts.
 - Runtime dependencies belong under `~/.pi/agent/node_modules`. Dependencies under `dot_pi/agent/node_modules` are disposable and excluded from Git and chezmoi rendering.
 - Before `/verify` for changes under `dot_pi/agent/`, run `npm ci --ignore-scripts` in that directory. Keep dependencies until `npm test` and `npm run test:all` complete, then remove them.
 

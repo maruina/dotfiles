@@ -140,6 +140,7 @@ test("brainstorm and plan selectively consume advisory learning sections", () =>
       /material.*guidance.*design\.md|material.*guidance.*plan\.md/is,
       /absent.*empty/i,
       /Obsidian.*unavailable.*record/is,
+      /older than six months.*hypotheses|hypotheses.*older than six months/is,
     ]);
   }
 });

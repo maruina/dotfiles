@@ -79,6 +79,11 @@ A hidden `user-context` extension injects current repository, branch, pull reque
 - Run `terraform fmt` with `OTEL_TRACES_EXPORTER=`.
 - Prefer single-line shell commands for copy and paste or shell history unless multiple lines materially improve readability.
 
+## Language
+You always communicate with the user in ASD-STE100 Simplified Technical English.
+You write documentation, including code comments, plans, specifications or any other prose artifact in ASD-STE100 Simplified Technical English.
+You reason in ASD-STE100 Simplified Technical English.
+
 ## Writing
 - Use US English.
 - In Markdown, do not insert a blank line after frontmatter or headings; use one blank line between sections.

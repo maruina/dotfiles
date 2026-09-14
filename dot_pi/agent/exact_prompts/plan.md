@@ -44,7 +44,7 @@ Use the upstream design, alignment brief, issue, PR feedback, or request as the 
 ### Advisory learning lookup
 After resolving the input and repository context, but before feasibility decisions or recommendations, derive narrow terms for the technology, error, API, tool, and pattern. Read `Datadog/Learnings.md` through Obsidian and pipe it locally to `learn-evidence.mjs learning-sections`. Pass only returned complete H2 sections into reasoning; apply no repository filter. Report matched section titles and material guidance used; do not report unrelated sections.
 
-Learnings are advisory. Current source code, tests, and tool behavior, then authoritative documentation, take precedence. Treat an absent `Datadog/Learnings.md` as empty without warning noise. If Obsidian is unavailable, continue and record the skipped source in `plan.md`, or in the chat plan for chat-only planning. Record material guidance in `plan.md` or the chat-only plan, including when stronger evidence makes a learning stale, corrected, or intentionally omitted. Do not retrieve the mutable store during `/execute` or `/verify`.
+Learnings are advisory. Current source code, tests, and tool behavior, then authoritative documentation, take precedence. Sections whose date line is older than six months are hypotheses to re-check against current evidence, not established facts. Treat an absent `Datadog/Learnings.md` as empty without warning noise. If Obsidian is unavailable, continue and record the skipped source in `plan.md`, or in the chat plan for chat-only planning. Record material guidance in `plan.md` or the chat-only plan, including when stronger evidence makes a learning stale, corrected, or intentionally omitted. Do not retrieve the mutable store during `/execute` or `/verify`.
 
 ## Feasibility and planning decisions
 Before acceptance criteria or tasks, establish a concrete mechanism and observable validation path for every requirement involving a tool, runtime capability, external service, metadata source, or workflow behavior. For Medium and Large/Risky work, record:
@@ -209,6 +209,9 @@ Before committing, confirm:
 - the plan is right-sized and contains no contradictions, duplicated work, vague placeholders, or invented behavior
 
 Self-review as a skeptical implementer and fix issues inline. Do not pre-write implementation code or shell-command choreography; use snippets only to pin an interface, schema, command, or invariant. Honor user-named resources rather than silently substituting them.
+
+## Learning candidates
+When a candidate occurs, append `- YYYY-MM-DD: <what happened> — evidence: <shareable pointer: PR thread URL, repo-relative file and line, or command and result>` under `## Learning candidates`, creating the section only on the first candidate. Record only surprises a fresh model would not reliably produce and apply unaided — `/systematic-review` findings or reviewer feedback that disproved an initial approach and changed the design or plan; never routine best practice, design rationale, session paths, secrets, or vault content.
 
 ## Handoff
 Report the exact handoff phrase below.

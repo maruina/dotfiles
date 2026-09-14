@@ -169,6 +169,7 @@ Use the plan file as the progress ledger:
 - add short notes for deviations, failed verifications, equivalent commands, and refactors made after green
 - maintain `### Execution` under `## Skills loaded and used` as stage metadata; this ledger update is not a plan scope change
 - do not rewrite the committed plan unless the user approves a plan change
+- extend the deviation notes with learning candidates: append `- YYYY-MM-DD: <what happened> — evidence: <shareable pointer: PR thread URL, repo-relative file and line, or command and result>` under the plan's `## Learning candidates` section, creating it only on the first candidate; record only surprises a fresh model would not reliably produce and apply unaided — wrong turns and disproven plan assumptions from implementation — never routine best practice, design rationale, session paths, secrets, or vault content
 
 For bare-prompt trivial work, report progress in chat and do not create a plan ledger.
 

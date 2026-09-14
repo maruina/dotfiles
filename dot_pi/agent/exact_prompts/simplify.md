@@ -89,7 +89,7 @@ If a change is cosmetic-only with no clarity gain, skip it. If nothing is worth 
 Snapshot `git status --porcelain=v1 --untracked-files=all` before editing, and commit the simplification only when the worktree started clean:
 
 - After the post-simplification tests pass, stage only files changed by this pass and commit with a `refactor:` conventional message describing the simplification.
-- When a plan file exists, append a short note about the simplification pass to the plan ledger and include it in the same commit. This keeps a fresh `/verify` from treating the extra commit as an unexplained change.
+- When a plan file exists, append a short note about the simplification pass to the plan ledger and include it in the same commit. This keeps a fresh `/verify` from treating the extra commit as an unexplained change. Extend the note with learning candidates: append `- YYYY-MM-DD: <what happened> — evidence: <shareable pointer: PR thread URL, repo-relative file and line, or command and result>` under the plan's `## Learning candidates` section, creating it only on the first candidate; record only lessons where a materially simpler path existed and was initially missed and a fresh model would not reliably produce unaided — never routine best practice, design rationale, session paths, secrets, or vault content.
 - When the branch has an open PR or a configured upstream, push the new commit; never force-push. Otherwise leave the commit local and report that.
 
 When the worktree had uncommitted changes before simplification started, do not commit; commit boundaries belong to the plan or `/execute`. Report the simplification as uncommitted alongside the pre-existing changes.

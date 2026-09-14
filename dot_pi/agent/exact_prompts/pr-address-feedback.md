@@ -164,5 +164,8 @@ Keep system context brief and shared across comments. Do not repeat it per comme
 
 Keep each comment assessment proportional to its importance. Prefer a compact, evidence-backed paragraph over a mini code review.
 
+## Learning candidates
+When adjudication recorded accepted reviewer guidance — `adopt as suggested` with generalizable content, or an `adopt different approach` whose chosen alternative embodies a lesson — append `- YYYY-MM-DD: <what happened> — evidence: <shareable pointer: PR thread URL, repo-relative file and line, or command and result>` under the plan's `## Learning candidates` section, creating it only on the first candidate. Record only surprises a fresh model would not reliably produce and apply unaided — never routine best practice, design rationale, session paths, secrets, or vault content. Write to the ledger only when exactly one branch-correlated `**/plans/<branch-slug>/plan.md` exists in the PR worktree (the PR branch with its first `<owner>/` prefix stripped); with zero or multiple matches, report the candidates in the Phase 6 output instead and never pick silently.
+
 ## Follow-up
-End by listing: what was implemented and pushed, which threads were resolved, which `adopt different approach` proposals await the user's decision, and which comments need a manual reply. Use `WORKTREE` for any follow-up investigation.
+End by listing: what was implemented and pushed, which threads were resolved, which `adopt different approach` proposals await the user's decision, and which comments need a manual reply. Use `WORKTREE` for any follow-up investigation. When candidates were recorded or accepted reviewer guidance exists, end by suggesting plain `/learn`; otherwise make no `/learn` suggestion.

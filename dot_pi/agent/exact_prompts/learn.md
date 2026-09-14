@@ -1,6 +1,6 @@
 ---
 description: Derive evidence-backed behavioral learnings from Pi sessions and pull requests
-argument-hint: "[context]"
+argument-hint: "[<PR URL | plan/design path | context>]"
 ---
 # Learn
 Context:
@@ -16,8 +16,19 @@ Do not modify repository files, Git state, branches, or managed targets. Do not 
 Load the `obsidian-cli` and `obsidian-markdown` skills before vault operations. Do not use another model or external service to analyze session or vault content.
 
 ## Modes
-- **Daily mode:** With no context, select the previous local calendar day. Discover evidence from every retained Pi session branch with entries in that window and from pull requests authored by `maruina` or `matteo-ruina_ddog` merged in that same window.
-- **Contextual mode:** With context, analyze the current conversation plus supplied pull request URL/number, review or conversation-comment URL, design/plan path, described wrong turn, or free-form context. A referenced pull request may be open in contextual mode.
+Mode is determined by `$ARGUMENTS`:
+- **Plain mode:** With empty arguments, resolve the current work's plan and its recorded `## Learning candidates` as described under "Plain mode resolution" below.
+- **Contextual mode:** With any context, analyze the current conversation plus supplied pull request URL/number, review or conversation-comment URL, design/plan path, described wrong turn, or free-form guidance. A referenced pull request may be open in contextual mode.
+
+## Plain mode resolution
+1. Read the current branch and derive its slug by removing the first `<owner>/` prefix when present. Search the current worktree recursively for `**/plans/<branch-slug>/plan.md`.
+2. Resolve exactly one match as an explicit path through the `resolve-worktree` skill. If multiple local matches exist, present them and ask which to resolve; never select silently.
+3. If none exists, preflight every worktree for `**/plans/*/plan.md` and invoke `resolve-worktree` with that `$GLOB` only when candidates exist; repeat the same preflight and fallback for `**/plans/*/design.md` when no plan resolves.
+4. If neither artifact exists anywhere, stop and suggest explicit context — a plan/design path, PR URL, or described guidance — and never invoke the resolver's generic no-match path.
+5. Resolution and reading are permitted: the HARD-GATE forbids repository and vault mutation, not context resolution.
+6. Read the selected plan completely, including its `## Learning candidates` section, and read its sibling `design.md` when present.
+
+Plain-mode evidence adds the ledger candidates, the sibling design, the current conversation, and the branch's PR via `gh pr list --head <branch> --state all --limit 20` with explicit reporting when zero or multiple PRs match, under the existing account-routing and login capture/restore contract; `sessions-search` recurrence adjudication applies as in contextual mode.
 
 Use this helper path in the source worktree: `dot_pi/agent/exact_scripts/learn-evidence.mjs`. In rendered use, resolve `${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/scripts/learn-evidence.mjs`. Run its `--help` before relying on an unfamiliar invocation. Its stdout is versioned JSON; keep it local and do not paste broad raw session output into the conversation.
 
@@ -32,18 +43,8 @@ Apply evidence in this order:
 
 Do not copy access tokens, credentials, secrets, assistant thinking, image data, raw private-message dumps, unrelated conversation content, or tool-call arguments into helper output, previews, staged documents, or the learning store. A source link may be omitted when it would cross an access boundary; local session paths and entry IDs are private evidence references.
 
-## Daily evidence discovery
-1. Run `sessions-window` for the previous local date. Report its local timezone, inclusive `startIso`, exclusive `endIso`, source totals, file errors, and truncation. A malformed or inaccessible session makes the retained set incomplete; continue only with that disclosure and never claim a complete recurrence count.
-2. Verify Obsidian availability and read the complete `Datadog/Learnings.md` store before any candidate preview. Treat a missing store as empty only after inspecting the CLI output; a status-0 missing-file message is not file content. If Obsidian or complete-store inspection is unavailable, stop without preview or mutation.
-3. Capture the original active GitHub login with `gh auth status --json hosts`. Never use `gh auth status --show-token`.
-4. While `maruina` is active, use `gh auth switch --hostname github.com --user maruina` and globally search each author, `maruina` and `matteo-ruina_ddog`, with `--merged --merged-at "$SEARCH_START_DATE..$SEARCH_END_DATE" --limit 1000`. Record each author, account, scope, and a possible 1000-result truncation.
-5. Switch only as needed with `gh auth switch --hostname github.com --user matteo-ruina_ddog`, then search author `matteo-ruina_ddog` separately under `ddoghq` and `ddoghq-sandbox` with the same range and limit. Do not use that account for `DataDog` or other repositories.
-6. Deduplicate candidate pull requests by URL. Fetch each `mergedAt` and retain only timestamps in `[startIso, endIso)`. A date-only search qualifier is discovery only.
-7. For each retained pull request inspect metadata, final diff, commits, reviews, inline `reviewThreads` through GraphQL, and conversation comments. Record unavailable surfaces; unknown thread state is not accepted guidance.
-8. Restore and verify the original GitHub login after every normal or error path. If restoration fails, stop before preview or vault mutation, report the current and intended login, and require manual repair.
-
 ## Contextual discovery
-Interpret supplied context narrowly. Read supplied design or plan artifacts and inspect the current conversation. For a pull request, review, or conversation-comment URL, inspect the containing pull request's metadata, diff, reviews, inline threads, and comments even when the pull request remains open. Route `ddoghq/*` and `ddoghq-sandbox/*` to `matteo-ruina_ddog`; route every other repository, including `DataDog/*`, to `maruina`. Capture and restore the original login exactly as in daily mode. Do not extend contextual discovery into an unbounded daily scan.
+Interpret supplied context narrowly. Read supplied design or plan artifacts and inspect the current conversation. For a pull request, review, or conversation-comment URL, inspect the containing pull request's metadata, diff, reviews, inline threads, and comments even when the pull request remains open. Route `ddoghq/*` and `ddoghq-sandbox/*` to `matteo-ruina_ddog`; route every other repository, including `DataDog/*`, to `maruina`. Capture the original active GitHub login with `gh auth status --json hosts`, use `gh auth switch` only as needed per the routing rule, and restore and verify the original login after every normal or error path; never use `gh auth status --show-token`. If restoration fails, stop before preview or vault mutation, report the current and intended login, and require manual repair. Do not extend contextual discovery into an unbounded sweep.
 
 ## Adjudicate candidates
 Candidate discovery only locates evidence. A raw match is not an independent occurrence.
@@ -57,6 +58,14 @@ Propose a learning only when it is actionable, broader than one exact diff, like
 3. A reviewer supplied generalizable guidance, and the final diff plus available reply/resolution evidence shows that it was accepted and materially incorporated.
 
 Reject routine dependency bumps, changelog facts, mechanical edits, obvious documentation, and unsupported model assertions. Review presence alone is not accepted reviewer guidance.
+
+Apply the non-derivability test to every prospective candidate: would a fresh model reliably produce and apply this guidance unaided at the moment it matters? If yes, reject it even when the mistake repeated. A qualifying candidate must encode at least one non-derivable element — an environment fact, tool quirk, semantic trap, or demonstrated model blind spot. Independent recurrence (qualification path 1) is evidence of non-derivability in practice; the test sharpens the paths rather than replacing them.
+
+## Route accepted candidates
+Each qualifying candidate gets exactly one primary target:
+- Domain or technical guidance — an environment fact, tool quirk, or semantic trap about the work itself — is written to `Datadog/Learnings.md` through the existing transaction.
+- Agent-behavior guidance — a skill's or prompt's guidance is wrong or missing — becomes a concrete improvement proposal in the report. It never enters the vault and is never auto-applied; the proposal enters the normal lifecycle.
+- A dual candidate splits: the domain part becomes the vault entry; the skill or prompt part becomes the proposal.
 
 ## Build the exact preview
 Use `Datadog/Learnings.md` as one global store. Search its complete content for overlapping title, tags, repository metadata, evidence URLs, and body guidance. Update an overlapping section instead of creating a near-duplicate.
@@ -89,9 +98,11 @@ Before asking for approval, show every addition and update in final form:
 <exact final H2 section>
 ```
 
+Every mode that stages a rewrite runs the staleness maintenance pass: while preparing the staged final document, re-adjudicate every section whose date line is strictly earlier than the local calendar date shifted back six calendar months against current source, tools, documentation, and recorded consumption-time corrections. A date exactly on the threshold is not older; a missing or malformed date requires re-adjudication and explicit reporting. Apply the normal qualification and routing rules to corrected guidance: update a contradicted section only when a non-derivable corrected intervention remains; otherwise remove it. Preview each removal as `### Removal: <title>` with its reason; removals share the same one-approval transaction. Surviving sections' date lines bump to last-validated.
+
 Also adjudicate `Datadog/Compound/dotfiles-chezmoi-execute-template-profile.md` through this same process and PR #22 evidence. Preview its exact deletion in all migration outcomes, including when no replacement qualifies. The deletion is the sole exception to the no-candidate rule.
 
-If no learning qualifies and no legacy migration deletion is pending, report the rejected candidates and why, do not ask for approval, and do not write. Otherwise ask once: approve or reject the complete preview. Treat any response other than clear approval of the complete set as rejection. Rejection or ambiguous approval removes snapshots and changes nothing.
+If no learning qualifies, no aged-section correction or removal exists, and no legacy migration deletion is pending, report the rejected candidates and why, do not ask for approval, and do not write. Otherwise — whenever additions, updates, removals, or the pending legacy migration deletion exist — ask once: approve or reject the complete preview. Treat any response other than clear approval of the complete set as rejection. Rejection or ambiguous approval removes snapshots and changes nothing.
 
 ## Apply an approved transaction
 1. Before preview, create a mode 0600 temporary directory outside the repository and vault. Snapshot the existence and exact content of `Datadog/Learnings.md` and the legacy note, including missing-file markers, into mode 0600 files.

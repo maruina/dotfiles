@@ -99,6 +99,28 @@ test("downstream lifecycle stages preserve or report skill provenance", () => {
   }
 });
 
+test("writable stages record learning candidates; read-only stages capture nothing", () => {
+  for (const file of ["plan.md", "execute.md", "simplify.md", "pr-address-feedback.md"]) {
+    const text = prompt(file);
+    requireMarkers(text, [
+      /## Learning candidates/,
+      /— evidence: /,
+      /fresh model.*reliably|reliably.*fresh model/is,
+    ]);
+  }
+
+  requireMarkers(prompt("pr-address-feedback.md"), [
+    /recorded.*accepted reviewer guidance.*\/learn|\/learn.*recorded.*accepted reviewer guidance/is,
+    /otherwise.*no.*suggest/is,
+    /branch.*slug/is,
+    /zero or multiple/i,
+  ]);
+
+  for (const file of ["systematic-review.md", "verify.md"]) {
+    assert.doesNotMatch(prompt(file), /Learning candidates/);
+  }
+});
+
 test("simplify and PR review report skill provenance", () => {
   for (const file of ["simplify.md", "pr-review.md"]) {
     const text = prompt(file);

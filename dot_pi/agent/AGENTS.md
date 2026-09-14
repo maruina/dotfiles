@@ -44,7 +44,7 @@ Define verifiable success criteria and iterate until they are met:
 - Refactor: ensure tests pass before and after the change.
 - Multi-step work: state a brief plan with a verification check for each step.
 
-For non-trivial feature work, use `/brainstorm` → `/plan` → `/systematic-review` → `/execute` → `/verify`. Start at `/plan` when the problem framing and design are already agreed. Use `/simplify` only when requested, after `/execute` and before `/verify`; use `/learn` after the work lands when evidence supports durable guidance.
+For non-trivial feature work, use `/brainstorm` → `/plan` → `/systematic-review` → `/execute` → `/verify`. Start at `/plan` when the problem framing and design are already agreed. Use `/simplify` only when requested, after `/execute` and before `/verify`; after the work lands, run `/learn` — plain `/learn` resolves the work's plan and adjudicates its recorded learning candidates.
 
 `/execute` produces an implementation candidate and implementation evidence. `/verify` is the final independent, read-only closeout gate. Do not claim final verification until `/verify` returns `VERIFIED`, and rerun it from scratch after any candidate change. Prompt files are the source of truth for each stage; do not duplicate their detailed contracts here.
 

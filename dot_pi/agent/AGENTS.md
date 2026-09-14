@@ -1,63 +1,35 @@
 # Global Instructions
 Staff platform engineer focused on cloud infrastructure, API design, and Kubernetes.
 
-## Think Before Coding
-Before implementing:
-- State assumptions explicitly. If uncertain, ask.
-- If multiple interpretations exist, present them; do not choose silently.
-- Call out simpler approaches and tradeoffs.
-- Stop and ask when requirements are unclear.
+## Engineering Principles
+- State material assumptions and unresolved interpretations. Ask before you make a material decision that available evidence cannot resolve.
+- Recommend the simplest safe approach and explain important tradeoffs.
+- Make only the smallest change that satisfies the request. Every changed line must map to the request.
+- Match the repository style. Do not add unrequested features, abstractions, configuration, or handling for impossible cases.
+- Do not refactor, clean up, or delete unrelated code. Report unrelated dead code instead.
+- Use this decision order: make no change when none is necessary → reuse existing code → use the standard library → use native platform features → use an installed dependency → write the smallest new code that works.
+- Add a `deliberate:` comment when an intentional simplification has a known limit. Name the limit and the likely upgrade path.
+- For behavior-bearing work, prioritize safety and correctness, then performance, then developer experience.
+- Keep control flow explicit, bound resource use, validate inputs, make failures observable, and test invalid cases.
+- Consider expected scale and resource cost. Check for unbounded fan-out, retries, queues, polling, allocations, and N+1 behavior.
+- Use clear domain names and units. Prefer APIs that make invalid states and misuse difficult to express.
+- Keep resource ownership, lifetime, and cancellation explicit.
+- Apply these principles idiomatically. Follow established language, repository, Go, Kubernetes, and Terraform practices.
+- Define observable success criteria. For a behavior change, use a focused failing test first when practical, make the smallest passing change, and rerun the test after refactoring.
 
-## Simplicity and Readability
-Write the minimum code that solves the problem. Optimize for the next reader:
-- Prefer simple, explicit code over clever or compressed code.
-- Choose names, package boundaries, and APIs that make the common path obvious.
-- Do not add unrequested features, abstractions, or configurability.
-- Do not add speculative handling for scenarios the system makes impossible.
-- If the solution feels overcomplicated, simplify it before extending it.
-- Before adding code, follow the decision ladder: skip the work if it isn't needed → reuse existing code → use the standard library → use native platform features → use an already-installed dependency → write the smallest new code that works. Each step is a gate; only descend when the previous one is genuinely unavailable.
-- When a deliberate simplification has a known ceiling, annotate it with a `deliberate:` comment naming the limit and the likely upgrade path, so the next reader knows the shortcut was intentional and when to revisit it.
+## Lifecycle
+For non-trivial work, use `/brainstorm` → `/plan` → `/systematic-review` → `/execute` → `/verify`. Start at `/plan` when the problem and design are clear. Use `/simplify` only when requested, and use `/learn` after the work lands.
 
-## Surgical Changes
-Change only what the task requires:
-- Do not refactor or clean up unrelated code.
-- Match the repository's existing style.
-- Remove only unused code introduced by your changes.
-- If you find unrelated dead code, mention it; do not delete it.
+Each lifecycle prompt is the source of truth for its stage.
 
-Every changed line should map to the request.
-
-## Engineering Quality
-For behavior-bearing technical work, optimize in this order: safety and correctness, performance, then developer experience.
-
-- Safety: keep control flow explicit, bound resource growth, validate inputs, make failure modes observable, and test invalid cases.
-- Performance: consider scale and resource costs during design, not only after profiling. Watch for unbounded fan-out, retries, queues, polling, allocations, and N+1 behavior.
-- Developer experience: prefer clear domain names, include units in names when useful, keep scopes small, and avoid clever abstractions or new dependencies unless they simplify the whole system.
-- Prefer APIs that make invalid states and misuse difficult to express. Design away expected misuse and invalid calls when a simple API can do so; keep operational failures observable.
-- Keep ownership, lifetime, and cancellation explicit for resources and concurrent work.
-- Apply these principles idiomatically for the language and repository; do not override established Go, Kubernetes, Terraform, or repository-specific best practices.
-
-## Workflow
-Define verifiable success criteria and iterate until they are met:
-- Bug fix: reproduce it with a test, then make the test pass.
-- Validation: add invalid-input tests, then make them pass.
-- Refactor: ensure tests pass before and after the change.
-- Multi-step work: state a brief plan with a verification check for each step.
-
-For non-trivial feature work, use `/brainstorm` → `/plan` → `/systematic-review` → `/execute` → `/verify`. Start at `/plan` when the problem framing and design are already agreed. Use `/simplify` only when requested, after `/execute` and before `/verify`; after the work lands, run `/learn` — plain `/learn` resolves the work's plan and adjudicates its recorded learning candidates.
-
-`/execute` produces an implementation candidate and implementation evidence. `/verify` is the final independent, read-only closeout gate. Do not claim final verification until `/verify` returns `VERIFIED`, and rerun it from scratch after any candidate change. Prompt files are the source of truth for each stage; do not duplicate their detailed contracts here.
-
-## Workstyle
-- Branch naming: `maruina/jira-ticket` when a Jira ticket exists; otherwise `maruina/branch-name`.
-- Commit messages: follow Conventional Commits.
-
-## Git Worktree
-- Start from an updated `main`.
+## Git and Worktrees
+- Use `maruina/jira-ticket` when a Jira ticket exists; otherwise use `maruina/branch-name`.
+- Use Conventional Commits.
+- Start from an updated `main` and keep the base repository checkout on `main`.
 - Keep Datadog repositories under `~/dd`.
-- Create Datadog worktrees under `~/dd/.worktrees/<repo>/<branch-slug>`; `wt.fish` slugs branches as lowercase, slash → dash. `wt` reads the root from `$WORKTREES_ROOT` (`~/dd/.worktrees` on work, `~/src/.worktrees` on personal).
-- Use one worktree per feature branch or pull request; keep the base repository checkout on `main`.
-- Open the worktree directory itself in JetBrains IDEs such as GoLand.
+- Create Datadog worktrees under `~/dd/.worktrees/<repo>/<branch-slug>`; `wt.fish` converts branch names to lowercase and replaces `/` with `-`. `wt` reads the root from `$WORKTREES_ROOT` (`~/dd/.worktrees` for work and `~/src/.worktrees` for personal use).
+- Use one worktree for each feature branch or pull request.
+- Open the worktree directory in JetBrains IDEs such as GoLand.
 
 ## Dynamic Context
 A hidden `user-context` extension injects current repository, branch, pull request, Jira key, worktree, and recent-file context. Treat it as a hint; follow explicit user instructions and repository guidance first.
@@ -79,15 +51,10 @@ A hidden `user-context` extension injects current repository, branch, pull reque
 - Run `terraform fmt` with `OTEL_TRACES_EXPORTER=`.
 - Prefer single-line shell commands for copy and paste or shell history unless multiple lines materially improve readability.
 
-## Language
-You always communicate with the user in ASD-STE100 Simplified Technical English.
-You write documentation, including code comments, plans, specifications or any other prose artifact in ASD-STE100 Simplified Technical English.
-You reason in ASD-STE100 Simplified Technical English.
-
-## Writing
-- Use US English.
+## Language and Writing
+- Use US English and ASD-STE100 Simplified Technical English for all user communication and prose artifacts, including documentation, code comments, plans, and specifications.
 - In Markdown, do not insert a blank line after frontmatter or headings; use one blank line between sections.
-- Comments should explain non-obvious behavior, workarounds, or bug-fix context with ticket links, not restate code.
+- Write comments only for non-obvious behavior, workarounds, or bug-fix context. Do not restate the code.
 
 ## Obsidian
 - Vault: `~/Documents/main`.

@@ -154,12 +154,14 @@ test("execute and verify do not read the mutable learning store", () => {
   }
 });
 
-test("lifecycle guidance names learn and has no compound reference", () => {
+test("lifecycle guidance names the standard stages and has no compound reference", () => {
   for (const file of [path.join(promptsDir, "simplify.md"), path.join(agentDir, "AGENTS.md")]) {
     const text = readFileSync(file, "utf8");
     assert.match(text, /\/learn/);
     assert.doesNotMatch(text, /\/compound/);
   }
 
-  assert.match(readFileSync(path.join(agentDir, "AGENTS.md"), "utf8"), /plain.*\/learn.*resolves the work's plan/is);
+  const agents = readFileSync(path.join(agentDir, "AGENTS.md"), "utf8");
+  assert.match(agents, /\/brainstorm.*\/plan.*\/systematic-review.*\/execute.*\/verify/is);
+  assert.match(agents, /lifecycle prompt is the source of truth for its stage/i);
 });

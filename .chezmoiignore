@@ -3,6 +3,7 @@
 {{- end }}
 {{- if eq .profile "work" }}
 .pi/agent/skills_personal
+.pi/agent/extensions/web-search.ts
 {{- end }}
 .pi/agent/node_modules
 

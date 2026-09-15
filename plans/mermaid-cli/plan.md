@@ -19,6 +19,15 @@
 | `write` | `skill-loader` | The plan is a human-readable execution artifact. | Kept the plan concise and explicit about scope and failure behavior. |
 | `obsidian-cli` | `prompt-required` | `/plan` requires an advisory learning lookup. | Read `Datadog/Learnings.md` through Obsidian. |
 
+### Execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `resolve-worktree` | `prompt-required` | The `/execute` input is a plan path inside a dotfiles worktree. | Resolved the plan path and switched context to `maruina/mermaid-cli` worktree. |
+| `script-best-practices` | `skill-loader` | The affected file is a `run_onchange_*` Bash template. | Confirmed the edit stays declarative (one formula line) and used `bash -n` on the rendered script as syntax gate. |
+| `chezmoi` | `skill-loader` | The package is managed from the chezmoi source worktree. | Used source editing plus `execute-template`, `apply --dry-run --verbose --include=scripts`, and `apply --include=scripts` for validation. |
+| `write` | `agent-selected` | Not loaded: ledger updates are terse checkbox notes, not prose drafting. | Skipped deliberately. |
+| `mermaid-best-practices` | `agent-selected` | Considered when the smoke fixture is created; fixture is a disposable validation input, not a delivered diagram. | Skipped deliberately. |
+
 ## Source of Truth
 - Confirmed planning alignment in the originating conversation.
 - `run_onchange_brew-install.sh.tmpl` is the package source of truth.
@@ -97,14 +106,14 @@ The installed `mmdc` SHALL render a valid Mermaid flowchart.
 **Traces to:** Shared managed dependency, valid installation script, and working Mermaid renderer requirements
 **Files:** `run_onchange_brew-install.sh.tmpl`, `plans/mermaid-cli/plan.md`
 
-- [ ] Confirm the worktree is clean apart from this committed plan and that `mmdc` is not already available.
-- [ ] Add `brew "mermaid-cli"` once in alphabetical order inside the shared Darwin Brew bundle.
-- [ ] Render the template with `chezmoi --source "$PWD" execute-template` and run `bash -n`; expect success.
-- [ ] Inspect the source diff; expect only the new formula declaration.
-- [ ] Run a dry-run script apply; expect only the changed Homebrew run-on-change script.
-- [ ] Apply only changed scripts through this worktree's chezmoi source; expect Homebrew to install `mermaid-cli`.
-- [ ] Run `mmdc --version` and the specified temporary flowchart render; expect a non-empty SVG, then remove both temporary files.
-- [ ] Run `git diff --check`; expect no errors.
-- [ ] Inspect documentation and repository guidance; record that no update is needed unless execution finds a durable package-management trap.
-- [ ] Update this plan ledger with command outcomes.
-- [ ] Commit the source and ledger changes with `chore(brew): install mermaid cli`.
+- [x] Confirm the worktree is clean apart from this committed plan and that `mmdc` is not already available. Worktree clean; only the committed plan and prior `docs:` commits present. `mmdc` absent; `brew info mermaid-cli` reports 11.17.0. `grep` confirmed `mermaid-cli` is absent from the template.
+- [x] Add `brew "mermaid-cli"` once in alphabetical order inside the shared Darwin Brew bundle. Inserted between `brew "mergiraf"` and `brew "opentofu"`; not inside the work-only block.
+- [x] Render the template with `chezmoi --source "$PWD" execute-template` and run `bash -n`; expect success. Rendered script passes `bash -n`; rendered line 27 shows `brew "mermaid-cli"` between `mergiraf` and `opentofu`.
+- [x] Inspect the source diff; expect only the new formula declaration. `git diff` shows a single added line.
+- [x] Run a dry-run script apply; expect only the changed Homebrew run-on-change script. `apply --dry-run --verbose --include=scripts` selects only `brew-install.sh`.
+- [x] Apply only changed scripts through this worktree's chezmoi source; expect Homebrew to install `mermaid-cli`. `apply --include=scripts` exits 0 and reports `Installing mermaid-cli`; the bundle also upgraded bash, gh, uv, and talosctl as normal run-on-change behavior.
+- [x] Run `mmdc --version` and the specified temporary flowchart render; expect a non-empty SVG, then remove both temporary files. `mmdc --version` reports 11.17.0. First render failed with `Error: Could not find chrome-headless-shell (ver. 152.0.7977.54)`; cache held only `mac_arm-148.0.7778.97` from an unrelated tool. After approval, `npx puppeteer browsers install chrome-headless-shell` in the mermaid-cli package installed 152.0.7977.54 into `~/.cache/puppeteer`; rerun produced a 10947-byte SVG and temp files were removed.
+- [x] Run `git diff --check`; expect no errors. Passes; only `run_onchange_brew-install.sh.tmpl` is modified.
+- [x] Inspect documentation and repository guidance; record that no update is needed unless execution finds a durable package-management trap. Repo `AGENTS.md` Packages section matches the added declaration; no doc update needed. The missing browser binary is a runtime dependency of the tool, not a package-management trap.
+- [x] Update this plan ledger with command outcomes. This entry.
+- [x] Commit the source and ledger changes with `chore(brew): install mermaid cli`. Commit `6441f8c`; initial attempt was blocked pending approval of the browser-dependency fix, then completed after the approved chrome-headless-shell install.

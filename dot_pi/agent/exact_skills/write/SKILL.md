@@ -14,18 +14,26 @@ Say exactly what you mean. Remove every word that does not help the reader.
 ## Audience and structure
 - Unless the request says otherwise, assume software-engineering fluency, not subsystem fluency. Do not explain common engineering concepts from first principles; explain what *this* component does and why it matters here.
 - Lead with the main point. Give each paragraph a clear purpose that supports the text's goal.
+- Write for readers across cultures and levels of English fluency. Prefer short, literal sentences with a clear subject, verb, and object. Use terminology, capitalization, punctuation, and formatting consistently.
+- Avoid idioms, slang, jokes, culturally specific references, and phrasal verbs when a direct verb says the same thing.
 - When a concept may be unfamiliar, explain behavior the reader can picture before introducing the technical term.
+- Replace unnecessary jargon with precise, familiar words. If a specialized term is necessary, define it on first use and use it consistently. Format a term as code only when referring to the exact code item.
 - Expand unfamiliar acronyms on first use and explain their function, not only what the letters mean.
 - Split sentences that carry more than one main idea. Use headings, lists, and tables when they make the text easier to scan.
 
 ## Language
 - Use concrete nouns. Replace vague pronouns such as `this` or `that` when their referents may be unclear.
-- Use the imperative for instructions. Prefer `Run the script` over `You should run the script`.
 - Prefer active voice. Name the actor when it matters.
 - Remove empty hedging and intensifiers. Preserve words that communicate meaningful uncertainty.
-- Choose a tone that fits the audience and keep it consistent. Avoid clichés and unnecessary or unexplained jargon.
+- Use the conversational, friendly, and respectful tone of a knowledgeable colleague. Be direct, not promotional, cutesy, overly formal, or clever. Avoid unnecessary `please`, exclamation points, and slang; use common contractions when they sound natural.
+- Make objective, verifiable claims. Avoid superlatives, absolutes, and guarantees unless evidence supports the exact statement. State the mechanism and scope behind performance, cost, security, or competitive claims, and cite measurable claims.
+- For durable documentation, describe behavior without labels such as `new`, `now`, `currently`, `latest`, or `soon`. Do not assume that readers know an earlier version. Use time-bound language only when time is part of the content's purpose, such as in release notes or announcements.
 - Cut repetition and filler, but stop when further removal would lose meaning or necessary context.
 - Use US English.
+
+## Instructions
+- For procedural documentation, recommend one clear path for the common case instead of listing every option. Use realistic scenarios and concrete commands with the arguments needed for the task.
+- Use an imperative or `must` for a requirement, `recommend` for a recommendation, `can` for an option, and `might` for a possible outcome. Avoid ambiguous `should`.
 
 ## Technical decisions
 - When rejecting an alternative, state its benefit before explaining why it does not fit this case.

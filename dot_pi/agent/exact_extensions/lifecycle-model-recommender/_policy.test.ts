@@ -5,7 +5,37 @@ import { dirname, resolve } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import { getSupportedThinkingLevels, type Model } from "@earendil-works/pi-ai";
-import { LIFECYCLE_POLICY, parseLifecyclePhase, type LifecyclePolicy } from "./_policy.ts";
+import { defaultThinkingLevel, parseEnabledModels, parseLifecyclePhase, poolForPhase } from "./_policy.ts";
+
+function fixtureModel(overrides: Partial<Model<any>> & { provider: string; id: string }): Model<any> {
+  return {
+    name: overrides.id,
+    api: "openai-responses",
+    baseUrl: "https://example.invalid",
+    reasoning: true,
+    input: ["text"],
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    contextWindow: 1,
+    maxTokens: 1,
+    ...overrides,
+  } as Model<any>;
+}
+
+const GLM_MAP = { off: null, minimal: null, low: "low", medium: null, high: "high", xhigh: null, max: "max" };
+const KIMI_MAP = { off: null, low: "low", high: "high", max: "max" };
+const SOL_MAP = { off: "none", xhigh: "xhigh", max: "max" };
+const DEEPSEEK_MAP = { off: "none", minimal: null, low: "low", medium: null, high: "high", xhigh: null, max: null };
+const GEMINI_MAP = { off: null };
+
+const scopedSet = [
+  fixtureModel({ provider: "ai-gw-baseten", id: "baseten/zai-org/GLM-5.3", name: "GLM 5.3 (Baseten)", thinkingLevelMap: GLM_MAP }),
+  fixtureModel({ provider: "ai-gw-databricks", id: "databricks/system.ai.kimi-k3", name: "Kimi K3 (Databricks)", thinkingLevelMap: KIMI_MAP }),
+  fixtureModel({ provider: "ai-gw-openai", id: "openai/gpt-5.6-sol", name: "GPT-5.6 Sol (OpenAI)", thinkingLevelMap: SOL_MAP }),
+  fixtureModel({ provider: "ai-gw-openai", id: "openai/gpt-5.6-terra", name: "GPT-5.6 Terra (OpenAI)", thinkingLevelMap: SOL_MAP }),
+  fixtureModel({ provider: "ai-gw-baseten", id: "baseten/zai-org/GLM-5.3-Flash", name: "GLM 5.3 Flash (Baseten)", thinkingLevelMap: GLM_MAP }),
+  fixtureModel({ provider: "ai-gw-baseten", id: "baseten/deepseek-ai/DeepSeek-V4-Flash-0731", name: "DeepSeek V4 Flash 0731 (Baseten)", thinkingLevelMap: DEEPSEEK_MAP }),
+  fixtureModel({ provider: "ai-gw-google", id: "gemini-3.8-flash", name: "Gemini 3.8 Flash (Google)", thinkingLevelMap: GEMINI_MAP }),
+];
 
 type Catalog = {
   providers: Record<
@@ -28,34 +58,6 @@ type Catalog = {
 
 type CatalogModel = Pick<Model<any>, "provider" | "id" | "api" | "name" | "reasoning" | "input" | "contextWindow" | "maxTokens" | "thinkingLevelMap">;
 
-const expected = {
-  "/brainstorm": {
-    lowerCost: ["ai-gw-baseten", "baseten/deepseek-ai/DeepSeek-V4-Flash-0731", "high", "Economy", "DeepSeek V4 Flash (Baseten)"],
-    recommended: ["ai-gw-baseten", "baseten/zai-org/GLM-5.2", "max", "Balanced", "GLM-5.2 (Baseten)"],
-    increaseQuality: ["ai-gw-openai", "openai/gpt-5.6-sol", "xhigh", "Premium", "GPT-5.6 Sol"],
-  },
-  "/plan": {
-    lowerCost: ["ai-gw-baseten", "baseten/deepseek-ai/DeepSeek-V4-Flash-0731", "high", "Economy", "DeepSeek V4 Flash (Baseten)"],
-    recommended: ["ai-gw-baseten", "baseten/zai-org/GLM-5.2", "max", "Balanced", "GLM-5.2 (Baseten)"],
-    increaseQuality: ["ai-gw-openai", "openai/gpt-5.6-sol", "xhigh", "Premium", "GPT-5.6 Sol"],
-  },
-  "/systematic-review": {
-    lowerCost: ["ai-gw-baseten", "baseten/deepseek-ai/DeepSeek-V4-Flash-0731", "high", "Economy", "DeepSeek V4 Flash (Baseten)"],
-    recommended: ["ai-gw-baseten", "baseten/zai-org/GLM-5.2", "max", "Balanced", "GLM-5.2 (Baseten)"],
-    increaseQuality: ["ai-gw-openai", "openai/gpt-5.6-sol", "xhigh", "Premium", "GPT-5.6 Sol"],
-  },
-  "/execute": {
-    lowerCost: ["ai-gw-baseten", "baseten/deepseek-ai/DeepSeek-V4-Flash-0731", "high", "Economy", "DeepSeek V4 Flash (Baseten)"],
-    recommended: ["ai-gw-baseten", "baseten/zai-org/GLM-5.2", "max", "Balanced", "GLM-5.2 (Baseten)"],
-    increaseQuality: ["ai-gw-openai", "openai/gpt-5.6-sol", "xhigh", "Premium", "GPT-5.6 Sol"],
-  },
-  "/verify": {
-    lowerCost: ["ai-gw-baseten", "baseten/deepseek-ai/DeepSeek-V4-Flash-0731", "high", "Economy", "DeepSeek V4 Flash (Baseten)"],
-    recommended: ["ai-gw-baseten", "baseten/zai-org/GLM-5.2", "max", "Balanced", "GLM-5.2 (Baseten)"],
-    increaseQuality: ["ai-gw-openai", "openai/gpt-5.6-sol", "xhigh", "Premium", "GPT-5.6 Sol"],
-  },
-} as const;
-
 function renderedCatalog(): Catalog {
   const agentDirectory = dirname(fileURLToPath(import.meta.url));
   const repositoryRoot = resolve(agentDirectory, "../../../..");
@@ -77,50 +79,10 @@ function catalogModels(catalog: Catalog): CatalogModel[] {
   );
 }
 
-function assertCatalogCompatibility(policy: LifecyclePolicy, models: CatalogModel[]): void {
-  for (const [phase, recommendations] of Object.entries(policy)) {
-    for (const [position, choice] of Object.entries(recommendations)) {
-      const model = models.find((candidate) => candidate.provider === choice.provider && candidate.id === choice.model);
-      assert.ok(model, `${phase} ${position}: missing ${choice.provider}/${choice.model}`);
-      const supportedLevels = getSupportedThinkingLevels({
-        ...model,
-        baseUrl: "https://example.invalid",
-        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      });
-      assert.ok(
-        supportedLevels.includes(choice.thinking),
-        `${phase} ${position}: ${choice.provider}/${choice.model} does not support ${choice.thinking}`,
-      );
-    }
-  }
-}
-
 describe("lifecycle model policy", () => {
-  it("defines every approved recommendation", () => {
-    for (const [phase, positions] of Object.entries(expected)) {
-      const recommendations = LIFECYCLE_POLICY[phase as keyof typeof LIFECYCLE_POLICY];
-      for (const [position, [provider, model, thinking, costClass, label]] of Object.entries(positions)) {
-        const choice = recommendations[position as keyof typeof recommendations];
-        assert.deepEqual([choice.provider, choice.model, choice.thinking, choice.costClass, choice.label], [
-          provider,
-          model,
-          thinking,
-          costClass,
-          label,
-        ]);
-        assert.ok(choice.rationale.length > 0, `${phase} ${position} has a rationale`);
-        // `max` is the approved default effort for the GLM-5.2 recommended slot;
-        // the lower-cost (Economy) tier must not use it.
-        if (position === "lowerCost") {
-          assert.notEqual(choice.thinking, "max", `${phase} lowerCost: Economy tier must not use max`);
-        }
-        assert.notEqual(choice.model, "openai/gpt-5.6-luna");
-      }
-    }
-  });
-
   it("matches only lifecycle commands at the beginning of input", () => {
-    for (const phase of Object.keys(expected)) {
+    const phases = ["/brainstorm", "/plan", "/systematic-review", "/execute", "/verify"] as const;
+    for (const phase of phases) {
       assert.equal(parseLifecyclePhase(phase), phase);
       assert.equal(parseLifecyclePhase(`${phase} argument`), phase);
       assert.equal(parseLifecyclePhase(`${phase}\targument`), phase);
@@ -132,23 +94,109 @@ describe("lifecycle model policy", () => {
     }
   });
 
-  it("uses supported thinking levels for every policy model in the managed work catalog", () => {
-    assertCatalogCompatibility(LIFECYCLE_POLICY, catalogModels(renderedCatalog()));
+  it("derives phase pools from the scoped set with tier filters and stable order", () => {
+    const framing = ["baseten/zai-org/GLM-5.3", "databricks/system.ai.kimi-k3", "openai/gpt-5.6-sol", "openai/gpt-5.6-terra"];
+    for (const phase of ["/brainstorm", "/plan", "/systematic-review"] as const) {
+      assert.deepEqual(poolForPhase(phase, scopedSet).map((model) => model.id), framing, phase);
+    }
+    assert.deepEqual(
+      poolForPhase("/execute", scopedSet).map((model) => model.id),
+      ["baseten/zai-org/GLM-5.3-Flash", "baseten/deepseek-ai/DeepSeek-V4-Flash-0731"],
+    );
+    assert.deepEqual(
+      poolForPhase("/verify", scopedSet).map((model) => model.id),
+      ["baseten/zai-org/GLM-5.3-Flash", "baseten/deepseek-ai/DeepSeek-V4-Flash-0731", "gemini-3.8-flash"],
+    );
   });
 
-  it("detects catalog model and thinking-level drift", () => {
-    const models = catalogModels(renderedCatalog());
-    const removed = models.filter((model) => !(model.provider === "ai-gw-baseten" && model.id === "baseten/zai-org/GLM-5.2"));
-    assert.throws(() => assertCatalogCompatibility(LIFECYCLE_POLICY, removed), /missing ai-gw-baseten\/baseten\/zai-org\/GLM-5\.2/);
+  it("matches tier substrings case-insensitively", () => {
+    const mixed = [
+      fixtureModel({ provider: "prov", id: "prov/Model-FLASH", name: "Model Flash" }),
+      fixtureModel({ provider: "prov", id: "prov/Gemini-Flash", name: "Gemini Flash" }),
+      fixtureModel({ provider: "prov", id: "prov/Reasoner", name: "Reasoner" }),
+    ];
+    assert.deepEqual(poolForPhase("/plan", mixed).map((model) => model.id), ["prov/Reasoner"]);
+    assert.deepEqual(poolForPhase("/execute", mixed).map((model) => model.id), ["prov/Model-FLASH"]);
+    assert.deepEqual(poolForPhase("/verify", mixed).map((model) => model.id), ["prov/Model-FLASH", "prov/Gemini-Flash"]);
+  });
 
-    const unsupported = models.map((model) =>
-      model.provider === "ai-gw-baseten" && model.id === "baseten/zai-org/GLM-5.2"
-        ? { ...model, thinkingLevelMap: { off: "none", minimal: null, low: null, medium: null, high: "high", xhigh: null, max: null } }
-        : model,
+  it("parses enabledModels entries at the first slash and preserves order", () => {
+    const parsed = parseEnabledModels({
+      enabledModels: ["ai-gw-baseten/baseten/zai-org/GLM-5.3", "ai-gw-google/gemini-3.8-flash"],
+    });
+    assert.deepEqual(parsed.skipped, []);
+    assert.deepEqual(parsed.entries, [
+      { provider: "ai-gw-baseten", modelId: "baseten/zai-org/GLM-5.3", entry: "ai-gw-baseten/baseten/zai-org/GLM-5.3" },
+      { provider: "ai-gw-google", modelId: "gemini-3.8-flash", entry: "ai-gw-google/gemini-3.8-flash" },
+    ]);
+  });
+
+  it("skips malformed entries and keeps the rest", () => {
+    const parsed = parseEnabledModels({ enabledModels: [42, "noslash", "/leading", "trailing/", "prov/model", null] });
+    assert.deepEqual(parsed.skipped, ["42", "noslash", "/leading", "trailing/", "null"]);
+    assert.deepEqual(parsed.entries, [{ provider: "prov", modelId: "model", entry: "prov/model" }]);
+  });
+
+  it("treats a missing or non-array enabledModels value as empty", () => {
+    assert.deepEqual(parseEnabledModels({}), { entries: [], skipped: [] });
+    assert.deepEqual(parseEnabledModels({ enabledModels: "nope" }), { entries: [], skipped: [] });
+    assert.deepEqual(parseEnabledModels(null), { entries: [], skipped: [] });
+    assert.deepEqual(parseEnabledModels(undefined), { entries: [], skipped: [] });
+  });
+
+  it("computes the default thinking level from the supported levels", () => {
+    assert.equal(defaultThinkingLevel(fixtureModel({ provider: "p", id: "glm", thinkingLevelMap: GLM_MAP })), "high");
+    assert.equal(defaultThinkingLevel(fixtureModel({ provider: "p", id: "kimi", thinkingLevelMap: KIMI_MAP })), "high");
+    assert.equal(defaultThinkingLevel(fixtureModel({ provider: "p", id: "sol", thinkingLevelMap: SOL_MAP })), "xhigh");
+    assert.equal(defaultThinkingLevel(fixtureModel({ provider: "p", id: "deepseek", thinkingLevelMap: DEEPSEEK_MAP })), "low");
+    assert.equal(defaultThinkingLevel(fixtureModel({ provider: "p", id: "gemini", thinkingLevelMap: GEMINI_MAP })), "medium");
+    assert.equal(
+      defaultThinkingLevel(
+        fixtureModel({
+          provider: "p",
+          id: "single",
+          thinkingLevelMap: { off: "none", minimal: null, low: null, medium: null, high: null, xhigh: null, max: null },
+        }),
+      ),
+      "off",
     );
-    assert.throws(
-      () => assertCatalogCompatibility(LIFECYCLE_POLICY, unsupported),
-      /ai-gw-baseten\/baseten\/zai-org\/GLM-5\.2 does not support max/,
+    assert.equal(
+      defaultThinkingLevel(
+        fixtureModel({
+          provider: "p",
+          id: "empty",
+          thinkingLevelMap: { off: null, minimal: null, low: null, medium: null, high: null, xhigh: null, max: null },
+        }),
+      ),
+      undefined,
     );
+    assert.equal(defaultThinkingLevel(fixtureModel({ provider: "p", id: "mapless" })), undefined);
+  });
+
+  it("computes a supported default for every managed-catalog map shape", () => {
+    for (const model of catalogModels(renderedCatalog())) {
+      const full = fixtureModel({
+        provider: model.provider,
+        id: model.id,
+        name: model.name,
+        api: model.api,
+        reasoning: model.reasoning,
+        input: model.input,
+        contextWindow: model.contextWindow,
+        maxTokens: model.maxTokens,
+        thinkingLevelMap: model.thinkingLevelMap,
+      });
+      if (model.thinkingLevelMap) {
+        const supported = getSupportedThinkingLevels(full);
+        const computed = defaultThinkingLevel(full);
+        assert.ok(computed !== undefined, `${model.provider}/${model.id} has a map but no default`);
+        assert.ok(
+          supported.includes(computed),
+          `${model.provider}/${model.id}: default ${computed} is not supported (${supported.join(", ")})`,
+        );
+      } else {
+        assert.equal(defaultThinkingLevel(full), undefined, `${model.provider}/${model.id} has no map`);
+      }
+    }
   });
 });

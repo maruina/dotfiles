@@ -22,7 +22,7 @@ Say exactly what you mean. Remove every word that does not help the reader.
 - Expand unfamiliar acronyms on first use and explain their function, not only what the letters mean.
 - Split sentences that carry more than one main idea. Use headings, lists, and tables when they make the text easier to scan.
 - Do not force rhetorical patterns such as `not just X, but Y`, groups of three, or `from X to Y` when the ideas do not form a real range. Let the content determine the structure.
-- If a sentence could appear unchanged in an unrelated project's documentation, replace it with a component-specific fact, mechanism, or instruction, or remove it.
+- If a sentence is generic filler that does not support the request and could appear unchanged in an unrelated project's documentation, replace it with a supported component-specific fact, mechanism, or instruction, or remove it.
 - Do not overcompress. Use complete clauses and necessary articles. Avoid arrows, fragments, and abbreviations when they make the reader reconstruct the meaning.
 
 ## Language

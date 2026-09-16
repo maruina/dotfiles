@@ -16,7 +16,7 @@ Matteo, using Pi with models routed through the Datadog AI Gateway. Future maint
   - `/brainstorm`, `/plan`, `/systematic-review`: scoped models whose ID does not contain `flash`.
   - `/execute`: scoped models whose ID contains `flash` and not `gemini`.
   - `/verify`: scoped models whose ID contains `flash`.
-- Compute each candidate's default thinking level as the second-highest level present in the model's `thinkingLevelMap`.
+- Compute each candidate's default thinking level as the second-highest level of `getSupportedThinkingLevels(model)`; a model without a `thinkingLevelMap` has no default.
 - Show the picker on every lifecycle start, with no auto-skip.
 - When the current model is in the phase pool, make "Keep current model" the first option; selecting it changes nothing.
 - Preserve the existing adapter contracts: fail-open behavior, model selection before thinking changes, no mutation in non-interactive or queued input, and the RPC selection timeout.
@@ -45,11 +45,11 @@ The brainstorm ran `Datadog/Learnings.md` through `learn-evidence.mjs learning-s
 ## Current behavior
 The extension intercepts raw lifecycle commands. On a matching idle interactive invocation it compares the active provider, model ID, and thinking level with the static policy's recommended entry. On an exact match it notifies and continues. Otherwise it offers Apply recommendation, Lower cost, Increase quality, and Keep current settings, then applies the selected model and thinking level after confirmation. Non-interactive and queued input pass through without mutation.
 
-The scoped set on 2026-09-16 contains six models. The resulting pools are:
+The scoped set on 2026-09-16 contains seven models. The resulting pools are:
 
 | Phase | Pool |
 |---|---|
-| `/brainstorm`, `/plan`, `/systematic-review` | GLM-5.3, Kimi K3, GPT-5.6 Sol |
+| `/brainstorm`, `/plan`, `/systematic-review` | GLM-5.3, Kimi K3, GPT-5.6 Sol, GPT-5.6 Terra |
 | `/execute` | GLM-5.3-Flash, DeepSeek V4 Flash |
 | `/verify` | GLM-5.3-Flash, DeepSeek V4 Flash, Gemini 3.8 Flash |
 
@@ -61,7 +61,7 @@ The tier logic: framing, planning, and review phases use the non-flash reasoning
 | `enabledModels` in `~/.pi/agent/settings.json` is the state `/scoped-models` edits | `docs/usage.md` describes `/scoped-models`; `settings-manager.d.ts` declares `enabledModels`; the live array matches the models the user cycles | The pool draws from the wrong set | Unit-test the parser against the documented entry shape; exercise `/scoped-models` and re-run a lifecycle command |
 | No extension API exposes the scoped set | Reviewed `extensions/types.d.ts` and `sdk.d.ts`; `scopedModels` appears only as session-creation input | A future Pi release could offer a supported accessor, making the file read redundant | Re-check at upgrade time; the read is isolated in one function |
 | Model IDs containing `flash` or `gemini` identify the tiers | The current catalog: GLM-5.3-Flash, DeepSeek-V4-Flash-0731, gemini-3.8-flash match; GLM-5.3, gpt-5.6-sol, system.ai.kimi-k3 do not | A renamed model changes tier membership; `/execute` or `/verify` can end up with an empty pool | Fail open with a warning; `deliberate:` comment on the matcher |
-| The second-highest present `thinkingLevelMap` level is the intended default | User decision "one below the max"; current maps: GLM gives `xhigh`, Sol gives `xhigh`, Kimi gives `high`, Gemini Flash gives `off` | A model with an unusual map gets an unintended default | Unit-test the computation against every map shape in the catalog |
+| The second-highest level of `getSupportedThinkingLevels(model)` is the intended default | User decision "one below the max"; supported levels: GLM gives `high`, Sol and Terra give `xhigh`, Kimi gives `high`, DeepSeek gives `high`, Gemini Flash gives `medium`; raw `thinkingLevelMap` keys would give levels Pi clamps (`xhigh` for GLM, `off` for Gemini) | A model with an unusual map gets an unintended default | Unit-test the computation against every map shape in the catalog |
 | Reading `settings.json` per invocation is acceptable | The file is small; `/scoped-models` changes are rare | None material; the read is one `readFileSync` per lifecycle command | Observe behavior after toggling a model in `/scoped-models` |
 
 ## Design overview
@@ -78,7 +78,11 @@ Replace the static policy table with pool derivation. Keep the policy module pur
 The tier matchers are substring tests on the model ID: `flash` matched case-insensitively, and `gemini` matched case-insensitively. Both carry a `deliberate:` comment: the matchers break when catalog IDs rotate; the upgrade path is per-model tier metadata in the catalog when Pi supports it.
 
 ### Default thinking level
-The canonical ascending order is `off < minimal < low < medium < high < xhigh < max`, matching `ModelThinkingLevel`. For each model, take the levels present in its `thinkingLevelMap`, sort them by that order, and use the second-highest. A map with one level uses that level: Gemini 3.8 Flash, which supports only `off`, defaults to `off`. A model without a `thinkingLevelMap`, such as the Claude routes, has no default thinking level; selecting it changes only the model. A hypothetical map of `{off, max}` would yield `off`; no catalog model has that shape, and the rule stays uniform instead of special-casing it.
+The default is the second-highest level of `getSupportedThinkingLevels(model)` from `@earendil-works/pi-ai`, the same capability function Pi uses to clamp requested levels. A model without a `thinkingLevelMap`, such as the Claude routes, has no default thinking level; selecting it changes only the model. A model whose supported list holds one level defaults to that level; an empty supported list means no default.
+
+Worked values: GLM-5.3 and GLM-5.3-Flash `high`, Kimi K3 `high`, GPT-5.6 Sol and Terra `xhigh`, DeepSeek V4 Flash `high`, Gemini 3.8 Flash `medium`.
+
+Reading raw `thinkingLevelMap` keys instead produces levels Pi clamps on every selection: `xhigh` for the GLM models, whose maps mark `xhigh` as `null`, and `off` for Gemini 3.8 Flash, whose only mapped level is unsupported. The supported-levels rule preserves the "one below the max" intent and can never request a clamped level.
 
 ### Picker flow
 For a matching idle interactive invocation:
@@ -88,7 +92,7 @@ For a matching idle interactive invocation:
    - All pool candidates follow in `enabledModels` order, labeled `Model name | thinking level`, or `Model name` alone when the model has no thinking map. The candidate matching the current model carries an `(current model)` marker. This marker lets the user reset the current model's thinking to the computed default while "Keep current model" preserves the active level.
    - If the current model is not in the pool, "Keep current settings" is the last option.
 3. Cancel equals keep current. The lifecycle command continues either way.
-4. On a candidate selection, resolve the model through the registry, call `pi.setModel()`, then call `pi.setThinkingLevel()` only when the candidate has a thinking level, and warn if the effective level differs from the request.
+4. On a candidate selection, reuse the `Model` resolved during pool derivation, call `pi.setModel()`, then call `pi.setThinkingLevel()` only when the candidate has a default thinking level, and warn if the effective level differs from the request. A second registry lookup at selection time is redundant: an entry that cannot resolve never reaches the picker.
 
 Unchanged from the first version: the extension-source skip, the phase parser and its five commands, the queued-input warning, the non-interactive pass-through, the RPC selection timeout, and returning `continue` so prompt expansion proceeds with the confirmed settings.
 
@@ -96,23 +100,24 @@ Unchanged from the first version: the extension-source skip, the phase parser an
 The picker title names the phase, for example `/plan: model selection`. Option text carries the model name and thinking level only. No cost class or rationale text appears.
 
 Example for `/verify` while running GLM-5.3:
-1. GLM 5.3 Flash (Baseten) | xhigh
-2. DeepSeek V4 Flash (Baseten) | xhigh
-3. Gemini 3.8 Flash (Google) | off
+1. GLM 5.3 Flash (Baseten) | high
+2. DeepSeek V4 Flash 0731 (Baseten) | high
+3. Gemini 3.8 Flash (Google) | medium
 4. Keep current settings
 
 Example for `/plan` while running GLM-5.3:
 1. Keep current model
-2. GLM 5.3 (Baseten) | xhigh (current model)
+2. GLM 5.3 (Baseten) | high (current model)
 3. Kimi K3 (Databricks) | high
 4. GPT-5.6 Sol (OpenAI) | xhigh
+5. GPT-5.6 Terra (OpenAI) | xhigh
 
 ## Failure behavior
 The extension fails open because it is advisory.
 - `settings.json` is unreadable or malformed: warn and continue with the current settings.
 - Every enabled entry fails the phase filter, or the pool is empty: warn that the phase has no candidate models and continue.
 - An enabled entry does not resolve through the registry: skip it and warn with the entry name.
-- The selected model is missing from the registry, `pi.setModel()` fails, or the thinking level clamps: warn and continue, using the existing first-version paths.
+- `pi.setModel()` fails, or the thinking level clamps: warn and continue, using the existing first-version paths. The first-version "selected model missing from the registry" path is subsumed by the pool-build skip warning: an entry that cannot resolve never reaches the picker.
 
 ## Components and boundaries
 | Component | Source location | Responsibility |
@@ -121,7 +126,7 @@ The extension fails open because it is advisory.
 | Pure policy module | `dot_pi/agent/exact_extensions/lifecycle-model-recommender/_policy.ts` | Parse the lifecycle command, parse `enabledModels`, apply phase filters, compute default thinking levels |
 | Focused tests | `_policy.test.ts` and `_adapter.test.ts` in the same directory | Verify pool filters, thinking defaults, picker ordering, application ordering, and failure paths |
 
-The settings read lives behind one function whose path is overridable through an environment variable for tests, following the `PI_CONTEXT_KIT_USAGE_DIR` precedent. The variable name is an open question below.
+The settings read lives behind one function whose path is overridable through the `PI_LIFECYCLE_SETTINGS_PATH` environment variable for tests, following the `PI_CONTEXT_KIT_USAGE_DIR` precedent (see Resolved questions).
 
 Deleted with this change: the `LIFECYCLE_POLICY` table, the three recommendation positions, the cost classes, the per-model helper functions, and the match-and-notify early exit. `parseLifecyclePhase` and its command set are unchanged.
 
@@ -145,7 +150,7 @@ A supported accessor would remove the file read and its drift risk. It was rejec
 - The tier matchers depend on model-ID substrings. When a catalog refresh renames the flash models, `/execute` and `/verify` can end up with empty pools, which fail open with a warning.
 - Reading `settings.json` directly bypasses Pi's settings manager. If the schema or path changes, the pool derivation degrades to a fail-open warning until the read is fixed.
 - The picker no longer communicates cost differences; the user weighs cost from model knowledge.
-- Gemini 3.8 Flash verifies with thinking `off` only. A weak-reasoning verifier is accepted deliberately to gain a reviewer from a different model family.
+- Gemini 3.8 Flash verifies with thinking `medium`, its second-highest supported level rather than its maximum. The different-model-family rationale for including it is unchanged.
 
 ## Risks and mitigations
 | Risk | Mitigation |
@@ -184,14 +189,14 @@ Revert the commits and re-apply the managed extension directory. The extension h
 ### Policy tests
 - Each phase returns the correct tier from a fixture scoped set: non-flash for framing phases, flash without gemini for `/execute`, flash with gemini for `/verify`.
 - Candidates keep `enabledModels` order.
-- The default-thinking computation returns the second-highest present level for every map shape in the catalog, `off` for the single-level map, and no level for an absent map.
+- The default-thinking computation returns the second-highest supported level for every map shape in the catalog, the only supported level for a single-level map, and no level for an absent map or an empty supported list.
 - Malformed entries, entries without `/`, and unresolvable pairs are skipped.
 - The phase parser keeps its first-version behavior: exact commands, arguments after the command, and non-matching input.
 
 ### Adapter tests
 - The picker appears on every matching idle interactive invocation, including when the current model and thinking already match a candidate.
 - "Keep current model" is the first option if and only if the current model is in the pool; selecting it calls neither `setModel` nor `setThinkingLevel`.
-- A candidate selection resolves the model, sets it, then sets the computed thinking level; a mapless candidate sets no thinking level.
+- A candidate selection reuses the model resolved during pool derivation, sets it, then sets the computed thinking level; a mapless candidate sets no thinking level.
 - The current model's candidate carries the `(current model)` marker.
 - Unreadable settings, an empty pool, and skipped entries warn and continue without mutation.
 - Print and JSON modes, queued input, and extension-sourced input pass through unchanged.
@@ -223,7 +228,7 @@ The design was reviewed against simplicity, feasibility, failure behavior, and m
 - Decision: derive the pool from `enabledModels` in `~/.pi/agent/settings.json`. Rationale: the scoped set is the user's curated pool, and deriving from live state removes the staleness failure mode of the static table.
 - Decision: read the settings file directly through `getAgentDir()`. Rationale: no extension API exposes the scoped set; the context-kit extension sets the precedent, and the read is isolated for a future supported accessor.
 - Decision: phase tiers are non-flash for framing, planning, and review; flash without gemini for execution; flash with gemini for verification. Rationale: premium reasoning for thinking-heavy phases, the fast tier for execution, and a different model family for verification independence.
-- Decision: the default thinking level is the second-highest present level of the model's `thinkingLevelMap`. Rationale: the user's "one below the max" preference, computed from model capability so no table needs maintenance.
+- Decision: the default thinking level is the second-highest level of `getSupportedThinkingLevels(model)`, Pi's own capability function. Rationale: the user's "one below the max" preference, computed from model capability so no table needs maintenance. Deriving from raw `thinkingLevelMap` keys yields levels Pi clamps (`xhigh` for the GLM models, `off` for Gemini 3.8 Flash) and fires the clamp warning on every selection; the supported-levels rule can never request a clamped level.
 - Decision: no auto-skip; the picker always shows. Rationale: the user switches models between adjacent phases, so the choice must be visible even when the current settings already fit.
 - Decision: "Keep current model" is first when the current model is in the pool and performs zero mutation. Rationale: an explicit no-change contract that preserves the active thinking level.
 - Decision: drop cost classes, rationales, and the three-position policy. Rationale: the catalog carries no cost data, so the positions cannot be derived, and a hand-maintained order would reintroduce the staleness this change removes.
@@ -236,7 +241,8 @@ The design was reviewed against simplicity, feasibility, failure behavior, and m
 
 No skill was loaded during brainstorming; discovery used direct source inspection. The advisory learning lookup returned no matched sections.
 
-## Open questions
-- Environment-variable name for the settings-path override used by tests. Proposal: `PI_LIFECYCLE_SETTINGS`.
-- Exact option label wording beyond `Model name | thinking level`, such as including the provider for disambiguation when two scoped models share a name.
-- Warning wording when enabled entries fail to resolve: one line naming the entries, versus a count.
+## Resolved questions
+Resolved during implementation planning on 2026-09-16:
+- Settings-path override variable: `PI_LIFECYCLE_SETTINGS_PATH`, consulted on every invocation so tests point at a fixture and `/scoped-models` edits apply at the next lifecycle command.
+- Duplicate catalog names: two pool candidates sharing a name both carry a ` [provider]` suffix, because `ctx.ui.select()` returns strings only and the selection maps back to a candidate by option index.
+- Skipped-entry warning: one warning line naming all skipped entries, covering both malformed entries and entries the registry cannot resolve.

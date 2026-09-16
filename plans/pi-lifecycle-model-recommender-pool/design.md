@@ -61,7 +61,7 @@ The tier logic: framing, planning, and review phases use the non-flash reasoning
 | `enabledModels` in `~/.pi/agent/settings.json` is the state `/scoped-models` edits | `docs/usage.md` describes `/scoped-models`; `settings-manager.d.ts` declares `enabledModels`; the live array matches the models the user cycles | The pool draws from the wrong set | Unit-test the parser against the documented entry shape; exercise `/scoped-models` and re-run a lifecycle command |
 | No extension API exposes the scoped set | Reviewed `extensions/types.d.ts` and `sdk.d.ts`; `scopedModels` appears only as session-creation input | A future Pi release could offer a supported accessor, making the file read redundant | Re-check at upgrade time; the read is isolated in one function |
 | Model IDs containing `flash` or `gemini` identify the tiers | The current catalog: GLM-5.3-Flash, DeepSeek-V4-Flash-0731, gemini-3.8-flash match; GLM-5.3, gpt-5.6-sol, system.ai.kimi-k3 do not | A renamed model changes tier membership; `/execute` or `/verify` can end up with an empty pool | Fail open with a warning; `deliberate:` comment on the matcher |
-| The second-highest level of `getSupportedThinkingLevels(model)` is the intended default | User decision "one below the max"; supported levels: GLM gives `high`, Sol and Terra give `xhigh`, Kimi gives `high`, DeepSeek gives `high`, Gemini Flash gives `medium`; raw `thinkingLevelMap` keys would give levels Pi clamps (`xhigh` for GLM, `off` for Gemini) | A model with an unusual map gets an unintended default | Unit-test the computation against every map shape in the catalog |
+| The second-highest level of `getSupportedThinkingLevels(model)` is the intended default | User decision "one below the max"; supported levels: GLM gives `high`, Sol and Terra give `xhigh`, Kimi gives `high`, DeepSeek gives `low`, Gemini Flash gives `medium`; raw `thinkingLevelMap` keys would give levels Pi clamps (`xhigh` for GLM, `off` for Gemini) | A model with an unusual map gets an unintended default | Unit-test the computation against every map shape in the catalog |
 | Reading `settings.json` per invocation is acceptable | The file is small; `/scoped-models` changes are rare | None material; the read is one `readFileSync` per lifecycle command | Observe behavior after toggling a model in `/scoped-models` |
 
 ## Design overview
@@ -80,7 +80,7 @@ The tier matchers are substring tests on the model ID: `flash` matched case-inse
 ### Default thinking level
 The default is the second-highest level of `getSupportedThinkingLevels(model)` from `@earendil-works/pi-ai`, the same capability function Pi uses to clamp requested levels. A model without a `thinkingLevelMap`, such as the Claude routes, has no default thinking level; selecting it changes only the model. A model whose supported list holds one level defaults to that level; an empty supported list means no default.
 
-Worked values: GLM-5.3 and GLM-5.3-Flash `high`, Kimi K3 `high`, GPT-5.6 Sol and Terra `xhigh`, DeepSeek V4 Flash `high`, Gemini 3.8 Flash `medium`.
+Worked values: GLM-5.3 and GLM-5.3-Flash `high`, Kimi K3 `high`, GPT-5.6 Sol and Terra `xhigh`, DeepSeek V4 Flash `low`, Gemini 3.8 Flash `medium`. DeepSeek's map leaves `off` mapped to an alias, so its supported list is `off`, `low`, `high` and the second-highest is `low`.
 
 Reading raw `thinkingLevelMap` keys instead produces levels Pi clamps on every selection: `xhigh` for the GLM models, whose maps mark `xhigh` as `null`, and `off` for Gemini 3.8 Flash, whose only mapped level is unsupported. The supported-levels rule preserves the "one below the max" intent and can never request a clamped level.
 
@@ -101,7 +101,7 @@ The picker title names the phase, for example `/plan: model selection`. Option t
 
 Example for `/verify` while running GLM-5.3:
 1. GLM 5.3 Flash (Baseten) | high
-2. DeepSeek V4 Flash 0731 (Baseten) | high
+2. DeepSeek V4 Flash 0731 (Baseten) | low
 3. Gemini 3.8 Flash (Google) | medium
 4. Keep current settings
 

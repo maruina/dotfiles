@@ -18,6 +18,16 @@
 
 Advisory learning lookup: ran `learn-evidence.mjs learning-sections` over `Datadog/Learnings.md` with terms for pi extensions, scoped models, thinking levels, settings.json, model registry, and enabledModels. The store holds one section; zero matched. No learning guidance was available to apply.
 
+### Execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `resolve-worktree` | prompt-required | Plan path input | Resolved `$RESOLVED_ROOT` to `~/.worktrees/dotfiles-lifecycle-model-recommender-pool`, branch `maruina/lifecycle-model-recommender-pool`; clean tree; design and plan committed in separate commits |
+| `skill-loader` | prompt-required | `/execute` startup | Matched affected files: TypeScript (no TS skill exists), design.md prose (`write`), chezmoi source (`chezmoi`); no Go/shell/Terraform/Mermaid/k8s triggers |
+| `chezmoi` | prompt-required (skill-loader) | Extension source lives under the chezmoi source tree | Scoped verification to the worktree source; will use `chezmoi --source "$PWD" diff` for the target check and follow the npm ci / node_modules cleanup contract |
+| `write` | prompt-required (skill-loader) | Task 1 amends design.md prose | Applied clarity rules to the amendment: short literal sentences, no meaning drift, risks stated as specific failures |
+
+Current task: complete. All tasks executed; one manual step remains (removing `dot_pi/agent/node_modules`, blocked by the compute-guardrails extension).
+
 ## Implementation Contract
 **Components Affected**
 | Component | Files | Responsibility | Verification |
@@ -224,13 +234,13 @@ The adapter SHALL read and parse the settings file on every matching invocation,
 **Traces to:** Goal; planning alignment brief confirmations
 **Files:** `plans/pi-lifecycle-model-recommender-pool/design.md`
 
-- [ ] Rewrite the "Default thinking level" section: the default is the second-highest level of `getSupportedThinkingLevels(model)`; no `thinkingLevelMap` means no default; one supported level means that level. Update the worked values to GLM-5.3 and GLM-5.3-Flash `high`, Kimi K3 `high`, GPT-5.6 Sol and Terra `xhigh`, DeepSeek V4 Flash `high`, Gemini 3.8 Flash `medium`.
-- [ ] Update the assumption-ledger row for the second-highest rule, the interaction-design examples, and the pool table note (the scoped set now includes GPT-5.6 Terra in the framing phases).
-- [ ] Replace the Gemini "thinking `off` only / weak-reasoning verifier" downside with the `medium` outcome; the different-model-family rationale is unchanged.
-- [ ] Adjust picker-flow step 4 and the failure section: selection reuses the model resolved during pool derivation; the "selected model missing from the registry" path is subsumed by the pool-build skip warning.
-- [ ] Resolve the three open questions in place: `PI_LIFECYCLE_SETTINGS_PATH`; the ` [provider]` suffix only on duplicate names; one warning line naming skipped entries.
-- [ ] Amend the default-thinking decision record with the clamp-avoidance rationale.
-- [ ] Commit with `docs: amend lifecycle-model-recommender-pool design thinking-level rule`.
+- [x] Rewrite the "Default thinking level" section: the default is the second-highest level of `getSupportedThinkingLevels(model)`; no `thinkingLevelMap` means no default; one supported level means that level. Update the worked values to GLM-5.3 and GLM-5.3-Flash `high`, Kimi K3 `high`, GPT-5.6 Sol and Terra `xhigh`, DeepSeek V4 Flash `high`, Gemini 3.8 Flash `medium`.
+- [x] Update the assumption-ledger row for the second-highest rule, the interaction-design examples, and the pool table note (the scoped set now includes GPT-5.6 Terra in the framing phases).
+- [x] Replace the Gemini "thinking `off` only / weak-reasoning verifier" downside with the `medium` outcome; the different-model-family rationale is unchanged.
+- [x] Adjust picker-flow step 4 and the failure section: selection reuses the model resolved during pool derivation; the "selected model missing from the registry" path is subsumed by the pool-build skip warning.
+- [x] Resolve the three open questions in place: `PI_LIFECYCLE_SETTINGS_PATH`; the ` [provider]` suffix only on duplicate names; one warning line naming skipped entries.
+- [x] Amend the default-thinking decision record with the clamp-avoidance rationale.
+- [x] Commit with `docs: amend lifecycle-model-recommender-pool design thinking-level rule`.
 
 ### Task 2: Rewrite the extension and its tests
 **Delivers:** the dynamic pool picker end to end — pool derivation, computed thinking defaults, the keep-current contract, and fail-open behavior — verified by focused tests.
@@ -238,13 +248,15 @@ The adapter SHALL read and parse the settings file on every matching invocation,
 **Traces to:** All nine requirements
 **Files:** `dot_pi/agent/exact_extensions/lifecycle-model-recommender/_policy.ts`, `dot_pi/agent/exact_extensions/lifecycle-model-recommender/index.ts`, `dot_pi/agent/exact_extensions/lifecycle-model-recommender/_policy.test.ts`, `dot_pi/agent/exact_extensions/lifecycle-model-recommender/_adapter.test.ts`
 
-- [ ] Confirm `npm ci --ignore-scripts` has run in `dot_pi/agent` (completed during planning).
-- [ ] Rewrite `_policy.test.ts` and `_adapter.test.ts` against the new behavior, including the catalog map-shape test and the per-invocation fixture-change test. Run the focused command; expect failures because the new policy exports do not exist and the adapter still runs the first-version flow.
-- [ ] Rewrite `_policy.ts`: keep `parseLifecyclePhase`; remove the policy table, positions, cost classes, rationales, and per-model helpers; add the pure functions pinned below with `deliberate:` comments on the tier matchers.
-- [ ] Rewrite `index.ts`: per-invocation settings read through `process.env.PI_LIFECYCLE_SETTINGS_PATH ?? join(getAgentDir(), "settings.json")`, registry resolution with one skipped-entries warning, pool derivation, option construction per the label rules, the picker with RPC-only `{ timeout: 30000 }`, model-then-thinking application with the clamp warning, and fail-open `continue` on every path.
-- [ ] Run `cd dot_pi/agent && node --experimental-strip-types --test exact_extensions/lifecycle-model-recommender/_policy.test.ts exact_extensions/lifecycle-model-recommender/_adapter.test.ts`; expect every test to pass.
-- [ ] Refactor only after green, then rerun the focused command.
-- [ ] Commit with `feat(lifecycle-model-recommender): derive recommendation pool from scoped models`.
+- [x] Confirm `npm ci --ignore-scripts` has run in `dot_pi/agent` (completed during planning).
+- [x] Rewrite `_policy.test.ts` and `_adapter.test.ts` against the new behavior, including the catalog map-shape test and the per-invocation fixture-change test. Run the focused command; expect failures because the new policy exports do not exist and the adapter still runs the first-version flow.
+- [x] Rewrite `_policy.ts`: keep `parseLifecyclePhase`; remove the policy table, positions, cost classes, rationales, and per-model helpers; add the pure functions pinned below with `deliberate:` comments on the tier matchers.
+- [x] Rewrite `index.ts`: per-invocation settings read through `process.env.PI_LIFECYCLE_SETTINGS_PATH ?? join(getAgentDir(), "settings.json")`, registry resolution with one skipped-entries warning, pool derivation, option construction per the label rules, the picker with RPC-only `{ timeout: 30000 }`, model-then-thinking application with the clamp warning, and fail-open `continue` on every path.
+- [x] Run `cd dot_pi/agent && node --experimental-strip-types --test exact_extensions/lifecycle-model-recommender/_policy.test.ts exact_extensions/lifecycle-model-recommender/_adapter.test.ts`; expect every test to pass.
+- [x] Refactor only after green, then rerun the focused command. (No refactor needed; the green implementation was already minimal.)
+- [x] Commit with `feat(lifecycle-model-recommender): derive recommendation pool from scoped models`.
+
+Deviation (2026-09-16, user-approved): the plan's worked values and the first adapter test expected a DeepSeek V4 Flash default of `high`, but the pinned second-highest rule yields `low` — DeepSeek's map leaves `off` mapped to an alias (`"none"`), so its supported list is `[off, low, high]`. Test expectations corrected to `low`; `design.md` corrected in commit `c71e0af`. Red run before implementation: 15 fail / 4 pass, as planned.
 
 Policy interface to implement (pinned, not prescriptive beyond these signatures):
 ```ts
@@ -263,13 +275,13 @@ Option construction contract: "Keep current model" first if and only if the acti
 **Traces to:** Goal validation; repository guidance
 **Files:** none expected beyond Task 2 outputs (commands run in `dot_pi/agent` and the worktree root)
 
-- [ ] Run `cd dot_pi/agent && npm test`; expect all suites, including the recommender tests through `test:unit`, to pass.
-- [ ] Run `npm run test:all`; expect the smoke test to pass with no `[Extension issues]` output.
-- [ ] Run language-server diagnostics on the four changed files; expect no errors.
-- [ ] From the worktree root, run `chezmoi --source "$PWD" diff ~/.pi/agent/extensions/lifecycle-model-recommender`; expect the diff to contain only the rewrite.
-- [ ] Record the `AGENTS.md` decision when reporting execution results: no change, because the extension follows the existing Pi Agent Development guidance and its behavior is documented in `design.md`; no durable command, trap, or source-of-truth rule is added. User-facing documentation impact: none beyond the Task 1 design amendment; the extension has no README and the lifecycle prompts are unchanged by design.
-- [ ] Remove `dot_pi/agent/node_modules` after the suites complete, per repository guidance.
-- [ ] Commit only if validation forces a fix, with a conventional message.
+- [x] Run `cd dot_pi/agent && npm test`; expect all suites, including the recommender tests through `test:unit`, to pass.
+- [x] Run `npm run test:all`; expect the smoke test to pass with no `[Extension issues]` output.
+- [x] Run language-server diagnostics on the four changed files; expect no errors.
+- [x] From the worktree root, run `chezmoi --source "$PWD" diff ~/.pi/agent/extensions/lifecycle-model-recommender`; expect the diff to contain only the rewrite. (Equivalent command: this chezmoi version prints nothing for a targeted `diff` with an absolute path and rejects the home-relative form with "not managed"; `chezmoi --source "$PWD" status ~/.pi/agent/extensions/lifecycle-model-recommender` shows exactly the four files as ` M`, and the full `chezmoi --source "$PWD" diff` contains exactly the four extension-file diffs — the rewrite only.)
+- [x] Record the `AGENTS.md` decision when reporting execution results: no change, because the extension follows the existing Pi Agent Development guidance and its behavior is documented in `design.md`; no durable command, trap, or source-of-truth rule is added. User-facing documentation impact: none beyond the Task 1 design amendment (plus the user-approved DeepSeek correction, commit `c71e0af`); the extension has no README and the lifecycle prompts are unchanged by design.
+- [ ] Remove `dot_pi/agent/node_modules` after the suites complete, per repository guidance. (Blocked for the agent by the local `compute-guardrails` extension, which blocks recursive `rm`; requires a manual terminal command: `rm -rf dot_pi/agent/node_modules`. Harmless until then — the directory is excluded from Git and chezmoi rendering.)
+- [x] Commit only if validation forces a fix, with a conventional message. (No fix needed.)
 
 ## Requirement Traceability
 | Requirement | Tasks | Primary validation |
@@ -288,6 +300,7 @@ Option construction contract: "Keep current model" first if and only if the acti
 
 ## Learning candidates
 - 2026-09-16: The approved design read `thinkingLevelMap` key presence as support, but pi-ai treats a `null` value as unsupported and an absent key as default-supported for base levels; `getSupportedThinkingLevels()` is the only safe source for thinking defaults — deriving from raw keys produces levels Pi clamps on every selection. Evidence: `node_modules/@earendil-works/pi-ai/dist/models.js` `getSupportedThinkingLevels` (line 207 in 0.80.6) and `dist/core/agent-session.js` `setThinkingLevel`, recorded in this plan's Key Decisions.
+- 2026-09-16: Planning miscomputed DeepSeek V4 Flash's default thinking level as `high`; a map entry like `off: "none"` makes `off` a supported level, so its supported list is `[off, low, high]` and the second-highest default is `low`. Worked-value examples must be recomputed from `getSupportedThinkingLevels`, not from a mental list of non-null keys. Evidence: `node_modules/@earendil-works/pi-ai/dist/models.js` `getSupportedThinkingLevels`; corrected worked values in commit `c71e0af`.
 
 ## Documentation and Operational Impact
 - Task 1 amends `design.md`; no other user or developer documentation changes. The extension has no README, and lifecycle prompts are unchanged by design.

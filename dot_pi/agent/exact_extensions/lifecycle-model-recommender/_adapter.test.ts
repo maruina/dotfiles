@@ -264,6 +264,28 @@ describe("lifecycle model recommender", () => {
     assert.equal(new Set(harness.selects[0].options).size, harness.selects[0].options.length);
   });
 
+  it("disambiguates duplicate names within one provider with the scoped entry", async () => {
+    for (const [choice, modelId] of [[0, "shared/model-one"], [1, "shared/model-two"]] as const) {
+      const harness = createHarness({
+        settings: ["prov-a/shared/model-one", "prov-a/shared/model-two"],
+        extraRegistry: {
+          "prov-a/shared/model-one": { name: "Shared Model", thinkingLevelMap: GLM_MAP },
+          "prov-a/shared/model-two": { name: "Shared Model", thinkingLevelMap: GLM_MAP },
+        },
+        select: (choices) => choices[choice],
+      });
+
+      assertContinues(await harness.invoke());
+      assert.deepEqual(harness.selects[0].options, [
+        "Shared Model [prov-a/shared/model-one] | high",
+        "Shared Model [prov-a/shared/model-two] | high",
+        "Keep current settings",
+      ]);
+      assert.equal(new Set(harness.selects[0].options).size, harness.selects[0].options.length);
+      assert.deepEqual(harness.calls.slice(-3), [`model:prov-a/${modelId}`, "thinking:high", "get-thinking"]);
+    }
+  });
+
   it("applies the resolved pool model before its computed thinking level and preserves input", async () => {
     const harness = createHarness({ phase: "/verify", select: (choices) => choices[0] });
 

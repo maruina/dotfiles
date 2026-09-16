@@ -41,7 +41,7 @@ Current task: complete. All tasks executed; one manual step remains (removing `d
 **Key Decisions**
 - The default thinking level is the second-highest level of `getSupportedThinkingLevels(model)` from `@earendil-works/pi-ai`. A model without a `thinkingLevelMap` has no default; a single supported level is the default; zero supported levels means no default. Planning evidence showed the design's "keys present in the map" reading produces levels Pi clamps (`xhigh` for GLM models, `off` for Gemini), firing the clamp warning on every selection. The supported-levels rule preserves the "one below the max" intent, can never request a clamped level, and reuses Pi's own capability function. Confirmed in the planning alignment brief.
 - The settings path is `process.env.PI_LIFECYCLE_SETTINGS_PATH ?? join(getAgentDir(), "settings.json")`, consulted on every invocation so tests point at a fixture and `/scoped-models` edits apply at the next command. Refines the design's proposed `PI_LIFECYCLE_SETTINGS`; confirmed in the brief.
-- Candidate labels use the catalog `name` plus `| <thinking level>` when a default exists. When two pool candidates share a name, both get a ` [provider]` suffix, because `ctx.ui.select()` returns strings only and the selection maps back by label index. The candidate matching the active model carries a ` (current model)` marker.
+- Candidate labels use the catalog `name` plus `| <thinking level>` when a default exists. When two pool candidates share a name, both get a ` [provider]` suffix; when they also share the provider, the suffix is the full ` [provider/model]` scoped entry, because `ctx.ui.select()` returns strings only and the selection maps back by label index. The candidate matching the active model carries a ` (current model)` marker.
 - Unresolvable entries produce one warning line naming the skipped entries.
 - A selection reuses the `Model` resolved during pool derivation; a second registry lookup at selection time is redundant. The first-version "selected model missing from the registry" warning path is subsumed by the pool-build skip warning.
 - The four extension files are mutually coupled (the adapter and both test files import the policy module), so the rewrite lands as one green commit with test-first execution inside the task. The dotfiles repository has no CI gate; each commit still passes the focused tests.
@@ -170,6 +170,11 @@ Pool candidates SHALL follow the keep options in `enabledModels` order. Labels S
 - WHEN the picker is shown
 - THEN both labels carry a ` [provider]` suffix and every option string is unique
 
+#### Scenario: Same-provider duplicate names are disambiguated
+- GIVEN two pool candidates from the same provider with the same catalog name
+- WHEN the picker is shown
+- THEN both labels carry a ` [provider/model]` suffix and every option string is unique
+
 ### Requirement: Selection application order
 A candidate selection SHALL apply the resolved model through `pi.setModel()` first, then call `pi.setThinkingLevel()` only when the candidate has a default thinking level. A candidate without a default SHALL change only the model. A difference between requested and effective thinking level SHALL produce a warning.
 
@@ -258,6 +263,8 @@ The adapter SHALL read and parse the settings file on every matching invocation,
 
 Deviation (2026-09-16, user-approved): the plan's worked values and the first adapter test expected a DeepSeek V4 Flash default of `high`, but the pinned second-highest rule yields `low` — DeepSeek's map leaves `off` mapped to an alias (`"none"`), so its supported list is `[off, low, high]`. Test expectations corrected to `low`; `design.md` corrected in commit `c71e0af`. Red run before implementation: 15 fail / 4 pass, as planned.
 
+Amendment (2026-09-16, review feedback): the option-construction contract now appends the full ` [provider/model]` scoped entry when two pool candidates share the name and the provider. The provider suffix alone leaves both labels identical, and the label-index mapping then applies the first model regardless of the selected row, violating the "every option string is unique" requirement. `design.md` resolved questions and the Key Decisions bullet amended in the same commit.
+
 Policy interface to implement (pinned, not prescriptive beyond these signatures):
 ```ts
 export function parseEnabledModels(raw: unknown): {
@@ -267,7 +274,7 @@ export function parseEnabledModels(raw: unknown): {
 export function poolForPhase(phase: LifecyclePhase, models: readonly Model<Api>[]): Model<Api>[];
 export function defaultThinkingLevel(model: Model<Api>): ModelThinkingLevel | undefined;
 ```
-Option construction contract: "Keep current model" first if and only if the active model is in the pool; candidates in `enabledModels` order labeled `name | level` or `name`, with ` [provider]` appended to both colliding names on a duplicate and ` (current model)` on the matching candidate; "Keep current settings" last if and only if the active model is not in the pool.
+Option construction contract: "Keep current model" first if and only if the active model is in the pool; candidates in `enabledModels` order labeled `name | level` or `name`, with ` [provider]` appended to both colliding names on a duplicate — the full ` [provider/model]` scoped entry when the provider also collides — and ` (current model)` on the matching candidate; "Keep current settings" last if and only if the active model is not in the pool.
 
 ### Task 3: Validate the repository and record documentation impact
 **Delivers:** full suites green, language-server diagnostics clean, the chezmoi target diff inspected, future-agent guidance impact recorded, and disposable dependencies removed.

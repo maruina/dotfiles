@@ -30,7 +30,13 @@ function buildOptions(pool: readonly Model<any>[], current: Model<any> | undefin
   const options: Option[] = pool.map((candidate, index) => {
     const level = defaultThinkingLevel(candidate);
     const duplicated = (nameCounts.get(candidate.name) ?? 0) > 1;
-    const name = duplicated ? `${candidate.name} [${candidate.provider}]` : candidate.name;
+    const sharedProvider =
+      duplicated &&
+      pool.some(
+        (other) => other.name === candidate.name && other.provider === candidate.provider && other.id !== candidate.id,
+      );
+    const scope = sharedProvider ? `${candidate.provider}/${candidate.id}` : candidate.provider;
+    const name = duplicated ? `${candidate.name} [${scope}]` : candidate.name;
     let label = level ? `${name} | ${level}` : name;
     if (index === currentIndex) label = `${label} (current model)`;
     return { label, model: candidate };

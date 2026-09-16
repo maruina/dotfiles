@@ -244,5 +244,5 @@ No skill was loaded during brainstorming; discovery used direct source inspectio
 ## Resolved questions
 Resolved during implementation planning on 2026-09-16:
 - Settings-path override variable: `PI_LIFECYCLE_SETTINGS_PATH`, consulted on every invocation so tests point at a fixture and `/scoped-models` edits apply at the next lifecycle command.
-- Duplicate catalog names: two pool candidates sharing a name both carry a ` [provider]` suffix, because `ctx.ui.select()` returns strings only and the selection maps back to a candidate by option index.
+- Duplicate catalog names: two pool candidates sharing a name both carry a ` [provider]` suffix; candidates that also share the provider carry the full ` [provider/model]` scoped entry, because `ctx.ui.select()` returns strings only and the selection maps back to a candidate by option index.
 - Skipped-entry warning: one warning line naming all skipped entries, covering both malformed entries and entries the registry cannot resolve.

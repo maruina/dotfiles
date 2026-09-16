@@ -10,6 +10,7 @@ Say exactly what you mean. Remove every word that does not help the reader.
 2. When editing, preserve intent and meaningful uncertainty. Change expression, not meaning.
 3. Do not invent rationale, evidence, risks, or tradeoffs that the request or source does not support. Ask for context or identify the gap.
 4. Cut, clarify, then polish.
+5. Self-audit for stock or templated prose. Remove generic transitions, conclusions, praise, offers to help, and repeated sentence shapes.
 
 ## Audience and structure
 - Unless the request says otherwise, assume software-engineering fluency, not subsystem fluency. Do not explain common engineering concepts from first principles; explain what *this* component does and why it matters here.
@@ -20,9 +21,13 @@ Say exactly what you mean. Remove every word that does not help the reader.
 - Replace unnecessary jargon with precise, familiar words. If a specialized term is necessary, define it on first use and use it consistently. Format a term as code only when referring to the exact code item.
 - Expand unfamiliar acronyms on first use and explain their function, not only what the letters mean.
 - Split sentences that carry more than one main idea. Use headings, lists, and tables when they make the text easier to scan.
+- Do not force rhetorical patterns such as `not just X, but Y`, groups of three, or `from X to Y` when the ideas do not form a real range. Let the content determine the structure.
+- If a sentence is generic filler that does not support the request and could appear unchanged in an unrelated project's documentation, replace it with a supported component-specific fact, mechanism, or instruction, or remove it.
+- Do not overcompress. Use complete clauses and necessary articles. Avoid arrows, fragments, and abbreviations when they make the reader reconstruct the meaning.
 
 ## Language
 - Use concrete nouns. Replace vague pronouns such as `this` or `that` when their referents may be unclear.
+- Do not append participial phrases such as `ensuring`, `highlighting`, or `showcasing` unless the source supports the claimed consequence. State the mechanism or evidence, or delete the phrase.
 - Prefer active voice. Name the actor when it matters.
 - Remove empty hedging and intensifiers. Preserve words that communicate meaningful uncertainty.
 - Use the conversational, friendly, and respectful tone of a knowledgeable colleague. Be direct, not promotional, cutesy, overly formal, or clever. Avoid unnecessary `please`, exclamation points, and slang; use common contractions when they sound natural.

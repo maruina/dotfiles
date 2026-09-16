@@ -338,11 +338,12 @@ describe("lifecycle model recommender", () => {
 
   it("fails open with one warning when settings are unreadable or malformed", async () => {
     const cases = [
-      createHarness({ settingsPath: join(settingsDirectory, "missing.json") }),
-      createHarness({ rawSettings: "{ not json" }),
-      createHarness({ settings: "not-an-array" }),
+      () => createHarness({ settingsPath: join(settingsDirectory, "missing.json") }),
+      () => createHarness({ rawSettings: "{ not json" }),
+      () => createHarness({ settings: "not-an-array" }),
     ];
-    for (const harness of cases) {
+    for (const createCase of cases) {
+      const harness = createCase();
       assertContinues(await harness.invoke());
       assert.equal(harness.selects.length, 0);
       assert.equal(harness.notifications.length, 1);

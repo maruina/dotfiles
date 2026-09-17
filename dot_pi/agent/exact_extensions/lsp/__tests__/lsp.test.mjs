@@ -161,6 +161,8 @@ test("routes Terraform files to the terraform-ls server with module context", ()
   assert.equal(config.languageId(join(env, "prod.tfvars")), "terraform-vars");
   assert.ok(!config.initializationOptions || config.initializationOptions.terraform.path.endsWith("/tofu"));
   assert.equal(utils.findWorkspaceRoot(join(env, "prod.tfvars"), config), env);
+  assert.equal(config.root(join(env, "prod.tfvars")), module);
+  assert.equal(config.root(join(dir, "standalone.tfvars")), null);
   assert.equal(servers.findTerraformModuleRoot(join(env, "prod.tfvars")), module);
 
   writeFileSync(join(module, ".terraform.lock.hcl"), "");

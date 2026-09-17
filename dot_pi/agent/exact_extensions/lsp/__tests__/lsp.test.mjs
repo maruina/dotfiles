@@ -147,6 +147,28 @@ test("routes Helm chart files before generic YAML files", () => {
   assert.equal(utils.configForFile(join(other, "deployment.yaml"), servers.SERVER_CONFIGS).id, "yaml");
 });
 
+test("routes Terraform files to the terraform-ls server with module context", () => {
+  const dir = tempDir();
+  const module = join(dir, "module");
+  const env = join(module, "env");
+  mkdirSync(env, { recursive: true });
+  writeFileSync(join(module, "main.tf"), 'variable "env" {\n  type = string\n}\n');
+  writeFileSync(join(env, "prod.tfvars"), 'env = "demo"\n');
+  const config = utils.configForFile(join(module, "main.tf"), servers.SERVER_CONFIGS);
+
+  assert.equal(config.id, "terraform");
+  assert.equal(config.languageId(join(module, "main.tf")), "terraform");
+  assert.equal(config.languageId(join(env, "prod.tfvars")), "terraform-vars");
+  assert.ok(!config.initializationOptions || config.initializationOptions.terraform.path.endsWith("/tofu"));
+  assert.equal(utils.findWorkspaceRoot(join(env, "prod.tfvars"), config), env);
+  assert.equal(config.root(join(env, "prod.tfvars")), module);
+  assert.equal(config.root(join(dir, "standalone.tfvars")), null);
+  assert.equal(servers.findTerraformModuleRoot(join(env, "prod.tfvars")), module);
+
+  writeFileSync(join(module, ".terraform.lock.hcl"), "");
+  assert.equal(utils.findWorkspaceRoot(join(env, "prod.tfvars"), config), module);
+});
+
 test("workspace configuration returns server settings by section", () => {
   const { client, writes } = fakeClient({ id: "yaml", label: "YAML", command: "yaml-language-server", args: [], extensions: [".yaml"], rootMarkers: [], settings: { yaml: { validate: true }, nested: { value: 1 } }, languageId: () => "yaml" });
 

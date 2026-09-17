@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, extname, join, resolve } from "node:path";
 import type { Diagnostic, DocumentSymbol, ServerConfig } from "./protocol";
-import { diagnosticsDetails, flattenSymbols, isInsidePath, relativePath, symbolKindName } from "./utils";
+import { diagnosticsDetails, findExecutable, flattenSymbols, isInsidePath, relativePath, symbolKindName } from "./utils";
 
 const YAML_EXTENSIONS = [".yaml", ".yml"];
 const HELM_TEMPLATE_EXTENSIONS = [".yaml", ".yml", ".tpl", ".txt"];
@@ -12,12 +12,25 @@ function goPackageContext(filePath: string, workspaceRoot: string, symbols: Docu
 function tsPackageContext(filePath: string, workspaceRoot: string, symbols: DocumentSymbol[], diagnostics: Map<string, Diagnostic[]>) { const dir = dirname(filePath); const files = listFiles(dir, [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"]); return { directory: dir, workspaceRoot, files: files.map((f) => relativePath(f, workspaceRoot)), tests: files.filter((f) => /(?:\.test|\.spec)\.[cm]?[tj]sx?$/.test(f)).map((f) => relativePath(f, workspaceRoot)), exportedSymbols: flattenSymbols(symbols).filter((s) => /^[A-Z]/.test(s.name) || [5, 6, 11, 12, 23].includes(s.kind)).map((s) => ({ name: s.name, kind: symbolKindName(s.kind), line: s.selectionRange.start.line + 1 })), diagnostics: diagnosticsDetails(diagnostics) }; }
 function yamlPackageContext(filePath: string, workspaceRoot: string, _symbols: DocumentSymbol[], diagnostics: Map<string, Diagnostic[]>) { return { directory: dirname(filePath), workspaceRoot, diagnostics: diagnosticsDetails(diagnostics) }; }
 function helmPackageContext(filePath: string, workspaceRoot: string, _symbols: DocumentSymbol[], diagnostics: Map<string, Diagnostic[]>) { const chartRoot = findHelmChartRoot(filePath); return { chartRoot, directory: dirname(filePath), workspaceRoot, diagnostics: diagnosticsDetails(diagnostics) }; }
+function terraformLanguageId(filePath: string): string { return extname(filePath) === ".tfvars" ? "terraform-vars" : "terraform"; }
+function terraformPackageContext(filePath: string, workspaceRoot: string, _symbols: DocumentSymbol[], diagnostics: Map<string, Diagnostic[]>) { return { moduleRoot: findTerraformModuleRoot(filePath), directory: dirname(filePath), workspaceRoot, diagnostics: diagnosticsDetails(diagnostics) }; }
 
 export function findHelmChartRoot(filePath: string): string | null {
   const resolved = resolve(filePath);
   let dir = existsSync(resolved) && statSync(resolved).isFile() ? dirname(resolved) : resolved;
   while (true) {
     if (existsSync(join(dir, "Chart.yaml"))) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+}
+
+export function findTerraformModuleRoot(filePath: string): string | null {
+  const resolved = resolve(filePath);
+  let dir = existsSync(resolved) && statSync(resolved).isFile() ? dirname(resolved) : resolved;
+  while (true) {
+    if (existsSync(join(dir, ".terraform")) || existsSync(join(dir, ".terraform.lock.hcl")) || listFiles(dir, [".tf"]).length > 0) return dir;
     const parent = dirname(dir);
     if (parent === dir) return null;
     dir = parent;
@@ -66,9 +79,15 @@ const helmSettings = {
   },
 };
 
+// terraform-ls reads options from initialize's initializationOptions (never workspace/configuration) and requires an absolute binary path.
+// deliberate: terraform-ls resolves unqualified provider sources (e.g. "hashicorp/null") to registry.terraform.io while tofu reports registry.opentofu.org schemas, so such modules get no provider schemas; fully-qualified sources work, and tofu-ls (when mature) is the upgrade path.
+const tofuPath = findExecutable("tofu");
+
 export const SERVER_CONFIGS: ServerConfig[] = [
   { id: "go", label: "Go", command: "gopls", args: ["serve"], extensions: [".go"], rootMarkers: ["go.work", "go.mod", ".git"], initializationOptions: { analyses: {}, hints: {} }, workspaceOverrides: [{ name: "bazel/dd-source", rootMarker: ".bazelversion", command: "dd-gopls", env: { GOPACKAGESDRIVER: "", GOPLS_DISABLE_MODULE_LOADS: "1" }, initializationOptions: { usePlaceholders: true, completeUnimported: true, memoryMode: "DegradeClosed", experimentalWorkspaceModule: false, expandWorkspaceToModule: false, diagnosticsDelay: "2s", analysisProgressReporting: false, staticcheck: false, vulncheck: "Off", directoryFilters: ["-bazel-bin", "-bazel-out", "-bazel-testlogs", "-bazel-dd-source", "-**/node_modules", "-**/vendor", "-**/target", "-**/.git", "-**/rules/go/export/dist", "-**/.cache", "-**/.venv", "-**/.venv-Linux", "-**/.venv-Darwin"], codelenses: { generate: false, regenerate_cgo: false, run_govulncheck: false, tidy: false, upgrade_dependency: false, vendor: false }, hints: { assignVariableTypes: false, compositeLiteralFields: false, compositeLiteralTypes: false, constantValues: false, functionTypeParameters: false, parameterNames: false, rangeVariableTypes: false } } }], languageId: () => "go", packageContext: goPackageContext },
   { id: "typescript", label: "TypeScript", command: "typescript-language-server", args: ["--stdio"], extensions: [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"], rootMarkers: ["tsconfig.json", "jsconfig.json", "package.json", ".git"], languageId: tsLanguageId, packageContext: tsPackageContext },
   { id: "helm", label: "Helm", command: "helm_ls", args: ["serve"], extensions: [".yaml", ".yml", ".tpl", ".txt"], rootMarkers: ["Chart.yaml", ".git"], settings: helmSettings, matches: isHelmFile, languageId: () => "helm", packageContext: helmPackageContext },
   { id: "yaml", label: "YAML", command: "yaml-language-server", args: ["--stdio"], extensions: YAML_EXTENSIONS, rootMarkers: [".git"], settings: yamlSettings, languageId: () => "yaml", packageContext: yamlPackageContext },
+  // terraform-ls does not implement rename, typeDefinition, implementation, or call hierarchy; those tools return empty for .tf files.
+  { id: "terraform", label: "Terraform", command: "terraform-ls", args: ["serve"], extensions: [".tf", ".tfvars"], rootMarkers: [".terraform", ".terraform.lock.hcl", ".git"], initializationOptions: tofuPath ? { terraform: { path: tofuPath } } : undefined, languageId: terraformLanguageId, packageContext: terraformPackageContext },
 ];

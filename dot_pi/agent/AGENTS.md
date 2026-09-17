@@ -44,7 +44,7 @@ A hidden `user-context` extension injects current repository, branch, pull reque
   - The compute role is usually `compute-admin`; the profile is account-scoped, e.g. `exec-sso-staging-compute-admin` or `exec-sso-action-platform-dev-compute-admin`. Derive the account from incident context; when unsure, list candidates with `aws configure list-profiles | grep 'exec-sso-.*-compute-admin'` and ask.
   - Never invent profile names such as `sso-staging-read-only`. If a needed profile is missing, report it as a gap and ask for the account/role instead of fabricating one.
   - Do not run `aws-vault login` or any state-changing AWS action during read-only troubleshooting; an expired SSO token is an evidence gap to report, not a reason to refresh credentials unprompted.
-- For Go, TypeScript, JavaScript, YAML, and Helm changes, use language server protocol (LSP) tools selectively after locating the relevant file and line:
+- For Go, TypeScript, JavaScript, YAML, Helm, and Terraform changes, use language server protocol (LSP) tools selectively after locating the relevant file and line:
   - Use `lsp_find_references` before renaming, deleting, changing signatures, or changing exported or public symbols.
   - Use `lsp_context` when type, definition, enclosing-symbol, or reference context materially affects the edit.
   - Use `lsp_diagnostics` after non-trivial Go or TypeScript edits or when investigating type or schema errors; skip it for purely textual edits.

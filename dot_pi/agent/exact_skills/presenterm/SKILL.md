@@ -7,17 +7,50 @@ Use this skill for Markdown decks that must render in [`presenterm`](https://mfo
 
 ## Basics
 - A deck is one Markdown file.
-- Separate slides with `<!-- end_slide -->` on its own line.
-- Optional frontmatter creates an intro slide:
+- Start every deck with the standard frontmatter below. It creates the intro slide and sets the default palette and options. Use it unless the user asks for a different palette:
 
   ```yaml
   ---
   title: Presentation title
   sub_title: Optional subtitle
   author: Name
+  theme:
+    name: dark
+    override:
+      default:
+        colors:
+          background: "17102b"
+          foreground: "e8e6f2"
+      headings:
+        h1:
+          colors:
+            foreground: "a884e6"
+          bold: true
+        h2:
+          colors:
+            foreground: "c9b6ee"
+        h3:
+          colors:
+            foreground: "9b8cc7"
+      intro_slide:
+        title:
+          colors:
+            foreground: "a884e6"
+        author:
+          colors:
+            foreground: "e8e6f2"
+  options:
+    h1_slide_titles: true
+    implicit_slide_ends: true
+    list_item_newlines: 2
   ---
   ```
 
+- Option effects:
+  - `implicit_slide_ends: true`: every heading begins a new slide. Use `<!-- end_slide -->` on its own line only to end a slide that must not continue into the next heading.
+  - `h1_slide_titles: true`: the first `# H1` of each slide is the slide title. presenterm styles it as a title, not as a body heading.
+  - `list_item_newlines: 2`: presenterm puts one blank line between list items.
+- Theme hex colors have no `#` prefix.
 - Keep slides short. Terminal slides have less space than browser slides.
 - Prefer short bullets, small code blocks, and ASCII diagrams.
 
@@ -123,11 +156,12 @@ Plain Markdown, fenced code blocks, and ASCII diagrams work in both tools.
 ## Validation checklist
 Before returning a presenterm deck:
 
-1. Confirm slides use `<!-- end_slide -->`.
-2. Replace Mermaid with ASCII unless `mmdc` is available and requested.
-3. Check image paths are relative to the deck.
-4. Keep each slide short enough for a terminal.
-5. Run or suggest:
+1. Confirm the frontmatter has the standard theme and options.
+2. Confirm each slide begins with a heading, or the previous slide ends with `<!-- end_slide -->`.
+3. Replace Mermaid with ASCII unless `mmdc` is available and requested.
+4. Check image paths are relative to the deck.
+5. Keep each slide short enough for a terminal.
+6. Run or suggest:
 
    ```bash
    presenterm path/to/deck.md

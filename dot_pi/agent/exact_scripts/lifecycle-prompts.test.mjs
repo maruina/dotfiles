@@ -102,6 +102,20 @@ test("systematic review challenges scope against the smallest user-feedback slic
   ]);
 });
 
+test("execute runs one incomplete slice per run for grouped plans", () => {
+  const text = prompt("execute.md");
+
+  requireMarkers(text, [
+    /no slice grouping executes all tasks as today and hands off once/i,
+    /first slice with incomplete tasks, and execute only that slice/i,
+    /do not auto-run the remaining slices/i,
+    /resumes at the next incomplete slice/i,
+    /user names a slice.*no incomplete blockers/is,
+    /stack-split check applied to the slice/i,
+    /one verified slice increment/i,
+  ]);
+});
+
 test("brainstorm and plan preserve dependency-aware lifecycle contracts", () => {
   const brainstorm = prompt("brainstorm.md");
   requireMarkers(brainstorm, [

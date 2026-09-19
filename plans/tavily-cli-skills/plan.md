@@ -167,9 +167,9 @@ The system SHALL keep all Tavily capability on the personal profile only.
 **Traces to:** Requirement "tavily-cli installed and authenticated"; confirmed decision 3.
 **Files:** `run_onchange_tavily-cli-install.sh` (new), `.chezmoiignore` (add the script to the work ignore block)
 
-- [ ] Failing check: `test -f run_onchange_tavily-cli-install.sh && echo EXISTS || echo MISSING` — expect `MISSING`; `command -v tvly || echo NOT_INSTALLED` — expect `NOT_INSTALLED`.
-- [ ] Create `run_onchange_tavily-cli-install.sh` mirroring `run_onchange_guarddog-install.sh` exactly (shebang, `set -eufo pipefail`, uv guard with error message, then `uv tool install tavily-cli`).
-- [ ] Add `run_onchange_tavily-cli-install.sh` to the `{{- if eq .profile "work" }}` block in `.chezmoiignore` so the script never runs on work.
+- [x] Failing check: `test -f run_onchange_tavily-cli-install.sh && echo EXISTS || echo MISSING` — expect `MISSING`; `command -v tvly || echo NOT_INSTALLED` — expect `NOT_INSTALLED`.
+- [x] Create `run_onchange_tavily-cli-install.sh` mirroring `run_onchange_guarddog-install.sh` exactly (shebang, `set -eufo pipefail`, uv guard with error message, then `uv tool install tavily-cli`).
+- [x] Add `run_onchange_tavily-cli-install.sh` to the `{{- if eq .profile "work" }}` block in `.chezmoiignore` so the script never runs on work.
 - [ ] Define the worktree helpers used by every later step:
   ```bash
   cd ~/src/.worktrees/chezmoi/maruina-tavily-cli-skills
@@ -177,9 +177,11 @@ The system SHALL keep all Tavily capability on the personal profile only.
   cm execute-template '{{ .chezmoi.sourceDir }}' | grep -Fx "$PWD"
   cm data | jq -e '.profile == "personal"'
   ```
-- [ ] Verify the work gate: `{ printf '{{- $_ := set . "profile" "work" -}}\n'; cat .chezmoiignore; } | cm execute-template | grep -Fx 'run_onchange_tavily-cli-install.sh'` — expect the filename to print.
-- [ ] Run `bash run_onchange_tavily-cli-install.sh`; expect `tvly --version` to print a version and `tvly --status` to report authentication. In a non-fish shell, set the key for one command: `TAVILY_API_KEY="$(op read 'op://Private/Tavily/api-key')" tvly --status`. Expect no `~/.mcp-auth/` or `~/.tavily/config.json` credential.
-- [ ] Register the script with chezmoi: `cm diff` (expect no target changes; scripts are not listed), then `cm apply` — expect it to run the new script (no-op reinstall, exit 0) and record its hash; no other target changes.
+- [x] Verify the work gate: `{ printf '{{- $_ := set . "profile" "work" -}}\n'; cat .chezmoiignore; } | cm execute-template | grep -Fx 'run_onchange_tavily-cli-install.sh'` — expect the filename to print.
+- [x] Run `bash run_onchange_tavily-cli-install.sh`; expect `tvly --version` to print a version and `tvly --status` to report authentication. In a non-fish shell, set the key for one command: `TAVILY_API_KEY="$(op read 'op://Private/Tavily/api-key')" tvly --status`. Expect no `~/.mcp-auth/` or `~/.tavily/config.json` credential.
+  - Note: `tvly --status` reports "Authenticated via TAVILY_API_KEY"; no Tavily credential exists under `~/.mcp-auth/` or `~/.tavily/config.json`.
+- [x] Register the script with chezmoi: `cm diff` (expect no target changes; scripts are not listed), then `cm apply` — expect it to run the new script (no-op reinstall, exit 0) and record its hash; no other target changes.
+  - Deviation: full `cm diff` fails on an unrelated ambient issue — `op://Private/Opencode/api-key` (fish config line 92, untouched here) now matches two 1Password items, so the fish template cannot render. Script-scoped verification instead: the script is managed as `~/tavily-cli-install.sh` (chezmoi strips `run_onchange_` from the target name), `cm apply ~/tavily-cli-install.sh` reran it as a no-op reinstall with exit 0.
 - [ ] Commit: `feat(chezmoi): install tavily-cli via uv tool`.
 
 ## Task 2: Vendor the eight Tavily skills into the personal profile
@@ -188,22 +190,25 @@ The system SHALL keep all Tavily capability on the personal profile only.
 **Traces to:** Requirements "all eight Tavily skills vendored and valid" and "skills discovered"; confirmed decision 2.
 **Files:** `dot_pi/agent/exact_skills_personal/{tavily-best-practices,tavily-cli,tavily-crawl,tavily-dynamic-search,tavily-extract,tavily-map,tavily-research,tavily-search}/` (new)
 
-- [ ] Failing check: `ls dot_pi/agent/exact_skills_personal/ | grep -c '^tavily-'` — expect `0`.
-- [ ] Clone upstream to the sync-prompt location: `git clone https://github.com/tavily-ai/skills ~/go/src/github.com/tavily-ai/skills` (or fetch if present); record HEAD with `git -C ~/go/src/github.com/tavily-ai/skills log -1 --format='%H'`.
-- [ ] Copy each `skills/<name>/` from the clone into `dot_pi/agent/exact_skills_personal/<name>/` unmodified (including `references/` subdirectories where present).
-- [ ] Add a `VENDOR.md` to each skill directory matching the `exact_skills/` precedent: upstream `https://github.com/tavily-ai/skills`, path `` `skills/<name>` ``, the recorded HEAD as pinned commit, and the `/sync-vendored-skills` update note.
-- [ ] Verify `VENDOR.md` count: `find dot_pi/agent/exact_skills_personal -maxdepth 2 -name VENDOR.md | wc -l` — expect `8`.
-- [ ] Verify cross-links resolve:
+- [x] Failing check: `ls dot_pi/agent/exact_skills_personal/ | grep -c '^tavily-'` — expect `0`.
+- [x] Clone upstream to the sync-prompt location: `git clone https://github.com/tavily-ai/skills ~/go/src/github.com/tavily-ai/skills` (or fetch if present); record HEAD with `git -C ~/go/src/github.com/tavily-ai/skills log -1 --format='%H'`.
+  - Recorded HEAD at vendor time: `778122e5f9c680f541eeceda5a5b36405eb7980c` (the plan-time pin `017fc3cc…` was stale; the clone fetched the current HEAD).
+- [x] Copy each `skills/<name>/` from the clone into `dot_pi/agent/exact_skills_personal/<name>/` unmodified (including `references/` subdirectories where present).
+- [x] Add a `VENDOR.md` to each skill directory matching the `exact_skills/` precedent: upstream `https://github.com/tavily-ai/skills`, path `` `skills/<name>` ``, the recorded HEAD as pinned commit, and the `/sync-vendored-skills` update note.
+- [x] Verify `VENDOR.md` count: `find dot_pi/agent/exact_skills_personal -maxdepth 2 -name VENDOR.md | wc -l` — expect `8`.
+- [x] Verify cross-links resolve:
   ```bash
   for link in $(grep -rhoE '\.\./tavily-[a-z-]+/SKILL\.md' dot_pi/agent/exact_skills_personal/ | sort -u); do
     test -f "dot_pi/agent/exact_skills_personal/${link#../}" || echo "MISSING ${link}"
   done
   ```
   expect no `MISSING` lines.
-- [ ] Validate: `cd dot_pi/agent && npm ci --ignore-scripts && npm run test:skills && npm run test:skills:profiles` — expect both green.
-- [ ] Apply and verify discovery: `cm apply ~/.pi/agent/skills_personal`; `ls ~/.pi/agent/skills_personal/` shows the eight `tavily-*` directories plus the two `home-assistant` ones.
-- [ ] Live check (user-run from fish, or with the key from op read): `tvly search "pi coding agent" --max-results 3 --json | jq '.results | length'` — expect a number greater than 0; not required for the automated gate.
-- [ ] Commit: `feat(pi): vendor Tavily skills into the personal profile`.
+- [x] Validate: `cd dot_pi/agent && npm ci --ignore-scripts && npm run test:skills && npm run test:skills:profiles` — expect both green.
+  - Result: 38 skills validated; both profile passes green.
+- [x] Apply and verify discovery: `cm apply ~/.pi/agent/skills_personal`; `ls ~/.pi/agent/skills_personal/` shows the eight `tavily-*` directories plus the two `home-assistant` ones.
+- [x] Live check (user-run from fish, or with the key from op read): `tvly search "pi coding agent" --max-results 3 --json | jq '.results | length'` — expect a number greater than 0; not required for the automated gate.
+  - Result: 3 results; valid JSON round-trip through `tvly search --json`.
+- [x] Commit: `feat(pi): vendor Tavily skills into the personal profile`.
 
 ## Task 3: Retire the tavily_api extension and remove dead work-profile config
 **Delivers:** No `tavily_api` tool in any session; no Tavily key export on the work profile.
@@ -212,18 +217,19 @@ The system SHALL keep all Tavily capability on the personal profile only.
 **Files:** `dot_pi/agent/exact_extensions/web-search.ts` (delete), `.chezmoiignore` (edit), `dot_config/private_fish/private_config.fish.tmpl` (edit)
 
 - [ ] Failing checks: `test -f dot_pi/agent/exact_extensions/web-search.ts` — expect present (the removal target); `grep -n 'extensions/web-search.ts' .chezmoiignore` — expect the dead work entry; `grep -n 'Employee/Tavily' dot_config/private_fish/private_config.fish.tmpl` — expect the dead work export.
-- [ ] Delete `dot_pi/agent/exact_extensions/web-search.ts`.
-- [ ] Remove the `.pi/agent/extensions/web-search.ts` line from the work block in `.chezmoiignore` (the ignored source file no longer exists; the `skills_personal` and `run_onchange_tavily-cli-install.sh` entries stay).
-- [ ] Remove the two work-block lines in `dot_config/private_fish/private_config.fish.tmpl` (`# Tavily agentic web search` and the `set -gx TAVILY_API_KEY … Employee/Tavily …` line). Leave the personal block untouched.
-- [ ] Verify renders. Work-profile templates read `op://Employee/...` (this fish file and `dot_config/sops/age/private_keys.txt.tmpl`), which this personal machine cannot access, so neutralize every `onepasswordRead` before rendering:
+- [x] Delete `dot_pi/agent/exact_extensions/web-search.ts`.
+- [x] Remove the `.pi/agent/extensions/web-search.ts` line from the work block in `.chezmoiignore` (the ignored source file no longer exists; the `skills_personal` and `run_onchange_tavily-cli-install.sh` entries stay).
+- [x] Remove the two work-block lines in `dot_config/private_fish/private_config.fish.tmpl` (`# Tavily agentic web search` and the `set -gx TAVILY_API_KEY … Employee/Tavily …` line). Leave the personal block untouched.
+- [x] Verify renders. Work-profile templates read `op://Employee/...` (this fish file and `dot_config/sops/age/private_keys.txt.tmpl`), which this personal machine cannot access, so neutralize every `onepasswordRead` before rendering:
   ```bash
   render() { { printf '{{- $_ := set . "profile" "%s" -}}\n' "$1"; sed -E 's/\{\{ *onepasswordRead [^}]*\}\}/REDACTED/g' "$2"; } | cm execute-template; }
   render work dot_config/private_fish/private_config.fish.tmpl | grep -c TAVILY   # expect 0
   render personal dot_config/private_fish/private_config.fish.tmpl | grep -c 'TAVILY_API_KEY'   # expect 1
   ```
-- [ ] Apply the removals: `cm apply ~/.pi/agent/extensions ~/.config/fish/config.fish`; then `test ! -f ~/.pi/agent/extensions/web-search.ts` — expect success.
-- [ ] Regression: from `dot_pi/agent/`, `npm run test:unit && npm run test:smoke` — expect green and no `[Extension issues]` in smoke output.
-- [ ] Commit: `feat(pi): retire the tavily_api web-search extension`.
+- [x] Apply the removals: `cm apply ~/.pi/agent/extensions ~/.config/fish/config.fish`; then `test ! -f ~/.pi/agent/extensions/web-search.ts` — expect success.
+  - Deviation: the extension apply succeeded and the target file is gone. The fish apply is deferred to Task 4: the full fish config cannot render because the unrelated `op://Private/Opencode/api-key` reference (template line 92, untouched by this plan) now matches two 1Password items.
+- [x] Regression: from `dot_pi/agent/`, `npm run test:unit && npm run test:smoke` — expect green and no `[Extension issues]` in smoke output.
+- [x] Commit: `feat(pi): retire the tavily_api web-search extension`.
 
 ## Task 4: Documentation and final verification
 **Delivers:** Durable guidance for future agents; full-suite verification; branch pushed.

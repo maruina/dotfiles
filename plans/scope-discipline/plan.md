@@ -19,6 +19,13 @@
 | `write` | `skill-loader` | The changes are prose contracts read by humans and models | Applied short literal sentences, one path for the common case, benefit-first rejected alternatives; used for this plan |
 | `obsidian-cli` | `prompt-required` | `/plan` advisory learning lookup | Ran the lookup for `scope creep`, `smallest slice`, `vertical slice`, `prompt design`, `context budget`; zero matching sections; recorded as empty, consistent with the design's own lookup |
 
+### Execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `skill-loader` | `prompt-required` | `/execute` requires selecting skills before editing | Identified `chezmoi` and `write`; confirmed no language or domain skill matches the Markdown prompt edits |
+| `chezmoi` | `skill-loader` | Edits target chezmoi source under `dot_pi/agent/` | Kept edits in the source tree and inspected a targeted read-only `chezmoi diff`; deferred apply to after `/verify` |
+| `write` | `skill-loader` | The edits are model-facing prose contracts | Applied short literal sentences, one path for the common case, and consistent terminology across the five prompts |
+
 ## Implementation Contract
 
 ### Components Affected
@@ -143,13 +150,13 @@ The existing handoff, skill-provenance, learning-candidate, and structural asser
 **Traces to:** Design overview section 1 (Boundary at design); requirement "Design-stage boundary"
 **Files:** `dot_pi/agent/exact_prompts/brainstorm.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`
 
-- [ ] Add the new `brainstorm.md` marker assertions to `lifecycle-prompts.test.mjs`; run `node --test exact_scripts/lifecycle-prompts.test.mjs` and expect the new test to fail.
-- [ ] In `brainstorm.md`, rename the alignment-brief field `First slice:` to `Smallest user-feedback slice:` and require it to state what the user sees, what the team learns, and why no smaller slice produces that feedback. Keep the earlier `## First slice` guidance section consistent with the renamed field.
-- [ ] Add the selection rule: when more than one design or approach is viable, select the one whose smallest slice produces user feedback fastest; every non-selected design becomes a non-goal or a deferred item with a revisit trigger; do not merge designs to satisfy more stakeholders; a better long-term design is not a reason to widen the first slice.
-- [ ] Add the smallest user-feedback slice and the deferred alternatives to the design-artifact contract (step 3) and the self-review check that the slice produces user feedback and that non-selected alternatives are deferred rather than merged (step 4).
-- [ ] Run `wc -c dot_pi/agent/exact_prompts/brainstorm.md`; expect at most 14,000 bytes.
-- [ ] Run `node --test exact_scripts/lifecycle-prompts.test.mjs`; expect 0 failures.
-- [ ] Commit with `feat(pi): anchor brainstorm designs to the smallest user-feedback slice`.
+- [x] Add the new `brainstorm.md` marker assertions to `lifecycle-prompts.test.mjs`; run `node --test exact_scripts/lifecycle-prompts.test.mjs` and expect the new test to fail.
+- [x] In `brainstorm.md`, rename the alignment-brief field `First slice:` to `Smallest user-feedback slice:` and require it to state what the user sees, what the team learns, and why no smaller slice produces that feedback. Keep the earlier `## First slice` guidance section consistent with the renamed field.
+- [x] Add the selection rule: when more than one design or approach is viable, select the one whose smallest slice produces user feedback fastest; every non-selected design becomes a non-goal or a deferred item with a revisit trigger; do not merge designs to satisfy more stakeholders; a better long-term design is not a reason to widen the first slice.
+- [x] Add the smallest user-feedback slice and the deferred alternatives to the design-artifact contract (step 3) and the self-review check that the slice produces user feedback and that non-selected alternatives are deferred rather than merged (step 4).
+- [x] Run `wc -c dot_pi/agent/exact_prompts/brainstorm.md`; expect at most 14,000 bytes.
+- [x] Run `node --test exact_scripts/lifecycle-prompts.test.mjs`; expect 0 failures.
+- [x] Commit with `feat(pi): anchor brainstorm designs to the smallest user-feedback slice`.
 
 ### Task 2: Plan-stage boundary and conditional slicing in `plan.md`
 **Delivers:** `plan.md` requires the smallest-user-feedback-slice field for every plan and defines conditional `### Slice N` grouping, deferral, and the final-verification item; its markers exist and pass; the budget decision is recorded.
@@ -157,13 +164,13 @@ The existing handoff, skill-provenance, learning-candidate, and structural asser
 **Traces to:** Design overview section 2 (Boundary at plan); requirement "Plan-stage boundary and conditional slicing"; requirement "Context budgets hold"
 **Files:** `dot_pi/agent/exact_prompts/plan.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`
 
-- [ ] Add the new `plan.md` marker assertions; run `node --test exact_scripts/lifecycle-prompts.test.mjs` and expect the new test to fail.
-- [ ] Add `Smallest user-feedback slice:` to the planning-alignment-brief template and to the durable plan header block, required for every plan.
-- [ ] Add the conditional grouping rules, drafted tightly: `### Slice N: <title>` headings only when a plan needs more than one shippable slice (Medium or Large/Risky work, or deliberately deferred scope); each heading names the user feedback it delivers; slice 1 is the smallest user-feedback slice; Small/direct plans keep the concise `## Scope`/`## Validation` shape with one execution unit; a task outside the current slice is a follow-up; deferred work appears under `Out of Scope` or as a later slice with a blocking edge; acceptance scenarios map to a slice through their tasks; a multi-slice plan records a `Final verification` item naming the feature-level acceptance criteria.
-- [ ] Add the final-review checks: slicing used only when needed, and scope beyond the smallest slice explicitly deferred.
-- [ ] Run `wc -c dot_pi/agent/exact_prompts/plan.md`. If over 18,000 bytes after a tight draft, raise the budget to 19,000 in the budgets map and record the justification in this plan's ledger; if over 19,000, stop and ask.
-- [ ] Run `node --test exact_scripts/lifecycle-prompts.test.mjs`; expect 0 failures.
-- [ ] Commit with `feat(pi): add smallest-slice boundary and conditional slicing to plan`.
+- [x] Add the new `plan.md` marker assertions; run `node --test exact_scripts/lifecycle-prompts.test.mjs` and expect the new test to fail.
+- [x] Add `Smallest user-feedback slice:` to the planning-alignment-brief template and to the durable plan header block, required for every plan.
+- [x] Add the conditional grouping rules, drafted tightly: `### Slice N: <title>` headings only when a plan needs more than one shippable slice (Medium or Large/Risky work, or deliberately deferred scope); each heading names the user feedback it delivers; slice 1 is the smallest user-feedback slice; Small/direct plans keep the concise `## Scope`/`## Validation` shape with one execution unit; a task outside the current slice is a follow-up; deferred work appears under `Out of Scope` or as a later slice with a blocking edge; acceptance scenarios map to a slice through their tasks; a multi-slice plan records a `Final verification` item naming the feature-level acceptance criteria.
+- [x] Add the final-review checks: slicing used only when needed, and scope beyond the smallest slice explicitly deferred.
+- [x] Run `wc -c dot_pi/agent/exact_prompts/plan.md`. If over 18,000 bytes after a tight draft, raise the budget to 19,000 in the budgets map and record the justification in this plan's ledger; if over 19,000, stop and ask.
+- [x] Run `node --test exact_scripts/lifecycle-prompts.test.mjs`; expect 0 failures.
+- [x] Commit with `feat(pi): add smallest-slice boundary and conditional slicing to plan`.
 
 ### Task 3: Review challenge in `systematic-review.md`
 **Delivers:** The plan-review checklist challenges scope against the smallest user-feedback slice and requires deferral with revisit triggers; its markers exist and pass.
@@ -171,11 +178,11 @@ The existing handoff, skill-provenance, learning-candidate, and structural asser
 **Traces to:** Design overview section 3 (Review challenge); requirement "Review challenge against the smallest slice"
 **Files:** `dot_pi/agent/exact_prompts/systematic-review.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`
 
-- [ ] Add the new `systematic-review.md` marker assertions; run the narrow test and expect the new test to fail.
-- [ ] Add the four checklist items: the smallest user-feedback slice is named and is slice 1; no requirement or task entered without a slice mapping unless explicitly deferred; scope that re-entered from an alternative design or a prior review is deferred with a revisit trigger; the plan carries enough feature-level criteria for the final verification.
-- [ ] State that the review challenges against the smallest user-feedback slice, not only against the design, and recommends deferral by default when scope exceeds it.
-- [ ] Run `node --test exact_scripts/lifecycle-prompts.test.mjs`; expect 0 failures.
-- [ ] Commit with `feat(pi): challenge plan scope against the smallest slice in review`.
+- [x] Add the new `systematic-review.md` marker assertions; run the narrow test and expect the new test to fail.
+- [x] Add the four checklist items: the smallest user-feedback slice is named and is slice 1; no requirement or task entered without a slice mapping unless explicitly deferred; scope that re-entered from an alternative design or a prior review is deferred with a revisit trigger; the plan carries enough feature-level criteria for the final verification.
+- [x] State that the review challenges against the smallest user-feedback slice, not only against the design, and recommends deferral by default when scope exceeds it.
+- [x] Run `node --test exact_scripts/lifecycle-prompts.test.mjs`; expect 0 failures.
+- [x] Commit with `feat(pi): challenge plan scope against the smallest slice in review`.
 
 ### Task 4: Repeatable slice execution in `execute.md`
 **Delivers:** `execute.md` runs one incomplete slice per invocation for grouped plans and stops for feedback, while keeping the single-slice path unchanged; its markers exist and pass.
@@ -183,11 +190,11 @@ The existing handoff, skill-provenance, learning-candidate, and structural asser
 **Traces to:** Design overview section 4 (Repeatable slice execution); requirement "Repeatable slice execution"
 **Files:** `dot_pi/agent/exact_prompts/execute.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`
 
-- [ ] Add the new `execute.md` marker assertions; run the narrow test and expect the new test to fail.
-- [ ] Add the multi-slice unit: read the plan, find the first slice with incomplete tasks, execute only that slice; after the slice's verification passes and the ledger is updated, stop and hand off without auto-running remaining slices; a later run resumes at the next incomplete slice; a user-named slice runs when it has no incomplete blockers; a slice ships as one or more pull requests with the existing stack-split check applied to the slice; the terminal state for a multi-slice plan is one verified slice increment with the plan updated as the ledger.
-- [ ] State explicitly that a plan with no slice grouping executes all tasks as today and hands off once.
-- [ ] Run `node --test exact_scripts/lifecycle-prompts.test.mjs`; expect 0 failures.
-- [ ] Commit with `feat(pi): execute one incomplete slice per run for multi-slice plans`.
+- [x] Add the new `execute.md` marker assertions; run the narrow test and expect the new test to fail.
+- [x] Add the multi-slice unit: read the plan, find the first slice with incomplete tasks, execute only that slice; after the slice's verification passes and the ledger is updated, stop and hand off without auto-running remaining slices; a later run resumes at the next incomplete slice; a user-named slice runs when it has no incomplete blockers; a slice ships as one or more pull requests with the existing stack-split check applied to the slice; the terminal state for a multi-slice plan is one verified slice increment with the plan updated as the ledger.
+- [x] State explicitly that a plan with no slice grouping executes all tasks as today and hands off once.
+- [x] Run `node --test exact_scripts/lifecycle-prompts.test.mjs`; expect 0 failures.
+- [x] Commit with `feat(pi): execute one incomplete slice per run for multi-slice plans`.
 
 ### Task 5: Slice-aware and final verification in `verify.md`
 **Delivers:** `verify.md` verifies slice-scoped scenarios for grouped plans, records later-slice scenarios as deferred, and runs the final whole-feature pass with a `BLOCKED` fallback; its markers exist and pass.
@@ -195,12 +202,12 @@ The existing handoff, skill-provenance, learning-candidate, and structural asser
 **Traces to:** Design overview section 5 (Slice-aware and final verification); requirement "Slice-aware and final verification"
 **Files:** `dot_pi/agent/exact_prompts/verify.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`
 
-- [ ] Add the new `verify.md` marker assertions; run the narrow test and expect the new test to fail.
-- [ ] Add slice awareness: for a grouped plan, read the slice grouping and current slice; verify only the acceptance scenarios whose tasks belong to the current slice; record scenarios belonging to later slices as `deferred to slice N` without blocking; state that a plan with no slice grouping verifies every scenario as today with no separate final pass.
-- [ ] Add the final pass: when the current slice is the final slice, also verify the plan's feature-level criteria against the design goals, reconstructing the cumulative state from the feature base, merged slices, and current candidate, recording the reconstruction method; return `BLOCKED` instead of guessing when reconstruction is impossible.
-- [ ] State that the verdict stays `VERIFIED` or `BLOCKED` and a multi-slice verdict names the slice it covers.
-- [ ] Run `node --test exact_scripts/lifecycle-prompts.test.mjs`; expect 0 failures.
-- [ ] Commit with `feat(pi): verify multi-slice plans slice by slice with a final feature pass`.
+- [x] Add the new `verify.md` marker assertions; run the narrow test and expect the new test to fail.
+- [x] Add slice awareness: for a grouped plan, read the slice grouping and current slice; verify only the acceptance scenarios whose tasks belong to the current slice; record scenarios belonging to later slices as `deferred to slice N` without blocking; state that a plan with no slice grouping verifies every scenario as today with no separate final pass.
+- [x] Add the final pass: when the current slice is the final slice, also verify the plan's feature-level criteria against the design goals, reconstructing the cumulative state from the feature base, merged slices, and current candidate, recording the reconstruction method; return `BLOCKED` instead of guessing when reconstruction is impossible.
+- [x] State that the verdict stays `VERIFIED` or `BLOCKED` and a multi-slice verdict names the slice it covers.
+- [x] Run `node --test exact_scripts/lifecycle-prompts.test.mjs`; expect 0 failures.
+- [x] Commit with `feat(pi): verify multi-slice plans slice by slice with a final feature pass`.
 
 ### Task 6: Docs, AGENTS.md, and full validation
 **Delivers:** Documentation impact recorded, `AGENTS.md` inspected with a recorded decision, full test suite green with deps removed, prompt-loading check and targeted chezmoi diff inspected.
@@ -208,11 +215,11 @@ The existing handoff, skill-provenance, learning-candidate, and structural asser
 **Traces to:** Design testing strategy items 1-3 and rollout; Medium documentation contract
 **Files:** `plans/scope-discipline/plan.md` (ledger updates only)
 
-- [ ] Inspect root `AGENTS.md` and `dot_pi/agent/AGENTS.md`: the lifecycle line already points to the prompts as stage source of truth, so no `AGENTS.md` change is required; record this decision in the ledger. No user/developer docs, READMEs, runbooks, or generated references cover the lifecycle prompts, so no other doc updates apply.
-- [ ] Run `cd dot_pi/agent && npm ci --ignore-scripts && npm test && npm run test:all`; expect all green. Remove the installed dependencies afterward.
-- [ ] From the worktree root, run `pi --no-prompt-templates --prompt-template "$PWD/dot_pi/agent/exact_prompts"`; expect exit 0.
-- [ ] Run `chezmoi --source "$PWD" diff dot_pi/agent/exact_prompts/brainstorm.md dot_pi/agent/exact_prompts/plan.md dot_pi/agent/exact_prompts/systematic-review.md dot_pi/agent/exact_prompts/execute.md dot_pi/agent/exact_prompts/verify.md dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`; expect the diff to contain only this change's edits. Do not apply; application happens after `/verify`.
-- [ ] Update the plan ledger: deviations, the budget decision (raise or no raise with measured bytes), and skill provenance.
+- [x] Inspect root `AGENTS.md` and `dot_pi/agent/AGENTS.md`: the lifecycle line already points to the prompts as stage source of truth, so no `AGENTS.md` change is required; record this decision in the ledger. No user/developer docs, READMEs, runbooks, or generated references cover the lifecycle prompts, so no other doc updates apply.
+- [x] Run `cd dot_pi/agent && npm ci --ignore-scripts && npm test && npm run test:all`; expect all green. Remove the installed dependencies afterward.
+- [x] From the worktree root, run `pi --no-prompt-templates --prompt-template "$PWD/dot_pi/agent/exact_prompts"`; expect exit 0.
+- [x] Run `chezmoi --source "$PWD" diff dot_pi/agent/exact_prompts/brainstorm.md dot_pi/agent/exact_prompts/plan.md dot_pi/agent/exact_prompts/systematic-review.md dot_pi/agent/exact_prompts/execute.md dot_pi/agent/exact_prompts/verify.md dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`; expect the diff to contain only this change's edits. Do not apply; application happens after `/verify`.
+- [x] Update the plan ledger: deviations, the budget decision (raise or no raise with measured bytes), and skill provenance.
 
 ## Validation summary
 
@@ -221,3 +228,12 @@ The existing handoff, skill-provenance, learning-candidate, and structural asser
 - Budget check: `wc -c` on `brainstorm.md` and `plan.md` after each edit, against the budgets test.
 - Loading and targeting: the `pi --no-prompt-templates --prompt-template` check and the read-only targeted `chezmoi diff` inspection from Task 6.
 - Behavior dry runs (design testing strategy items 4-6) are observation-based and validated over the next real cycles; they are recorded as the effectiveness validation path, not as tasks here.
+
+## Execution notes
+- No deviations from the committed tasks. Each prompt edit was preceded by failing marker assertions and followed by a green narrow test.
+- Budget decision: no raise. After the tight draft, `plan.md` measured 17,721 bytes and `brainstorm.md` 11,837 bytes, both within the 18,000 and 14,000 budgets. The budgets map stays unchanged.
+- Equivalent command: the prompt-loading check ran in read-only RPC mode because the plan's interactive command needs a TTY. `printf '%s\n' '{"type":"get_commands"}' | PI_OFFLINE=1 pi --mode rpc --no-session --no-context-files --no-extensions --no-skills --no-prompt-templates --prompt-template "$PWD/dot_pi/agent/exact_prompts"` exited 0 and listed all five prompt commands. No `[Extension issues]`.
+- Task 6 recorded the `AGENTS.md` decision: the lifecycle line in `AGENTS.md` and `dot_pi/agent/AGENTS.md` already points to the prompts as the stage source of truth, so no `AGENTS.md` change is required; no other docs cover the lifecycle prompts.
+
+## Learning candidates
+- 2026-09-19: `chezmoi diff` accepts target paths, not source-relative paths, so the plan's source-relative diff command failed with `not managed`; rerun with resolved `~/.pi/agent/...` targets — evidence: `chezmoi --source "$PWD" diff dot_pi/agent/exact_prompts/brainstorm.md` returns `chezmoi: dot_pi/agent/exact_prompts/brainstorm.md: not managed`, while `chezmoi --source "$PWD" target-path dot_pi/agent/exact_prompts/brainstorm.md` returns `~/.pi/agent/prompts/brainstorm.md`.

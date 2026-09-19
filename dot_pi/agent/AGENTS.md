@@ -49,6 +49,7 @@ A hidden `user-context` extension injects current repository, branch, pull reque
   - Use `lsp_context` when type, definition, enclosing-symbol, or reference context materially affects the edit.
   - Use `lsp_diagnostics` after non-trivial Go or TypeScript edits or when investigating type or schema errors; skip it for purely textual edits.
 - Run `terraform fmt` with `OTEL_TRACES_EXPORTER=`.
+- Personal-profile web search uses the `tvly` CLI (installed by `run_onchange_tavily-cli-install.sh`, authenticated by `TAVILY_API_KEY`) through the vendored `tavily-*` skills in `~/.pi/agent/skills_personal`; refresh them with `/sync-vendored-skills`.
 - Prefer single-line shell commands for copy and paste or shell history unless multiple lines materially improve readability.
 
 ## Language and Writing

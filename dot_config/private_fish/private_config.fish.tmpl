@@ -74,8 +74,6 @@ set -gx GOPROXY "https://depot-read-api-go.us1.ddbuild.io/magicmirror/magicmirro
 # Confluence API settings
 set -gx CONFLUENCE_EMAIL matteo.ruina@datadoghq.com
 set -gx CONFLUENCE_API_TOKEN '{{ onepasswordRead "op://Employee/Confluence API tokens/personal" }}'
-# Tavily agentic web search
-set -gx TAVILY_API_KEY '{{ onepasswordRead "op://Employee/Tavily/api-key" }}'
 {{- end }}
 {{- if eq .profile "personal" }}
 # Central git worktree location used by wt

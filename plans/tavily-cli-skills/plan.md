@@ -22,10 +22,13 @@
 ### Execution
 No additional execution-stage skills beyond the planning set plus `resolve-worktree`. `chezmoi` guided apply/diff scoping and the worktree `--source` pattern; `script-best-practices` confirmed the guarddog-mirror script shape was already idiomatic. All edits were textual (shell, Markdown, ignore rules), so no LSP tools applied.
 
+Post-verification fix session (2026-09-19, after a BLOCKED verify): cleared the `git diff --check origin/main..HEAD` whitespace blocker by stripping two trailing spaces from the vendored `tavily-best-practices` reference and recording the divergence in its `VENDOR.md`; `chezmoi` (planning set) guided the source edit and the fish-config re-apply. No new skills loaded.
+
 ## Deviations
 - Task 1: full `cm diff`/`cm apply` is blocked by an unrelated ambient issue — `op://Private/Opencode/api-key` (fish template line 92, untouched by this plan) now matches two 1Password items, so the fish template cannot render. Verified script-scoped instead (`cm apply ~/tavily-cli-install.sh`, exit 0).
 - Task 2: upstream HEAD at vendor time is `778122e5f9c680f541eeceda5a5b36405eb7980c`, newer than the plan-time pin `017fc3cc…`.
-- Task 3: `cm apply ~/.config/fish/config.fish` was blocked by the unrelated `op://Private/Opencode/api-key` 1Password ambiguity; after the user removed the duplicate vault item, the apply succeeded and the full `cm diff` is empty.
+- Task 3: `cm apply ~/.config/fish/config.fish` was blocked by the unrelated `op://Private/Opencode/api-key` 1Password ambiguity; after the user removed the duplicate vault item, the apply succeeded and the full `cm diff` is empty. The "empty" claim held at execution time only: `op://Private/Tavily/api-key` rotated afterwards, so the fish target drifted again (external cause; template correct). Re-applied from the default source on 2026-09-19.
+- Post-verification fix: upstream `tavily-best-practices/references/search.md` (lines 46 and 50) carries trailing whitespace that fails the repository `git diff --check` gate, so the "vendored unmodified" rule was relaxed by exactly 2 bytes: spaces stripped and the divergence recorded in that skill's `VENDOR.md`; the directory is otherwise byte-identical to pin `778122e…`.
 
 ## Planning alignment brief
 **Source of truth:**
@@ -67,6 +70,7 @@ No additional execution-stage skills beyond the planning set plus `resolve-workt
 
 ## Learning candidates
 - 2026-09-19: chezmoi run_onchange scripts in the source root are managed under the stripped target name (for example `tavily-cli-install.sh` at `~/`), not under a dot-prefixed or `.run_onchange_` name; `chezmoi apply ~/.run_onchange_...` fails with "not managed" — evidence: `chezmoi --source <worktree> managed | grep install.sh` and the successful `chezmoi apply ~/tavily-cli-install.sh` in worktree `maruina-tavily-cli-skills`.
+- 2026-09-19: a "vendor unmodified" decision can conflict with the repository whitespace gate — upstream skill content may carry trailing whitespace that `git diff --check origin/main..HEAD` blocks on; strip it locally and record the divergence in the skill's `VENDOR.md` (`/sync-vendored-skills` skips skills whose pin matches upstream HEAD, so the divergence is stable across syncs) — evidence: `git diff --check origin/main..HEAD` exit 2 on branch `maruina/tavily-cli-skills` at `ee942b6`, and `diff -r` against pin `778122e5f9c680f541eeceda5a5b36405eb7980c` showing only the two stripped lines.
 
 ## Feasibility and planning decisions
 | Requirement | Mechanism | Evidence it exists | Validation | If unavailable |

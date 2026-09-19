@@ -17,6 +17,16 @@
 | `codebase-research` | skill-loader | Correctness depends on existing patterns and profile gating | Staged discovery of the extension, prompts, scripts, settings, `.chezmoiignore`, git history |
 | `script-best-practices` | skill-loader | New `run_onchange_tavily-cli-install.sh` and shell verification snippets | Install-script shape, quoting, error handling, and safe verification commands |
 | `write` | skill-loader | Plan is a prose artifact | Brief and plan drafting rules |
+| `resolve-worktree` | prompt-required | `/execute` plan-path resolution | Resolved the plan to the `maruina-tavily-cli-skills` worktree and switched context |
+
+### Execution
+No additional execution-stage skills beyond the planning set plus `resolve-worktree`. `chezmoi` guided apply/diff scoping and the worktree `--source` pattern; `script-best-practices` confirmed the guarddog-mirror script shape was already idiomatic. All edits were textual (shell, Markdown, ignore rules), so no LSP tools applied.
+
+## Deviations
+- Task 1: full `cm diff`/`cm apply` is blocked by an unrelated ambient issue — `op://Private/Opencode/api-key` (fish template line 92, untouched by this plan) now matches two 1Password items, so the fish template cannot render. Verified script-scoped instead (`cm apply ~/tavily-cli-install.sh`, exit 0).
+- Task 2: upstream HEAD at vendor time is `778122e5f9c680f541eeceda5a5b36405eb7980c`, newer than the plan-time pin `017fc3cc…`.
+- Task 3: `cm apply ~/.config/fish/config.fish` deferred to Task 4 (blocked by the same Opencode ambiguity); the fish source edit is render-verified and committed.
+- Task 4: fish-target `cm diff` skipped for the same reason; `skills_personal` and `extensions` diffs are empty.
 
 ## Planning alignment brief
 **Source of truth:**
@@ -55,6 +65,9 @@
 - Work-machine sessions cannot be inspected from this personal machine; retirement safety rests on `.chezmoiignore` (extension never renders on work) plus the user's statement that Tavily is unusable at work.
 
 **Learning lookup:** `Datadog/Learnings.md` piped through `learn-evidence.mjs learning-sections` with terms tavily / web search / pi skill / vendored / extension / chezmoi returned 0 of 3 sections — no material guidance to apply.
+
+## Learning candidates
+- 2026-09-19: chezmoi run_onchange scripts in the source root are managed under the stripped target name (for example `tavily-cli-install.sh` at `~/`), not under a dot-prefixed or `.run_onchange_` name; `chezmoi apply ~/.run_onchange_...` fails with "not managed" — evidence: `chezmoi --source <worktree> managed | grep install.sh` and the successful `chezmoi apply ~/tavily-cli-install.sh` in worktree `maruina-tavily-cli-skills`.
 
 ## Feasibility and planning decisions
 | Requirement | Mechanism | Evidence it exists | Validation | If unavailable |
@@ -237,10 +250,11 @@ The system SHALL keep all Tavily capability on the personal profile only.
 **Traces to:** Plan-contract documentation task; requirements above.
 **Files:** `dot_pi/agent/AGENTS.md` (edit)
 
-- [ ] Add one durable line to the Tool Use section of `dot_pi/agent/AGENTS.md`: personal-profile web search uses the `tvly` CLI through the vendored `tavily-*` skills in `~/.pi/agent/skills_personal`; refresh them with `/sync-vendored-skills`.
-- [ ] Record why other docs are unchanged: the chezmoi skill's source layout already covers `exact_skills_personal/`; `/sync-vendored-skills` is already generic over `VENDOR.md` skills.
-- [ ] Final verification from `dot_pi/agent/`: `npm test && npm run test:all` — expect green; then remove the worktree's `dot_pi/agent/node_modules`.
-- [ ] Confirm no drift: `cm diff` — expect empty for all changed targets (`~/.pi/agent/skills_personal`, `~/.pi/agent/extensions`, `~/.config/fish/config.fish`).
-- [ ] Confirm `tvly --status` still authenticates, from fish or with the key from `op read`.
-- [ ] Commit: `docs(pi): record tvly as the personal web search tool`.
+- [x] Add one durable line to the Tool Use section of `dot_pi/agent/AGENTS.md`: personal-profile web search uses the `tvly` CLI through the vendored `tavily-*` skills in `~/.pi/agent/skills_personal`; refresh them with `/sync-vendored-skills`.
+- [x] Record why other docs are unchanged: the chezmoi skill's source layout already covers `exact_skills_personal/`; `/sync-vendored-skills` is already generic over `VENDOR.md` skills.
+- [x] Final verification from `dot_pi/agent/`: `npm test && npm run test:all` — expect green; then remove the worktree's `dot_pi/agent/node_modules`.
+- [x] Confirm no drift: `cm diff` — expect empty for all changed targets (`~/.pi/agent/skills_personal`, `~/.pi/agent/extensions`, `~/.config/fish/config.fish`).
+  - Deviation: `skills_personal` and `extensions` diffs are empty. The fish target diff cannot run because of the unrelated `op://Private/Opencode/api-key` 1Password ambiguity (Task 3 deviation); the fish source edit is render-verified instead.
+- [x] Confirm `tvly --status` still authenticates, from fish or with the key from `op read`.
+- [x] Commit: `docs(pi): record tvly as the personal web search tool`.
 - [ ] Push the branch: `git push -u origin maruina/tavily-cli-skills`.

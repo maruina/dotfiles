@@ -35,6 +35,21 @@ test("brainstorm records skill provenance before approval and in design specs", 
   ]);
 });
 
+test("brainstorm anchors the design to the smallest user-feedback slice", () => {
+  const text = prompt("brainstorm.md");
+
+  requireMarkers(text, [
+    /Smallest user-feedback slice:/,
+    /what the user sees.*what the team learns.*why no smaller slice/is,
+    /select the one whose smallest slice produces user feedback fastest/i,
+    /non-selected design.*non-goal or a deferred item with a revisit trigger/is,
+    /do not merge designs to satisfy more stakeholders/i,
+    /better long-term design is not a reason to widen/i,
+    /smallest user-feedback slice and the deferred alternatives/is,
+    /non-selected alternatives are deferred rather than merged/i,
+  ]);
+});
+
 test("plan records skill provenance before approval and in durable plans", () => {
   const text = prompt("plan.md");
 

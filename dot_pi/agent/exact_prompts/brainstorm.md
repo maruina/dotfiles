@@ -102,15 +102,21 @@ If the owning team would not be confident carrying the pager for the result at 4
 
 Before proposing a direction for Medium or Large/Risky work, summarize context reviewed, current understanding, facts versus assumptions, unavailable evidence, and the next decision needed from the user.
 
-## First slice
-For Medium and Large/Risky work, propose but do not assume approval of the smallest useful slice:
+## Smallest user-feedback slice
+For Medium and Large/Risky work, propose but do not assume approval of the smallest user-feedback slice. State what the user sees, what the team learns, and why no smaller slice produces that feedback.
 
 ```md
-## Suggested first slice
+## Suggested smallest user-feedback slice
 Do first:
 - ...
 
-Why this slice:
+What the user sees:
+- ...
+
+What the team learns:
+- ...
+
+Why no smaller slice produces this feedback:
 - ...
 
 Deliberately defer:
@@ -124,6 +130,8 @@ Validation:
 ```
 
 The slice should be independently useful, reviewable, verifiable, reversible, informative for later work, and operable with clear ownership.
+
+When more than one design or approach is viable, select the one whose smallest slice produces user feedback fastest. Every non-selected design becomes a non-goal or a deferred item with a revisit trigger. Do not merge designs to satisfy more stakeholders. A better long-term design is not a reason to widen the first slice.
 
 ## Alignment and durable output
 Summarize the agreed framing in chat before writing an artifact. The alignment brief and durable design spec must include `Skills loaded and used`; use the exact durable-spec heading `## Skills loaded and used`. Record only skills whose `SKILL.md` was read and applied, with source (`skill-loader`, `prompt-required`, `user-requested`, or `agent-selected`), loading reason, and effect. This provenance is feedback for improving `skill-loader`. If none were used, say so explicitly.
@@ -151,7 +159,7 @@ Skills loaded and used:
 |---|---|---|---|
 | `skill-name` | `skill-loader` / `prompt-required` / `user-requested` / `agent-selected` | [trigger] | [guidance applied] |
 
-First slice:
+Smallest user-feedback slice:
 ...
 
 Success criteria and validation:
@@ -171,8 +179,8 @@ When creating or updating `design.md`:
 
 1. Fetch the latest default branch and use a feature worktree based on it. Continue in the correct existing worktree; never write or commit the design on `main` or `master`. Use `maruina/<ticket-or-feature>` and repository-specific worktree guidance.
 2. Write `plans/<ticket-or-feature>/design.md`, preferably under the relevant package in a monorepo.
-3. Include the confirmed alignment brief plus context reviewed, goals and non-goals, assumptions, design overview, alternatives, risks and mitigations, operability, rollout/rollback, security and data handling, testing strategy, and open questions. Preserve skill provenance and add skills used while writing or reviewing the spec.
-4. Self-review as a skeptical staff engineer. The chosen direction must name at least one downside, and every considered alternative must name a genuine merit. Fix blocking issues inline and record material rejected findings with rationale.
+3. Include the confirmed alignment brief plus context reviewed, goals and non-goals, assumptions, the smallest user-feedback slice and the deferred alternatives, design overview, alternatives, risks and mitigations, operability, rollout/rollback, security and data handling, testing strategy, and open questions. Preserve skill provenance and add skills used while writing or reviewing the spec.
+4. Self-review as a skeptical staff engineer. The chosen direction must name at least one downside, and every considered alternative must name a genuine merit. Check that the smallest user-feedback slice produces user feedback and that non-selected alternatives are deferred rather than merged. Fix blocking issues inline and record material rejected findings with rationale.
 5. Commit only the design with `docs: add <ticket-or-feature> design`. Stop rather than commit on `main` or `master` or with unrelated changes.
 
 ## Update or restart

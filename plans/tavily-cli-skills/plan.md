@@ -25,8 +25,7 @@ No additional execution-stage skills beyond the planning set plus `resolve-workt
 ## Deviations
 - Task 1: full `cm diff`/`cm apply` is blocked by an unrelated ambient issue — `op://Private/Opencode/api-key` (fish template line 92, untouched by this plan) now matches two 1Password items, so the fish template cannot render. Verified script-scoped instead (`cm apply ~/tavily-cli-install.sh`, exit 0).
 - Task 2: upstream HEAD at vendor time is `778122e5f9c680f541eeceda5a5b36405eb7980c`, newer than the plan-time pin `017fc3cc…`.
-- Task 3: `cm apply ~/.config/fish/config.fish` deferred to Task 4 (blocked by the same Opencode ambiguity); the fish source edit is render-verified and committed.
-- Task 4: fish-target `cm diff` skipped for the same reason; `skills_personal` and `extensions` diffs are empty.
+- Task 3: `cm apply ~/.config/fish/config.fish` was blocked by the unrelated `op://Private/Opencode/api-key` 1Password ambiguity; after the user removed the duplicate vault item, the apply succeeded and the full `cm diff` is empty.
 
 ## Planning alignment brief
 **Source of truth:**
@@ -254,7 +253,7 @@ The system SHALL keep all Tavily capability on the personal profile only.
 - [x] Record why other docs are unchanged: the chezmoi skill's source layout already covers `exact_skills_personal/`; `/sync-vendored-skills` is already generic over `VENDOR.md` skills.
 - [x] Final verification from `dot_pi/agent/`: `npm test && npm run test:all` — expect green; then remove the worktree's `dot_pi/agent/node_modules`.
 - [x] Confirm no drift: `cm diff` — expect empty for all changed targets (`~/.pi/agent/skills_personal`, `~/.pi/agent/extensions`, `~/.config/fish/config.fish`).
-  - Deviation: `skills_personal` and `extensions` diffs are empty. The fish target diff cannot run because of the unrelated `op://Private/Opencode/api-key` 1Password ambiguity (Task 3 deviation); the fish source edit is render-verified instead.
+  - Deviation: `skills_personal` and `extensions` diffs are empty. The fish apply initially failed on the unrelated `op://Private/Opencode/api-key` 1Password ambiguity; the user removed the duplicate vault item and `cm apply ~/.config/fish/config.fish` then succeeded (exit 0), with the full `cm diff` clean afterwards (personal fish render keeps exactly one `TAVILY_API_KEY` export).
 - [x] Confirm `tvly --status` still authenticates, from fish or with the key from `op read`.
 - [x] Commit: `docs(pi): record tvly as the personal web search tool`.
 - [x] Push the branch: `git push -u origin maruina/tavily-cli-skills`.

@@ -89,6 +89,19 @@ test("brainstorm and plan stay within prompt context budgets", () => {
   }
 });
 
+test("systematic review challenges scope against the smallest user-feedback slice", () => {
+  const text = prompt("systematic-review.md");
+
+  requireMarkers(text, [
+    /smallest user-feedback slice is named and is slice 1/i,
+    /every requirement and task maps to a slice, unless it is explicitly deferred as a follow-up/i,
+    /re-entered from an alternative design or a prior review is deferred with a revisit trigger/i,
+    /enough feature-level criteria for the final verification/i,
+    /smallest user-feedback slice, not only against the design/i,
+    /recommend deferral by default/i,
+  ]);
+});
+
 test("brainstorm and plan preserve dependency-aware lifecycle contracts", () => {
   const brainstorm = prompt("brainstorm.md");
   requireMarkers(brainstorm, [

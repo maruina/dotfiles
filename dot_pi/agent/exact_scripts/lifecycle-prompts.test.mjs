@@ -61,6 +61,22 @@ test("plan records skill provenance before approval and in durable plans", () =>
   ]);
 });
 
+test("plan anchors scope to the smallest user-feedback slice with conditional grouping", () => {
+  const text = prompt("plan.md");
+
+  requireMarkers(text, [
+    /Smallest user-feedback slice:/,
+    /\*\*Smallest user-feedback slice:\*\*/,
+    /### Slice N: <title>/,
+    /only when the plan needs more than one shippable slice/i,
+    /slice 1 is the smallest user-feedback slice/i,
+    /task outside the current slice is a follow-up/i,
+    /`Final verification` item naming the feature-level acceptance criteria/i,
+    /slice grouping is used only when the plan needs it/i,
+    /scope beyond the smallest.*explicitly deferred/is,
+  ]);
+});
+
 test("brainstorm and plan stay within prompt context budgets", () => {
   const budgets = new Map([
     ["brainstorm.md", 14_000],

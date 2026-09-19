@@ -43,11 +43,11 @@ Controls the latency vs. relevance tradeoff:
 - **Content**: NLP-based summary of the page, providing general context
 - **Chunks**: Short snippets (max 500 chars) reranked by relevance to your query
 
-**When to use each:** 
+**When to use each:**
 - `ultra-fast`: Latency-critical (real-time chat, autocomplete)
 - `fast`: Need chunks but latency matters
 - `basic`: General-purpose, balanced relevance and latency
-- `advanced`: Specific information queries, precision matters - default (Still fast and suitable for almost all use cases) 
+- `advanced`: Specific information queries, precision matters - default (Still fast and suitable for almost all use cases)
 
 ## Key Parameters
 

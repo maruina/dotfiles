@@ -4,6 +4,7 @@
 {{- if eq .profile "work" }}
 .pi/agent/skills_personal
 .pi/agent/extensions/web-search.ts
+run_onchange_tavily-cli-install.sh
 {{- end }}
 .pi/agent/node_modules
 

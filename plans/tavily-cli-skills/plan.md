@@ -183,7 +183,7 @@ The system SHALL keep all Tavily capability on the personal profile only.
 - [x] Failing check: `test -f run_onchange_tavily-cli-install.sh && echo EXISTS || echo MISSING` — expect `MISSING`; `command -v tvly || echo NOT_INSTALLED` — expect `NOT_INSTALLED`.
 - [x] Create `run_onchange_tavily-cli-install.sh` mirroring `run_onchange_guarddog-install.sh` exactly (shebang, `set -eufo pipefail`, uv guard with error message, then `uv tool install tavily-cli`).
 - [x] Add `run_onchange_tavily-cli-install.sh` to the `{{- if eq .profile "work" }}` block in `.chezmoiignore` so the script never runs on work.
-- [ ] Define the worktree helpers used by every later step:
+- [x] Define the worktree helpers used by every later step:
   ```bash
   cd ~/src/.worktrees/chezmoi/maruina-tavily-cli-skills
   cm() { chezmoi --source "$PWD" "$@"; }
@@ -195,7 +195,7 @@ The system SHALL keep all Tavily capability on the personal profile only.
   - Note: `tvly --status` reports "Authenticated via TAVILY_API_KEY"; no Tavily credential exists under `~/.mcp-auth/` or `~/.tavily/config.json`.
 - [x] Register the script with chezmoi: `cm diff` (expect no target changes; scripts are not listed), then `cm apply` — expect it to run the new script (no-op reinstall, exit 0) and record its hash; no other target changes.
   - Deviation: full `cm diff` fails on an unrelated ambient issue — `op://Private/Opencode/api-key` (fish config line 92, untouched here) now matches two 1Password items, so the fish template cannot render. Script-scoped verification instead: the script is managed as `~/tavily-cli-install.sh` (chezmoi strips `run_onchange_` from the target name), `cm apply ~/tavily-cli-install.sh` reran it as a no-op reinstall with exit 0.
-- [ ] Commit: `feat(chezmoi): install tavily-cli via uv tool`.
+- [x] Commit: `feat(chezmoi): install tavily-cli via uv tool`.
 
 ## Task 2: Vendor the eight Tavily skills into the personal profile
 **Delivers:** All upstream Tavily skills available to personal pi sessions, refreshable via `/sync-vendored-skills`.
@@ -229,7 +229,7 @@ The system SHALL keep all Tavily capability on the personal profile only.
 **Traces to:** Requirements "the tavily_api extension is retired" and "the work profile renders zero Tavily references"; confirmed decisions 1 and 4.
 **Files:** `dot_pi/agent/exact_extensions/web-search.ts` (delete), `.chezmoiignore` (edit), `dot_config/private_fish/private_config.fish.tmpl` (edit)
 
-- [ ] Failing checks: `test -f dot_pi/agent/exact_extensions/web-search.ts` — expect present (the removal target); `grep -n 'extensions/web-search.ts' .chezmoiignore` — expect the dead work entry; `grep -n 'Employee/Tavily' dot_config/private_fish/private_config.fish.tmpl` — expect the dead work export.
+- [x] Failing checks: `test -f dot_pi/agent/exact_extensions/web-search.ts` — expect present (the removal target); `grep -n 'extensions/web-search.ts' .chezmoiignore` — expect the dead work entry; `grep -n 'Employee/Tavily' dot_config/private_fish/private_config.fish.tmpl` — expect the dead work export.
 - [x] Delete `dot_pi/agent/exact_extensions/web-search.ts`.
 - [x] Remove the `.pi/agent/extensions/web-search.ts` line from the work block in `.chezmoiignore` (the ignored source file no longer exists; the `skills_personal` and `run_onchange_tavily-cli-install.sh` entries stay).
 - [x] Remove the two work-block lines in `dot_config/private_fish/private_config.fish.tmpl` (`# Tavily agentic web search` and the `set -gx TAVILY_API_KEY … Employee/Tavily …` line). Leave the personal block untouched.

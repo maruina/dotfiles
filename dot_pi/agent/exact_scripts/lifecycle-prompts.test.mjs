@@ -116,6 +116,20 @@ test("execute runs one incomplete slice per run for grouped plans", () => {
   ]);
 });
 
+test("verify scopes grouped plans to the slice and runs a final feature pass", () => {
+  const text = prompt("verify.md");
+
+  requireMarkers(text, [
+    /no slice grouping verifies every acceptance scenario as today/i,
+    /deferred to slice N/,
+    /feature-level criteria against the design goals/i,
+    /reconstruct the cumulative state from the feature base, merged slices, and the current candidate/i,
+    /record the reconstruction method/i,
+    /return `BLOCKED` instead of guessing when reconstruction is impossible/i,
+    /multi-slice verdict names the slice it covers/i,
+  ]);
+});
+
 test("brainstorm and plan preserve dependency-aware lifecycle contracts", () => {
   const brainstorm = prompt("brainstorm.md");
   requireMarkers(brainstorm, [

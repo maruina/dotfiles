@@ -257,4 +257,4 @@ The system SHALL keep all Tavily capability on the personal profile only.
   - Deviation: `skills_personal` and `extensions` diffs are empty. The fish target diff cannot run because of the unrelated `op://Private/Opencode/api-key` 1Password ambiguity (Task 3 deviation); the fish source edit is render-verified instead.
 - [x] Confirm `tvly --status` still authenticates, from fish or with the key from `op read`.
 - [x] Commit: `docs(pi): record tvly as the personal web search tool`.
-- [ ] Push the branch: `git push -u origin maruina/tavily-cli-skills`.
+- [x] Push the branch: `git push -u origin maruina/tavily-cli-skills`.

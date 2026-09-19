@@ -83,6 +83,9 @@ Scope classification:
 Implementation strategy:
 - ...
 
+Smallest user-feedback slice:
+- ...
+
 Out of scope and deliberately deferred:
 - ...
 
@@ -126,6 +129,7 @@ Start every durable plan with:
 > Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** [one sentence]
+**Smallest user-feedback slice:** [one sentence]
 **Out of Scope:** [source-defined non-goals and deliberately deferred work, or "No explicit exclusions"]
 **Architecture:** [2-3 sentences, or "Not applicable"]
 **Tech Stack:** [key technologies]
@@ -155,6 +159,11 @@ For Medium and Large/Risky plans, add `## Implementation Contract` containing:
 - **Failure Modes to Handle:** expected behavior and verification
 - **Rollout and Rollback:** smallest safe rollout, fastest safe rollback, and owner
 - **Test Strategy:** each requirement mapped to its highest deterministic supported interface, existing or justified new seams, system boundaries to mock, and the narrow command expected to fail before implementation
+
+### Slice grouping
+Group tasks under `### Slice N: <title>` headings only when the plan needs more than one shippable slice: Medium or Large/Risky work, or work with deliberately deferred scope. Each heading names the user feedback it delivers. Slice 1 is the smallest user-feedback slice. Small/direct plans keep the concise `## Scope` and `## Validation` shape with one execution unit and no slice headings.
+
+When slice grouping exists, a task outside the current slice is a follow-up, not plan scope. Deferred work appears under `Out of Scope` or as a later slice with a blocking edge. Each acceptance scenario maps to a slice through its task. A multi-slice plan records a `Final verification` item naming the feature-level acceptance criteria that only the completed feature can satisfy.
 
 ### Acceptance criteria
 Express success as observable behavior contracts. Use RFC 2119 keywords and Given/When/Then:
@@ -205,6 +214,8 @@ Before committing, confirm:
 - behavior tasks are complete vertical slices; genuine blockers appear first; any integration exception is explicit
 - acceptance scenarios cover material happy, edge, failure, and integration paths at supported seams
 - security, operability, failure behavior, rollout, rollback, ownership, and docs match risk
+- slice grouping is used only when the plan needs it; Small/direct plans stay ungrouped
+- scope beyond the smallest user-feedback slice is explicitly deferred as a follow-up or a later slice
 - skill provenance is accurate and loaded guidance is reflected
 - the plan is right-sized and contains no contradictions, duplicated work, vague placeholders, or invented behavior
 

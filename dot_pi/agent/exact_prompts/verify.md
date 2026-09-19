@@ -24,6 +24,15 @@ Do not edit, format, generate, apply chezmoi state, stage, commit, push, open or
 5. Resolve the comparison base in this precedence: explicit plan/task context, `git machete show up <branch>`, open-PR base from `gh`, then the repository default branch. Use the base consistently for the branch diff. If available evidence produces a material conflict, return `BLOCKED` rather than selecting a fallback.
 6. Candidate scope MUST include commits relative to the base, staged changes, unstaged changes, and intended untracked files. Confirm the scope is attributable to the requirements baseline and has no unexplained unrelated changes. An empty candidate is `BLOCKED`.
 
+## Slice scope
+A plan with no slice grouping verifies every acceptance scenario as today, with no separate final pass.
+
+For a plan with `### Slice N` headings, read the slice grouping and the current slice from the plan. Verify only the acceptance scenarios whose tasks belong to the current slice. Record scenarios belonging to later slices as `deferred to slice N`; they do not block.
+
+When the current slice is the final slice, also verify the plan's `Final verification` item: the feature-level criteria against the design goals. Reconstruct the cumulative state from the feature base, merged slices, and the current candidate, and record the reconstruction method. Return `BLOCKED` instead of guessing when reconstruction is impossible.
+
+The verdict stays `VERIFIED` or `BLOCKED`. A multi-slice verdict names the slice it covers.
+
 ## Risk classification
 
 Classify the complete candidate before semantic review. The following are behavior-bearing and require semantic review: code, executable automation, infrastructure, Kubernetes, CI, permissions or security configuration, dependencies or runtime configuration, and Pi prompts, skills, extensions, or instructions. A Markdown extension alone does not make a change non-behavioral.
@@ -41,7 +50,7 @@ Select and run only read-only, non-fixing checks. Record every layer as selected
 5. For chezmoi-managed changes, run targeted `chezmoi --source <resolved-worktree> diff <affected-targets>`. Never run `chezmoi apply`.
 6. Inspect commands introduced by a suspicious or untrusted candidate before executing them. If their safety cannot be established, report the command and return `BLOCKED`.
 
-For plan-backed work, trace every Given/When/Then acceptance scenario to an implementation path, an observable automated test or supported executable check, and fresh passing output. Confirm the requirement, implementation, and test/check agree on the observable outcome. A scenario-shaped test that does not observe its stated result, missing coverage, contradictory implementation, or failed command is `BLOCKED`. Summarize passing requirements concisely; show scenario-level detail for gaps.
+For plan-backed work, trace every in-scope Given/When/Then acceptance scenario (the current slice's scenarios for a grouped plan, per Slice scope) to an implementation path, an observable automated test or supported executable check, and fresh passing output. Confirm the requirement, implementation, and test/check agree on the observable outcome. A scenario-shaped test that does not observe its stated result, missing coverage, contradictory implementation, or failed command is `BLOCKED`. Summarize passing requirements concisely; show scenario-level detail for gaps.
 
 ## Independent semantic review
 

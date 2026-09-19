@@ -35,6 +35,21 @@ test("brainstorm records skill provenance before approval and in design specs", 
   ]);
 });
 
+test("brainstorm anchors the design to the smallest user-feedback slice", () => {
+  const text = prompt("brainstorm.md");
+
+  requireMarkers(text, [
+    /Smallest user-feedback slice:/,
+    /what the user sees.*what the team learns.*why no smaller slice/is,
+    /select the one whose smallest slice produces user feedback fastest/i,
+    /non-selected design.*non-goal or a deferred item with a revisit trigger/is,
+    /do not merge designs to satisfy more stakeholders/i,
+    /better long-term design is not a reason to widen/i,
+    /smallest user-feedback slice and the deferred alternatives/is,
+    /non-selected alternatives are deferred rather than merged/i,
+  ]);
+});
+
 test("plan records skill provenance before approval and in durable plans", () => {
   const text = prompt("plan.md");
 
@@ -43,6 +58,22 @@ test("plan records skill provenance before approval and in durable plans", () =>
     /planning alignment brief.*must include `Skills loaded and used`/is,
     /durable plan.*must include `Skills loaded and used`/is,
     /## Skills loaded and used/,
+  ]);
+});
+
+test("plan anchors scope to the smallest user-feedback slice with conditional grouping", () => {
+  const text = prompt("plan.md");
+
+  requireMarkers(text, [
+    /Smallest user-feedback slice:/,
+    /\*\*Smallest user-feedback slice:\*\*/,
+    /### Slice N: <title>/,
+    /only when the plan needs more than one shippable slice/i,
+    /slice 1 is the smallest user-feedback slice/i,
+    /task outside the current slice is a follow-up/i,
+    /`Final verification` item naming the feature-level acceptance criteria/i,
+    /slice grouping is used only when the plan needs it/i,
+    /scope beyond the smallest.*explicitly deferred/is,
   ]);
 });
 
@@ -56,6 +87,47 @@ test("brainstorm and plan stay within prompt context budgets", () => {
     const actualBytes = Buffer.byteLength(prompt(file), "utf8");
     assert.ok(actualBytes <= budgetBytes, `${file} is ${actualBytes} bytes; budget is ${budgetBytes}`);
   }
+});
+
+test("systematic review challenges scope against the smallest user-feedback slice", () => {
+  const text = prompt("systematic-review.md");
+
+  requireMarkers(text, [
+    /smallest user-feedback slice is named and is slice 1/i,
+    /every requirement and task maps to a slice, unless it is explicitly deferred as a follow-up/i,
+    /re-entered from an alternative design or a prior review is deferred with a revisit trigger/i,
+    /enough feature-level criteria for the final verification/i,
+    /smallest user-feedback slice, not only against the design/i,
+    /recommend deferral by default/i,
+  ]);
+});
+
+test("execute runs one incomplete slice per run for grouped plans", () => {
+  const text = prompt("execute.md");
+
+  requireMarkers(text, [
+    /no slice grouping executes all tasks as today and hands off once/i,
+    /first slice with incomplete tasks, and execute only that slice/i,
+    /do not auto-run the remaining slices/i,
+    /resumes at the next incomplete slice/i,
+    /user names a slice.*no incomplete blockers/is,
+    /stack-split check applied to the slice/i,
+    /one verified slice increment/i,
+  ]);
+});
+
+test("verify scopes grouped plans to the slice and runs a final feature pass", () => {
+  const text = prompt("verify.md");
+
+  requireMarkers(text, [
+    /no slice grouping verifies every acceptance scenario as today/i,
+    /deferred to slice N/,
+    /feature-level criteria against the design goals/i,
+    /reconstruct the cumulative state from the feature base, merged slices, and the current candidate/i,
+    /record the reconstruction method/i,
+    /return `BLOCKED` instead of guessing when reconstruction is impossible/i,
+    /multi-slice verdict names the slice it covers/i,
+  ]);
 });
 
 test("brainstorm and plan preserve dependency-aware lifecycle contracts", () => {

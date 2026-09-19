@@ -49,6 +49,11 @@ For testable behavior, default to red-green-refactor: write or run the focused f
 
 Do not leave the work 80% done. Complete the current approved slice, including tests, docs impact, verification, and PR readiness, or stop with a clear blocker.
 
+## Slice execution
+A plan with no slice grouping executes all tasks as today and hands off once.
+
+For a plan with `### Slice N` headings, read the plan, find the first slice with incomplete tasks, and execute only that slice. After the slice's verification passes and you update the ledger, stop and hand off; do not auto-run the remaining slices. A later `/execute` on the same plan resumes at the next incomplete slice. If the user names a slice in the extra instructions, execute that slice when it has no incomplete blockers. A slice ships as one or more pull requests with the existing stack-split check applied to the slice. For a multi-slice plan, the terminal state is one verified slice increment with the plan updated as the ledger.
+
 ## Workflow
 1. **Setup —** Resolve and read the plan completely, or classify the bare prompt as trivial before editing.
 2. Satisfy the worktree policy before changing files.
@@ -70,11 +75,11 @@ Do not leave the work 80% done. Complete the current approved slice, including t
 8. If lifecycle docs are uncommitted or untracked, recover only when all of these are true: the only uncommitted changes are under `plans/<ticket-or-feature>/`, the files are present, and the docs are new or modified only as expected lifecycle artifacts. Commit the design first when present, then the plan, staging only the relevant file per commit. If recovery cannot safely create separate commits, stop and ask.
 9. Stop and ask if there are any uncommitted changes after recovery. The plan ledger starts committed; execution may update it once work begins.
 10. Report any concerns and ask for direction before modifying files unless the work is clearly trivial and unambiguous.
-11. **Execute —** Execute tasks in order. For bare-prompt trivial work, execute the single approved change.
+11. **Execute —** Execute tasks in order. For a grouped plan, execute only the first slice with incomplete tasks and stop after it, per Slice execution. For bare-prompt trivial work, execute the single approved change.
 12. For each task, update plan checkboxes as work progresses, run the specified verification, and mark steps complete only after verification passes. For plan-based work, maintain an `### Execution` subsection under `## Skills loaded and used` with a `Skill | Source | Why loaded | How used` table, preserving the planning record. If no execution skill was needed, record that explicitly. For trivial bare prompts, track progress and the same skill provenance in chat instead of a plan file.
 13. Complete the plan's documentation and future-agent guidance task, including every required `AGENTS.md` inspection. For trivial bare prompts, explicitly decide whether docs are unnecessary.
 14. **Prepare verification handoff —** Run the final implementation-evidence commands and inspect `git status`.
-15. Review plan fidelity: all tasks complete, requirements met, no unapproved scope added, and deviations documented in the plan ledger.
+15. Review plan fidelity: every task in the current execution unit is complete and its requirements are met, no unapproved scope added, and deviations documented in the plan ledger.
 16. Before opening a PR, evaluate the completed work against the stack-split signals from the `reviewable-pr-workflow` skill:
    - Strong signals: 2+ distinct subsystems that could ship independently; more than ~400 net lines of non-generated, non-test code; more than ~15 non-generated files.
    - Soft signals: reviewer guide would need more than five topics; commits fall into independent groups; branch mixes refactor, feature, and behavior change.
@@ -174,7 +179,7 @@ Use the plan file as the progress ledger:
 For bare-prompt trivial work, report progress in chat and do not create a plan ledger.
 
 ## Handoff
-After all tasks are complete, implementation-evidence commands pass, `git status` has been inspected, and the draft PR is opened, summarize changed files, commands and outcomes, skills loaded and used with their source, loading reason, and effect on execution, and follow-up items. Do not claim final independent verification.
+After the current execution unit is complete (all tasks, or the current slice for a grouped plan), implementation-evidence commands pass, `git status` has been inspected, and the draft PR is opened, summarize changed files, commands and outcomes, skills loaded and used with their source, loading reason, and effect on execution, and follow-up items. Do not claim final independent verification.
 
 Then emit this copy-paste handoff, naming the implementation model from the injected `## Current Model` context. Carry its stable model ID in the `/verify` command so it survives `/new`. If the context is absent, state that no implementation model was available; do not invent one.
 

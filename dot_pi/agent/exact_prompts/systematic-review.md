@@ -52,6 +52,10 @@ Also argue against the design: explain what you would do differently, why, and t
 For `plan.md` targets, check that:
 
 - every requirement maps to a task or explicit follow-up
+- the smallest user-feedback slice is named and is slice 1
+- every requirement and task maps to a slice, unless it is explicitly deferred as a follow-up
+- scope that re-entered from an alternative design or a prior review is deferred with a revisit trigger
+- the plan carries enough feature-level criteria for the final verification
 - acceptance requirements are expressed as testable scenarios, each mapped to at least one task
 - tasks are vertical, ordered safely, and independently verifiable
 - each task includes a focused failing test or an explicit reason one is not practical
@@ -64,6 +68,8 @@ For `plan.md` targets, check that:
 - `## Skills loaded and used` records each skill applied during planning, its source, why it was loaded, and how it informed the plan, or explicitly records that none were needed
 - stop conditions, assumptions, and scope boundaries are explicit
 - no placeholders, contradictions, duplicated work, or bloated instructions remain
+
+Challenge scope against the smallest user-feedback slice, not only against the design, because the design can itself carry the creep. When scope exceeds that slice, recommend deferral by default.
 
 ## Method
 

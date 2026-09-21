@@ -1,5 +1,5 @@
 ---
-description: Explore a problem as a thinking partner before planning
+description: Explore a problem as a thinking partner and coach before planning
 argument-hint: "[idea or problem]"
 ---
 # Brainstorm
@@ -25,7 +25,7 @@ Follow these rules:
 
 1. Assess scope before exploring solutions.
 2. Ask one question at a time: choose the question that most reduces uncertainty or scope risk.
-3. Investigate facts available from tools and source-of-truth material; ask the user for decisions, priorities, or unavailable context.
+3. Investigate facts available from tools and source-of-truth material; ask the user for decisions, priorities, or unavailable context. `## Coaching` questions may also test understanding of those facts.
 4. Separate known facts, assumptions, guesses, open questions, and decisions already made.
 5. Identify observable success criteria and the evidence that would validate them.
 6. Do not move to planning or execution until the user confirms the framing.
@@ -34,17 +34,22 @@ Treat exploration as a dependency-aware decision tree. Each answer or discovery 
 
 Finish each material branch as accepted, rejected, deferred, blocked on named evidence, or split into a smaller slice. Converge when every material branch has one of these states and no material assumption remains implicit. Useful branches include audience and pain, desired outcome, proposed solution, constraints, success and validation, alternatives, failure modes, rollout/reversibility, and ownership/maintenance.
 
-When useful, include a recommendation as a strawman:
+Offer recommendations and strawmen after the user has reasoned about a question, not with it; see `## Coaching`.
 
-```md
-## Question
-[focused decision]
+Do not ask generic questions, long questionnaires, or lookup chores that code, tests, docs, tickets, logs, metrics, PRs, or repository guidance can answer cheaply. Do not produce a polished solution before the problem is understood.
 
-## Recommended answer
-I recommend ... because ...
-```
+## Coaching
+Before your first response, read the `learning-opportunities` skill and apply its questioning techniques throughout the session. Coaching is the default, not a separate exercise flow: do not offer standalone exercises; the skill's exercise limit does not cap brainstorming questions. If the skill is unavailable, say so, keep these questioning rules, and do not claim the skill was loaded.
 
-Do not ask generic questions, long questionnaires, or questions that code, tests, docs, tickets, logs, metrics, PRs, or repository guidance can answer cheaply. Do not produce a polished solution before the problem is understood.
+Ask before explaining. End a coaching question turn after the question: no recommended answer, leading hint, or solution menu until the user has attempted an answer or asked for help. Wrong predictions are useful data.
+
+Research stays your job: investigate source-answerable facts with tools instead of assigning lookup chores, but ask the user to predict or explain them before revealing the answer. A prediction is not evidence.
+
+After the user's attempt, give direct feedback: confirm what was right, correct the specific error with evidence, and do not attribute insights the user did not express. Contribute analysis and recommendations after the user's reasoning, not before it.
+
+Broaden the search. When the user anchors on one direction, introduce a materially different framing or approach — another stakeholder's view, a changed constraint, a reversed assumption, doing nothing, or a simpler alternative — and elicit the user's reasoning about its tradeoffs before closing the branch.
+
+Be persistent, not obstructive. Adapt question difficulty to demonstrated familiarity, follow material gaps, and stop repeating settled questions. If the user asks for an explanation, explain. If the user asks to stop coaching, stop; keep unresolved decisions explicit and the approval gate unchanged. Questions must fit the user's problem and demonstrated familiarity; do not impose an irrelevant stack or a fixed checklist.
 
 ## First response and scope
 In the first response, restate the problem, list assumptions, classify scope, push back when needed, and ask the single most important question. Keep it concise:
@@ -68,6 +73,8 @@ Why:
 ## First question
 ...
 ```
+
+The first question follows `## Coaching`.
 
 Classify scope as:
 
@@ -179,7 +186,7 @@ When creating or updating `design.md`:
 
 1. Fetch the latest default branch and use a feature worktree based on it. Continue in the correct existing worktree; never write or commit the design on `main` or `master`. Use `maruina/<ticket-or-feature>` and repository-specific worktree guidance.
 2. Write `plans/<ticket-or-feature>/design.md`, preferably under the relevant package in a monorepo.
-3. Include the confirmed alignment brief plus context reviewed, goals and non-goals, assumptions, the smallest user-feedback slice and the deferred alternatives, design overview, alternatives, risks and mitigations, operability, rollout/rollback, security and data handling, testing strategy, and open questions. Preserve skill provenance and add skills used while writing or reviewing the spec.
+3. Include the confirmed alignment brief plus context reviewed, goals and non-goals, assumptions, the smallest user-feedback slice and the deferred alternatives, design overview, alternatives, risks and mitigations, operability, rollout/rollback, security and data handling, testing strategy, and open questions. Preserve skill provenance and add skills used while writing or reviewing the spec. Write for a reader outside the conversation: explain context, domain terms, and current behavior where relevant. The design is a synthesis, not a transcript or quiz report; omit coaching exchanges and question history.
 4. Self-review as a skeptical staff engineer. The chosen direction must name at least one downside, and every considered alternative must name a genuine merit. Check that the smallest user-feedback slice produces user feedback and that non-selected alternatives are deferred rather than merged. Fix blocking issues inline and record material rejected findings with rationale.
 5. Commit only the design with `docs: add <ticket-or-feature> design`. Stop rather than commit on `main` or `master` or with unrelated changes.
 

@@ -20,6 +20,15 @@
 | `learning-opportunities` | user-requested | User requested the existing learning skill | Applied generation before explanation, pause for input, evidence-backed correction, and adaptive difficulty; read its learning principles before adapting its use. |
 | `obsidian-cli` | prompt-required | Required advisory learning lookup | Read the learning store through Obsidian and passed it locally through the section selector. |
 
+### Execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `skill-loader` | prompt-required | Required before editing | Selected `chezmoi` and `write` for the affected files; no Go/TS/shell/Terraform triggers matched. |
+| `resolve-worktree` | prompt-required | Plan path resolution | Resolved the absolute plan path to this feature worktree and confirmed branch and clean status. |
+| `chezmoi` | skill-loader | Chezmoi-managed source files | Kept edits source-only; ran the targeted `chezmoi --source diff` preview; no apply (post-verdict rollout). |
+| `write` | skill-loader | Human-facing prompt prose | Kept the revision literal, replaced conflicting rules instead of appending parallel ones, and trimmed filler to meet the byte budget. |
+| `learning-opportunities` | prompt-required (plan Task 1) | Task requires reading the vendored skill and principles as repository content | Read `SKILL.md` and `PRINCIPLES.md` to integrate generation-before-explanation, hard pause, feedback, and adaptive difficulty into the prompt without copying the skill; not a standalone exercise load. |
+
 ## Source and confirmed alignment
 The source of truth is the user's request and subsequent clarification, not an existing design. This work starts directly at `/plan`; no sibling `design.md` is required. The user confirmed the revised alignment with “Yes, agree.”
 
@@ -182,13 +191,18 @@ The prompt SHALL synthesize agreed reasoning into a design that explains context
 **Traces to:** R1–R6 and the confirmed one-slice scope.
 **Files:** Modify `dot_pi/agent/exact_prompts/brainstorm.md` and `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`; record results in `plans/brainstorm-thinking-coach/plan.md`.
 
-- [ ] Read the current prompt, learning skill, principles, lifecycle tests, and learning prompt tests. Use LSP before changing known JavaScript symbols; no helper API change is needed.
-- [ ] Extend the existing tests with instruction contracts for R1–R6, including skill loading, integrated versus standalone exercises, question-and-pause behavior, source-answerable questions, direct correction, alternative exploration, help/stop behavior, generic design coverage, and human-readable synthesis.
-- [ ] Run `node --test dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`; expect the new cases to fail for absent or conflicting coaching instructions, not test errors. Record the failing cases.
-- [ ] Make the smallest coherent prompt revision. Replace conflicting recommendation and lookup rules, integrate the skill without copying it, retain ordinary decision guidance after user reasoning, and preserve all listed constraints.
-- [ ] Run `node --test dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs dot_pi/agent/exact_scripts/learn-prompts.test.mjs`; expect all tests to pass, including the unchanged 14,000-byte budget and lifecycle gates.
-- [ ] Refactor wording only after green, then rerun the focused command. Use applicable LSP diagnostics after JavaScript edits.
-- [ ] Run M1–M3 below against the candidate. Fix observed violations within scope and rerun affected checks; record remaining blockers instead of declaring success from static tests.
+- [x] Read the current prompt, learning skill, principles, lifecycle tests, and learning prompt tests. Use LSP before changing known JavaScript symbols; no helper API change is needed.
+- [x] Extend the existing tests with instruction contracts for R1–R6, including skill loading, integrated versus standalone exercises, question-and-pause behavior, source-answerable questions, direct correction, alternative exploration, help/stop behavior, generic design coverage, and human-readable synthesis.
+- [x] Run `node --test dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`; expect the new cases to fail for absent or conflicting coaching instructions, not test errors. Record the failing cases.
+  - 2026-09-21: exactly the 6 new tests failed with marker assertions (21 total: 15 pass, 6 fail): `brainstorm loads the learning skill for integrated coaching by default`, `brainstorm asks before explaining and pauses for an attempt`, `brainstorm tests understanding and corrects it with evidence`, `brainstorm broadens exploration with materially different directions`, `brainstorm persists productively and preserves user control`, `brainstorm synthesizes a design for human readers`. No test errors; existing 15 stayed green.
+- [x] Make the smallest coherent prompt revision. Replace conflicting recommendation and lookup rules, integrate the skill without copying it, retain ordinary decision guidance after user reasoning, and preserve all listed constraints.
+  - 2026-09-21: added `## Coaching` section; replaced the pre-attempt `## Recommended answer` strawman with post-reasoning recommendations; replaced the blanket lookup-question ban with a lookup-chore ban; tied rule 3, the first response, and the design artifact to the coaching and reader contracts. First draft was 14,137 bytes; trimmed own additions to 13,978 without removing safeguards.
+- [x] Run `node --test dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs dot_pi/agent/exact_scripts/learn-prompts.test.mjs`; expect all tests to pass, including the unchanged 14,000-byte budget and lifecycle gates.
+  - 2026-09-21: 30/30 pass (24 pre-existing + 6 new); brainstorm.md is 13,978 bytes.
+- [x] Refactor wording only after green, then rerun the focused command. Use applicable LSP diagnostics after JavaScript edits.
+  - 2026-09-21: no post-green refactor needed; budget trims were pre-green and recorded above. Focused command rerun after the revision: 30/30 pass. LSP diagnostics deferred until `npm ci` installs TypeScript (Task 2).
+- [x] Run M1–M3 below against the candidate. Fix observed violations within scope and rerun affected checks; record remaining blockers instead of declaring success from static tests.
+  - 2026-09-21: DEVIATION — user explicitly waived M1–M3 ("Forget about M1–M3 checks, I'll run the prompt myself and make future adjustments"). Conversational acceptance for R1–R6 is NOT established by this execution; only the structural contract evidence stands. The user runs the candidate themselves and owns any follow-up adjustments.
 
 ### Task 2: Review guidance and prepare the independent verification handoff
 **Delivers:** A documented candidate with passing implementation evidence and a safe rollout procedure.
@@ -196,12 +210,18 @@ The prompt SHALL synthesize agreed reasoning into a design that explains context
 **Traces to:** R1–R6, the documentation requirement, and repository completion rules.
 **Files:** Review `AGENTS.md`, `dot_pi/agent/AGENTS.md`, `dot_pi/agent/exact_skills/learning-opportunities/VENDOR.md`, and `dot_pi/agent/exact_prompts/sync-vendored-skills.md`; update execution records only in `plans/brainstorm-thinking-coach/plan.md`. The implementation files remain the two from Task 1.
 
-- [ ] Review both relevant `AGENTS.md` files and record why no update is needed: lifecycle behavior stays in the prompt and no durable command or testing procedure changes. The existing prompt is the user-facing documentation; there is no separate applicable README, runbook, generated reference, or API document to update. Leave vendoring and sync instructions unchanged.
-- [ ] From `dot_pi/agent`, run `npm ci --ignore-scripts`, then `npm test` and `npm run test:all`; expect all suites to pass and the offline startup smoke test to report no extension issues. Keep source dependencies available for the independent verifier's fresh reruns; cleanup belongs to the post-verdict procedure above.
-- [ ] Record R1–R6 outcomes, source commit, model/thinking level, and M1–M3 observations in this plan. Do not include raw session logs, vault content, or claims of durable learning improvement. An unavailable model session is a validation blocker, not a pass.
-- [ ] Run `git diff --check`; expect no whitespace errors. Review the diff against the allowed files and the approved scope.
-- [ ] From the repository root, run `chezmoi --source "$PWD" diff ~/.pi/agent/prompts/brainstorm.md ~/.pi/agent/scripts/lifecycle-prompts.test.mjs`; expect only the reviewed coaching and contract-test changes. Stop for unrelated target drift; do not apply yet.
-- [ ] After the implementation-evidence checks pass, commit the candidate and execution record with `feat(pi): make brainstorm an active thinking coach`. Follow the standard `/execute` push, draft-PR, and model-separated verification handoff. Do not claim the final independent verdict or perform the post-verdict rollout inside `/verify`.
+- [x] Review both relevant `AGENTS.md` files and record why no update is needed: lifecycle behavior stays in the prompt and no durable command or testing procedure changes. The existing prompt is the user-facing documentation; there is no separate applicable README, runbook, generated reference, or API document to update. Leave vendoring and sync instructions unchanged.
+  - 2026-09-21: reviewed root `AGENTS.md` and `dot_pi/agent/AGENTS.md`: the lifecycle section names stages only, each prompt is the source of truth for its stage, and the coaching contract lives entirely in `brainstorm.md`; no command, script, or testing procedure changed (same npm scripts, same 14,000-byte budget). Reviewed `VENDOR.md` and `sync-vendored-skills.md`: the vendored skill is untouched, so sync instructions still apply unchanged.
+- [x] From `dot_pi/agent`, run `npm ci --ignore-scripts`, then `npm test` and `npm run test:all`; expect all suites to pass and the offline startup smoke test to report no extension issues. Keep source dependencies available for the independent verifier's fresh reruns; cleanup belongs to the post-verdict procedure above.
+  - 2026-09-21: `npm ci --ignore-scripts` clean; `npm test` green (136/136 unit, 40/40 prompts, 38 skills validated, pi-deps passed); `npm run test:all` green including offline smoke (exit 0, no extension issues). `lsp_diagnostics` on `lifecycle-prompts.test.mjs`: no diagnostics. `node_modules` kept for the verifier.
+- [x] Record R1–R6 outcomes, source commit, model/thinking level, and M1–M3 observations in this plan. Do not include raw session logs, vault content, or claims of durable learning improvement. An unavailable model session is a validation blocker, not a pass.
+  - 2026-09-21: R1–R6 structural outcomes: six new contract tests red before the revision (missing coaching instructions), green after; all 24 pre-existing lifecycle/learn tests stayed green; full prompt suite 40/40. R1 (skill load + question-and-pause), R2 (prediction, evidence-backed correction), R3 (alternative exploration), R4 (help/stop control), R5 (generic + operational completeness), R6 (reader-focused synthesis) are protected by instruction-contract markers only. Source base commit: `3edc0c6`; candidate commit recorded below after commit. Model/thinking level and M1–M3 observations: none — the user waived the conversational checks and will run the candidate themselves; conversational acceptance is explicitly unestablished, not blocked by an unavailable model.
+- [x] Run `git diff --check`; expect no whitespace errors. Review the diff against the allowed files and the approved scope.
+  - 2026-09-21: no whitespace errors; diff touches only `dot_pi/agent/exact_prompts/brainstorm.md` (+17/−12), `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs` (+81), and this plan.
+- [x] From the repository root, run `chezmoi --source "$PWD" diff ~/.pi/agent/prompts/brainstorm.md ~/.pi/agent/scripts/lifecycle-prompts.test.mjs`; expect only the reviewed coaching and contract-test changes. Stop for unrelated target drift; do not apply yet.
+  - 2026-09-21: preview shows only the reviewed coaching and contract-test changes on both targets; no unrelated drift. Not applied; apply is the post-verdict rollout.
+- [x] After the implementation-evidence checks pass, commit the candidate and execution record with `feat(pi): make brainstorm an active thinking coach`. Follow the standard `/execute` push, draft-PR, and model-separated verification handoff. Do not claim the final independent verdict or perform the post-verdict rollout inside `/verify`.
+  - 2026-09-21: candidate and this record committed on `maruina/brainstorm-thinking-coach`; draft PR https://github.com/maruina/dotfiles/pull/80 opened with reviewer guide and one `@codex review` trigger. No verdict claimed; no rollout applied.
 
 ## Manual Conversation Checks
 ### Setup, invocation, and evidence limits

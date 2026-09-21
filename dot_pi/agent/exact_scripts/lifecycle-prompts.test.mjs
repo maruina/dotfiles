@@ -50,6 +50,87 @@ test("brainstorm anchors the design to the smallest user-feedback slice", () => 
   ]);
 });
 
+test("brainstorm loads the learning skill for integrated coaching by default", () => {
+  const text = prompt("brainstorm.md");
+
+  requireMarkers(text, [
+    /learning-opportunities/,
+    /coaching is the default/i,
+    /not a separate exercise/i,
+    /exercise limit does not cap/i,
+    /skill is unavailable.*say so/is,
+    /do not claim the skill was loaded/i,
+  ]);
+});
+
+test("brainstorm asks before explaining and pauses for an attempt", () => {
+  const text = prompt("brainstorm.md");
+
+  requireMarkers(text, [
+    /ask before explaining/i,
+    /end a coaching question turn after the question/i,
+    /no recommended answer, leading hint, or solution menu/i,
+    /attempted an answer or asked for help/i,
+    /wrong predictions are useful data/i,
+  ]);
+
+  // The pre-attempt recommended-answer pattern conflicts with the pause.
+  assert.doesNotMatch(text, /## Recommended answer/);
+});
+
+test("brainstorm tests understanding and corrects it with evidence", () => {
+  const text = prompt("brainstorm.md");
+
+  requireMarkers(text, [
+    /predict or explain/i,
+    /prediction is not evidence/i,
+    /correct the specific error with evidence/i,
+    /do not attribute insights the user did not express/i,
+    /lookup chores/i,
+  ]);
+
+  // The unconditional ban on source-answerable questions is replaced.
+  assert.doesNotMatch(text, /questions that code, tests, docs[^\n]*can answer cheaply/i);
+});
+
+test("brainstorm broadens exploration with materially different directions", () => {
+  const text = prompt("brainstorm.md");
+
+  requireMarkers(text, [
+    /anchors on one direction/i,
+    /materially different framing or approach/i,
+    /stakeholder.*changed constraint.*reversed assumption/is,
+    /doing nothing/i,
+    /simpler alternative/i,
+    /tradeoffs before closing the branch/i,
+  ]);
+});
+
+test("brainstorm persists productively and preserves user control", () => {
+  const text = prompt("brainstorm.md");
+
+  requireMarkers(text, [
+    /persistent, not obstructive/i,
+    /adapt question difficulty to demonstrated familiarity/i,
+    /stop repeating settled questions/i,
+    /asks for an explanation, explain/i,
+    /asks to stop coaching, stop/i,
+    /unresolved decisions explicit/i,
+    /fit the user's problem and demonstrated familiarity/i,
+    /irrelevant stack|fixed checklist/i,
+  ]);
+});
+
+test("brainstorm synthesizes a design for human readers", () => {
+  const text = prompt("brainstorm.md");
+
+  requireMarkers(text, [
+    /reader outside the conversation/i,
+    /domain terms/i,
+    /synthesis, not a transcript/i,
+  ]);
+});
+
 test("plan records skill provenance before approval and in durable plans", () => {
   const text = prompt("plan.md");
 

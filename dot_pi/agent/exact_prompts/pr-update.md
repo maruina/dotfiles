@@ -40,7 +40,10 @@ For a stack, inspect affected descendants before rewriting. Restack and push onl
 Read the current body and final branch state. Preserve accurate handwritten content and replace stale generated content in place. This command is idempotent:
 - keep at most one `## Lessons learned` and one `## Evidence` section;
 - remove stale `## Changes since last review` content rather than accumulating a changelog;
-- regenerate reviewer-guide commit links after any rewrite;
+- reassess the reviewer guide against the full PR diff and relevant review discussion, not only the latest commits;
+- retain unresolved review questions, remove resolved or obsolete concerns, and add concerns introduced by the update;
+- refresh code references and order the remaining concerns by importance;
+- preserve accurate handwritten context without accumulating a review-history log;
 - refresh the stack-navigation block for every affected stacked PR.
 
 Use the `reviewable-pr-workflow` body template. Include `## Lessons learned` only for reviewer-relevant surprises or tradeoffs. Include `## Evidence` only when external artifacts help reviewers verify or understand the change.
@@ -58,4 +61,4 @@ Include `--title <new-title>` only after approval or an explicit title-update re
 ## Report
 Report per the workflow skill, plus:
 - title and generated-section changes;
-- reviewer-guide links regenerated.
+- reviewer-guide concerns added, resolved, or retained.

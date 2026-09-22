@@ -5,7 +5,7 @@ description: "Create and update GitHub PRs that are easy, fast, and confidence-b
 # Reviewable PR Workflow
 Use when creating, updating, splitting, restacking, cleaning up, or reviewing a GitHub PR.
 
-Goal: make the PR easy to review. When authoring the PR title or body (the `## What`/`## Why` narrative and reviewer-guide prose), read `write` and apply its plain-language principles. The reviewer should see the motivation, focused scope, reading order, evidence, tests, and no accidental commit noise.
+Goal: make the PR easy to review. When authoring the PR title or body (the `## What`/`## Why` narrative and reviewer-guide prose), read `write` and apply its plain-language principles. The reviewer should see the motivation, focused scope, review priorities, evidence, tests, and no accidental commit noise.
 
 ## Core principle
 Treat a PR as a review artifact. Because PRs are squash-merged, branch commits should tell the best review story, not preserve every intermediate mistake.
@@ -16,7 +16,7 @@ The boundary is **human review state**, not whether the PR is open.
 Before human review starts:
 - Rewrite freely to improve reviewability: rebase, squash, fixup, split, reorder, drop accidental files, and restack.
 - Push rewritten branches with `git push --force-with-lease`.
-- Regenerate reviewer-guide commit links from final pushed SHAs.
+- Refresh reviewer-guide code references against the final pushed branch.
 
 After human review starts:
 - Preserve branch history by default.
@@ -35,8 +35,8 @@ A reviewable PR has:
 - a title that says what changed,
 - a `## What` section with the final state,
 - a `## Why` section with motivation and tradeoffs,
-- a reviewer guide with reading order and scrutiny points,
-- commits that match the guide,
+- a reviewer guide with prioritized concerns and specific review questions,
+- independently understandable commits,
 - tests or validation notes,
 - evidence links when external proof helps,
 - no accidental files, temporary scripts, noisy fixups, or confusing commit order before review.
@@ -91,6 +91,22 @@ Stacked PR bodies start with:
 
 Keep labels short, list PRs in dependency order, and keep the block consistent across the stack.
 
+## Reviewer guide
+Direct the human reviewer to the parts of the change that most need careful inspection or a second opinion. Organize the guide by review concern, not by commit or file order.
+
+Use a short, prioritized list. For each item:
+- identify the behavior or decision and the relevant files or symbols;
+- explain why it needs attention: a failure consequence, subtle edge case, complex interaction, uncertain assumption, or unfamiliar pattern;
+- state the specific check or question for the reviewer.
+
+Consider boundary conditions, failure paths, concurrency, compatibility, rollout behavior, test gaps, design tradeoffs, and departures from established patterns. Include only concerns supported by the diff, design context, tests, or review discussion.
+
+Distinguish known behavior from assumptions and open questions. Make requests for a second opinion explicit. Do not invent uncertainty or risks to fill the section.
+
+Prefer one to five focused bullets, with the highest-impact concerns first. Do not repeat the change summary, enumerate commits, or add generic requests such as "check correctness." Use file, symbol, or test references for navigation; links are optional.
+
+If no area needs special attention, say so briefly rather than manufacturing review topics.
+
 ## PR body template
 ```markdown
 ## What
@@ -106,11 +122,9 @@ When the motivation involves a process, data flow, or non-obvious transformation
 Keep one concept per diagram, and skip the illustration for trivial changes where prose is already clear.
 
 ## Reviewer guide
-> Read the commits in this order. Open each via its link below and comment there — those are first-class PR review comments. Do **not** open commits via the `/commit/<sha>` URL; comments there do not show up in the PR.
-
-| # | Commit | Files | What to look for |
-|---|--------|-------|------------------|
-| 1 | [short-sha](https://github.com/<owner>/<repo>/pull/<pr-number>/changes/<full-sha>) | `file.go` | specific scrutiny |
+- **<Concern>** — In `<file or symbol>`, <behavior or decision>.
+  <Why it needs attention>. Verify <specific property>, or give a
+  second opinion on <explicit question>.
 
 ## Evidence
 - Links or commands that support the change.

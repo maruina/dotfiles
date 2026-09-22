@@ -312,6 +312,50 @@ test("weekly summary has no obsolete session-note command reference", () => {
   assert.doesNotMatch(prompt("weekly-summary.md"), /\/prompt:session-note|\/session-note/);
 });
 
+test("reviewer guides prioritize concrete concerns rather than commits", () => {
+  const skillsDir = existsSync(path.join(agentDir, "exact_skills")) ? "exact_skills" : "skills";
+  const skill = readFileSync(path.join(agentDir, skillsDir, "reviewable-pr-workflow", "SKILL.md"), "utf8");
+
+  requireMarkers(skill, [
+    /organize the guide by review concern, not by commit or file order/i,
+    /relevant files or symbols/i,
+    /explain why it needs attention/i,
+    /specific check or question for the reviewer/i,
+    /only concerns supported by the diff, design context, tests, or review discussion/i,
+    /distinguish known behavior from assumptions and open questions/i,
+    /do not invent uncertainty or risks/i,
+    /highest-impact concerns first/i,
+    /if no area needs special attention, say so briefly/i,
+  ]);
+
+  for (const text of [skill, prompt("pr-create.md"), prompt("pr-update.md")]) {
+    assert.doesNotMatch(text, /Read the commits in this order|commits that match the guide/i);
+    assert.doesNotMatch(text, /regenerate reviewer-guide commit links|\| # \| Commit \| Files \|/i);
+    assert.doesNotMatch(text, /\/changes\/<full-sha>/);
+  }
+});
+
+test("PR creation derives review concerns from the change and checks final references", () => {
+  requireMarkers(prompt("pr-create.md"), [
+    /concrete risks, edge cases, complex logic, uncertain assumptions, and design decisions/i,
+    /reviewer-guide rules in `reviewable-pr-workflow`/i,
+    /review concerns and code references match the pushed branch/i,
+    /final reviewer-guide concerns/i,
+  ]);
+});
+
+test("PR updates reassess unresolved concerns without accumulating review history", () => {
+  requireMarkers(prompt("pr-update.md"), [
+    /full PR diff and relevant review discussion, not only the latest commits/i,
+    /retain unresolved review questions/i,
+    /remove resolved or obsolete concerns/i,
+    /add concerns introduced by the update/i,
+    /refresh code references.*order.*by importance/i,
+    /preserve accurate handwritten context without accumulating a review-history log/i,
+    /reviewer-guide concerns added, resolved, or retained/i,
+  ]);
+});
+
 test("PR commands have distinct roles and aligned review artifacts", () => {
   const review = prompt("pr-review.md");
   const addressFeedback = prompt("pr-address-feedback.md");

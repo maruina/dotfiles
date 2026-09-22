@@ -39,7 +39,7 @@ After committing intended changes, rerun the branch-diff commands. If the branch
 Read repository guidance in the root and changed package directories. Locate relevant `plans/**/design.md` and `plans/**/plan.md` artifacts.
 
 ## Phase 2: Prepare a reviewable change
-Read the significant diff and, when present, the design artifact. Identify the PR's purpose, review topics, tests, and evidence. Ignore generated files unless reviewers need to inspect them.
+Read the significant diff and, when present, the design artifact. Identify the PR's purpose, tests, evidence, and the areas where human review adds the most value. Build the reviewer guide from concrete risks, edge cases, complex logic, uncertain assumptions, and design decisions that need a second opinion. Follow the reviewer-guide rules in `reviewable-pr-workflow`. Ignore generated files unless reviewers need to inspect them.
 
 Apply the split and commit-story guidance in `reviewable-pr-workflow`:
 - If the change should be a stack, propose the stack and ask before restructuring it.
@@ -59,11 +59,7 @@ Draft a title and body using the `reviewable-pr-workflow` template. Include an o
 
 Create a draft PR. Prefer git-machete when the branch is in a stack; otherwise use `gh pr create --draft`. Capture its URL and number.
 
-Now that the PR number exists, generate reviewer-guide links in this form and set the final body:
-
-```text
-https://github.com/<owner>/<repo>/pull/<pr-number>/changes/<full-sha>
-```
+Before setting the final body, verify that the review concerns and code references match the pushed branch.
 
 For a stack, fill or refresh the shared navigation block after creating each sibling PR. Run `/pr-update` on earlier stack PRs when later siblings obtain PR numbers.
 
@@ -77,5 +73,5 @@ gh pr comment <pr-url> --body "@codex review"
 Report per the workflow skill, plus:
 - the base branch;
 - whether a stack was proposed;
-- the final reviewer-guide topics;
+- the final reviewer-guide concerns;
 - that the Codex review trigger was posted.

@@ -326,12 +326,13 @@ test("reviewer guides prioritize concrete concerns rather than commits", () => {
     /do not invent uncertainty or risks/i,
     /highest-impact concerns first/i,
     /if no area needs special attention, say so briefly/i,
+    /links are optional/i,
+    /Commit links in reviewer guides must use `\/pull\/<pr>\/changes\/<full-sha>`, never bare `\/commit\/<sha>` links\./,
   ]);
 
   for (const text of [skill, prompt("pr-create.md"), prompt("pr-update.md")]) {
     assert.doesNotMatch(text, /Read the commits in this order|commits that match the guide/i);
     assert.doesNotMatch(text, /regenerate reviewer-guide commit links|\| # \| Commit \| Files \|/i);
-    assert.doesNotMatch(text, /\/changes\/<full-sha>/);
   }
 });
 

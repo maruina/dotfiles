@@ -135,6 +135,8 @@ Keep one concept per diagram, and skip the illustration for trivial changes wher
 
 Omit `## Evidence` when code and tests are enough. Add `## Lessons learned` only for reviewer-relevant surprises or tradeoffs.
 
+Commit links in reviewer guides must use `/pull/<pr>/changes/<full-sha>`, never bare `/commit/<sha>` links.
+
 ## Reporting
 When creating or updating a PR, report:
 - PR URL,

@@ -83,5 +83,8 @@ export async function jiraRequest(opts: JiraRequestOptions): Promise<unknown> {
     throw new Error(`Jira API ${opts.method} ${opts.path} → ${response.status}: ${text.slice(0, 300)}`);
   }
 
-  return response.json();
+  // PUT issue and POST transitions return 204 No Content; JSON.parse on an
+  // empty body would throw.
+  const text = await response.text();
+  return text ? JSON.parse(text) : null;
 }

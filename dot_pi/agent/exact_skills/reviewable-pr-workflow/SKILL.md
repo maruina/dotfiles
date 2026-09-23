@@ -35,7 +35,7 @@ A reviewable PR has:
 - a title that says what changed,
 - a `## What` section with the final state,
 - a `## Why` section with motivation and tradeoffs,
-- a reviewer guide with prioritized concerns and specific review questions,
+- a "What to look for in this PR" section with prioritized concerns and specific review questions,
 - independently understandable commits,
 - tests or validation notes,
 - evidence links when external proof helps,
@@ -91,19 +91,23 @@ Stacked PR bodies start with:
 
 Keep labels short, list PRs in dependency order, and keep the block consistent across the stack.
 
-## Reviewer guide
+## What to look for in this PR
 Direct the human reviewer to the parts of the change that most need careful inspection or a second opinion. Organize the guide by review concern, not by commit or file order.
 
-Use a short, prioritized list. For each item:
-- identify the behavior or decision and the relevant files or symbols;
-- explain why it needs attention: a failure consequence, subtle edge case, complex interaction, uncertain assumption, or unfamiliar pattern;
-- state the specific check or question for the reviewer.
+Use a numbered list with the highest-impact concerns first, so reviewers can reference items by number. For each item, write a bold concern title, then three labeled sub-bullets:
+- **Where:** the relevant files or symbols. Link each `Where` to the file at the PR head SHA, using a blob URL with `#L<line>` anchors so the links survive squash-merge and branch cleanup.
+- **Why it needs human attention:** a failure consequence, subtle edge case, complex interaction, uncertain assumption, or unfamiliar pattern.
+- **What to verify:** state the specific check or question for the reviewer.
+
+Indent the sub-bullets three spaces under the number so GitHub nests the list.
 
 Consider boundary conditions, failure paths, concurrency, compatibility, rollout behavior, test gaps, design tradeoffs, and departures from established patterns. Include only concerns supported by the diff, design context, tests, or review discussion.
 
 Distinguish known behavior from assumptions and open questions. Make requests for a second opinion explicit. Do not invent uncertainty or risks to fill the section.
 
-Prefer one to five focused bullets, with the highest-impact concerns first. Do not repeat the change summary, enumerate commits, or add generic requests such as "check correctness." Use file, symbol, or test references for navigation; links are optional.
+Prefer one to five items. Do not repeat the change summary, enumerate commits, or add generic requests such as "check correctness."
+
+When a PR supersedes another (a stale-bot closure, a deleted and recreated head branch), re-author this section in the current format from the new diff; do not copy the superseded PR's section.
 
 If no area needs special attention, say so briefly rather than manufacturing review topics.
 
@@ -121,10 +125,11 @@ When the motivation involves a process, data flow, or non-obvious transformation
 - a `diff` block for a before/after transformation.
 Keep one concept per diagram, and skip the illustration for trivial changes where prose is already clear.
 
-## Reviewer guide
-- **<Concern>** — In `<file or symbol>`, <behavior or decision>.
-  <Why it needs attention>. Verify <specific property>, or give a
-  second opinion on <explicit question>.
+## What to look for in this PR
+1. **<Concern>**
+   - **Where:** [`<file>:<lines>`](<blob-url-at-the-PR-head-sha>#L<a>-L<b>) — <symbol or block>.
+   - **Why it needs human attention:** <failure consequence, subtle edge case, complex interaction, uncertain assumption, or unfamiliar pattern>.
+   - **What to verify:** <specific check or question for the reviewer>.
 
 ## Evidence
 - Links or commands that support the change.

@@ -318,15 +318,18 @@ test("reviewer guides prioritize concrete concerns rather than commits", () => {
 
   requireMarkers(skill, [
     /organize the guide by review concern, not by commit or file order/i,
+    /## what to look for in this PR/i,
     /relevant files or symbols/i,
-    /explain why it needs attention/i,
+    /why it needs human attention/i,
     /specific check or question for the reviewer/i,
     /only concerns supported by the diff, design context, tests, or review discussion/i,
     /distinguish known behavior from assumptions and open questions/i,
     /do not invent uncertainty or risks/i,
     /highest-impact concerns first/i,
     /if no area needs special attention, say so briefly/i,
-    /links are optional/i,
+    /link each `where` to the file at the PR head SHA/i,
+    /supersedes another/i,
+    /1\. \*\*<Concern>\*\*/,
     /Commit links in reviewer guides must use `\/pull\/<pr>\/changes\/<full-sha>`, never bare `\/commit\/<sha>` links\./,
   ]);
 

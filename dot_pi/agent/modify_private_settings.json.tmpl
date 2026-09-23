@@ -26,16 +26,6 @@ printf '%s\n' "$input" | jq '
     "../../go/src/github.com/DataDog/datadog-pi-packages/packages/session-cost",
     "../../go/src/github.com/DataDog/datadog-pi-packages/packages/research-web"
   ] |
-{{- end }}
-{{- if eq .profile "personal" }}
-  .skills = [
-    "{{ .chezmoi.homeDir }}/.pi/agent/skills_personal"
-  ] |
-  .packages = [
-    "../../go/src/github.com/DataDog/datadog-pi-packages/packages/pi-npm-guard",
-    "../../go/src/github.com/DataDog/datadog-pi-packages/packages/prompt-stash"
-  ] |
-{{- end }}
   .npmCommand = [
     "{{ .chezmoi.homeDir }}/go/src/github.com/DataDog/datadog-pi-packages/packages/pi-npm-guard/bin/pi-npm-guard.mjs"
   ] |
@@ -47,6 +37,15 @@ printf '%s\n' "$input" | jq '
       }
     ]
   } |
+{{- end }}
+{{- if eq .profile "personal" }}
+  .skills = [
+    "{{ .chezmoi.homeDir }}/.pi/agent/skills_personal"
+  ] |
+  .packages = [] |
+  del(.npmCommand) |
+  del(.npmGuard) |
+{{- end }}
   del(.extensions.files) |
   .extensionSettings.files.diffEditor = "zed" |
   .extensionSettings.files.externalEditor = "zed" |

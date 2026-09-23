@@ -17,38 +17,28 @@
       },
       "models": [
         {
-          "id": "openai/gpt-5.6-terra",
-          "name": "GPT-5.6 Terra (OpenAI)",
+          "id": "openai/gpt-6-sol",
+          "name": "GPT-6 Sol (OpenAI)",
           "api": "openai-responses",
           "reasoning": true,
           "input": [
             "text",
             "image"
           ],
-          "contextWindow": 272000,
-          "maxTokens": 128000,
-          "thinkingLevelMap": {
-            "off": "none",
-            "xhigh": "xhigh",
-            "max": "max"
-          }
+          "contextWindow": 400000,
+          "maxTokens": 128000
         },
         {
-          "id": "openai/gpt-5.6-sol",
-          "name": "GPT-5.6 Sol (OpenAI)",
+          "id": "openai/gpt-6-luna",
+          "name": "GPT-6 Luna (OpenAI)",
           "api": "openai-responses",
           "reasoning": true,
           "input": [
             "text",
             "image"
           ],
-          "contextWindow": 272000,
-          "maxTokens": 128000,
-          "thinkingLevelMap": {
-            "off": "none",
-            "xhigh": "xhigh",
-            "max": "max"
-          }
+          "contextWindow": 400000,
+          "maxTokens": 128000
         },
         {
           "id": "openai/gpt-6-astra",
@@ -59,8 +49,17 @@
             "text",
             "image"
           ],
-          "contextWindow": 400000,
-          "maxTokens": 128000
+          "contextWindow": 272000,
+          "maxTokens": 128000,
+          "thinkingLevelMap": {
+            "off": null,
+            "minimal": null,
+            "low": "low",
+            "medium": "medium",
+            "high": "high",
+            "xhigh": "xhigh",
+            "max": "max"
+          }
         }
       ]
     },
@@ -114,23 +113,8 @@
       },
       "models": [
         {
-          "id": "anthropic/claude-sonnet-5",
-          "name": "Claude Sonnet 5 (AI Gateway, 200k)",
-          "api": "anthropic-messages",
-          "reasoning": true,
-          "input": [
-            "text",
-            "image"
-          ],
-          "contextWindow": 200000,
-          "maxTokens": 64000,
-          "compat": {
-            "forceAdaptiveThinking": true
-          }
-        },
-        {
-          "id": "anthropic/claude-opus-5",
-          "name": "Claude Opus 5 (AI Gateway, 200k)",
+          "id": "anthropic/claude-opus-5-5",
+          "name": "Claude Opus 5.5 (AI Gateway, 200k)",
           "api": "anthropic-messages",
           "reasoning": true,
           "input": [
@@ -164,23 +148,8 @@
       },
       "models": [
         {
-          "id": "anthropic/claude-sonnet-5",
-          "name": "Claude Sonnet 5 (AI Gateway, 1M)",
-          "api": "anthropic-messages",
-          "reasoning": true,
-          "input": [
-            "text",
-            "image"
-          ],
-          "contextWindow": 1000000,
-          "maxTokens": 64000,
-          "compat": {
-            "forceAdaptiveThinking": true
-          }
-        },
-        {
-          "id": "anthropic/claude-opus-5",
-          "name": "Claude Opus 5 (AI Gateway, 1M)",
+          "id": "anthropic/claude-opus-5-5",
+          "name": "Claude Opus 5.5 (AI Gateway, 1M)",
           "api": "anthropic-messages",
           "reasoning": true,
           "input": [

@@ -30,8 +30,7 @@ const GEMINI_MAP = { off: null };
 const scopedSet = [
   fixtureModel({ provider: "ai-gw-baseten", id: "baseten/zai-org/GLM-5.3", name: "GLM 5.3 (Baseten)", thinkingLevelMap: GLM_MAP }),
   fixtureModel({ provider: "ai-gw-databricks", id: "databricks/system.ai.kimi-k3", name: "Kimi K3 (Databricks)", thinkingLevelMap: KIMI_MAP }),
-  fixtureModel({ provider: "ai-gw-openai", id: "openai/gpt-5.6-sol", name: "GPT-5.6 Sol (OpenAI)", thinkingLevelMap: SOL_MAP }),
-  fixtureModel({ provider: "ai-gw-openai", id: "openai/gpt-5.6-terra", name: "GPT-5.6 Terra (OpenAI)", thinkingLevelMap: SOL_MAP }),
+  fixtureModel({ provider: "ai-gw-openai", id: "openai/gpt-6-sol", name: "GPT-6 Sol (OpenAI)" }),
   fixtureModel({ provider: "ai-gw-baseten", id: "baseten/zai-org/GLM-5.3-Flash", name: "GLM 5.3 Flash (Baseten)", thinkingLevelMap: GLM_MAP }),
   fixtureModel({ provider: "ai-gw-baseten", id: "baseten/deepseek-ai/DeepSeek-V4-Flash-0731", name: "DeepSeek V4 Flash 0731 (Baseten)", thinkingLevelMap: DEEPSEEK_MAP }),
   fixtureModel({ provider: "ai-gw-google", id: "gemini-3.8-flash", name: "Gemini 3.8 Flash (Google)", thinkingLevelMap: GEMINI_MAP }),
@@ -95,7 +94,7 @@ describe("lifecycle model policy", () => {
   });
 
   it("derives phase pools from the scoped set with tier filters and stable order", () => {
-    const framing = ["baseten/zai-org/GLM-5.3", "databricks/system.ai.kimi-k3", "openai/gpt-5.6-sol", "openai/gpt-5.6-terra"];
+    const framing = ["baseten/zai-org/GLM-5.3", "databricks/system.ai.kimi-k3", "openai/gpt-6-sol"];
     for (const phase of ["/brainstorm", "/plan", "/systematic-review"] as const) {
       assert.deepEqual(poolForPhase(phase, scopedSet).map((model) => model.id), framing, phase);
     }

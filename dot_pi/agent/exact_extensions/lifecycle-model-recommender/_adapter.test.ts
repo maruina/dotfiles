@@ -26,15 +26,13 @@ type RegistryEntry = { name: string; thinkingLevelMap?: Partial<Record<ModelThin
 
 const GLM_MAP = { off: null, minimal: null, low: "low", medium: null, high: "high", xhigh: null, max: "max" };
 const KIMI_MAP = { off: null, low: "low", high: "high", max: "max" };
-const SOL_MAP = { off: "none", xhigh: "xhigh", max: "max" };
 const DEEPSEEK_MAP = { off: "none", minimal: null, low: "low", medium: null, high: "high", xhigh: null, max: null };
 const GEMINI_MAP = { off: null };
 
 const registryModels: Record<string, RegistryEntry> = {
   "ai-gw-baseten/baseten/zai-org/GLM-5.3": { name: "GLM 5.3 (Baseten)", thinkingLevelMap: GLM_MAP },
   "ai-gw-databricks/databricks/system.ai.kimi-k3": { name: "Kimi K3 (Databricks)", thinkingLevelMap: KIMI_MAP },
-  "ai-gw-openai/openai/gpt-5.6-sol": { name: "GPT-5.6 Sol (OpenAI)", thinkingLevelMap: SOL_MAP },
-  "ai-gw-openai/openai/gpt-5.6-terra": { name: "GPT-5.6 Terra (OpenAI)", thinkingLevelMap: SOL_MAP },
+  "ai-gw-openai/openai/gpt-6-sol": { name: "GPT-6 Sol (OpenAI)" },
   "ai-gw-baseten/baseten/zai-org/GLM-5.3-Flash": { name: "GLM 5.3 Flash (Baseten)", thinkingLevelMap: GLM_MAP },
   "ai-gw-baseten/baseten/deepseek-ai/DeepSeek-V4-Flash-0731": { name: "DeepSeek V4 Flash 0731 (Baseten)", thinkingLevelMap: DEEPSEEK_MAP },
   "ai-gw-google/gemini-3.8-flash": { name: "Gemini 3.8 Flash (Google)", thinkingLevelMap: GEMINI_MAP },
@@ -43,8 +41,7 @@ const registryModels: Record<string, RegistryEntry> = {
 const DEFAULT_ENABLED = [
   "ai-gw-baseten/baseten/zai-org/GLM-5.3",
   "ai-gw-databricks/databricks/system.ai.kimi-k3",
-  "ai-gw-openai/openai/gpt-5.6-sol",
-  "ai-gw-openai/openai/gpt-5.6-terra",
+  "ai-gw-openai/openai/gpt-6-sol",
   "ai-gw-baseten/baseten/zai-org/GLM-5.3-Flash",
   "ai-gw-baseten/baseten/deepseek-ai/DeepSeek-V4-Flash-0731",
   "ai-gw-google/gemini-3.8-flash",
@@ -186,8 +183,7 @@ describe("lifecycle model recommender", () => {
       "Keep current model",
       "GLM 5.3 (Baseten) | high (current model)",
       "Kimi K3 (Databricks) | high",
-      "GPT-5.6 Sol (OpenAI) | xhigh",
-      "GPT-5.6 Terra (OpenAI) | xhigh",
+      "GPT-6 Sol (OpenAI)",
     ]);
   });
 
@@ -293,8 +289,7 @@ describe("lifecycle model recommender", () => {
     assert.deepEqual(harness.calls, [
       "find:ai-gw-baseten/baseten/zai-org/GLM-5.3",
       "find:ai-gw-databricks/databricks/system.ai.kimi-k3",
-      "find:ai-gw-openai/openai/gpt-5.6-sol",
-      "find:ai-gw-openai/openai/gpt-5.6-terra",
+      "find:ai-gw-openai/openai/gpt-6-sol",
       "find:ai-gw-baseten/baseten/zai-org/GLM-5.3-Flash",
       "find:ai-gw-baseten/baseten/deepseek-ai/DeepSeek-V4-Flash-0731",
       "find:ai-gw-google/gemini-3.8-flash",
@@ -432,14 +427,14 @@ describe("lifecycle model recommender", () => {
 
     const first = createHarness({ settingsPath: path, select: () => undefined });
     assertContinues(await first.invoke());
-    assert.ok(first.selects[0].options.some((label) => label.startsWith("GPT-5.6 Sol")));
+    assert.ok(first.selects[0].options.some((label) => label.startsWith("GPT-6 Sol")));
 
     writeFileSync(
       path,
-      JSON.stringify({ enabledModels: DEFAULT_ENABLED.filter((entry) => entry !== "ai-gw-openai/openai/gpt-5.6-sol") }),
+      JSON.stringify({ enabledModels: DEFAULT_ENABLED.filter((entry) => entry !== "ai-gw-openai/openai/gpt-6-sol") }),
     );
     const second = createHarness({ settingsPath: path, select: () => undefined });
     assertContinues(await second.invoke());
-    assert.ok(!second.selects[0].options.some((label) => label.startsWith("GPT-5.6 Sol")));
+    assert.ok(!second.selects[0].options.some((label) => label.startsWith("GPT-6 Sol")));
   });
 });

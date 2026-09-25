@@ -1,15 +1,16 @@
-import { createLocalBashOperations, formatSize, isToolCallEventType, truncateTail, type BashToolDetails, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { createLocalBashOperations, formatSize, isToolCallEventType, truncateTail, type BashToolDetails, type ExtensionAPI, type SessionEntry } from "@earendil-works/pi-coding-agent";
 import { spawn } from "node:child_process";
 import { createReadStream, createWriteStream } from "node:fs";
-import { mkdtemp, open, rm, stat } from "node:fs/promises";
+import { mkdtemp, open, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { isAbsolute, join, resolve as resolvePath } from "node:path";
+import { basename, isAbsolute, join, resolve as resolvePath } from "node:path";
 import { Type } from "typebox";
 
 const BASH_MAX_BYTES = 16 * 1024;
 const MCP_MAX_BYTES = 6 * 1024;
 const MAX_OUTPUT_LINES = 2_000;
 const READ_MAX_LINES = 800;
+const SKILL_FILE_NAME = "SKILL.md";
 const IMAGE_HEADER_BYTES = 30;
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
@@ -198,6 +199,32 @@ async function readExceedsLineLimit(path: string, maxLines: number, signal: Abor
   });
 }
 
+// deliberate: sibling tool results from the same assistant message are not visible
+// during tool_call, so parallel reads of one skill can both run. That is rare and harmless.
+async function isUnchangedSkillInContext(absolutePath: string, cwd: string, entries: SessionEntry[]): Promise<boolean> {
+  const fullReadPaths = new Map<string, string>();
+  let previousText: string | undefined;
+  for (const entry of entries) {
+    if (entry.type !== "message") continue;
+    const message = entry.message;
+    if (message.role === "assistant") {
+      for (const part of message.content) {
+        if (part.type !== "toolCall" || part.name !== "read") continue;
+        const { path, offset, limit } = part.arguments;
+        if (typeof path === "string" && offset === undefined && limit === undefined) fullReadPaths.set(part.id, resolvePath(cwd, path));
+      }
+    } else if (message.role === "toolResult" && !message.isError && fullReadPaths.get(message.toolCallId) === absolutePath) {
+      previousText = message.content.map((part) => (part.type === "text" ? part.text : "")).join("");
+    }
+  }
+  if (previousText === undefined) return false;
+  try {
+    return (await readFile(absolutePath, "utf8")) === previousText;
+  } catch {
+    return false;
+  }
+}
+
 async function runMcpCli(args: string[], signal: AbortSignal | undefined): Promise<{ exitCode: number | null; output: CommandOutput }> {
   return captureCommandOutput(
     (onData) =>
@@ -225,6 +252,12 @@ export default function (pi: ExtensionAPI) {
     const { path, offset, limit } = event.input;
     if (offset !== undefined || limit !== undefined) return;
     const absolutePath = isAbsolute(path) ? path : resolvePath(ctx.cwd, path);
+    if (basename(absolutePath) === SKILL_FILE_NAME && (await isUnchangedSkillInContext(absolutePath, ctx.cwd, ctx.sessionManager.buildContextEntries()))) {
+      return {
+        block: true,
+        reason: `Read blocked: ${absolutePath} is already in context from an earlier read and has not changed. Use that content. To re-read a section, pass offset/limit.`,
+      };
+    }
     if (!(await readExceedsLineLimit(absolutePath, READ_MAX_LINES, ctx.signal))) return;
     return {
       block: true,

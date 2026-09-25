@@ -148,3 +148,65 @@ test("stops line counting when the tool call is cancelled", { timeout: 500 }, as
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+function readEntries(path, text, { id = "call-1", isError = false, input = {} } = {}) {
+  return [
+    { type: "message", message: { role: "assistant", content: [{ type: "toolCall", id, name: "read", arguments: { path, ...input } }] } },
+    { type: "message", message: { role: "toolResult", toolCallId: id, toolName: "read", isError, content: [{ type: "text", text }] } },
+  ];
+}
+
+async function withSkill(run) {
+  const dir = await mkdtemp(join(tmpdir(), "pi-skill-read-"));
+  const skill = join(dir, "SKILL.md");
+  await writeFile(skill, "# Skill\nbody\n");
+  try {
+    const { handlers } = await loadExtension();
+    const handler = handlers.get("tool_call");
+    await run({
+      dir,
+      skill,
+      read: (entries, input = {}, path = skill) =>
+        handler({ toolName: "read", input: { path, ...input } }, { cwd: dir, sessionManager: { buildContextEntries: () => entries, getBranch: () => [] } }),
+    });
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+test("blocks a repeated full read of an unchanged skill in context", async () => {
+  await withSkill(async ({ skill, read }) => {
+    const result = await read(readEntries("SKILL.md", "# Skill\nbody\n"));
+    assert.equal(result.block, true);
+    assert.match(result.reason, /already in context/);
+    assert.match(result.reason, /offset\/limit/);
+    assert.ok(result.reason.includes(skill));
+  });
+});
+
+test("allows skill reads that are not unchanged repeats in context", async (t) => {
+  await withSkill(async ({ dir, skill, read }) => {
+    await t.test("no earlier read", async () => assert.equal(await read([]), undefined));
+    await t.test("file changed since the earlier read", async () => assert.equal(await read(readEntries(skill, "# Old\n")), undefined));
+    await t.test("earlier read failed or was blocked", async () =>
+      assert.equal(await read(readEntries(skill, "# Skill\nbody\n", { isError: true })), undefined));
+    await t.test("earlier read was partial", async () =>
+      assert.equal(await read(readEntries(skill, "# Skill\nbody\n", { input: { offset: 1 } })), undefined));
+    await t.test("current read is targeted", async () =>
+      assert.equal(await read(readEntries(skill, "# Skill\nbody\n"), { limit: 1 }), undefined));
+    await t.test("file is not a skill", async () => {
+      const other = join(dir, "notes.md");
+      await writeFile(other, "# Skill\nbody\n");
+      assert.equal(await read(readEntries(other, "# Skill\nbody\n"), {}, other), undefined);
+    });
+  });
+});
+
+test("ignores skill reads removed from context by compaction", async () => {
+  await withSkill(async ({ dir, skill }) => {
+    const { handlers } = await loadExtension();
+    const sessionManager = { buildContextEntries: () => [], getBranch: () => readEntries(skill, "# Skill\nbody\n") };
+    const result = await handlers.get("tool_call")({ toolName: "read", input: { path: skill } }, { cwd: dir, sessionManager });
+    assert.equal(result, undefined);
+  });
+});

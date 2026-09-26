@@ -7,8 +7,9 @@ Use this skill for personal smart-home work. Treat entity names, states, presenc
 
 ## Routing
 1. Use the `home-assistant-mcp` skill for live inventory, state inspection, service/schema discovery, and confirmed control through `ha-mcp`.
-2. Use `references/core-concepts.md` for `ha-mcp` basics and `references/safety-and-routing.md` for detailed safety guidance.
-3. If MCP is unavailable, stop and report the blocker instead of falling back to direct REST calls.
+2. Use `home-assistant-best-practices` before authoring or changing automations, scripts, scenes, helpers, dashboards, blueprints, or YAML/config, so you choose the correct native construct.
+3. Use `references/core-concepts.md` for `ha-mcp` basics and `references/safety-and-routing.md` for detailed safety guidance.
+4. If MCP is unavailable, stop and report the blocker instead of falling back to direct REST calls.
 
 For live work, load `home-assistant-mcp`, run `mcp-cli info ha-mcp`, and discover tool names before calling anything.
 

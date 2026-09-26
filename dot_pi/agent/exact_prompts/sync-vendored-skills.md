@@ -13,7 +13,7 @@ Context:
 - Vendored skills live under `dot_pi/agent/exact_skills/` (shared), `dot_pi/agent/exact_skills_work/` (work profile), and `dot_pi/agent/exact_skills_personal/` (personal profile).
 - A vendored skill is any directory containing a `VENDOR.md`. That file records the upstream URL, the upstream subpath, and the pinned commit.
 - Upstream repos are cloned under `~/go/src/github.com/<org>/<repo>`, derived from the upstream URL.
-- Treat any skill directory without a `VENDOR.md` as hand-maintained; never touch it. In particular, the curated `home-assistant` and `home-assistant-mcp` skills are maintained by the `/sync-home-assistant-skills` prompt, not this one.
+- Treat any skill directory without a `VENDOR.md` as hand-maintained; never touch it. The curated `home-assistant` and `home-assistant-mcp` skills stay hand-maintained; only `home-assistant-best-practices` is vendored here.
 
 Workflow:
 1. Discover targets: find every `VENDOR.md` under `dot_pi/agent/exact_skills`, `dot_pi/agent/exact_skills_work`, and `dot_pi/agent/exact_skills_personal` (filter to the requested skill names if any were given). Read each one for its upstream URL, subpath, and pinned commit.

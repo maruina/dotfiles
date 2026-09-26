@@ -1,26 +1,26 @@
 ---
-description: Review upstream Home Assistant skills and ha-mcp, then propose curated local pi skill updates.
+description: Review upstream ha-mcp for tool drift and safety changes, then propose curated local updates.
 ---
-# Sync Home Assistant Skills
-Review upstream Home Assistant agent guidance and tooling, then recommend curated updates for this dotfiles repo. Do not edit files unless the user explicitly tells you to apply changes.
+# Sync Home Assistant MCP
+Review upstream `homeassistant-ai/ha-mcp` and recommend curated updates for the local Home Assistant skills. Do not edit files unless the user explicitly tells you to apply changes.
+
+Home Assistant authoring guidance is vendored separately: `home-assistant-best-practices` is refreshed by `/sync-vendored-skills`. Do not review or copy upstream `homeassistant-ai/skills` here.
 
 ## Sources to inspect
-- Upstream `homeassistant-ai/skills`
-- Upstream `homeassistant-ai/ha-mcp`
-- Local `dot_pi/agent/exact_skills_personal/exact_home-assistant/`
-- Local `dot_pi/agent/exact_skills_personal/exact_home-assistant-mcp/SKILL.md.tmpl`
+- Upstream `homeassistant-ai/ha-mcp`: releases, README, changelog, and tool docs.
+- Local `dot_pi/agent/exact_skills_personal/exact_home-assistant-mcp/SKILL.md`.
+- Local `dot_pi/agent/exact_skills_personal/exact_home-assistant/references/`.
 
-Record the upstream URL, commit/date, source method, and a short summary of what changed upstream.
+Record the upstream version or tag, the date, and a short summary of what changed. Note the currently running version from `mcp-cli info ha-mcp` when it is available.
 
 ## Compare and report
 Highlight:
-- useful upstream guidance or tooling worth curating locally;
-- stale local guidance;
-- duplicated content that should be trimmed;
-- changed safety assumptions;
-- renamed, deprecated, added, or removed `ha-mcp` tools.
+- renamed, deprecated, added, or removed `ha-mcp` tools;
+- changed safety assumptions or new capabilities that affect the safety tiers;
+- changed transport or install guidance (stdio, HTTP, custom component, app);
+- stale or wrong local `mcp-cli` examples.
 
-The local Home Assistant safety policy is authoritative: read-only by default, safety tiers, confirmation protocol, verification, rollback, and token/privacy rules must not be weakened. Avoid wholesale mirroring from upstream; curate only the parts that improve the local skills.
+The local Home Assistant safety policy is authoritative: read-only by default, safety tiers, confirmation protocol, verification, rollback, and token/privacy rules must not be weakened.
 
 ## Privacy and secrets
 Never include the Home Assistant token, bearer headers, private Home Assistant URLs, entity/state dumps, presence details, or other household-private data in output or files.

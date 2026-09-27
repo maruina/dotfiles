@@ -30,14 +30,6 @@
 {
   "mcpServers": {
     "ha-mcp": {
-      "command": "uvx",
-      "args": ["--python", "3.13", "ha-mcp@latest"],
-      "env": {
-        "HOMEASSISTANT_URL": "${HOME_ASSISTANT_URL}",
-        "HOMEASSISTANT_TOKEN": "${HOME_ASSISTANT_TOKEN}"
-      }
-    },
-    "ha-mcp-remote": {
       "type": "remote",
       "url": "${HA_MCP_URL}"
     }

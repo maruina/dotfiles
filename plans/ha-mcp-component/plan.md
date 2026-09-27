@@ -23,6 +23,18 @@
 
 Advisory learnings: 1 of 11 sections matched — **"Render piped chezmoi templates against an initialized config, not `--init`"** (2026-07-15). Applied: every render check pipes through an initialized config with the profile override (`render` helper below); no `--init --promptString` calls anywhere.
 
+### Execution
+
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `skill-loader` | `prompt-required` | /execute contract | Re-selected skills for the Slice 1 file set |
+| `resolve-worktree` | `prompt-required` | Plan path | Confirmed the plan's owning worktree and branch |
+| `chezmoi` | `skill-loader` | Chezmoi source templates | Edited source not targets; `.tmpl` rendering via the `--source` helpers |
+| `codebase-research` | `skill-loader` | Unfamiliar config area | Verified current template content and existing `onepasswordRead` / `type: remote` patterns before editing |
+| `home-assistant` | `agent-selected` | Live gated write | Applied the Tier 1 confirmation checklist and read-back verification to the automation write |
+| `home-assistant-best-practices` | `agent-selected` | Authoring a real automation | Chose a native `time` trigger + weekday `time` condition over a template, `entity_id` over `device_id`, and `mode: single` |
+| `tavily-search` | `agent-selected` | HACS install blocker | Confirmed the correct HACS repository and the GitHub-token re-authentication fix |
+
 ## Implementation Contract
 
 **Components Affected**
@@ -152,11 +164,12 @@ The system SHALL render the work profile with zero Home Assistant references.
 **Traces to:** Design "HA side (manual, outside chezmoi)" and the smallest user-feedback slice
 **Files:** None (Home Assistant UI; outside chezmoi)
 
-- [ ] In HACS → Integrations → Custom repositories, add `https://github.com/homeassistant-ai/ha-mcp-integration` with category Integration, download it, and restart HA.
-- [ ] In Settings → Devices & Services → Add Integration, add **HA-MCP Custom Component** → **HA-MCP Server**.
-- [ ] Set options: automatic server updates off; remote access via webhook off (local-only); authentication mode `none`; server package field empty; network access at default.
-- [ ] Copy the direct connect URL (`http://172.16.0.14:9584/private_<random>`) from the entry's Configure screen into a local scratch buffer only; do not paste it into chat, files, or this plan.
-- [ ] Verify manually: the repository appears in HACS, the entry exists, and the Configure screen shows the direct URL.
+- [x] In HACS → Integrations → Custom repositories, add `https://github.com/homeassistant-ai/ha-mcp-integration` with category Integration, download it, and restart HA.
+- [x] In Settings → Devices & Services → Add Integration, add **HA-MCP Custom Component** → **HA-MCP Server**.
+- [x] Set options: automatic server updates off; remote access via webhook off (local-only); authentication mode `none`; server package field empty; network access at default.
+- [x] Copy the direct connect URL (`http://172.16.0.14:9584/private_<random>`) from the entry's Configure screen into a local scratch buffer only; do not paste it into chat, files, or this plan.
+- [x] Verify manually: the repository appears in HACS, the entry exists, and the Configure screen shows the direct URL.
+- Deviation 2026-09-27: HACS first returned `401` on custom-repository add and rendered `/hacs` blank; the HACS config entry was `failed_unload`. Re-authenticated HACS and restarted HA, after which the entry loaded and the component was installed. Verified by `nc -z 172.16.0.14 9584` → open (host reachable, `8123` open throughout).
 
 ### Task 2: Store the URL in 1Password and export `HA_MCP_URL`
 **Delivers:** `HA_MCP_URL` exported from 1Password in new fish shells; `HOME_ASSISTANT_*` exports still present for rollback
@@ -164,26 +177,27 @@ The system SHALL render the work profile with zero Home Assistant references.
 **Traces to:** Design "chezmoi side" steps 2–3
 **Files:** `dot_config/private_fish/private_config.fish.tmpl`
 
-- [ ] Ask Matteo to add an `mcp_url` field to the existing `Private/Home Assistant` 1Password item holding the full direct URL.
-- [ ] Failing check (should fail before the edit):
+- [x] Ask Matteo to add an `mcp_url` field to the existing `Private/Home Assistant` 1Password item holding the full direct URL.
+- [x] Failing check (should fail before the edit):
   ```bash
   grep -n 'HA_MCP_URL' dot_config/private_fish/private_config.fish.tmpl
   ```
   Expected before: no match.
-- [ ] Inside the personal `{{ if eq .profile "personal" }}` block, after the existing `HOME_ASSISTANT_*` lines, add:
+- [x] Inside the personal `{{ if eq .profile "personal" }}` block, after the existing `HOME_ASSISTANT_*` lines, add:
   ```fish
   # HA-MCP component direct URL (HACS in-process server); consumed by mcp_servers.json.
   set -gx HA_MCP_URL '{{ onepasswordRead "op://Private/Home Assistant/mcp_url" }}'
   ```
   Keep the `HOME_ASSISTANT_*` exports and their comment until cutover.
-- [ ] Apply and verify without printing the value:
+- [x] Apply and verify without printing the value:
   ```bash
   cm apply ~/.config/fish/config.fish
   fish -lc 'test -n "$HA_MCP_URL"; and echo SET; or echo UNSET'
   ```
   Expected: `SET`.
-- [ ] Source-level secret check: the template contains only the `op://Private/Home Assistant/mcp_url` reference, no URL literal.
-- [ ] Commit: `feat(fish): export HA_MCP_URL from 1Password`
+- [x] Source-level secret check: the template contains only the `op://Private/Home Assistant/mcp_url` reference, no URL literal.
+- [x] Commit: `feat(fish): export HA_MCP_URL from 1Password`
+- Result 2026-09-27: committed `a0923c9`; a fresh login fish shell reports `HA_MCP_URL` `SET` (value never printed).
 
 ### Task 3: Add a temporary `ha-mcp-remote` entry and prove the transport and gate
 **Delivers:** A successful remote read, a rejected keyless gated write, an accepted keyed gated write (scratch scene, removed), and a stable acknowledgment key across one-shot calls in the same hourly rotation, with the active `ha-mcp` entry untouched
@@ -191,19 +205,19 @@ The system SHALL render the work profile with zero Home Assistant references.
 **Traces to:** Design "Smallest user-feedback slice" steps 3–5 and "Testing strategy" transport/gate checks
 **Files:** `dot_config/mcp/mcp_servers.json.tmpl`
 
-- [ ] Failing check (should fail before the edit):
+- [x] Failing check (should fail before the edit):
   ```bash
   render personal dot_config/mcp/mcp_servers.json.tmpl | jq -e '.mcpServers["ha-mcp-remote"]'
   ```
   Expected before: jq error (no such key).
-- [ ] In the personal branch, add the temporary entry next to the existing stdio `ha-mcp` entry:
+- [x] In the personal branch, add the temporary entry next to the existing stdio `ha-mcp` entry:
   ```json
   "ha-mcp-remote": {
     "type": "remote",
     "url": "${HA_MCP_URL}"
   }
   ```
-- [ ] Verify and apply through the apply gate:
+- [x] Verify and apply through the apply gate:
   ```bash
   render personal dot_config/mcp/mcp_servers.json.tmpl | jq -e '.mcpServers | keys'
   cm data | jq -e '.profile == "personal"'
@@ -211,12 +225,12 @@ The system SHALL render the work profile with zero Home Assistant references.
   fish -lc 'mcp-cli info ha-mcp-remote'
   ```
   Expected: keys include both `ha-mcp` and `ha-mcp-remote`; profile is `personal`; apply succeeds; `mcp-cli info ha-mcp-remote` lists the server tools. (`mcp-cli list` is not a subcommand; `mcp-cli` with no arguments lists servers.) If the entry does not appear, the daemon cached the old config — restart the mcp-cli daemon (or the shell session) and re-run.
-- [ ] Live transport check (user present), output discarded so no household data enters the session:
+- [x] Live transport check (user present), output discarded so no household data enters the session:
   ```bash
   fish -lc 'mcp-cli call ha-mcp-remote ha_get_overview "{}"' > /dev/null 2>&1 && echo READ_OK
   ```
   Expected: `READ_OK`. This settles both design open questions (Tailscale reach of `172.16.0.14:9584`, mcp-cli plain-HTTP streamable support). On failure, stop and apply the design's fallback ladder before any cutover.
-- [ ] Gate stability check: run `mcp-cli info ha-mcp-remote ha_get_skill_guide` to learn the exact arguments and output shape. Confirm the guide output contains the acknowledgment line (`Acknowledgment key: I-HAVE-READ-THE-BEST-PRACTICES-GUIDE-<8 hex>`); if it does not, strict mode is off or the skills vendor is missing — stop and fix that before continuing. Then run the call twice more than 60 seconds apart, saving each output to `/tmp/guide1.json` and `/tmp/guide2.json`. Run each `mcp-cli` read from a fish shell (`fish -lc '…'`) so `HA_MCP_URL` is exported. Capture each hour stamp after its read completes, never before, so a rotation that falls inside a read is seen.
+- [x] Gate stability check: run `mcp-cli info ha-mcp-remote ha_get_skill_guide` to learn the exact arguments and output shape. Confirm the guide output contains the acknowledgment line (`Acknowledgment key: I-HAVE-READ-THE-BEST-PRACTICES-GUIDE-<8 hex>`); if it does not, strict mode is off or the skills vendor is missing — stop and fix that before continuing. Then run the call twice more than 60 seconds apart, saving each output to `/tmp/guide1.json` and `/tmp/guide2.json`. Run each `mcp-cli` read from a fish shell (`fish -lc '…'`) so `HA_MCP_URL` is exported. Capture each hour stamp after its read completes, never before, so a rotation that falls inside a read is seen.
   ```bash
   # first read > /tmp/guide1.json
   h1=$(date +%H)
@@ -233,7 +247,8 @@ The system SHALL render the work profile with zero Home Assistant references.
   rm -f /tmp/guide1.json /tmp/guide2.json /tmp/guide1.key /tmp/guide2.key
   ```
   Expected: `KEY_STABLE`. `RETRY_SAME_HOUR` means the pair crossed an hour boundary; run the pair again. `NO_KEY_FOUND` means the regex did not match the captured output; stop and re-derive the key format from the guide output before re-running. `KEY_DIFFERS_STOP` means keys rotate even within one hour — the migration premise is disproved; stop, do not proceed to cutover, and return to the design. The `test -s` guards exist because an empty key file would otherwise make `diff` of two empty files report equality. Do not print the diff or the files if they contain skill content.
-- [ ] Gate check on the temporary entry (user present; the router's confirmation flow applies because this is a Tier 1 mutation). Confirm strict mode from the guide read, then prove the gate both ways with a scratch scene:
+- [x] Gate check on the temporary entry (user present; the router's confirmation flow applies because this is a Tier 1 mutation). Confirm strict mode from the guide read, then prove the gate both ways with a scratch scene:
+- Deviation 2026-09-27: at Matteo's request the gate proof used `ha_config_set_automation` to create a real, intentionally kept weekday-morning kitchen smart-plug automation instead of a scratch scene (specific entity omitted here; it is household-private). The write tool takes the object under a `config` parameter; a flattened payload returns `VALIDATION_FAILED`, while the keyless call is still blocked before validation. Task 9 should use this `config`-nested shape if it repeats the check.
   ```bash
   # discover the schemas first
   fish -lc 'mcp-cli info ha-mcp-remote ha_config_set_scene'
@@ -267,8 +282,9 @@ The system SHALL render the work profile with zero Home Assistant references.
   rm -f /tmp/guide-gate.json /tmp/gate-neg.json /tmp/gate-pos.json
   ```
   Expected: `GATE_ON`, then `KEY_READY`, then `GATE_BLOCKED`, then `NO_SCENE`, then `WRITE_OK`, then `ROLLED_BACK`. `NO_KEY` means the key extraction came up empty; stop and re-read the guide before retrying the positive call. If the negative call is not blocked, stop, run the rollback, and report the gate as off. Do not print tool output that contains household data.
-- [ ] Record the observed results (success/failure and stability, no secret values) in this task's checkboxes.
-- [ ] Commit: `feat(mcp): add temporary ha-mcp-remote entry for transport validation`
+- [x] Record the observed results (success/failure and stability, no secret values) in this task's checkboxes.
+- [x] Commit: `feat(mcp): add temporary ha-mcp-remote entry for transport validation`
+- Result 2026-09-27: committed `7d36435`. `GATE_ON` (strict mode), `KEY_STABLE` (two reads in hour 14), `GATE_BLOCKED` + no mutation on the keyless automation call, `WRITE_OK` on the keyed call. `mcp-cli info ha-mcp-remote` confirmed `Transport: HTTP` and 77 tools, then printed the connect URL and forced a secret rotation (see Learning candidates).
 
 ### Slice 2: Cutover
 
@@ -395,3 +411,9 @@ The system SHALL render the work profile with zero Home Assistant references.
   ```
   Expected: `READ_OK` from a fresh fish shell.
 - [ ] Record outcomes (no secret values) in this task's checkboxes.
+
+## Learning candidates
+
+- 2026-09-27: The plan's Task 3 verification step `mcp-cli info ha-mcp-remote` prints the connect URL — the single credential the plan requires never to appear in command output — so following the plan leaks the secret and forces rotation. Evidence: plan Task 3 "Verify and apply through the apply gate"; this execution.
+- 2026-09-27: ha-mcp gated write tools take the object under a `config` parameter; a flattened payload fails with `VALIDATION_FAILED: <field>: unknown parameter` (valid parameters include `config`). Evidence: this execution of `ha_config_set_automation`.
+- 2026-09-27: A revoked HACS GitHub token surfaces as a bare `401` on custom-repository add plus a blank `/hacs` panel with the HACS config entry in `failed_unload`; a UI re-auth leaves the entry stuck and a Home Assistant restart is required to reload it. Evidence: HA WebSocket `config_entries/get` showing `failed_unload`; this execution.

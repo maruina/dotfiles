@@ -31,10 +31,10 @@ Do not mutate until the user confirms. For Tier 2, ask for a second explicit con
 ## Verification and rollback
 After every change, read back state or configuration to verify the result. For YAML/config edits, show a diff or summary, validate config before reload or restart, apply one change at a time, and record the rollback path before applying. If verification fails, stop, report the state, and offer the recorded rollback.
 
-Use pi transcript/history, `ha-mcp` startup output or errors, Home Assistant logbook/history, config validation results, and a read-only inventory after setup as the operational checks for troubleshooting.
+Use pi transcript/history, Home Assistant logs and the server's repair issues (Settings → System → Logs / Repairs), Home Assistant logbook/history, config validation results, and a read-only inventory after setup as the operational checks for troubleshooting.
 
 ## Documentation updates
 When you discover durable setup facts or reusable patterns, ask before writing docs. Do not auto-write docs during incidental exploration.
 
-## Token handling
-Never print or persist `HOME_ASSISTANT_TOKEN`. Never include tokens, bearer headers, private URLs, or secrets in source files, examples, prompts, summaries, or command output.
+## Secret URL handling
+Never print, log, persist, or include the ha-mcp connect URL in prompts, files, command output, examples, or summaries. Never include tokens, bearer headers, private URLs, or secrets in source files, examples, prompts, summaries, or command output.

@@ -29,5 +29,5 @@ After every mutation, read back state or configuration to verify the result. If 
 ## MCP unavailable
 If `ha-mcp` discovery or calls fail, stop and report the blocker. Do not fall back to direct REST calls or shell scripts.
 
-## Token handling
-Never print or persist `HOME_ASSISTANT_TOKEN`. Never include bearer headers, tokens, private URLs, or secret material in source files, docs, prompts, command output, examples, or summaries.
+## Secret URL handling
+Never print, log, persist, or include the ha-mcp connect URL in prompts, files, command output, examples, or summaries. Never include bearer headers, tokens, private URLs, or secret material in source files, docs, prompts, command output, examples, or summaries.

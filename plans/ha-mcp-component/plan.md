@@ -389,13 +389,14 @@ The system SHALL render the work profile with zero Home Assistant references.
 **Traces to:** Durable-plan contract (documentation and future-agent guidance)
 **Files:** `AGENTS.md`, `dot_pi/agent/exact_skills/chezmoi/SKILL.md` (review only; update only if stale)
 
-- [ ] Search the repository for leftover `uvx ha-mcp`, `HOME_ASSISTANT_`, and stdio-`ha-mcp` references outside the files already updated:
+- [x] Search the repository for leftover `uvx ha-mcp`, `HOME_ASSISTANT_`, and stdio-`ha-mcp` references outside the files already updated:
   ```bash
   rg -n 'uvx ha-mcp|HOME_ASSISTANT|ha-mcp@latest' --glob '!plans/**' --glob '!node_modules/**'
   ```
-- [ ] For each hit outside this plan's files: update it, or record here why it stays. Add to `AGENTS.md` only durable commands, traps, or procedures (for example, the worktree `--source` override if not already present). Do not add narrative prose.
-- [ ] Documentation impact summary for this feature: the skills, the sync prompt, and the fish comment are the user-facing docs; no README or runbook exists for this setup, so nothing else is affected.
-- [ ] Commit (only if files changed): `docs: refresh Home Assistant transport references`
+- [x] For each hit outside this plan's files: update it, or record here why it stays. Add to `AGENTS.md` only durable commands, traps, or procedures (for example, the worktree `--source` override if not already present). Do not add narrative prose.
+- [x] Documentation impact summary for this feature: the skills, the sync prompt, and the fish comment are the user-facing docs; no README or runbook exists for this setup, so nothing else is affected.
+- [x] Commit (only if files changed): `docs: refresh Home Assistant transport references`
+- Result 2026-09-27: the stale-reference search found no hits outside the plan, so no HA references were updated. The only durable gap was the worktree `--source` trap, now in `AGENTS.md`; it is committed as `a40bfc1 docs: note chezmoi worktree --source requirement` because the plan's HA-reference message no longer matched the change.
 
 ### Task 9: Final verification
 **Delivers:** Feature-level acceptance evidence: strict mode is effective, the gate works both ways on the active `ha-mcp` entry, and the `dot_pi/agent` suite passes

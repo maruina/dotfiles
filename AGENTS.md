@@ -26,6 +26,7 @@ Declare Homebrew packages in `run_onchange_brew-install.sh.tmpl`. Do not install
 - **Add or update a file**: `chezmoi add <target-path>` reads from `$HOME` and writes to the source with the correct prefixes. Never copy it manually.
 - **Change attributes**: `chezmoi chattr +private <target-path>` marks a file as `0600`; `chezmoi chattr +exact <target-dir>` marks a directory as exact.
 - **Re-sync managed files**: `chezmoi re-add`.
+- **Working from a feature worktree**: pass `--source "$PWD"` to every `chezmoi` command. The default source is `~/.local/share/chezmoi` (normally on `main`), so without it `chezmoi` reads the wrong tree and ignores the worktree edits.
 - **Directory targets can hide drift**: `chezmoi diff <target-dir>` and `chezmoi verify <target-dir>` may return empty output even when files under that directory differ from the source. Run them against the explicit target file path (or `chezmoi apply` the changed path and compare the target with `diff`) before trusting a clean result.
 
 ## Pi Agent Development

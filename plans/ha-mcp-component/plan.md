@@ -35,6 +35,8 @@ Advisory learnings: 1 of 11 sections matched — **"Render piped chezmoi templat
 | `home-assistant-best-practices` | `agent-selected` | Authoring a real automation | Chose a native `time` trigger + weekday `time` condition over a template, `entity_id` over `device_id`, and `mode: single` |
 | `tavily-search` | `agent-selected` | HACS install blocker | Confirmed the correct HACS repository and the GitHub-token re-authentication fix |
 
+Slice 2 (cutover) reused `chezmoi` and `codebase-research` for the same two template files; no new skills were loaded.
+
 ## Implementation Contract
 
 **Components Affected**
@@ -294,15 +296,15 @@ The system SHALL render the work profile with zero Home Assistant references.
 **Traces to:** Design "chezmoi side" step 1 and "Smallest user-feedback slice" step 5
 **Files:** `dot_config/mcp/mcp_servers.json.tmpl`, `dot_config/private_fish/private_config.fish.tmpl`
 
-- [ ] In `dot_config/mcp/mcp_servers.json.tmpl` personal branch, delete the temporary `ha-mcp-remote` entry and replace the stdio `ha-mcp` entry with:
+- [x] In `dot_config/mcp/mcp_servers.json.tmpl` personal branch, delete the temporary `ha-mcp-remote` entry and replace the stdio `ha-mcp` entry with:
   ```json
   "ha-mcp": {
     "type": "remote",
     "url": "${HA_MCP_URL}"
   }
   ```
-- [ ] In `dot_config/private_fish/private_config.fish.tmpl`, delete the `HOME_ASSISTANT_URL` and `HOME_ASSISTANT_TOKEN` exports and reword the comment to describe `HA_MCP_URL` as the ha-mcp component direct URL consumed by `mcp_servers.json`.
-- [ ] Verify renders (source-level, no rendered fish output printed):
+- [x] In `dot_config/private_fish/private_config.fish.tmpl`, delete the `HOME_ASSISTANT_URL` and `HOME_ASSISTANT_TOKEN` exports and reword the comment to describe `HA_MCP_URL` as the ha-mcp component direct URL consumed by `mcp_servers.json`.
+- [x] Verify renders (source-level, no rendered fish output printed):
   ```bash
   render personal dot_config/mcp/mcp_servers.json.tmpl | jq -e '.mcpServers | keys'
   render personal dot_config/mcp/mcp_servers.json.tmpl | jq -e '.mcpServers["ha-mcp"].type == "remote"'
@@ -311,14 +313,15 @@ The system SHALL render the work profile with zero Home Assistant references.
   render work dot_config/mcp/mcp_servers.json.tmpl | jq -e '.mcpServers | keys'
   ```
   Expected: personal keys are `["ha-mcp"]` and type is `remote`; absence checks pass; work keys are `["datadog-prod","datadog-staging","slack"]`.
-- [ ] Apply through the apply gate and smoke-test, discarding read output:
+- [x] Apply through the apply gate and smoke-test, discarding read output:
   ```bash
   cm data | jq -e '.profile == "personal"'
   cm apply ~/.config/mcp/mcp_servers.json ~/.config/fish/config.fish
   fish -lc 'mcp-cli call ha-mcp ha_get_overview "{}"' > /dev/null 2>&1 && echo READ_OK
   ```
   Expected: apply succeeds; `READ_OK` proves the active `ha-mcp` entry answers a read.
-- [ ] Commit: `feat(mcp): switch personal ha-mcp to the HACS in-process component`
+- [x] Commit: `feat(mcp): switch personal ha-mcp to the HACS in-process component`
+- Result 2026-09-27: committed `aad790c`. Personal render keys are exactly `["ha-mcp"]` with type `remote`; work keys remain `["datadog-prod","datadog-staging","slack"]`; no `uvx`/`HOME_ASSISTANT` remains in source. `cm apply` succeeded, the active entry reports `Transport: HTTP`, and `READ_OK` confirms the read path. Merge housekeeping: local `main` fast-forwarded to `6358fa0`, the merged branch and worktree removed, and the cutover done on a fresh `maruina/ha-mcp-cutover` worktree.
 
 ### Slice 3: Skills and sync prompt
 

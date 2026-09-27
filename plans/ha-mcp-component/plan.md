@@ -3,7 +3,7 @@
 > Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace the personal-profile stdio `ha-mcp` transport with the HACS in-process component's direct HTTP URL so `mcp-cli` one-shot calls can pass ha-mcp's strict best-practices gate.
-**Smallest user-feedback slice:** A successful `mcp-cli call ha-mcp-remote ha_get_overview '{}'` against the component's direct URL, plus two `ha_get_skill_guide` reads more than 60 seconds apart returning the same acknowledgment key, before any active entry changes.
+**Smallest user-feedback slice:** A successful `mcp-cli call ha-mcp-remote ha_get_overview '{}'` against the component's direct URL, a gated `ha_config_set_scene` write that is rejected without `BestPracticeKey` and accepted with it (scratch scene, removed afterward), plus two `ha_get_skill_guide` reads in the same hourly rotation returning the same acknowledgment key, before any active entry changes.
 **Out of Scope:** Migrating the vendored best-practices skill or safety policy; work-profile HA; `ha_auth` OAuth; publishing through Traefik/`hass.malazan.xyz`; the `/readonly` connection; the component's File & YAML services entry; the add-on fallback (kept as the design's revisit trigger); retiring the `pi_api_token` 1Password item (kept for rollback).
 **Architecture:** The HACS custom component (`ha_mcp_tools`) runs the ha-mcp server in-process inside HA Core, provisions its own admin token, and exposes a secret-path port (`9584`). chezmoi renders a `type: remote` mcp-cli entry whose URL comes from a new fish export backed by 1Password. Local skills stay the authoritative safety policy; only transport and secret-handling prose change.
 **Tech Stack:** chezmoi (Go `text/template`, `onepasswordRead`), fish, mcp-cli v0.3.0 (`type: remote`), HACS component `homeassistant-ai/ha-mcp-integration` (domain `ha_mcp_tools`), Home Assistant Core 2026.9.x on `172.16.0.14`.
@@ -66,7 +66,7 @@ Advisory learnings: 1 of 11 sections matched — **"Render piped chezmoi templat
 - None added, per design (personal setup; no metrics, alerts, or dashboards). The router skill documents the operational checks instead: Home Assistant logs (Settings → System → Logs) and repair issues (Settings → System → Repairs), replacing the old `ha-mcp` startup-output check.
 
 **Failure Modes to Handle**
-- `172.16.0.14:9584` unreachable over Tailscale or mcp-cli rejects plain-HTTP streamable: slice 3 proves both before cutover. Fallback ladder from the design: the local webhook on `http://172.16.0.14:8123` (still tailnet-only), then the deferred domain/TLS option. Verified by the slice 3 live calls.
+- `172.16.0.14:9584` unreachable over Tailscale or mcp-cli rejects plain-HTTP streamable: slice 1 proves both before cutover. Fallback ladder from the design: the local webhook on `http://172.16.0.14:8123` (still tailnet-only), then the deferred domain/TLS option. Verified by the slice 1 live calls.
 - `HA_MCP_URL` unset in the calling shell: `mcp-cli call ha-mcp` fails with a substitution error. Check with `fish -lc 'test -n "$HA_MCP_URL"; and echo SET; or echo UNSET'` and open a new fish shell after applying the fish config.
 - 1Password field missing: `onepasswordRead` fails at apply. Add `mcp_url` to the item before applying the fish template.
 - Acknowledgment key expires mid-session (hourly rotation, previous hour as grace): the driver skill instructs re-reading `ha_get_skill_guide` when a gated write returns `BPS_ACKNOWLEDGMENT_REQUIRED`.
@@ -77,7 +77,9 @@ Advisory learnings: 1 of 11 sections matched — **"Render piped chezmoi templat
 - Rollback: restore the stdio `ha-mcp` entry and the `HOME_ASSISTANT_*` exports in the two templates (the `pi_api_token` 1Password item still exists), `cm apply` both targets, and optionally disable the component entry in HA.
 
 **Test Strategy**
-- This is a config/docs/template change set. Verification is deterministic shell checks (`chezmoi execute-template` piped to `jq`/`grep`) plus live `mcp-cli` one-shot calls. No test framework exists in this dotfiles repo; this matches repository conventions.
+- This is a config/docs/template change set. Verification is deterministic shell checks (`chezmoi execute-template` piped to `jq`/`grep`) plus live `mcp-cli` one-shot calls.
+- The `dot_pi/agent/` changes (Tasks 5–7) have an existing test suite: `dot_pi/agent/package.json` defines `test:skills`, `test:prompts`, `test:unit`, and `test:pi-deps`. Run `npm ci --ignore-scripts`, `npm test`, and `npm run test:all` in that directory before `/verify`, then remove `dot_pi/agent/node_modules`. `AGENTS.md` requires this for `dot_pi/agent/` changes.
+- `validate-skills.mjs` renders `.tmpl` skills with plain `chezmoi execute-template`, which resolves to `~/.local/share/chezmoi` unless `--source` is supplied. Run the suite with the worktree as the chezmoi source so it validates the edited files.
 - Boundaries: do not mock ha-mcp or Home Assistant. Live checks run once per validation point, with the user present, per the prior plan's proven boundary rule.
 - Each template task starts with a narrow failing check that fails before the edit and passes after. Expected first-failure commands are named per task.
 
@@ -91,13 +93,18 @@ The system SHALL serve successful `mcp-cli` reads for the active `ha-mcp` entry 
 - WHEN `mcp-cli call ha-mcp ha_get_overview '{}'` runs
 - THEN the call succeeds and returns Home Assistant overview data
 
-### Requirement: Stable acknowledgment key
-The system SHALL return the same best-practices acknowledgment key from one-shot `ha_get_skill_guide` calls spaced more than 60 seconds apart, because the server process is long-lived.
+### Requirement: Stable acknowledgment key within a rotation
+The system SHALL return the same best-practices acknowledgment key from one-shot `ha_get_skill_guide` calls that fall in the same hourly rotation, because the server process is long-lived and the per-process salt no longer rotates on every call.
 
-#### Scenario: Key stability across one-shot calls
+#### Scenario: Key stability within one hourly rotation
 - GIVEN the active `ha-mcp` entry points at the component URL
-- WHEN `ha_get_skill_guide` runs twice more than 60 seconds apart in separate `mcp-cli call` invocations
+- WHEN `ha_get_skill_guide` runs twice in separate `mcp-cli call` invocations while the hourly key bucket does not change
 - THEN both outputs contain the same acknowledgment key
+
+#### Scenario: Previous-hour key remains valid
+- GIVEN a key read in the previous hourly rotation
+- WHEN a gated write carries that key within the grace window
+- THEN the write is accepted and performs the confirmed mutation
 
 ### Requirement: Gated write succeeds with the key
 The system SHALL accept a gated write that carries the `BestPracticeKey` read from the guide.
@@ -107,12 +114,17 @@ The system SHALL accept a gated write that carries the `BestPracticeKey` read fr
 - WHEN the agent reads `ha_get_skill_guide`, then calls the write tool with `BestPracticeKey` set from the acknowledgment line
 - THEN the write succeeds and a read-back verifies the result
 
-### Requirement: Gate not silently disabled
-The system SHALL still reject a gated write that omits `BestPracticeKey`.
+### Requirement: Gate active and not silently disabled
+The system SHALL run with the strict best-practices gate effective, and SHALL reject a gated write that omits `BestPracticeKey`.
+
+#### Scenario: Strict gate is effective
+- GIVEN the component and server are installed
+- WHEN `ha_get_skill_guide` returns the best-practices content
+- THEN the content includes the `Acknowledgment key:` line, proving strict mode is on and the skills vendor is present
 
 #### Scenario: Negative gate check
-- GIVEN the remote transport is active
-- WHEN a write tool is called without `BestPracticeKey`
+- GIVEN the remote transport is active and strict mode is confirmed effective
+- WHEN a gated write tool is called without `BestPracticeKey`
 - THEN the call returns `BPS_ACKNOWLEDGMENT_REQUIRED` and performs no mutation
 
 ### Requirement: Secret hygiene
@@ -132,7 +144,7 @@ The system SHALL render the work profile with zero Home Assistant references.
 
 ## Slices and tasks
 
-### Slice 1: Component install (manual, user)
+### Slice 1: Prove the remote transport and gate
 
 ### Task 1: Install the HACS component and the server entry
 **Delivers:** A long-lived ha-mcp server on `172.16.0.14:9584` with a copied direct connect URL
@@ -145,8 +157,6 @@ The system SHALL render the work profile with zero Home Assistant references.
 - [ ] Set options: automatic server updates off; remote access via webhook off (local-only); authentication mode `none`; server package field empty; network access at default.
 - [ ] Copy the direct connect URL (`http://172.16.0.14:9584/private_<random>`) from the entry's Configure screen into a local scratch buffer only; do not paste it into chat, files, or this plan.
 - [ ] Verify manually: the repository appears in HACS, the entry exists, and the Configure screen shows the direct URL.
-
-### Slice 2: Secret URL plumbing
 
 ### Task 2: Store the URL in 1Password and export `HA_MCP_URL`
 **Delivers:** `HA_MCP_URL` exported from 1Password in new fish shells; `HOME_ASSISTANT_*` exports still present for rollback
@@ -175,12 +185,10 @@ The system SHALL render the work profile with zero Home Assistant references.
 - [ ] Source-level secret check: the template contains only the `op://Private/Home Assistant/mcp_url` reference, no URL literal.
 - [ ] Commit: `feat(fish): export HA_MCP_URL from 1Password`
 
-### Slice 3: Transport and gate proof
-
 ### Task 3: Add a temporary `ha-mcp-remote` entry and prove the transport and gate
-**Delivers:** A successful remote read plus a stable acknowledgment key across one-shot calls more than 60 seconds apart, with the active `ha-mcp` entry untouched
+**Delivers:** A successful remote read, a rejected keyless gated write, an accepted keyed gated write (scratch scene, removed), and a stable acknowledgment key across one-shot calls in the same hourly rotation, with the active `ha-mcp` entry untouched
 **Blocked by:** Task 2
-**Traces to:** Design "Smallest user-feedback slice" steps 3–4 and "Testing strategy" transport/gate checks
+**Traces to:** Design "Smallest user-feedback slice" steps 3–5 and "Testing strategy" transport/gate checks
 **Files:** `dot_config/mcp/mcp_servers.json.tmpl`
 
 - [ ] Failing check (should fail before the edit):
@@ -200,24 +208,69 @@ The system SHALL render the work profile with zero Home Assistant references.
   render personal dot_config/mcp/mcp_servers.json.tmpl | jq -e '.mcpServers | keys'
   cm data | jq -e '.profile == "personal"'
   cm apply ~/.config/mcp/mcp_servers.json
-  mcp-cli list
+  fish -lc 'mcp-cli info ha-mcp-remote'
   ```
-  Expected: keys include both `ha-mcp` and `ha-mcp-remote`; profile is `personal`; apply succeeds; `mcp-cli list` shows `ha-mcp-remote`. If the entry does not appear, the daemon cached the old config — restart the mcp-cli daemon (or the shell session) and re-run `mcp-cli list`.
+  Expected: keys include both `ha-mcp` and `ha-mcp-remote`; profile is `personal`; apply succeeds; `mcp-cli info ha-mcp-remote` lists the server tools. (`mcp-cli list` is not a subcommand; `mcp-cli` with no arguments lists servers.) If the entry does not appear, the daemon cached the old config — restart the mcp-cli daemon (or the shell session) and re-run.
 - [ ] Live transport check (user present), output discarded so no household data enters the session:
   ```bash
-  mcp-cli call ha-mcp-remote ha_get_overview '{}' > /dev/null && echo READ_OK
+  fish -lc 'mcp-cli call ha-mcp-remote ha_get_overview "{}"' > /dev/null 2>&1 && echo READ_OK
   ```
   Expected: `READ_OK`. This settles both design open questions (Tailscale reach of `172.16.0.14:9584`, mcp-cli plain-HTTP streamable support). On failure, stop and apply the design's fallback ladder before any cutover.
-- [ ] Gate stability check: run `mcp-cli info ha-mcp-remote ha_get_skill_guide` to learn the exact arguments and output shape. Then run the call twice more than 60 seconds apart, saving each output to `/tmp/guide1.json` and `/tmp/guide2.json`, extract only the acknowledgment key line per the discovered schema into `/tmp/guide1.key` and `/tmp/guide2.key`, and compare:
+- [ ] Gate stability check: run `mcp-cli info ha-mcp-remote ha_get_skill_guide` to learn the exact arguments and output shape. Confirm the guide output contains the acknowledgment line (`Acknowledgment key: I-HAVE-READ-THE-BEST-PRACTICES-GUIDE-<8 hex>`); if it does not, strict mode is off or the skills vendor is missing — stop and fix that before continuing. Then run the call twice more than 60 seconds apart, saving each output to `/tmp/guide1.json` and `/tmp/guide2.json`. Run each `mcp-cli` read from a fish shell (`fish -lc '…'`) so `HA_MCP_URL` is exported. Capture each hour stamp after its read completes, never before, so a rotation that falls inside a read is seen.
   ```bash
-  diff /tmp/guide1.key /tmp/guide2.key && echo KEY_STABLE
-  rm /tmp/guide1.json /tmp/guide2.json /tmp/guide1.key /tmp/guide2.key
+  # first read > /tmp/guide1.json
+  h1=$(date +%H)
+  # wait > 60 seconds
+  # second read > /tmp/guide2.json
+  h2=$(date +%H)
+  grep -oE 'I-HAVE-READ-THE-BEST-PRACTICES-GUIDE-[0-9a-f]{8}' /tmp/guide1.json > /tmp/guide1.key
+  grep -oE 'I-HAVE-READ-THE-BEST-PRACTICES-GUIDE-[0-9a-f]{8}' /tmp/guide2.json > /tmp/guide2.key
+  if [ ! -s /tmp/guide1.key ] || [ ! -s /tmp/guide2.key ]; then echo NO_KEY_FOUND
+  elif [ "$h1" != "$h2" ]; then echo RETRY_SAME_HOUR
+  elif diff -q /tmp/guide1.key /tmp/guide2.key > /dev/null; then echo KEY_STABLE
+  else echo KEY_DIFFERS_STOP
+  fi
+  rm -f /tmp/guide1.json /tmp/guide2.json /tmp/guide1.key /tmp/guide2.key
   ```
-  Expected: `KEY_STABLE`; the diff output itself must not be printed if it contains skill content.
+  Expected: `KEY_STABLE`. `RETRY_SAME_HOUR` means the pair crossed an hour boundary; run the pair again. `NO_KEY_FOUND` means the regex did not match the captured output; stop and re-derive the key format from the guide output before re-running. `KEY_DIFFERS_STOP` means keys rotate even within one hour — the migration premise is disproved; stop, do not proceed to cutover, and return to the design. The `test -s` guards exist because an empty key file would otherwise make `diff` of two empty files report equality. Do not print the diff or the files if they contain skill content.
+- [ ] Gate check on the temporary entry (user present; the router's confirmation flow applies because this is a Tier 1 mutation). Confirm strict mode from the guide read, then prove the gate both ways with a scratch scene:
+  ```bash
+  # discover the schemas first
+  fish -lc 'mcp-cli info ha-mcp-remote ha_config_set_scene'
+  fish -lc 'mcp-cli info ha-mcp-remote ha_config_get_scene'
+  fish -lc 'mcp-cli info ha-mcp-remote ha_config_remove_scene'
+
+  # strict mode: read the guide and extract the key
+  fish -lc 'mcp-cli call ha-mcp-remote ha_get_skill_guide <discovered-guide-args>' > /tmp/guide-gate.json 2>&1
+  grep -q 'Acknowledgment key: I-HAVE-READ-THE-BEST-PRACTICES-GUIDE-' /tmp/guide-gate.json && echo GATE_ON
+  KEY=$(grep -oE 'I-HAVE-READ-THE-BEST-PRACTICES-GUIDE-[0-9a-f]{8}' /tmp/guide-gate.json | head -1)
+  test -n "$KEY" && echo KEY_READY
+
+  # negative: gated call without BestPracticeKey -> blocked, no scene created
+  # example shape only; replace with the discovered schema
+  #   {"name":"zz_pi_gate_check","entities":{}}
+  fish -lc 'mcp-cli call ha-mcp-remote ha_config_set_scene <scene-args-no-key>' > /tmp/gate-neg.json 2>&1
+  grep -q 'BPS_ACKNOWLEDGMENT_REQUIRED' /tmp/gate-neg.json && echo GATE_BLOCKED
+  fish -lc 'mcp-cli call ha-mcp-remote ha_config_get_scene <scene-ref>' > /dev/null 2>&1 && echo UNEXPECTED_SCENE || echo NO_SCENE
+
+  # positive: same call with the key -> accepted
+  # `KEY` was extracted by bash, but the call runs under fish, which does not see
+  # unexported bash variables. Export KEY first so fish expands $KEY; never echo it.
+  #   export KEY
+  #   fish -lc 'mcp-cli call ha-mcp-remote ha_config_set_scene <scene-args-with-key-using-$KEY>'
+  test -n "$KEY" || { echo NO_KEY; exit 1; }
+  fish -lc 'mcp-cli call ha-mcp-remote ha_config_set_scene <scene-args-with-key>' > /tmp/gate-pos.json 2>&1
+  fish -lc 'mcp-cli call ha-mcp-remote ha_config_get_scene <scene-ref>' > /dev/null 2>&1 && echo WRITE_OK
+
+  # rollback: remove the scratch scene (not gated)
+  fish -lc 'mcp-cli call ha-mcp-remote ha_config_remove_scene <scene-ref>' > /dev/null 2>&1 && echo ROLLED_BACK
+  rm -f /tmp/guide-gate.json /tmp/gate-neg.json /tmp/gate-pos.json
+  ```
+  Expected: `GATE_ON`, then `KEY_READY`, then `GATE_BLOCKED`, then `NO_SCENE`, then `WRITE_OK`, then `ROLLED_BACK`. `NO_KEY` means the key extraction came up empty; stop and re-read the guide before retrying the positive call. If the negative call is not blocked, stop, run the rollback, and report the gate as off. Do not print tool output that contains household data.
 - [ ] Record the observed results (success/failure and stability, no secret values) in this task's checkboxes.
 - [ ] Commit: `feat(mcp): add temporary ha-mcp-remote entry for transport validation`
 
-### Slice 4: Cutover
+### Slice 2: Cutover
 
 ### Task 4: Point the active `ha-mcp` entry at the component and remove the stdio path
 **Delivers:** The active `ha-mcp` entry is `type: remote`; stdio entry, temporary entry, and `HOME_ASSISTANT_*` exports are gone; rendered configs verified
@@ -246,12 +299,12 @@ The system SHALL render the work profile with zero Home Assistant references.
   ```bash
   cm data | jq -e '.profile == "personal"'
   cm apply ~/.config/mcp/mcp_servers.json ~/.config/fish/config.fish
-  fish -lc 'mcp-cli call ha-mcp ha_get_overview "{}"' > /dev/null && echo READ_OK
+  fish -lc 'mcp-cli call ha-mcp ha_get_overview "{}"' > /dev/null 2>&1 && echo READ_OK
   ```
   Expected: apply succeeds; `READ_OK` proves the active `ha-mcp` entry answers a read.
 - [ ] Commit: `feat(mcp): switch personal ha-mcp to the HACS in-process component`
 
-### Slice 5: Skills and sync prompt
+### Slice 3: Skills and sync prompt
 
 ### Task 5: Update the driver skill for the remote transport and the acknowledgment key
 **Delivers:** `home-assistant-mcp` documents the remote configuration and the gated-write key flow
@@ -306,24 +359,11 @@ The system SHALL render the work profile with zero Home Assistant references.
   Expected: absence check passes; the component repo is listed.
 - [ ] Commit: `docs(pi): refresh Home Assistant sync prompt sources`
 
-### Task 8: Final verification
-**Delivers:** Feature-level acceptance evidence: gate works both ways over the remote transport
-**Blocked by:** Tasks 4, 5
-**Traces to:** Requirements "Stable acknowledgment key", "Gated write succeeds with the key", "Gate not silently disabled", "Remote transport read"
-**Files:** None (live validation; record results in this task)
+### Slice 4: Verification and guidance review
 
-- [ ] Negative gate check with no mutation expected: through the router's confirmation flow, call one discovered gated write tool without `BestPracticeKey` using harmless arguments, and expect `BPS_ACKNOWLEDGMENT_REQUIRED` with no state change.
-- [ ] Positive gated write: after router confirmation for a benign mutation (recommended: create and then delete a label), read `ha_get_skill_guide`, pass `BestPracticeKey`, confirm the write succeeds, read back the result, then perform the documented rollback step. This can also ride along on the first real confirmed mutation after cutover.
-- [ ] Confirm a read still succeeds without printing output:
-  ```bash
-  fish -lc 'mcp-cli call ha-mcp ha_get_overview "{}"' > /dev/null && echo READ_OK
-  ```
-  Expected: `READ_OK` from a fresh fish shell.
-- [ ] Record outcomes (no secret values) in this task's checkboxes.
-
-### Task 9: Documentation and future-agent guidance review
+### Task 8: Documentation and future-agent guidance review
 **Delivers:** Stale references removed from repo agent guidance or explicitly recorded as unchanged
-**Blocked by:** Task 8
+**Blocked by:** Tasks 4, 5, 6, 7
 **Traces to:** Durable-plan contract (documentation and future-agent guidance)
 **Files:** `AGENTS.md`, `dot_pi/agent/exact_skills/chezmoi/SKILL.md` (review only; update only if stale)
 
@@ -334,3 +374,24 @@ The system SHALL render the work profile with zero Home Assistant references.
 - [ ] For each hit outside this plan's files: update it, or record here why it stays. Add to `AGENTS.md` only durable commands, traps, or procedures (for example, the worktree `--source` override if not already present). Do not add narrative prose.
 - [ ] Documentation impact summary for this feature: the skills, the sync prompt, and the fish comment are the user-facing docs; no README or runbook exists for this setup, so nothing else is affected.
 - [ ] Commit (only if files changed): `docs: refresh Home Assistant transport references`
+
+### Task 9: Final verification
+**Delivers:** Feature-level acceptance evidence: strict mode is effective, the gate works both ways on the active `ha-mcp` entry, and the `dot_pi/agent` suite passes
+**Blocked by:** Tasks 4, 5, 6, 7, 8
+**Traces to:** Requirements "Stable acknowledgment key within a rotation", "Gated write succeeds with the key", "Gate active and not silently disabled", "Remote transport read"
+**Files:** None (live validation; record results in this task)
+
+- [ ] Run the `dot_pi/agent` suite required by `AGENTS.md` for the skill and prompt edits:
+  ```bash
+  (cd dot_pi/agent && npm ci --ignore-scripts && npm test && npm run test:all); s=$?; rm -rf dot_pi/agent/node_modules; test $s -eq 0
+  ```
+  Expected: all suites pass. `validate-skills.mjs` renders `.tmpl` skills with plain `chezmoi`, which resolves to `~/.local/share/chezmoi` unless `--source` is supplied; if it validates the wrong tree, re-run it with the worktree as the chezmoi source and record the result.
+- [ ] Confirm strict mode is effective: read `ha_get_skill_guide` and check the output contains the `Acknowledgment key:` line. Both `ENABLE_MANDATORY_BPS` and `ENABLE_STRICT_MANDATORY_BPS` default on, and the pip wheel bundles `src/ha_mcp/resources/skills-vendor/skills/`, so the gate should be effective with no configuration change. The component options do not expose these flags. If the line is absent, the server failed open (missing skills vendor or a settings-load error): reinstall the pinned server package, confirm the skills-vendor directory exists in the installed package, and check the Home Assistant log for the "strict-BPS gate disabled" warning. Do not run the negative check until strict mode is confirmed.
+- [ ] Negative gate check: pick a gated tool from `ha_config_set_automation`, `ha_config_set_script`, `ha_config_set_scene`, `ha_config_set_helper`, `ha_config_set_dashboard`, or `ha_config_set_yaml`, and a scratch target whose removal is the pre-recorded rollback (recommended: `ha_config_set_scene` creating `zz_pi_gate_check`, removed with `ha_config_remove_scene`; confirm both schemas with `mcp-cli info ha-mcp <tool>` first). Through the router's confirmation flow, call it without `BestPracticeKey`; expect `BPS_ACKNOWLEDGMENT_REQUIRED` and no state change. If the call is not blocked, stop, remove the scratch object, and report the gate as off.
+- [ ] Positive gated write: with strict mode confirmed effective, read `ha_get_skill_guide`, pass `BestPracticeKey`, create the same scratch object with the gated setter, read it back, then remove it with the matching remove tool. Do not use `ha_config_set_label`: labels are not one of the six gated tools.
+- [ ] Confirm a read still succeeds without printing output:
+  ```bash
+  fish -lc 'mcp-cli call ha-mcp ha_get_overview "{}"' > /dev/null 2>&1 && echo READ_OK
+  ```
+  Expected: `READ_OK` from a fresh fish shell.
+- [ ] Record outcomes (no secret values) in this task's checkboxes.

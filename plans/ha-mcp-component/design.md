@@ -94,18 +94,19 @@ Do first:
 1. Install the component and the server entry with auto-update off and local-only mode; copy the direct URL.
 2. Store the URL in 1Password and add `HA_MCP_URL` to the fish template.
 3. Add a temporary mcp-cli entry `ha-mcp-remote` (`type: remote`, `url: ${HA_MCP_URL}`) without touching the active `ha-mcp` entry.
-4. Run `mcp-cli call ha-mcp-remote ha_get_overview '{}'`, then call `ha_get_skill_guide` twice more than 60 seconds apart and compare the acknowledgment keys.
+4. Run `mcp-cli call ha-mcp-remote ha_get_overview '{}'`; call `ha_get_skill_guide` twice in the same hourly rotation and compare the acknowledgment keys; then prove the gate both ways through the temporary entry with a scratch scene: `ha_config_set_scene` is rejected without `BestPracticeKey`, accepted with it, and the scratch scene is removed afterward.
 5. Only if both pass: replace the active `ha-mcp` entry, remove the `HOME_ASSISTANT_*` exports, and update the skills.
 
-What the user sees: pi queries HA over the component, and a read-key-then-write sequence no longer fails the gate.
+What the user sees: pi queries HA over the component, a read-key-then-write sequence no longer fails the gate, and a keyless write is still rejected.
 
-What the team learns: whether mcp-cli speaks plain-HTTP streamable MCP to the component, whether Tailscale reaches `172.16.0.14:9584`, and that the long-lived key is stable across one-shot calls.
+What the team learns: whether mcp-cli speaks plain-HTTP streamable MCP to the component, whether Tailscale reaches `172.16.0.14:9584`, that the long-lived key is stable across one-shot calls, and that the component's strict gate is effective in both directions.
 
-Why no smaller slice produces this feedback: the long-lived server is the fix; it exists only after the component is installed, and every later change keys off its URL.
+Why no smaller slice produces this feedback: the long-lived server is the fix, and it exists only after the component is installed. The gate proof needs one real gated write, so it runs on a scratch scene through the temporary entry before any active entry changes.
 
 Success criteria and validation:
 - `mcp-cli call ha-mcp ha_get_overview '{}'` succeeds against the remote URL.
-- Two `ha_get_skill_guide` reads more than 60 seconds apart return the same acknowledgment key.
+- Two `ha_get_skill_guide` reads in the same hourly rotation return the same acknowledgment key.
+- `ha_config_set_scene` without `BestPracticeKey` returns `BPS_ACKNOWLEDGMENT_REQUIRED` and creates no scene; with the key it succeeds, and the scratch scene is removed.
 - No token or secret URL is committed; the URL lives only in 1Password and the rendered config.
 
 ## Alternatives considered
@@ -122,6 +123,7 @@ Success criteria and validation:
 - **HA-core package mutation.** The component pip-installs `ha-mcp` into HA core's Python environment at runtime, and an HA core update replaces that environment and forces a reinstall of the frozen version. This is the residual downside of choosing the component over the add-on. Mitigation: auto server-updates off, and treat repeated install failures as a trigger to switch to the add-on.
 - **Version skew between component and server.** The component can hold a server update and raise a repair issue. Mitigation: update the component through HACS on the user's schedule; read repair issues.
 - **Acknowledgment key expiry mid-session.** The key still rotates hourly. Mitigation: the skill instructs re-reading the guide if a gated write returns `BPS_ACKNOWLEDGMENT_REQUIRED`.
+- **Strict gate not effective in the component.** `ENABLE_MANDATORY_BPS` and `ENABLE_STRICT_MANDATORY_BPS` default on and the pip wheel bundles the skills vendor, but the server fails open when the vendor is missing or settings fail to load. Mitigation: the slice reads the guide, requires the acknowledgment line, and proves a keyless gated write is blocked; on failure, reinstall the pinned server package and check the log for the "strict-BPS gate disabled" warning.
 - **Secret URL leakage.** The URL is the only credential. Mitigation: never commit it; store it in 1Password; rotate with **Regenerate connect secrets now** if it leaks, and re-apply chezmoi.
 
 ## Operability
@@ -145,7 +147,7 @@ Rollback:
 
 ## Testing strategy
 - Transport: `mcp-cli call ha-mcp-remote ha_get_overview '{}'` returns success.
-- Gate: two `ha_get_skill_guide` reads more than 60 seconds apart return the same key; a subsequent gated write under the confirmation policy succeeds with `BestPracticeKey`.
+- Gate: two `ha_get_skill_guide` reads in the same hourly rotation return the same key; a gated write on the temporary entry without `BestPracticeKey` returns `BPS_ACKNOWLEDGMENT_REQUIRED`, and the same write with the key succeeds.
 - Rendered config: `chezmoi execute-template`/`chezmoi diff` shows valid JSON for the personal profile and an unchanged work profile.
 - Negative case: confirm a gated write without `BestPracticeKey` still returns `BPS_ACKNOWLEDGMENT_REQUIRED` (the gate is not silently disabled).
 
@@ -157,4 +159,4 @@ Rollback:
 ## Self-review
 - The chosen direction's clearest downside is the HA-core runtime pip install and its reinstall-on-core-update behavior; it is named explicitly and paired with a fallback trigger (switch to the add-on).
 - Every rejected alternative names a genuine merit and is deferred with a revisit trigger rather than merged.
-- The smallest slice produces real user feedback (a working remote read and a stable gate key) before any active configuration changes.
+- The smallest slice produces real user feedback (a working remote read, a rejected keyless write, an accepted keyed write, and a stable gate key) before any active configuration changes.

@@ -7,8 +7,9 @@ Review upstream Home Assistant agent guidance and tooling, then recommend curate
 ## Sources to inspect
 - Upstream `homeassistant-ai/skills`
 - Upstream `homeassistant-ai/ha-mcp`
+- Upstream `homeassistant-ai/ha-mcp-integration`
 - Local `dot_pi/agent/exact_skills_personal/exact_home-assistant/`
-- Local `dot_pi/agent/exact_skills_personal/exact_home-assistant-mcp/SKILL.md.tmpl`
+- Local `dot_pi/agent/exact_skills_personal/exact_home-assistant-mcp/SKILL.md`
 
 Record the upstream URL, commit/date, source method, and a short summary of what changed upstream.
 
@@ -23,7 +24,7 @@ Highlight:
 The local Home Assistant safety policy is authoritative: read-only by default, safety tiers, confirmation protocol, verification, rollback, and token/privacy rules must not be weakened. Avoid wholesale mirroring from upstream; curate only the parts that improve the local skills.
 
 ## Privacy and secrets
-Never include the Home Assistant token, bearer headers, private Home Assistant URLs, entity/state dumps, presence details, or other household-private data in output or files.
+Never include the Home Assistant token, the ha-mcp connect URL, bearer headers, private Home Assistant URLs, entity/state dumps, presence details, or other household-private data in output or files.
 
 ## Before editing
 Ask before editing unless the user explicitly requested applying updates. If editing is approved, summarize the curated changes, preserve the local safety policy, and update only the relevant local skill or prompt files.

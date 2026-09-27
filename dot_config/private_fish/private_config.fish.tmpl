@@ -107,6 +107,8 @@ set -gx TAVILY_API_KEY '{{ onepasswordRead "op://Private/Tavily/api-key" }}'
 # Home Assistant API access. ha-mcp consumes these vars via mcp_servers.json.
 set -gx HOME_ASSISTANT_URL 'https://hass.malazan.xyz'
 set -gx HOME_ASSISTANT_TOKEN '{{ onepasswordRead "op://Private/Home Assistant/pi_api_token" }}'
+# HA-MCP component direct URL (HACS in-process server); consumed by mcp_servers.json.
+set -gx HA_MCP_URL '{{ onepasswordRead "op://Private/Home Assistant/mcp_url" }}'
 {{- end }}
 
 # Set age key location for SOPS

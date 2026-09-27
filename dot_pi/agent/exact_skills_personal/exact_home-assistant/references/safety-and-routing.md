@@ -35,9 +35,9 @@ Wait for user confirmation. For Tier 2, after the first confirmation, restate th
 4. Read back state or config immediately after applying.
 5. If verification fails, stop and report the observed state. Offer the recorded rollback instead of continuing with new changes.
 
-Operational checks include pi transcript/history, `ha-mcp` startup output or errors, Home Assistant logbook/history, config validation before reload/restart, and a read-only inventory after setup.
+Operational checks include pi transcript/history, Home Assistant logs and the server's repair issues (Settings → System → Logs / Repairs), Home Assistant logbook/history, config validation before reload/restart, and a read-only inventory after setup.
 
-## Privacy and token handling
+## Privacy and secret URL handling
 Home Assistant entity names, states, presence, camera, lock, alarm, and device inventory are household-private. Summarize only what is needed for the task.
 
-Never print or persist `HOME_ASSISTANT_TOKEN`. Never include bearer headers, tokens, private URLs, or secret material in source files, docs, prompts, command examples, or summaries.
+Never print, log, persist, or include the ha-mcp connect URL in prompts, files, command output, examples, or summaries. Never include bearer headers, tokens, private URLs, or secret material in source files, docs, prompts, command examples, or summaries.

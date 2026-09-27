@@ -35,7 +35,7 @@ Advisory learnings: 1 of 11 sections matched — **"Render piped chezmoi templat
 | `home-assistant-best-practices` | `agent-selected` | Authoring a real automation | Chose a native `time` trigger + weekday `time` condition over a template, `entity_id` over `device_id`, and `mode: single` |
 | `tavily-search` | `agent-selected` | HACS install blocker | Confirmed the correct HACS repository and the GitHub-token re-authentication fix |
 
-Slice 2 (cutover) reused `chezmoi` and `codebase-research` for the same two template files; no new skills were loaded.
+Slice 2 (cutover) reused `chezmoi` and `codebase-research` for the same two template files; no new skills were loaded. Slice 3 (skills and sync prompt) loaded `write` for the prose edits and re-ran the `dot_pi/agent` suite (`39 skills validated`, `43 tests`, smoke) per `AGENTS.md`.
 
 ## Implementation Contract
 
@@ -331,17 +331,18 @@ The system SHALL render the work profile with zero Home Assistant references.
 **Traces to:** Design "chezmoi side" step 4 (driver skill)
 **Files:** `dot_pi/agent/exact_skills_personal/exact_home-assistant-mcp/SKILL.md`
 
-- [ ] Rewrite the **Configuration** section: server name `ha-mcp`; config file `~/.config/mcp/mcp_servers.json`; transport `type: remote` with `url: ${HA_MCP_URL}`; no env mapping and no local token; the connect URL is the credential and comes from 1Password through the fish export. Delete the `uvx`/`HOME_ASSISTANT_*` wording.
-- [ ] Add a **Best-practices acknowledgment key** section: before any gated write, call `ha_get_skill_guide` for the best-practices skill, read the acknowledgment line, and pass `BestPracticeKey` on the write call. State that the key rotates hourly with a previous-hour grace window, so re-read the guide when a write returns `BPS_ACKNOWLEDGMENT_REQUIRED`.
-- [ ] Keep discovery-first and read-only-first guidance and the mutation deferral to the router skill unchanged.
-- [ ] Verify:
+- [x] Rewrite the **Configuration** section: server name `ha-mcp`; config file `~/.config/mcp/mcp_servers.json`; transport `type: remote` with `url: ${HA_MCP_URL}`; no env mapping and no local token; the connect URL is the credential and comes from 1Password through the fish export. Delete the `uvx`/`HOME_ASSISTANT_*` wording.
+- [x] Add a **Best-practices acknowledgment key** section: before any gated write, call `ha_get_skill_guide` for the best-practices skill, read the acknowledgment line, and pass `BestPracticeKey` on the write call. State that the key rotates hourly with a previous-hour grace window, so re-read the guide when a write returns `BPS_ACKNOWLEDGMENT_REQUIRED`.
+- [x] Keep discovery-first and read-only-first guidance and the mutation deferral to the router skill unchanged.
+- [x] Verify:
   ```bash
   ! grep -nE 'uvx|HOME_ASSISTANT' dot_pi/agent/exact_skills_personal/exact_home-assistant-mcp/SKILL.md
   grep -n 'BestPracticeKey' dot_pi/agent/exact_skills_personal/exact_home-assistant-mcp/SKILL.md
   grep -n 'BPS_ACKNOWLEDGMENT_REQUIRED' dot_pi/agent/exact_skills_personal/exact_home-assistant-mcp/SKILL.md
   ```
   Expected: first check finds nothing; the other two find the new section.
-- [ ] Commit: `docs(pi): update home-assistant-mcp skill for the remote component`
+- [x] Commit: `docs(pi): update home-assistant-mcp skill for the remote component`
+- Result 2026-09-27: committed `d8333c6`.
 
 ### Task 6: Switch the router skill and references to secret-URL handling
 **Delivers:** The router skill and references treat the connect URL as the protected secret and check HA logs/repair issues instead of server startup output
@@ -349,17 +350,18 @@ The system SHALL render the work profile with zero Home Assistant references.
 **Traces to:** Design "chezmoi side" step 4 (router skill and references)
 **Files:** `dot_pi/agent/exact_skills_personal/exact_home-assistant/SKILL.md`, `dot_pi/agent/exact_skills_personal/exact_home-assistant/references/core-concepts.md`, `dot_pi/agent/exact_skills_personal/exact_home-assistant/references/safety-and-routing.md`
 
-- [ ] In all three files, replace `HOME_ASSISTANT_TOKEN` handling with connect-URL handling: never print, log, persist, or include the direct connect URL in prompts, files, command output, examples, or summaries. Keep the existing bearer-header and private-URL prohibitions.
-- [ ] In `SKILL.md` and `references/safety-and-routing.md`, change the operational checks from "`ha-mcp` startup output or errors" to "Home Assistant logs and the server's repair issues" (Settings → System → Logs / Repairs).
-- [ ] Rename the `safety-and-routing.md` heading "Privacy and token handling" to "Privacy and secret URL handling" and update its body.
-- [ ] Verify:
+- [x] In all three files, replace `HOME_ASSISTANT_TOKEN` handling with connect-URL handling: never print, log, persist, or include the direct connect URL in prompts, files, command output, examples, or summaries. Keep the existing bearer-header and private-URL prohibitions.
+- [x] In `SKILL.md` and `references/safety-and-routing.md`, change the operational checks from "`ha-mcp` startup output or errors" to "Home Assistant logs and the server's repair issues" (Settings → System → Logs / Repairs).
+- [x] Rename the `safety-and-routing.md` heading "Privacy and token handling" to "Privacy and secret URL handling" and update its body.
+- [x] Verify:
   ```bash
   ! grep -rn 'HOME_ASSISTANT' dot_pi/agent/exact_skills_personal/exact_home-assistant/
   ! grep -rn 'startup output' dot_pi/agent/exact_skills_personal/exact_home-assistant/
   grep -n 'secret URL handling' dot_pi/agent/exact_skills_personal/exact_home-assistant/references/safety-and-routing.md
   ```
   Expected: absence checks pass; the heading check finds the renamed section.
-- [ ] Commit: `docs(pi): switch Home Assistant router skill to secret-URL handling`
+- [x] Commit: `docs(pi): switch Home Assistant router skill to secret-URL handling`
+- Result 2026-09-27: committed `b10de31`.
 
 ### Task 7: Refresh the sync prompt
 **Delivers:** The sync prompt points at real source paths and includes the component repository
@@ -367,16 +369,17 @@ The system SHALL render the work profile with zero Home Assistant references.
 **Traces to:** Design "chezmoi side" step 4 (sync prompt)
 **Files:** `dot_pi/agent/exact_prompts/sync-home-assistant-skills.md`
 
-- [ ] Fix the stale local source path `dot_pi/agent/exact_skills_personal/exact_home-assistant-mcp/SKILL.md.tmpl` to `dot_pi/agent/exact_skills_personal/exact_home-assistant-mcp/SKILL.md`.
-- [ ] Add `homeassistant-ai/ha-mcp-integration` to **Sources to inspect**.
-- [ ] In **Privacy and secrets**, extend the protected material with the ha-mcp connect URL alongside the token.
-- [ ] Verify:
+- [x] Fix the stale local source path `dot_pi/agent/exact_skills_personal/exact_home-assistant-mcp/SKILL.md.tmpl` to `dot_pi/agent/exact_skills_personal/exact_home-assistant-mcp/SKILL.md`.
+- [x] Add `homeassistant-ai/ha-mcp-integration` to **Sources to inspect**.
+- [x] In **Privacy and secrets**, extend the protected material with the ha-mcp connect URL alongside the token.
+- [x] Verify:
   ```bash
   ! grep -n 'SKILL.md.tmpl' dot_pi/agent/exact_prompts/sync-home-assistant-skills.md
   grep -n 'ha-mcp-integration' dot_pi/agent/exact_prompts/sync-home-assistant-skills.md
   ```
   Expected: absence check passes; the component repo is listed.
-- [ ] Commit: `docs(pi): refresh Home Assistant sync prompt sources`
+- [x] Commit: `docs(pi): refresh Home Assistant sync prompt sources`
+- Result 2026-09-27: committed `663a29c`; the `dot_pi/agent` suite passed for all three tasks.
 
 ### Slice 4: Verification and guidance review
 
@@ -386,13 +389,14 @@ The system SHALL render the work profile with zero Home Assistant references.
 **Traces to:** Durable-plan contract (documentation and future-agent guidance)
 **Files:** `AGENTS.md`, `dot_pi/agent/exact_skills/chezmoi/SKILL.md` (review only; update only if stale)
 
-- [ ] Search the repository for leftover `uvx ha-mcp`, `HOME_ASSISTANT_`, and stdio-`ha-mcp` references outside the files already updated:
+- [x] Search the repository for leftover `uvx ha-mcp`, `HOME_ASSISTANT_`, and stdio-`ha-mcp` references outside the files already updated:
   ```bash
   rg -n 'uvx ha-mcp|HOME_ASSISTANT|ha-mcp@latest' --glob '!plans/**' --glob '!node_modules/**'
   ```
-- [ ] For each hit outside this plan's files: update it, or record here why it stays. Add to `AGENTS.md` only durable commands, traps, or procedures (for example, the worktree `--source` override if not already present). Do not add narrative prose.
-- [ ] Documentation impact summary for this feature: the skills, the sync prompt, and the fish comment are the user-facing docs; no README or runbook exists for this setup, so nothing else is affected.
-- [ ] Commit (only if files changed): `docs: refresh Home Assistant transport references`
+- [x] For each hit outside this plan's files: update it, or record here why it stays. Add to `AGENTS.md` only durable commands, traps, or procedures (for example, the worktree `--source` override if not already present). Do not add narrative prose.
+- [x] Documentation impact summary for this feature: the skills, the sync prompt, and the fish comment are the user-facing docs; no README or runbook exists for this setup, so nothing else is affected.
+- [x] Commit (only if files changed): `docs: refresh Home Assistant transport references`
+- Result 2026-09-27: the stale-reference search found no hits outside the plan, so no HA references were updated. The only durable gap was the worktree `--source` trap, now in `AGENTS.md`; it is committed as `a40bfc1 docs: note chezmoi worktree --source requirement` because the plan's HA-reference message no longer matched the change.
 
 ### Task 9: Final verification
 **Delivers:** Feature-level acceptance evidence: strict mode is effective, the gate works both ways on the active `ha-mcp` entry, and the `dot_pi/agent` suite passes
@@ -400,23 +404,25 @@ The system SHALL render the work profile with zero Home Assistant references.
 **Traces to:** Requirements "Stable acknowledgment key within a rotation", "Gated write succeeds with the key", "Gate active and not silently disabled", "Remote transport read"
 **Files:** None (live validation; record results in this task)
 
-- [ ] Run the `dot_pi/agent` suite required by `AGENTS.md` for the skill and prompt edits:
+- [x] Run the `dot_pi/agent` suite required by `AGENTS.md` for the skill and prompt edits:
   ```bash
   (cd dot_pi/agent && npm ci --ignore-scripts && npm test && npm run test:all); s=$?; rm -rf dot_pi/agent/node_modules; test $s -eq 0
   ```
   Expected: all suites pass. `validate-skills.mjs` renders `.tmpl` skills with plain `chezmoi`, which resolves to `~/.local/share/chezmoi` unless `--source` is supplied; if it validates the wrong tree, re-run it with the worktree as the chezmoi source and record the result.
-- [ ] Confirm strict mode is effective: read `ha_get_skill_guide` and check the output contains the `Acknowledgment key:` line. Both `ENABLE_MANDATORY_BPS` and `ENABLE_STRICT_MANDATORY_BPS` default on, and the pip wheel bundles `src/ha_mcp/resources/skills-vendor/skills/`, so the gate should be effective with no configuration change. The component options do not expose these flags. If the line is absent, the server failed open (missing skills vendor or a settings-load error): reinstall the pinned server package, confirm the skills-vendor directory exists in the installed package, and check the Home Assistant log for the "strict-BPS gate disabled" warning. Do not run the negative check until strict mode is confirmed.
-- [ ] Negative gate check: pick a gated tool from `ha_config_set_automation`, `ha_config_set_script`, `ha_config_set_scene`, `ha_config_set_helper`, `ha_config_set_dashboard`, or `ha_config_set_yaml`, and a scratch target whose removal is the pre-recorded rollback (recommended: `ha_config_set_scene` creating `zz_pi_gate_check`, removed with `ha_config_remove_scene`; confirm both schemas with `mcp-cli info ha-mcp <tool>` first). Through the router's confirmation flow, call it without `BestPracticeKey`; expect `BPS_ACKNOWLEDGMENT_REQUIRED` and no state change. If the call is not blocked, stop, remove the scratch object, and report the gate as off.
-- [ ] Positive gated write: with strict mode confirmed effective, read `ha_get_skill_guide`, pass `BestPracticeKey`, create the same scratch object with the gated setter, read it back, then remove it with the matching remove tool. Do not use `ha_config_set_label`: labels are not one of the six gated tools.
-- [ ] Confirm a read still succeeds without printing output:
+- [x] Confirm strict mode is effective: read `ha_get_skill_guide` and check the output contains the `Acknowledgment key:` line. Both `ENABLE_MANDATORY_BPS` and `ENABLE_STRICT_MANDATORY_BPS` default on, and the pip wheel bundles `src/ha_mcp/resources/skills-vendor/skills/`, so the gate should be effective with no configuration change. The component options do not expose these flags. If the line is absent, the server failed open (missing skills vendor or a settings-load error): reinstall the pinned server package, confirm the skills-vendor directory exists in the installed package, and check the Home Assistant log for the "strict-BPS gate disabled" warning. Do not run the negative check until strict mode is confirmed.
+- [x] Negative gate check: pick a gated tool from `ha_config_set_automation`, `ha_config_set_script`, `ha_config_set_scene`, `ha_config_set_helper`, `ha_config_set_dashboard`, or `ha_config_set_yaml`, and a scratch target whose removal is the pre-recorded rollback (recommended: `ha_config_set_scene` creating `zz_pi_gate_check`, removed with `ha_config_remove_scene`; confirm both schemas with `mcp-cli info ha-mcp <tool>` first). Through the router's confirmation flow, call it without `BestPracticeKey`; expect `BPS_ACKNOWLEDGMENT_REQUIRED` and no state change. If the call is not blocked, stop, remove the scratch object, and report the gate as off.
+- [x] Positive gated write: with strict mode confirmed effective, read `ha_get_skill_guide`, pass `BestPracticeKey`, create the same scratch object with the gated setter, read it back, then remove it with the matching remove tool. Do not use `ha_config_set_label`: labels are not one of the six gated tools.
+- [x] Confirm a read still succeeds without printing output:
   ```bash
   fish -lc 'mcp-cli call ha-mcp ha_get_overview "{}"' > /dev/null 2>&1 && echo READ_OK
   ```
   Expected: `READ_OK` from a fresh fish shell.
-- [ ] Record outcomes (no secret values) in this task's checkboxes.
+- [x] Record outcomes (no secret values) in this task's checkboxes.
+- Result 2026-09-27: `dot_pi/agent` suite passed (39 skills validated, 43 tests, smoke OK). Strict mode `GATE_ON` on the active `ha-mcp` entry. Gate proof with `ha_config_set_scene` and scratch scene `zz_pi_gate_check`: keyless call `GATE_BLOCKED` with no scene; keyed call `POS_OK`; read-back present; `ha_config_remove_scene` `REMOVE_OK`; final read-back `ENTITY_NOT_FOUND`. `ha_get_overview` → `READ_OK`; entry `Transport: HTTP`. No scratch object left behind.
 
 ## Learning candidates
 
 - 2026-09-27: The plan's Task 3 verification step `mcp-cli info ha-mcp-remote` prints the connect URL — the single credential the plan requires never to appear in command output — so following the plan leaks the secret and forces rotation. Evidence: plan Task 3 "Verify and apply through the apply gate"; this execution.
 - 2026-09-27: ha-mcp gated write tools take the object under a `config` parameter; a flattened payload fails with `VALIDATION_FAILED: <field>: unknown parameter` (valid parameters include `config`). Evidence: this execution of `ha_config_set_automation`.
 - 2026-09-27: A revoked HACS GitHub token surfaces as a bare `401` on custom-repository add plus a blank `/hacs` panel with the HACS config entry in `failed_unload`; a UI re-auth leaves the entry stuck and a Home Assistant restart is required to reload it. Evidence: HA WebSocket `config_entries/get` showing `failed_unload`; this execution.
+- 2026-09-27: `ha_config_get_scene` returns `success:false, error:ENTITY_NOT_FOUND` and echoes the requested `scene_id` in the message, so a `grep` for the id reports present for a missing object; decide presence from the `success` field, not the text. Evidence: the first Task 9 gate-proof run produced false `UNEXPECTED_PRESENT` and `STILL_PRESENT` results.

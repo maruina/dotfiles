@@ -35,7 +35,7 @@ Advisory learnings: 1 of 11 sections matched — **"Render piped chezmoi templat
 | `home-assistant-best-practices` | `agent-selected` | Authoring a real automation | Chose a native `time` trigger + weekday `time` condition over a template, `entity_id` over `device_id`, and `mode: single` |
 | `tavily-search` | `agent-selected` | HACS install blocker | Confirmed the correct HACS repository and the GitHub-token re-authentication fix |
 
-Slice 2 (cutover) reused `chezmoi` and `codebase-research` for the same two template files; no new skills were loaded.
+Slice 2 (cutover) reused `chezmoi` and `codebase-research` for the same two template files; no new skills were loaded. Slice 3 (skills and sync prompt) loaded `write` for the prose edits and re-ran the `dot_pi/agent` suite (`39 skills validated`, `43 tests`, smoke) per `AGENTS.md`.
 
 ## Implementation Contract
 
@@ -331,17 +331,18 @@ The system SHALL render the work profile with zero Home Assistant references.
 **Traces to:** Design "chezmoi side" step 4 (driver skill)
 **Files:** `dot_pi/agent/exact_skills_personal/exact_home-assistant-mcp/SKILL.md`
 
-- [ ] Rewrite the **Configuration** section: server name `ha-mcp`; config file `~/.config/mcp/mcp_servers.json`; transport `type: remote` with `url: ${HA_MCP_URL}`; no env mapping and no local token; the connect URL is the credential and comes from 1Password through the fish export. Delete the `uvx`/`HOME_ASSISTANT_*` wording.
-- [ ] Add a **Best-practices acknowledgment key** section: before any gated write, call `ha_get_skill_guide` for the best-practices skill, read the acknowledgment line, and pass `BestPracticeKey` on the write call. State that the key rotates hourly with a previous-hour grace window, so re-read the guide when a write returns `BPS_ACKNOWLEDGMENT_REQUIRED`.
-- [ ] Keep discovery-first and read-only-first guidance and the mutation deferral to the router skill unchanged.
-- [ ] Verify:
+- [x] Rewrite the **Configuration** section: server name `ha-mcp`; config file `~/.config/mcp/mcp_servers.json`; transport `type: remote` with `url: ${HA_MCP_URL}`; no env mapping and no local token; the connect URL is the credential and comes from 1Password through the fish export. Delete the `uvx`/`HOME_ASSISTANT_*` wording.
+- [x] Add a **Best-practices acknowledgment key** section: before any gated write, call `ha_get_skill_guide` for the best-practices skill, read the acknowledgment line, and pass `BestPracticeKey` on the write call. State that the key rotates hourly with a previous-hour grace window, so re-read the guide when a write returns `BPS_ACKNOWLEDGMENT_REQUIRED`.
+- [x] Keep discovery-first and read-only-first guidance and the mutation deferral to the router skill unchanged.
+- [x] Verify:
   ```bash
   ! grep -nE 'uvx|HOME_ASSISTANT' dot_pi/agent/exact_skills_personal/exact_home-assistant-mcp/SKILL.md
   grep -n 'BestPracticeKey' dot_pi/agent/exact_skills_personal/exact_home-assistant-mcp/SKILL.md
   grep -n 'BPS_ACKNOWLEDGMENT_REQUIRED' dot_pi/agent/exact_skills_personal/exact_home-assistant-mcp/SKILL.md
   ```
   Expected: first check finds nothing; the other two find the new section.
-- [ ] Commit: `docs(pi): update home-assistant-mcp skill for the remote component`
+- [x] Commit: `docs(pi): update home-assistant-mcp skill for the remote component`
+- Result 2026-09-27: committed `d8333c6`.
 
 ### Task 6: Switch the router skill and references to secret-URL handling
 **Delivers:** The router skill and references treat the connect URL as the protected secret and check HA logs/repair issues instead of server startup output
@@ -349,17 +350,18 @@ The system SHALL render the work profile with zero Home Assistant references.
 **Traces to:** Design "chezmoi side" step 4 (router skill and references)
 **Files:** `dot_pi/agent/exact_skills_personal/exact_home-assistant/SKILL.md`, `dot_pi/agent/exact_skills_personal/exact_home-assistant/references/core-concepts.md`, `dot_pi/agent/exact_skills_personal/exact_home-assistant/references/safety-and-routing.md`
 
-- [ ] In all three files, replace `HOME_ASSISTANT_TOKEN` handling with connect-URL handling: never print, log, persist, or include the direct connect URL in prompts, files, command output, examples, or summaries. Keep the existing bearer-header and private-URL prohibitions.
-- [ ] In `SKILL.md` and `references/safety-and-routing.md`, change the operational checks from "`ha-mcp` startup output or errors" to "Home Assistant logs and the server's repair issues" (Settings → System → Logs / Repairs).
-- [ ] Rename the `safety-and-routing.md` heading "Privacy and token handling" to "Privacy and secret URL handling" and update its body.
-- [ ] Verify:
+- [x] In all three files, replace `HOME_ASSISTANT_TOKEN` handling with connect-URL handling: never print, log, persist, or include the direct connect URL in prompts, files, command output, examples, or summaries. Keep the existing bearer-header and private-URL prohibitions.
+- [x] In `SKILL.md` and `references/safety-and-routing.md`, change the operational checks from "`ha-mcp` startup output or errors" to "Home Assistant logs and the server's repair issues" (Settings → System → Logs / Repairs).
+- [x] Rename the `safety-and-routing.md` heading "Privacy and token handling" to "Privacy and secret URL handling" and update its body.
+- [x] Verify:
   ```bash
   ! grep -rn 'HOME_ASSISTANT' dot_pi/agent/exact_skills_personal/exact_home-assistant/
   ! grep -rn 'startup output' dot_pi/agent/exact_skills_personal/exact_home-assistant/
   grep -n 'secret URL handling' dot_pi/agent/exact_skills_personal/exact_home-assistant/references/safety-and-routing.md
   ```
   Expected: absence checks pass; the heading check finds the renamed section.
-- [ ] Commit: `docs(pi): switch Home Assistant router skill to secret-URL handling`
+- [x] Commit: `docs(pi): switch Home Assistant router skill to secret-URL handling`
+- Result 2026-09-27: committed `b10de31`.
 
 ### Task 7: Refresh the sync prompt
 **Delivers:** The sync prompt points at real source paths and includes the component repository
@@ -367,16 +369,17 @@ The system SHALL render the work profile with zero Home Assistant references.
 **Traces to:** Design "chezmoi side" step 4 (sync prompt)
 **Files:** `dot_pi/agent/exact_prompts/sync-home-assistant-skills.md`
 
-- [ ] Fix the stale local source path `dot_pi/agent/exact_skills_personal/exact_home-assistant-mcp/SKILL.md.tmpl` to `dot_pi/agent/exact_skills_personal/exact_home-assistant-mcp/SKILL.md`.
-- [ ] Add `homeassistant-ai/ha-mcp-integration` to **Sources to inspect**.
-- [ ] In **Privacy and secrets**, extend the protected material with the ha-mcp connect URL alongside the token.
-- [ ] Verify:
+- [x] Fix the stale local source path `dot_pi/agent/exact_skills_personal/exact_home-assistant-mcp/SKILL.md.tmpl` to `dot_pi/agent/exact_skills_personal/exact_home-assistant-mcp/SKILL.md`.
+- [x] Add `homeassistant-ai/ha-mcp-integration` to **Sources to inspect**.
+- [x] In **Privacy and secrets**, extend the protected material with the ha-mcp connect URL alongside the token.
+- [x] Verify:
   ```bash
   ! grep -n 'SKILL.md.tmpl' dot_pi/agent/exact_prompts/sync-home-assistant-skills.md
   grep -n 'ha-mcp-integration' dot_pi/agent/exact_prompts/sync-home-assistant-skills.md
   ```
   Expected: absence check passes; the component repo is listed.
-- [ ] Commit: `docs(pi): refresh Home Assistant sync prompt sources`
+- [x] Commit: `docs(pi): refresh Home Assistant sync prompt sources`
+- Result 2026-09-27: committed `663a29c`; the `dot_pi/agent` suite passed for all three tasks.
 
 ### Slice 4: Verification and guidance review
 

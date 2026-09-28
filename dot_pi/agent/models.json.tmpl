@@ -109,7 +109,13 @@
           "contextWindow": 1048576,
           "maxTokens": 65536,
           "thinkingLevelMap": {
-            "off": null
+            "off": null,
+            "minimal": null,
+            "low": "LOW",
+            "medium": "MEDIUM",
+            "high": "HIGH",
+            "xhigh": null,
+            "max": null
           }
         }
       ]
@@ -288,16 +294,26 @@
         },
         {
           "id": "baseten/deepseek-ai/DeepSeek-V4.1-Flash",
-          "name": "Deepseek Ai/deepseek V4.1 Flash (Baseten)",
+          "name": "DeepSeek V4.1 Flash (Baseten)",
           "api": "openai-completions",
           "reasoning": true,
           "input": [
-            "text"
+            "text",
+            "image"
           ],
-          "contextWindow": 128000,
-          "maxTokens": 16384,
+          "contextWindow": 1048576,
+          "maxTokens": 32768,
           "compat": {
             "supportsDeveloperRole": false
+          },
+          "thinkingLevelMap": {
+            "off": "none",
+            "minimal": null,
+            "low": "low",
+            "medium": null,
+            "high": "high",
+            "xhigh": null,
+            "max": "max"
           }
         },
         {
@@ -308,7 +324,7 @@
           "input": [
             "text"
           ],
-          "contextWindow": 900000,
+          "contextWindow": 1048576,
           "maxTokens": 262144,
           "compat": {
             "supportsDeveloperRole": false

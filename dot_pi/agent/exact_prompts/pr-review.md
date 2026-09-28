@@ -135,7 +135,7 @@ Start with:
 For core intuition:
 - Explain the essence before the implementation details.
 - Use a small toy example with concrete inputs and outputs when it clarifies non-obvious behavior.
-- Use a compact diagram when it reduces cognitive load. Prefer Mermaid flowcharts or Markdown tables in normal chat output. Reuse the same diagram shape across the walkthrough when explaining variants.
+- Use a compact diagram when it reduces cognitive load. Prefer Markdown tables in normal chat output; use Mermaid when flow or shape matters. Before emitting a Mermaid diagram, load and follow `mermaid-best-practices`. Use only diagram types the pi terminal renderer supports (`flowchart`, `sequenceDiagram`, `stateDiagram-v2`, `classDiagram`, `erDiagram`); prefer `TD` over `LR`, keep labels short, and split a diagram that would exceed the terminal width — unsupported types and oversized diagrams silently fall back to raw Mermaid source. Reuse the same diagram shape across the walkthrough when explaining variants.
 - Keep comprehension separate from judgment: explain neutrally first, then assess.
 
 For each logical step, include:

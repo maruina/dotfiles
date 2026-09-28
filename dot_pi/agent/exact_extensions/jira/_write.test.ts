@@ -38,6 +38,7 @@ test("buildCreateBody includes optionals and wraps priority as a name object", (
       description: "h2. Context",
       labels: ["infrastructure"],
       priority: "P1",
+      parent: "COST-1",
     }),
     {
       fields: {
@@ -47,6 +48,7 @@ test("buildCreateBody includes optionals and wraps priority as a name object", (
         description: "h2. Context",
         labels: ["infrastructure"],
         priority: { name: "P1" },
+        parent: { key: "COST-1" },
       },
     },
   );

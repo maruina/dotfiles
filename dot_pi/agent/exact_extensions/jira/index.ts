@@ -199,6 +199,11 @@ export default function jiraExtension(pi: ExtensionAPI): void {
           description: 'Priority name, e.g. "P1". Project-specific — check with jira_search when unsure.',
         }),
       ),
+      parent: Type.Optional(
+        Type.String({
+          description: 'Parent issue key, e.g. the epic "PLAT-100".',
+        }),
+      ),
     }),
 
     async execute(_toolCallId, params, signal) {
@@ -209,6 +214,7 @@ export default function jiraExtension(pi: ExtensionAPI): void {
         description: params.description,
         labels: params.labels,
         priority: params.priority,
+        parent: params.parent,
       });
 
       const raw = await jiraRequest({

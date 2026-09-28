@@ -50,6 +50,8 @@ export interface CreateInput {
   description?: string;
   labels?: string[];
   priority?: string;
+  /** Parent issue key, e.g. an epic. */
+  parent?: string;
 }
 
 /** Build the POST /rest/api/2/issue body from tool parameters. */
@@ -67,6 +69,9 @@ export function buildCreateBody(input: CreateInput): Record<string, unknown> {
   }
   if (input.priority !== undefined) {
     fields["priority"] = { name: input.priority };
+  }
+  if (input.parent !== undefined) {
+    fields["parent"] = { key: input.parent };
   }
   return { fields };
 }

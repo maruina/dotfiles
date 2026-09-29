@@ -29,19 +29,15 @@ Familiarity levels:
 | `3` | Expert | Be concise: delta, rationale, risks, and tests. |
 
 ## Phase 1: Locate repository and establish workspace
-1. Inspect the current repository with `git remote -v` and `git status --short`.
-2. If the current repository matches `ORG/REPO`, use it.
-3. If not, use the `repo-checkout` skill to locate or clone `ORG/REPO`. The skill covers the known checkout roots, the `maruina/dotfiles` special case, and the clone consent boundary.
-4. For full review, create an isolated worktree from the PR head:
-   - path: `~/dd/.worktrees/REPO/pr-PR_NUMBER-review`
-   - if a worktree already exists at that path, fetch and reset it to the current PR head before reusing it:
-     ```bash
-     git -C ~/dd/.worktrees/REPO/pr-PR_NUMBER-review fetch origin
-     git -C ~/dd/.worktrees/REPO/pr-PR_NUMBER-review reset --hard origin/<headRefName>
-     ```
-   - otherwise create it fresh, removing a stale worktree at that path only after confirming it is for the same PR
-   - store the path as `WORKTREE`
-5. All file reads for the PR code should come from `WORKTREE` when available.
+1. Use the PR URL procedure in the `feature-worktree` skill to create an isolated review worktree at the PR head. That skill locates or clones `ORG/REPO` with the `repo-checkout` skill.
+2. Use the fixed path `~/dd/.worktrees/REPO/pr-PR_NUMBER-review`; `/pr-cleanup` removes it. `/pr-review` owns this worktree, so when it already exists for the same PR, reset it to the current PR head before reusing it:
+   ```bash
+   git -C ~/dd/.worktrees/REPO/pr-PR_NUMBER-review fetch origin
+   git -C ~/dd/.worktrees/REPO/pr-PR_NUMBER-review reset --hard origin/<headRefName>
+   ```
+   For a fork head, run `gh pr checkout PR_NUMBER --detach` inside the worktree instead.
+3. Store the path as `WORKTREE`.
+4. All file reads for the PR code should come from `WORKTREE` when available.
 
 Use Bash syntax for commands executed with the pi `bash` tool. If showing commands for the user to copy, use Fish syntax unless repository conventions require otherwise.
 
@@ -69,7 +65,7 @@ Classify changed files:
 ## Phase 3: Load review guidance
 Before reviewing code, use the `skill-loader` skill to determine which language and domain skills to read based on the PR's changed files. Load them before judging the change. Prefer specific skills over general ones. These domain rules are `prompt-required`.
 
-Keep a record of each skill actually read and applied: source (`skill-loader`, `prompt-required`, `user-requested`, or `agent-selected`), why it was loaded, and how its guidance affected the review. This provenance is feedback for improving `skill-loader`, especially when a useful skill was selected outside it. Do not infer use from skills that were merely available or named without being read.
+Keep a provenance record per the `## Provenance record` section of the `skill-loader` skill.
 
 For Datadog repositories, follow repository guidance. Use `bzl` for builds/tests; do not use `bazel` directly or language-specific test commands unless the repo explicitly requires it.
 

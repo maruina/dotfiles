@@ -11,8 +11,6 @@ Execute a committed implementation plan. For trivial low-risk work, `/execute` m
 
 Use the `resolve-worktree` skill to resolve plan paths with `$GLOB = **/plans/*/plan.md`. Switch context to the owning worktree before reading repository files or modifying code. The recursive glob matches plans nested under monorepo package paths (e.g. `domains/compute/apps/<app>/plans/<ticket>/plan.md`), not only repository-root `plans/`.
 
-Brainstorming answers what problem to solve. Planning answers how to implement it. Execution makes the approved change.
-
 <HARD-GATE>
 Do not start implementation on `main` or `master` without explicit user consent. Do not skip the initial plan or prompt review. Do not continue past blockers, unclear instructions, scope changes, or repeated verification failures; stop and ask.
 </HARD-GATE>
@@ -32,13 +30,7 @@ If invoked with a bare prompt instead of a plan path, classify complexity before
 Bare-prompt execution must not become planning inside `/execute`. If you need to invent scope, success criteria, rollout, test strategy, or behavior, stop and ask for `/brainstorm` or `/plan`.
 
 ## Worktree Policy
-Prefer feature worktrees for implementation.
-
-- If a plan path resolves to a worktree, switch to that worktree and continue there.
-- If already in the correct feature worktree, continue there.
-- If in a base checkout on `main` or `master`, create or switch to a feature worktree before implementation unless the user explicitly asks not to.
-- For Datadog repositories, use `~/dd/.worktrees/<repo>/<branch-slug>` unless repository guidance says otherwise.
-- Stop and ask if the branch, base branch, or worktree location is ambiguous.
+Before changing files, use the `feature-worktree` skill to continue in the plan's worktree or the correct feature worktree, or to create one.
 
 ## Posture
 Treat the plan as a decision artifact, not an unquestionable script. Follow its scope, requirements, references, and non-goals. Do not blindly follow stale file paths or commands if the current repository contradicts them.
@@ -60,7 +52,7 @@ For a plan with `### Slice N` headings, read the plan, find the first slice with
 1. **Setup —** Resolve and read the plan completely, or classify the bare prompt as trivial before editing.
 2. Satisfy the worktree policy before changing files.
 3. **Review —** Inspect relevant guidance, git branch/status, files named by the plan or prompt, tests, build commands, package boundaries, and current repository state.
-4. Load execution skills before editing. Use the `skill-loader` skill to determine which language and domain skills to read based on affected files. Also read any skills explicitly named by the plan. Prefer specific skills over general ones. Keep an execution-stage record of each skill actually read and applied: source (`skill-loader`, `prompt-required`, `user-requested`, or `agent-selected`), why it was loaded, and how its guidance affected execution. This provenance is feedback for improving `skill-loader`; do not infer use from names already present in the design or plan.
+4. Load execution skills before editing. Use the `skill-loader` skill to determine which language and domain skills to read based on affected files. Also read any skills explicitly named by the plan. Prefer specific skills over general ones. Keep an execution-stage provenance record per the `## Provenance record` section of the `skill-loader` skill.
 5. Inspect referenced tickets, PRs, reviews, or discussion threads. If recent actionable feedback is missing from the plan, stop and ask whether to update it.
 6. Review the plan or trivial prompt before implementation. `/systematic-review` is the authoritative plan-validation gate; here, re-check at the depth the change needs:
    - Are files, commands, types, functions, tests, and dependencies present and consistent?
@@ -82,10 +74,7 @@ For a plan with `### Slice N` headings, read the plan, find the first slice with
 13. Complete the plan's documentation and future-agent guidance task, including every required `AGENTS.md` inspection. For trivial bare prompts, explicitly decide whether docs are unnecessary.
 14. **Prepare verification handoff —** Run the final implementation-evidence commands and inspect `git status`.
 15. Review plan fidelity: every task in the current execution unit is complete and its requirements are met, no unapproved scope added, and deviations documented in the plan ledger.
-16. Before opening a PR, evaluate the completed work against the stack-split signals from the `reviewable-pr-workflow` skill:
-   - Strong signals: 2+ distinct subsystems that could ship independently; more than ~400 net lines of non-generated, non-test code; more than ~15 non-generated files.
-   - Soft signals: reviewer guide would need more than five topics; commits fall into independent groups; branch mixes refactor, feature, and behavior change.
-   If any strong signal trips, or two or more soft signals trip, **stop and propose a stack plan** (one row per branch in dependency order) and ask whether to split before opening any PR. Do not proceed past this point until the user responds.
+16. Before opening a PR, apply the stack-split check from the `reviewable-pr-workflow` skill to the completed work. If it trips, **stop and propose a stack plan** and ask whether to split before opening any PR. Do not proceed past this point until the user responds.
    If no split is needed, use `/pr-create --draft` to open a draft PR unless the user explicitly says not to.
 17. Optionally suggest `/simplify` for a behavior-preserving cleanup pass over the diff before review: `/simplify <absolute-plan-path>` for plan-based work, or `/simplify` in-session for trivial work. `/simplify` commits its own changes and hands off to a fresh `/verify`. This is opt-in; do not run it automatically.
 18. Report the exact handoff phrase below.
@@ -153,7 +142,7 @@ If any answer is no, stop and ask whether to update the plan or make an addition
 Stop and ask when:
 
 - bare-prompt execution is non-trivial and needs `/plan`
-- the completed implementation triggers a strong or two-soft stack-split signal (see workflow step 16) and the user has not approved a split or single-PR decision
+- the completed implementation trips the stack-split check (see workflow step 16) and the user has not approved a split or single-PR decision
 - the branch is `main` or `master` without explicit user approval
 - lifecycle docs cannot be committed or recovered safely before implementation begins
 - there are uncommitted changes after lifecycle doc recovery
@@ -176,7 +165,7 @@ Use the plan file as the progress ledger:
 - add short notes for deviations, failed verifications, equivalent commands, and refactors made after green
 - maintain `### Execution` under `## Skills loaded and used` as stage metadata; this ledger update is not a plan scope change
 - do not rewrite the committed plan unless the user approves a plan change
-- extend the deviation notes with learning candidates: append `- YYYY-MM-DD: <what happened> — evidence: <shareable pointer: PR thread URL, repo-relative file and line, or command and result>` under the plan's `## Learning candidates` section, creating it only on the first candidate; record only surprises a fresh model would not reliably produce and apply unaided — wrong turns and disproven plan assumptions from implementation — never routine best practice, design rationale, session paths, secrets, or vault content
+- when implementation reveals a wrong turn or disproves a plan assumption, record a learning candidate with the `learning-candidates` skill
 
 For bare-prompt trivial work, report progress in chat and do not create a plan ledger.
 

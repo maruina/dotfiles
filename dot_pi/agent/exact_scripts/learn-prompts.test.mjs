@@ -27,12 +27,8 @@ test("learn replaces compound and supports plain and contextual evidence discove
     /contextual mode/,
     /sessions-search/,
     /session-context/,
-    /maruina/,
-    /matteo-ruina_ddog/,
-    /ddoghq/,
-    /ddoghq-sandbox/,
-    /gh auth switch/,
-    /restore.*original.*login/is,
+    /account routing and capture\/restore rule in `AGENTS\.md`/,
+    /gh auth status --show-token/,
   ]);
 
   // The retrospective daily scan was removed; pin that no daily-mode markers remain.
@@ -125,23 +121,33 @@ test("learn re-adjudicates aged sections and previews removals in one approval",
 });
 
 test("brainstorm and plan selectively consume advisory learning sections", () => {
-  for (const file of ["brainstorm.md", "plan.md"]) {
+  const skillsDir = existsSync(path.join(agentDir, "exact_skills")) ? "exact_skills" : "skills";
+  const skill = readFileSync(path.join(agentDir, skillsDir, "learning-lookup", "SKILL.md"), "utf8");
+  requireMarkers(skill, [
+    /narrow.*terms/i,
+    /technology.*error.*API.*tool.*pattern/is,
+    /Datadog\/Learnings\.md/,
+    /learning-sections/,
+    /learn-evidence\.mjs/,
+    /complete H2 section/i,
+    /Report matched section titles.*do not report unrelated sections/i,
+    /no repository filter/i,
+    /advisory/i,
+    /Current source code, tests, and tool behavior/i,
+    /absent.*empty/i,
+    /Obsidian.*unavailable.*record/is,
+    /older than six months.*hypotheses|hypotheses.*older than six months/is,
+  ]);
+
+  for (const [file, artifact] of [["brainstorm.md", /design\.md/], ["plan.md", /plan\.md/]]) {
     const text = prompt(file);
     requireMarkers(text, [
-      /narrow.*terms/i,
-      /technology.*error.*API.*tool.*pattern/is,
-      /Datadog\/Learnings\.md/,
-      /learning-sections/,
-      /complete H2 section/i,
-      /Report matched section titles.*do not report unrelated sections/i,
-      /no repository filter/i,
-      /advisory/i,
-      /Current source code, tests, and tool behavior/i,
-      /material.*guidance.*design\.md|material.*guidance.*plan\.md/is,
-      /absent.*empty/i,
-      /Obsidian.*unavailable.*record/is,
-      /older than six months.*hypotheses|hypotheses.*older than six months/is,
+      /`learning-lookup` skill/,
+      /material guidance/i,
+      artifact,
+      /Do not retrieve the mutable store/i,
     ]);
+    assert.doesNotMatch(text, /learning-sections/, `${file} must not restate the lookup pipeline`);
   }
 });
 
@@ -151,17 +157,24 @@ test("execute and verify do not read the mutable learning store", () => {
     assert.doesNotMatch(text, /Datadog\/Learnings\.md/);
     assert.doesNotMatch(text, /learning-sections/);
     assert.doesNotMatch(text, /obsidian\s+(?:read|create|delete)/i);
+    assert.doesNotMatch(text, /learning-lookup/);
   }
 });
 
 test("lifecycle guidance names the standard stages and has no compound reference", () => {
   for (const file of [path.join(promptsDir, "simplify.md"), path.join(agentDir, "AGENTS.md")]) {
     const text = readFileSync(file, "utf8");
-    assert.match(text, /\/learn/);
     assert.doesNotMatch(text, /\/compound/);
   }
 
   const agents = readFileSync(path.join(agentDir, "AGENTS.md"), "utf8");
+  assert.match(agents, /\/learn/);
   assert.match(agents, /\/brainstorm.*\/plan.*\/systematic-review.*\/execute.*\/verify/is);
   assert.match(agents, /lifecycle prompt is the source of truth for its stage/i);
+  // L2: AGENTS.md owns the GitHub account routing and capture/restore rule once.
+  assert.match(agents, /Capture the active login with `gh auth status --json hosts`/i);
+  assert.match(agents, /restore and verify the original login after every normal or error path/i);
+  assert.match(agents, /never use `gh auth status --show-token`/i);
+  assert.match(agents, /Use `matteo-ruina_ddog` only for `ddoghq\/\*`/);
+  assert.match(agents, /Use `maruina` for everything else/);
 });

@@ -11,6 +11,9 @@ Use this skill when the user provides a GitHub pull request URL or a specific PR
 
 Read PR feedback, inspect the local repository, determine whether comments still apply, and propose a concrete solution. Do not edit files unless the user explicitly asks to apply fixes.
 
+## Calling prompts
+When a calling prompt such as `/pr-address-feedback` defines its own workspace, classification, confirmation, or autonomy rules, those rules take precedence over this skill. In that case, use this skill only for the `reviewThreads` GraphQL query that fetches review comments and the `resolveReviewThread` mutation.
+
 ## Relationship to codebase-research
 
 If the PR/comment concerns code behavior you do not already understand, or if the comment suggests a missed use case, hidden caller, alternate path, or broader pattern, use the `codebase-research` skill before proposing a fix.

@@ -40,6 +40,7 @@ A hidden `user-context` extension injects current repository, branch, pull reque
   - Use `matteo-ruina_ddog` only for `ddoghq/*` and `ddoghq-sandbox/*` repositories and searches.
   - Use `maruina` for everything else, including `DataDog/*` repositories and searches.
   - Switch to the appropriate account before running `gh pr`, `gh repo`, `gh search`, or GitHub API commands.
+  - Capture the active login with `gh auth status --json hosts`, switch only as needed per the routing rule, and restore and verify the original login after every normal or error path; never use `gh auth status --show-token`.
 - AWS access uses `exec-sso-` profiles from `~/.aws/config`, backed by `aws-vault` `credential_process`. Run `aws <command> --profile exec-sso-<account>-<role>`.
   - The compute role is usually `compute-admin`; the profile is account-scoped, e.g. `exec-sso-staging-compute-admin` or `exec-sso-action-platform-dev-compute-admin`. Derive the account from incident context; when unsure, list candidates with `aws configure list-profiles | grep 'exec-sso-.*-compute-admin'` and ask.
   - Never invent profile names such as `sso-staging-read-only`. If a needed profile is missing, report it as a gap and ask for the account/role instead of fabricating one.

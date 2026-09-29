@@ -59,19 +59,7 @@ For each org, gather PRs that were:
 - merged during the selected week
 - opened or updated during the selected week but not merged
 
-Before searching an org, switch `gh` to the matching account:
-
-```fish
-gh auth switch --hostname github.com --user maruina
-```
-
-for `DataDog/*`, and:
-
-```fish
-gh auth switch --hostname github.com --user matteo-ruina_ddog
-```
-
-for `ddoghq/*`.
+Before searching an org, switch `gh` to the account in the table, per the `AGENTS.md` GitHub account rules.
 
 Use `gh search prs` or equivalent GitHub CLI commands. Start with queries like:
 

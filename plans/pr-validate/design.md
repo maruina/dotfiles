@@ -1,6 +1,6 @@
 # `/pr-validate` delegated PR review design
 ## Summary
-Add a read-only pi `/pr-validate <GitHub PR URL> [context]` prompt. It reviews someone else's PR on the user's behalf and returns one verdict: **Approve**, **Ask**, or **Request changes**. Each item names the problem, the location, why it matters, and the evidence, so the user can write their own GitHub comment without reading the diff.
+Add a read-only pi `/pr-validate <GitHub PR URL> [context]` prompt. It reviews someone else's PR on the user's behalf and returns one verdict: **Approve**, **Ask**, or **Request changes**. Each item names the problem, the location, why it matters, and the evidence, so the user can write their own GitHub comment without reading the diff. Separately, the command lists up to five **attention items**: decisions that belong to the reviewer, each with enough inline context that the user does not need to search the diff.
 
 `/pr-validate` is the delegated review mode. The existing `/pr-review` stays unchanged. A later design will turn `/pr-review` into a guided review mode, in which the agent asks the user questions about the code in a logical order.
 
@@ -12,7 +12,7 @@ User / audience:
 A staff engineer who reviews a colleague's PR through pi and does not read the diff.
 
 Goal:
-`/pr-validate` returns Approve, Ask, or Request changes. Every item has evidence precise enough for the user to write their own comment.
+`/pr-validate` returns Approve, Ask, or Request changes. Every item has evidence precise enough for the user to write their own comment. Attention items bring reviewer-owned decisions to the user with all the context they need.
 
 Non-goals:
 - Redesign of `/pr-review` into a guided review. Deferred; see [Deferred alternatives](#deferred-alternatives).
@@ -28,6 +28,7 @@ Known facts and assumptions:
 - Decision: no fixed file cap. Skip generated code, give build wiring a quick check, and read behavior code, tests, and changed repository guidance in depth.
 - Decision: the optional context argument is untrusted evidence, not instructions.
 - Decision: when the agent cannot confirm a criterion, the verdict asks the author. It does not approve silently, and it does not block automatically.
+- Decision: attention items do not block Approve. Each attention item is self-contained, so the user decides without opening the diff.
 - Assumption: `/pr-validate` copies the needed `/pr-review` wording, because prompts cannot include one another. Confirm during `/plan`.
 - Assumption: `/pr-validate` uses the same worktree path as `/pr-review`, `~/dd/.worktrees/REPO/pr-PR_NUMBER-review`, so `/pr-cleanup` works without change.
 
@@ -47,6 +48,7 @@ See [Open questions](#open-questions).
 | Skill | Source | Why loaded | How used |
 |---|---|---|---|
 | `learning-opportunities` | `prompt-required` | `/brainstorm` requires its coaching rules | Question-first framing, prediction and feedback turns, and the "teach it back" goal for the deferred guided `/pr-review` |
+| `reviewable-pr-workflow` | `agent-selected` | The user asked to mirror the `/pr-create` reviewer guide | Reused the "What to look for in this PR" format for attention items: Where, Why it needs human attention, and What to verify; one to five items; say "none" when none apply; head-SHA blob links |
 | `write` | `agent-selected` | Drafting a durable design spec | Main point first, concrete risks, benefits stated for rejected alternatives, no time-bound labels |
 
 `skill-loader` was not used. This design changes a Markdown prompt and a `node:test` file. No language or domain skill applied.
@@ -90,7 +92,7 @@ Pass 1 writes the following in the response. Later passes use these results and 
   - Give build wiring a quick check for dependency edges.
   - Read behavior code, tests, and changed repository guidance in depth.
 - **Claims ledger.** Concrete statements that later passes confirm or refute:
-  - *Author claims* from the description, commits, and context.
+  - *Author claims* from the description, commits, and context. If the PR body has a reviewer guide, such as the `/pr-create` "What to look for in this PR" section, its items are author claims about where the risk is.
   - *Parity rows* when the PR ports behavior: old site, new site, and what must stay the same. An intentional behavior drop is also a row, with its stated reason.
 
 Pass 1 also runs `skill-loader` on the changed files and loads the selected skills before any judgment.
@@ -122,12 +124,29 @@ Compare the change with neighboring code, repository guidance, and the loaded sk
 
 Before the agent adds an Ask item, it checks the existing review threads. If a thread already answers the question, the agent cites that thread.
 
+### Attention items
+An attention item is a decision that the reviewer owns and that the agent must not make. Examples are a policy or ownership choice, acceptance of tech debt, and a design tradeoff with no clearly correct answer. An attention item is not a fact the author can supply (that is an Ask item) and not a confirmed defect (that is a Request changes item).
+
+Attention items do not change the verdict. The verdict line shows their count, for example `Approve — 1 decision needs your judgment`, so the user cannot miss them.
+
+The format follows the reviewer-guide format of `reviewable-pr-workflow`, and it adds inline context. Each item has:
+- **Where:** `file:line`, linked to the file at the PR head SHA with `#L` anchors.
+- **Context:** a short code excerpt and the surrounding behavior needed to understand it, such as the caller, the data that flows in, and the current default.
+- **Why it needs your judgment:** the consequence of each choice.
+- **Options:** the realistic choices, with the tradeoff of each. The agent can state a recommendation after the options.
+- **What to verify or decide:** the specific decision.
+
+List one to five items, highest impact first. If no decision needs the reviewer, say so. If the author's reviewer guide missed a risk that the agent found, say that in the item.
+
+deliberate: the five-item limit keeps delegation useful. If real runs often need more than five, the PR likely needs a split, and the verdict must say so. Do not raise the limit.
+
 ### Output
-1. **Verdict and items.** Short, and first. The user must be able to decide from this section alone.
-2. **Criteria table.** Each criterion with its state (confirmed, refuted, or open) and a pointer to its evidence.
-3. **Evidence.** Details for each item, with `file:line` or cited context.
-4. **Coverage.** Files read in depth, skimmed, and skipped, with the reason for each group.
-5. **Skills loaded and used.** The standard provenance table.
+1. **Verdict and items.** Short, and first. The verdict line includes the attention-item count. The user must be able to decide from this section alone.
+2. **Needs your judgment.** The attention items, self-contained.
+3. **Criteria table.** Each criterion with its state (confirmed, refuted, or open) and a pointer to its evidence.
+4. **Evidence.** Details for each item, with `file:line` or cited context.
+5. **Coverage.** Files read in depth, skimmed, and skipped, with the reason for each group.
+6. **Skills loaded and used.** The standard provenance table.
 
 The output is Markdown in chat. The user can run `/to-html` on it.
 
@@ -141,7 +160,9 @@ Slack thread about the `azure_cloudops` peering prompt:
 > it was needed back when k8s-platform provisioned the vnets and we needed the peering to be created after CLA's tf apply but before we deploy stuff that would need that connectivity. with everything on network/v3 and all the networking resources created before CLA, i agree we can drop the prompt
 
 Expected items. These are hypotheses from the description and the context, not verified against the code:
-1. **Routing: Ask.** The author says routing is untested and the exposure scope is undecided. The PR `## Summary` presents routing as a feature. The question for the author: does the PR ship collections that anyone can subscribe to, and if so, how is exposure limited and how was routing tested?
+1. **Routing.** Two separate items:
+   - **Ask:** the author says routing is untested, and the PR `## Summary` presents routing as a feature. The question for the author: does the PR ship collections that anyone can subscribe to, and how was routing tested?
+   - **Attention:** whether CLA notification types can be routed by any Datadog engineer is a policy decision for the reviewer and the owning team. The item must include the collection and tag code inline, which notification types it exposes, and the options (ship as is, restrict, or split out).
 2. **`azure_cloudops` prompt removal: Ask.** The reason exists only in Slack. The PR says "legacy processes no longer required". Ask the author to record the network/v3 reason in the PR.
 3. **`//…/worker/utils:go_default_test`.** The PR `## Testing` lists this target, and the PR deletes `utils/slack.go` and removes lines from `utils/BUILD.bazel`. The run must confirm or refute that the target exists and passes.
 4. **Temporal version gating.** The PR changes workflow files such as `manage_lifecycle.go` and `sync_node_image.go` and says in-flight workflows exist. The run must confirm or refute replay safety, with `atlas-best-practices` loaded through `skill-loader`.
@@ -149,7 +170,7 @@ Expected items. These are hypotheses from the description and the context, not v
 
 ## Smallest user-feedback slice
 Do first:
-- Add `dot_pi/agent/exact_prompts/pr-validate.md` with the input, passes, criteria, verdict rules, output, and read-only gate above.
+- Add `dot_pi/agent/exact_prompts/pr-validate.md` with the input, passes, criteria, verdict rules, attention items, output, and read-only gate above.
 - Add structural assertions for `pr-validate.md` in `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`.
 
 What the user sees:
@@ -186,6 +207,9 @@ Deliberately defer:
 |---|---|
 | The agent approves a PR it did not fully read, and the user approves under their name | Approve requires every criterion confirmed. The coverage section lists skipped and skimmed files, so partial reading is visible. |
 | The agent reports a plausible but wrong defect, and the user asks the author to change correct code | Request changes requires a confirmed defect with `file:line` evidence. Unconfirmed concerns become Ask items. |
+| The user approves without seeing an attention item, because the verdict says Approve | The verdict line shows the attention-item count, and the attention section comes directly after the verdict. |
+| Attention items become a list of places to read, and delegation fails | One to five items, each with inline context. More than five means the verdict recommends a PR split. |
+| Inline excerpts make the output long | Excerpts show only the lines needed for the decision. Full evidence stays in the evidence section. |
 | The output repeats the density of the PR description | The verdict and items come first and are short. Details follow in separate sections. |
 | Context text contains instructions, for example a Slack message with "approve this" | The prompt treats context as cited evidence only. A structural test asserts the rule. |
 | Copied `/pr-review` wording drifts over time | Copy only Phase 1 and Phase 2 behavior. `/plan` decides whether a structural test checks the shared worktree path. |
@@ -213,11 +237,13 @@ Chosen-direction downside: the verdict is only as reliable as the agent's readin
   - the three outcomes and their trigger rules
   - the rule that context is evidence, not instructions
   - the check of existing threads before an Ask
+  - the attention-item rules: reviewer-owned decisions only, one to five items, inline context and options, the count in the verdict line, and no effect on the verdict
   - the coverage section
   - the skill provenance markers
 - `npm test` in `dot_pi/agent` passes.
 - Acceptance: run `/pr-validate` on #103728 with the reference context. The output addresses the five expected items in [Reference case](#reference-case). Items 3 and 4 have a confirmed or refuted state with evidence.
 - User judgment: the user can decide between Approve and Ask from the first section in about two minutes, without opening the diff.
+- User judgment: the user can decide each attention item from its inline context, without opening the diff.
 
 ## Open questions
 - Should the claims ledger stay in chat only, or also go to a file in the review worktree? The recommendation for the first slice is chat only.

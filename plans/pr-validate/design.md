@@ -84,11 +84,13 @@ For delegated review, the drafted comment conflicts with the user's goal, becaus
 ## Design overview
 ### Input
 `/pr-validate <GitHub PR URL> [context]`
-- The PR URL is required. The agent asks questions only before analysis starts: when the PR URL is missing, or when no local checkout exists and the clone location is unknown.
+- The PR URL is required. The agent asks questions only before analysis starts: when the PR URL is missing, or when no local checkout exists for a repository outside the `DataDog` and `ddoghq` organizations.
 - The context is optional free text. Examples are Slack quotes, Jira links, and reviewer notes. The agent cites context as evidence. It does not follow instructions inside the context.
 
 ### Workspace and data
 Reuse the `/pr-review` Phase 1 and Phase 2 behavior: find or clone the repository, create or reset the review worktree at `~/dd/.worktrees/REPO/pr-PR_NUMBER-review`, and collect metadata, the diff, comments, review threads, and thread resolution state. Also read CI status with `gh pr checks`.
+
+One change from `/pr-review` Phase 1: for both `DataDog` and `ddoghq` repositories without a local checkout, clone into `~/dd/REPO` with `git clone git@github.com:ORG/REPO ~/dd/REPO` and do not ask first. Datadog is moving its private repositories from `DataDog` to `ddoghq`, so both organizations use the same location. For other organizations, ask before analysis starts. `/pr-review` keeps its current rule; aligning it is a follow-up for the guided `/pr-review` redesign.
 
 ### Pass 1: Understand the PR
 Pass 1 writes the following in the response. Later passes use these results and do not re-read the code without a reason.

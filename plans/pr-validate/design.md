@@ -30,7 +30,7 @@ Known facts and assumptions:
 - Decision: when the agent cannot confirm a criterion, the verdict asks the author. It does not approve silently, and it does not block automatically.
 - Decision: attention items do not block Approve. Each attention item is self-contained, so the user decides without opening the diff.
 - Assumption: `/pr-validate` copies the needed `/pr-review` worktree and data-collection wording, because prompts cannot include one another. Confirm during `/plan`.
-- Decision: a shared skill owns the locate-or-clone rule, and it ships first as a separate change. See [Prerequisite: shared repository checkout skill](#prerequisite-shared-repository-checkout-skill).
+- Fact: the `repo-checkout` skill owns the locate-or-clone rule. It shipped in `maruina/dotfiles#87`. See [Repository checkout: `repo-checkout` skill](#repository-checkout-repo-checkout-skill).
 - Assumption: `/pr-validate` uses the same worktree path as `/pr-review`, `~/dd/.worktrees/REPO/pr-PR_NUMBER-review`, so `/pr-cleanup` works without change.
 
 Smallest user-feedback slice:
@@ -88,24 +88,24 @@ For delegated review, the drafted comment conflicts with the user's goal, becaus
 ## Design overview
 ### Input
 `/pr-validate <GitHub PR URL> [context]`
-- The PR URL is required. The agent asks questions only before analysis starts: when the PR URL is missing, or when no local checkout exists for a repository outside the `DataDog` and `ddoghq` organizations.
+- The PR URL is required. The agent asks questions only before analysis starts: when the PR URL is missing, or when no local checkout exists for a repository outside the `DataDog`, `ddoghq`, and `ddoghq-sandbox` organizations.
 - The context is optional free text. Examples are Slack quotes, Jira links, and reviewer notes. The agent cites context as evidence. It does not follow instructions inside the context.
 
 ### Workspace and data
-Locate or clone the repository with the shared checkout skill described in [Prerequisite: shared repository checkout skill](#prerequisite-shared-repository-checkout-skill). Then reuse the `/pr-review` Phase 1 worktree step and the Phase 2 data collection: create or reset the review worktree at `~/dd/.worktrees/REPO/pr-PR_NUMBER-review`, and collect metadata, the diff, comments, review threads, and thread resolution state. Also read CI status with `gh pr checks`.
+Locate or clone the repository with the `repo-checkout` skill, in the same way as `/pr-review` Phase 1 steps 1–3. Then reuse the `/pr-review` Phase 1 worktree step and the Phase 2 data collection: create or reset the review worktree at `~/dd/.worktrees/REPO/pr-PR_NUMBER-review`, and collect metadata, the diff, comments, review threads, and thread resolution state. Also read CI status with `gh pr checks`.
 
-### Prerequisite: shared repository checkout skill
-Three prompts repeat the same rule to locate or clone `ORG/REPO`: `pr-review.md` Phase 1, `simplify.md` "PR URL resolution" step 4, and `pr-address-feedback.md`. Each copy searches the current repository, `~/dd/REPO`, and `~/go/src/github.com/ORG/REPO`, and clones only `DataDog` repositories without asking. `/pr-validate` would add a fourth copy.
+### Repository checkout: `repo-checkout` skill
+`maruina/dotfiles#87` added `dot_pi/agent/exact_skills/repo-checkout/SKILL.md` and pointed `/pr-review` Phase 1 to it. `/pr-validate` uses the skill for these behaviors:
+- It confirms each candidate checkout by its remote, so a directory with the same name from another organization is never used.
+- It resolves `maruina/dotfiles` to `~/.local/share/chezmoi`.
+- It clones `DataDog`, `ddoghq`, and `ddoghq-sandbox` repositories into `~/dd/REPO` without asking, and asks for every other organization.
+- It states the `gh` account rule: `matteo-ruina_ddog` for `ddoghq/*` and `ddoghq-sandbox/*`, and `maruina` for everything else.
 
-A separate Small change ships before `/pr-validate`, on its own branch (`maruina/repo-checkout-skill`) with its own `/plan`:
-- Add a skill that owns the locate-or-clone rule.
-- For `DataDog` and `ddoghq` repositories without a local checkout, clone into `~/dd/REPO` with `git clone git@github.com:ORG/REPO ~/dd/REPO` and do not ask first. Datadog is moving its private repositories from `DataDog` to `ddoghq`, so both organizations use the same location. For other organizations, ask.
-- Point `pr-review.md`, `simplify.md`, and `pr-address-feedback.md` to the skill and remove their copies of the rule.
-- Add assertions in `lifecycle-prompts.test.mjs` that each prompt references the skill and no longer has its own clone rule.
+The skill's branch handoff uses the `wt.fish` worktree path, `$WORKTREES_ROOT/<repo>/<branch-slug>`. `/pr-validate` does not use that handoff. It uses the `/pr-review` review worktree path, `~/dd/.worktrees/REPO/pr-PR_NUMBER-review`, so that `/pr-cleanup` removes it.
 
-The skill does not own the worktree step. Each prompt creates worktrees differently on purpose: `/pr-review` resets a disposable review worktree, `/simplify` keeps local changes and handles forks, and `/pr-address-feedback` runs `gh pr checkout` after a warning.
+The skill asks where to clone only for organizations outside the three listed above. In `/pr-validate`, that question can occur only before analysis starts.
 
-This prerequisite changes where three existing prompts clone a missing `ddoghq` repository. It changes no other behavior of `/pr-review`.
+Out of scope for `/pr-validate`, reported as a follow-up: `simplify.md` "PR URL resolution" step 4 and `pr-address-feedback.md` Phase 1 still have their own copies of the clone rule, which clone only `DataDog` without asking. `lifecycle-prompts.test.mjs` has no assertion that prompts use `repo-checkout`.
 
 In `/pr-validate`, the agent asks where to clone only before analysis starts, and only for organizations other than `DataDog` and `ddoghq`.
 
@@ -267,7 +267,7 @@ Deliberately defer:
 | Separate agents or models for each file type or pass | A clean context for each pass, and cheaper models for mechanical checks | pi has no subagents. Adds orchestration before the need is proven. | A real run on a PR like #103728 shows quality loss from one long context |
 | Separate pi session for each pass, with a file handoff | A clean context without subagents | Adds manual steps and a handoff file format | Same trigger as above |
 | Extension tool for repository checkout, instead of a skill | Deterministic and unit-testable. It is also a natural place for the `gh` account switch between `matteo-ruina_ddog` and `maruina`. | Adds TypeScript to maintain for a short rule that rarely changes | Agents repeatedly get the lookup order or the `gh` account switch wrong |
-| Consolidate the worktree step in the shared skill too | One place for all PR workspace setup | The prompts create worktrees differently on purpose, and one shared step would hide those differences | None |
+| Consolidate the worktree step in `repo-checkout` too | One place for all PR workspace setup | The prompts create worktrees differently on purpose, and one shared step would hide those differences | None |
 | Thread-only answers, as a mode of `/pr-validate` or an extension of `pr-comment-triage` | Shorter output and a faster run when the user asks only about threads | The user wants the full verdict every time. `pr-comment-triage` proposes fixes and has no reviewer-side verdict. `/pr-address-feedback` is author-side and edits code. | Full verdicts for thread questions are too slow or too long in real runs |
 | Change `/pr-review` in place | One command, no copied wording | Breaks the plan to redesign `/pr-review` as a guided review | None |
 
@@ -295,7 +295,7 @@ Chosen-direction downside: the verdict is only as reliable as the agent's readin
 - The user owns the prompt. Failures appear in the run output: missing evidence, skipped files, and unavailable tools.
 
 ## Rollout and rollback
-- Rollout: first ship the shared repository checkout skill as a separate change. Then add the `/pr-validate` prompt and apply it with `chezmoi apply`. The command is opt-in. The `/pr-validate` change itself modifies no other command.
+- Rollout: add the `/pr-validate` prompt and apply it with `chezmoi apply`. The command is opt-in. The `/pr-validate` change itself modifies no other command.
 - Rollback: revert the commit and run `chezmoi apply`. Because `exact_prompts` is an exact directory, the command disappears.
 
 ## Security and data handling

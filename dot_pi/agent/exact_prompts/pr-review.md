@@ -31,13 +31,8 @@ Familiarity levels:
 ## Phase 1: Locate repository and establish workspace
 1. Inspect the current repository with `git remote -v` and `git status --short`.
 2. If the current repository matches `ORG/REPO`, use it.
-3. If not, look for an existing local checkout in likely locations, especially:
-   - `~/dd/REPO`
-   - `~/go/src/github.com/ORG/REPO`
-4. If no checkout exists:
-   - If `ORG` is `DataDog`, clone into `~/dd/REPO`: `git clone git@github.com:DataDog/REPO ~/dd/REPO`. Do not ask first.
-   - Otherwise, ask the user where to clone before proceeding.
-5. For full review, create an isolated worktree from the PR head:
+3. If not, use the `repo-checkout` skill to locate or clone `ORG/REPO`. The skill covers the known checkout roots, the `maruina/dotfiles` special case, and the clone consent boundary.
+4. For full review, create an isolated worktree from the PR head:
    - path: `~/dd/.worktrees/REPO/pr-PR_NUMBER-review`
    - if a worktree already exists at that path, fetch and reset it to the current PR head before reusing it:
      ```bash
@@ -46,7 +41,7 @@ Familiarity levels:
      ```
    - otherwise create it fresh, removing a stale worktree at that path only after confirming it is for the same PR
    - store the path as `WORKTREE`
-6. All file reads for the PR code should come from `WORKTREE` when available.
+5. All file reads for the PR code should come from `WORKTREE` when available.
 
 Use Bash syntax for commands executed with the pi `bash` tool. If showing commands for the user to copy, use Fish syntax unless repository conventions require otherwise.
 

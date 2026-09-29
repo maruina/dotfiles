@@ -138,7 +138,12 @@ For threads by the user, compare the code at the commit the user reviewed with t
 ### Pass 3: Interaction with other systems
 Check the contracts with the systems at the PR boundary. Examples for #103728: CINDY request limits, the legacy slack-worker fallback, Temporal replay of in-flight workflows, and proto field compatibility.
 
-When the PR changes deployed configuration, such as rendered Kubernetes manifests for specific clusters, a finding "applies" only if it affects those clusters. Pass 3 identifies the target clusters from the changed paths and checks whether the affected features or workloads exist there. The agent can use read-only evidence tools that loaded skills provide, such as `ddtool-cluster-datacenter-info` for cluster metadata and `datadog-mcp` or `k8s-audit-logs` for workload evidence. The agent must not change cluster state and must not refresh expired credentials. If the evidence is unavailable, the entry stays open, and the item names the missing evidence and the query that would settle it.
+When the PR changes deployed configuration, such as rendered Kubernetes manifests for specific clusters, a finding "applies" only if it affects those clusters. Pass 3 identifies the target clusters from the changed paths and checks whether the affected features or workloads exist there. The agent can use these read-only evidence sources:
+- `ddtool`, through `ddtool-cluster-datacenter-info`, for cluster metadata.
+- `kubectl get`, `describe`, and `list` against the target clusters, for workload and resource state. Pass `--context <cluster>` on each command, because `compute-guardrails` blocks `kubectl config use`.
+- Datadog, through `datadog-mcp` and `k8s-audit-logs`, for logs and audit events. Use Datadog for logs, not `kubectl logs`.
+
+The prompt must state that these queries are read-only, and it must not depend only on the guardrail. The work-profile `compute-guardrails` extension is a second layer: it blocks `exec`, `port-forward`, `debug`, `cp`, and every mutating verb without prompting, so a blocked command cannot stall an unattended run. The agent must not change cluster state and must not refresh expired credentials. If the evidence is unavailable, the entry stays open, and the item names the missing evidence and the query that would settle it.
 
 ### Pass 4: Consistency with the codebase
 Compare the change with neighboring code, repository guidance, and the loaded skills.
@@ -306,7 +311,7 @@ Chosen-direction downside: the verdict is only as reliable as the agent's readin
   - inline evidence for each item, and no separate evidence section
   - thread claims with the four states, duplicate merging, and the rule that "outdated" is not "fixed"
   - the direct answer to a question in the context, together with the full verdict
-  - read-only cluster evidence, with no cluster writes and no credential refresh
+  - read-only cluster evidence: `ddtool`, `kubectl get`/`describe`/`list` with `--context`, and Datadog for logs; no cluster writes and no credential refresh
   - no questions to the user after analysis starts
   - the attention-item rules: reviewer-owned decisions only, one to five items, inline context and options, the count in the verdict line, and no effect on the verdict
   - the coverage section
@@ -322,7 +327,6 @@ Chosen-direction downside: the verdict is only as reliable as the agent's readin
 
 ## Open questions
 - Should the claims ledger stay in chat only, or also go to a file in the review worktree? The recommendation for the first slice is chat only.
-- Cluster evidence for deployed configuration: the design allows read-only metadata and observability queries (`ddtool`, Datadog MCP, audit logs) and forbids cluster writes and credential refresh. Confirm whether read-only `kubectl get` against target clusters is also allowed during an unattended run.
 - Should `/pr-validate` state the shared worktree path in its own words, or refer to `/pr-review` Phase 1? `/plan` decides.
 
 ## Self-review

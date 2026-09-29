@@ -76,7 +76,7 @@ Advisory learnings: `Datadog/Learnings.md` returned no sections that match `html
 - `ddoghq/k8s-release-mgmt-resources#4309`: metadata and review threads.
 - `ddoghq/dd-source#102960`: metadata, reviews, and review threads.
 - `dot_pi/agent/exact_skills/pr-comment-triage/SKILL.md` and `dot_pi/agent/exact_prompts/pr-address-feedback.md`: existing comment-adjudication behavior.
-- Two Slack messages that the user supplied. They are quoted in [Reference case](#reference-case).
+- Two Slack messages that the user supplied. They are quoted in [Reference cases](#reference-cases).
 
 ## Current behavior
 `/pr-review` serves two different jobs in one prompt:

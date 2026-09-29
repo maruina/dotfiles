@@ -20,6 +20,8 @@ Do not start implementation on `main` or `master` without explicit user consent.
 ## Input Handling
 If the first argument resolves to a plan path, follow the normal plan workflow.
 
+If the first argument names no plan path — for example, notes quoted from a design or a plan written in a different session — do not search worktrees for a plan that matches the argument's content. Plan discovery runs only when the command is invoked with no arguments. Treat the conversation as the bare prompt and apply the complexity triage below. If the input references lifecycle work that has no committed plan in this repository, say so and stop and ask whether to resume in the owning session or worktree, or run `/plan` here.
+
 If invoked with no arguments, first use the `resolve-worktree` skill with `$GLOB = **/plans/*/plan.md` to discover existing plans across worktrees. If a plan is resolved, switch context to the owning worktree and follow the normal plan workflow. If no plan is found, treat the current conversation as the bare prompt and apply the complexity triage below.
 
 If invoked with a bare prompt instead of a plan path, classify complexity before editing:

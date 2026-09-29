@@ -1,6 +1,6 @@
 # `/pr-validate` delegated PR review design
 ## Summary
-Add a read-only pi `/pr-validate <GitHub PR URL> [context]` prompt. It reviews someone else's PR on the user's behalf and returns one verdict: **Approve**, **Ask**, or **Request changes**. Each item names the problem, the location, why it matters, and the evidence, so the user can write their own GitHub comment without reading the diff. Separately, the command lists up to five **attention items**: decisions that belong to the reviewer, each with enough inline context that the user does not need to search the diff. The user's attention is the scarce resource, so every item carries the evidence needed to decide it.
+Add a read-only pi `/pr-validate <GitHub PR URL> [context]` prompt. It reviews someone else's PR on the user's behalf and returns one verdict: **Approve**, **Ask**, or **Request changes**. Each item names the problem, the location, why it matters, and the evidence, so the user can write their own GitHub comment without reading the diff. Separately, the command lists up to five **attention items**: decisions that belong to the reviewer, each with enough inline context that the user does not need to search the diff. The user's attention is the scarce resource, so every item carries the evidence needed to decide it. Existing review threads, from humans and from review agents, are claims that the command confirms or refutes. This supports two more questions within the same full verdict: "do these agent comments apply?" and "were my comments addressed?"
 
 `/pr-validate` is the delegated review mode. The existing `/pr-review` stays unchanged. A later design will turn `/pr-review` into a guided review mode, in which the agent asks the user questions about the code in a logical order.
 
@@ -73,6 +73,9 @@ Advisory learnings: `Datadog/Learnings.md` returned no sections that match `html
 - `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`: the prompt assertion pattern.
 - References to `/pr-review` in `verify.md`, `systematic-review.md`, `pr-address-feedback.md`, and `pr-cleanup.md`.
 - `ddoghq/dd-source#103728`: metadata, file list, full description, and diff size.
+- `ddoghq/k8s-release-mgmt-resources#4309`: metadata and review threads.
+- `ddoghq/dd-source#102960`: metadata, reviews, and review threads.
+- `dot_pi/agent/exact_skills/pr-comment-triage/SKILL.md` and `dot_pi/agent/exact_prompts/pr-address-feedback.md`: existing comment-adjudication behavior.
 - Two Slack messages that the user supplied. They are quoted in [Reference case](#reference-case).
 
 ## Current behavior
@@ -117,14 +120,25 @@ Pass 1 writes the following in the response. Later passes use these results and 
 - **Claims ledger.** Concrete statements that later passes confirm or refute:
   - *Author claims* from the description, commits, and context. If the PR body has a reviewer guide, such as the `/pr-create` "What to look for in this PR" section, its items are author claims about where the risk is.
   - *Parity rows* when the PR ports behavior: old site, new site, and what must stay the same. An intentional behavior drop is also a row, with its stated reason.
+  - *Thread claims* from review threads. Each unresolved thread is an entry, whether a human or an agent wrote it. Each thread by the user running the command is an entry, resolved or not. An author reply such as "fixed" or "this already handles it" is its own claim. Merge duplicate findings from different reviewers into one entry, and list every source thread. Record whether GitHub marks the thread outdated, but do not treat "outdated" as "fixed".
 
 Pass 1 also runs `skill-loader` on the changed files and loads the selected skills before any judgment.
 
 ### Pass 2: Correctness and internal consistency
-Confirm or refute each claims-ledger entry against the code and the tests. Check that tests would fail if the changed behavior broke.
+Confirm or refute each claims-ledger entry against the code and the tests at the PR head. Check that tests would fail if the changed behavior broke.
+
+For thread claims, use these states:
+- **Applies:** the problem exists at the PR head.
+- **Does not apply:** the problem does not exist, and the evidence shows why. An example is a bot finding based on a wrong assumption.
+- **Fixed:** the problem existed, and a later commit fixed it. Cite the commit.
+- **Open:** the agent cannot confirm or refute it. Name the missing evidence.
+
+For threads by the user, compare the code at the commit the user reviewed with the PR head. The review record gives that commit. A thread that still applies becomes a Request changes item. An author reply that is not confirmed becomes an Ask item.
 
 ### Pass 3: Interaction with other systems
 Check the contracts with the systems at the PR boundary. Examples for #103728: CINDY request limits, the legacy slack-worker fallback, Temporal replay of in-flight workflows, and proto field compatibility.
+
+When the PR changes deployed configuration, such as rendered Kubernetes manifests for specific clusters, a finding "applies" only if it affects those clusters. Pass 3 identifies the target clusters from the changed paths and checks whether the affected features or workloads exist there. The agent can use read-only evidence tools that loaded skills provide, such as `ddtool-cluster-datacenter-info` for cluster metadata and `datadog-mcp` or `k8s-audit-logs` for workload evidence. The agent must not change cluster state and must not refresh expired credentials. If the evidence is unavailable, the entry stays open, and the item names the missing evidence and the query that would settle it.
 
 ### Pass 4: Consistency with the codebase
 Compare the change with neighboring code, repository guidance, and the loaded skills.
@@ -167,15 +181,19 @@ deliberate: the five-item limit keeps delegation useful. If real runs often need
 1. **Verdict.** One line with the outcome and the attention-item count.
 2. **Items.** Request changes items, then Ask items. Each item is decision-complete, with its evidence inline.
 3. **Needs your judgment.** The attention items, decision-complete.
-4. **Criteria table.** Each criterion with its state (confirmed, refuted, or open) and a one-line evidence summary, so the user can see why a confirmed criterion is trustworthy.
-5. **Coverage.** Files read in depth, skimmed, and skipped, with the reason for each group.
-6. **Skills loaded and used.** The standard provenance table.
+4. **Your question.** When the context asks a specific question, such as "do the agent comments apply to the clusters" or "were my comments addressed", answer it directly, with one row per thread claim: source threads, the claim in one line, the state, and the inline evidence.
+5. **Criteria table.** Each criterion with its state (confirmed, refuted, or open) and a one-line evidence summary, so the user can see why a confirmed criterion is trustworthy.
+6. **Coverage.** Files read in depth, skimmed, and skipped, with the reason for each group.
+7. **Skills loaded and used.** The standard provenance table.
+
+Without a specific question in the context, thread claims appear only through the items and the criteria table. The run always produces the full verdict, including when the context asks a specific question.
 
 The output has no separate evidence section. Evidence lives with the item it supports.
 
 The output is Markdown in chat. The user can run `/to-html` on it.
 
-## Reference case
+## Reference cases
+### Delegated review of a large port
 `ddoghq/dd-source#103728`, with this context from the user.
 
 Slack message from the author:
@@ -192,6 +210,24 @@ Expected items. These are hypotheses from the description and the context, not v
 3. **`//…/worker/utils:go_default_test`.** The PR `## Testing` lists this target, and the PR deletes `utils/slack.go` and removes lines from `utils/BUILD.bazel`. The run must confirm or refute that the target exists and passes.
 4. **Temporal version gating.** The PR changes workflow files such as `manage_lifecycle.go` and `sync_node_image.go` and says in-flight workflows exist. The run must confirm or refute replay safety, with `atlas-best-practices` loaded through `skill-loader`.
 5. **Necessity.** The run must cite evidence: the author's routing motivation and the CINDY "recommended happy path" statement.
+
+### Agent comments on a cluster rollout
+`ddoghq/k8s-release-mgmt-resources#4309`, "chore(deps): update orange-compute", with the context "do the agent comments apply to the clusters?". Renovate opened the PR. It changes 26 files of rendered manifests. Two `dd-agentic-review-platform` bots left 15 threads with P1 and P2 severity. None are resolved, and 14 are outdated.
+
+Expected behavior:
+1. Merge the duplicate findings from the two bots, for example the toleration checks and the system-namespace exclusion, and list both source threads.
+2. Give each merged finding a state at the PR head. "Outdated" alone is not "Fixed".
+3. For each finding that applies in the manifests, state whether it affects the target clusters, such as `us1.release.staging.dog`, with cluster evidence or a named evidence gap.
+4. Address the one thread on current lines, "Confirm namespace opt-outs before upgrade" on `clusters/us1.release.staging.dog/orange.yaml`.
+5. Give the full verdict.
+
+### Re-review of the user's own comments
+`ddoghq/dd-source#102960`, "computectl cla: guard re-provisioning of soft-deleted clusters", with the context "were my two comments addressed?". The user reviewed commit `a0b19ba8`.
+
+Expected behavior:
+1. `delete.go` warning thread (resolved and outdated): confirm or refute the author's claim that the phase-1 warning changed.
+2. `provision.go` GovCloud RMS client thread (unresolved and outdated): confirm or refute the author's claim that provisioning uses the survey's RMS client and therefore the federal RMS. An unconfirmed claim becomes an Ask item. A refuted claim becomes a Request changes item.
+3. Give the full verdict.
 
 ## Smallest user-feedback slice
 Do first:
@@ -227,6 +263,7 @@ Deliberately defer:
 | Separate pi session for each pass, with a file handoff | A clean context without subagents | Adds manual steps and a handoff file format | Same trigger as above |
 | Extension tool for repository checkout, instead of a skill | Deterministic and unit-testable. It is also a natural place for the `gh` account switch between `matteo-ruina_ddog` and `maruina`. | Adds TypeScript to maintain for a short rule that rarely changes | Agents repeatedly get the lookup order or the `gh` account switch wrong |
 | Consolidate the worktree step in the shared skill too | One place for all PR workspace setup | The prompts create worktrees differently on purpose, and one shared step would hide those differences | None |
+| Thread-only answers, as a mode of `/pr-validate` or an extension of `pr-comment-triage` | Shorter output and a faster run when the user asks only about threads | The user wants the full verdict every time. `pr-comment-triage` proposes fixes and has no reviewer-side verdict. `/pr-address-feedback` is author-side and edits code. | Full verdicts for thread questions are too slow or too long in real runs |
 | Change `/pr-review` in place | One command, no copied wording | Breaks the plan to redesign `/pr-review` as a guided review | None |
 
 ## Risks and mitigations
@@ -239,6 +276,7 @@ Deliberately defer:
 | Inline evidence makes the output long | Evidence is filtered to what would change the decision. Excerpts show only the needed lines. The verdict line and item titles come first, so the user can stop reading early. |
 | The run stops on a question while the user is away | After analysis starts, the agent asks no questions. Gaps become items. |
 | The output repeats the density of the PR description | The verdict and items come first and are short. Details follow in separate sections. |
+| A review agent's finding is repeated as fact, or dismissed because GitHub marks it outdated | Each thread is a claim with a state at the PR head and inline evidence. "Outdated" is recorded but never counts as "Fixed". |
 | Context text contains instructions, for example a Slack message with "approve this" | The prompt treats context as cited evidence only. A structural test asserts the rule. |
 | Copied `/pr-review` wording drifts over time | The shared skill owns the clone rule. Copy only the worktree step and the Phase 2 data collection. `/plan` decides whether a structural test checks the shared worktree path. |
 | One long context loses attention on large PRs | Pass 1 writes compact results that later passes use. The deferred multi-session alternative has a revisit trigger. |
@@ -266,17 +304,25 @@ Chosen-direction downside: the verdict is only as reliable as the agent's readin
   - the rule that context is evidence, not instructions
   - the check of existing threads before an Ask
   - inline evidence for each item, and no separate evidence section
+  - thread claims with the four states, duplicate merging, and the rule that "outdated" is not "fixed"
+  - the direct answer to a question in the context, together with the full verdict
+  - read-only cluster evidence, with no cluster writes and no credential refresh
   - no questions to the user after analysis starts
   - the attention-item rules: reviewer-owned decisions only, one to five items, inline context and options, the count in the verdict line, and no effect on the verdict
   - the coverage section
   - the skill provenance markers
 - `npm test` in `dot_pi/agent` passes.
-- Acceptance: run `/pr-validate` on #103728 with the reference context. The output addresses the five expected items in [Reference case](#reference-case). Items 3 and 4 have a confirmed or refuted state with evidence.
+- Acceptance: run `/pr-validate` on each case in [Reference cases](#reference-cases) with its context.
+  - #103728: the output addresses the five expected items. Items 3 and 4 have a confirmed or refuted state with evidence.
+  - #4309: duplicate bot findings are merged, each finding has a state, and cluster impact has evidence or a named gap.
+  - #102960: both of the user's threads have a state, with evidence from the reviewed commit and the PR head.
+  - All three: the full verdict is present.
 - User judgment: the user can decide between Approve and Ask from the first section in about two minutes, without opening the diff.
 - User judgment: the user can decide each attention item from its inline context, without opening the diff.
 
 ## Open questions
 - Should the claims ledger stay in chat only, or also go to a file in the review worktree? The recommendation for the first slice is chat only.
+- Cluster evidence for deployed configuration: the design allows read-only metadata and observability queries (`ddtool`, Datadog MCP, audit logs) and forbids cluster writes and credential refresh. Confirm whether read-only `kubectl get` against target clusters is also allowed during an unattended run.
 - Should `/pr-validate` state the shared worktree path in its own words, or refer to `/pr-review` Phase 1? `/plan` decides.
 
 ## Self-review

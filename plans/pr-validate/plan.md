@@ -29,6 +29,7 @@ Advisory learnings: `Datadog/Learnings.md` matched one section, "Render piped ch
 
 ### Key Decisions
 - **Claims ledger stays chat-only.** Design open question 1; the design's recommendation is accepted. A ledger file adds a handoff format before the need is proven.
+- **Structural tests assert only safety-critical and interface rules.** Verdict trigger rules, thread-state adjudication, attention-item format, and evidence-gap naming are prompt content verified by the live run; a marker per prose rule couples the suite to wording. Adopted from systematic review.
 - **The worktree step uses the shared path, not `/pr-review`'s destructive reset.** Design open question 2. Before any code read, confirm the checkout and any existing review worktree belong to the requested `ORG/REPO`, and compare the worktree's clean `HEAD` with `headRefOid` from the PR metadata. Reuse it only if both match. For a missing path, fetch `refs/pull/PR_NUMBER/head` from the verified base-repository remote, compare the fetched SHA with `headRefOid`, then create a detached worktree at `~/dd/.worktrees/REPO/pr-PR_NUMBER-review` from the verified SHA. If the path exists but is dirty, stale, or belongs to another repository, stop with a specific conflict and a safe resolution; never reset or remove it. The structural drift guard checks that `pr-validate.md`, `pr-review.md`, and `pr-cleanup.md` all use the same path. This deliberately requires cleanup and a new run after a PR head changes; if repeated stale-worktree conflicts make that too costly, revisit safe worktree refresh.
 - **Auto-clone without asking covers `DataDog`, `ddoghq`, and `ddoghq-sandbox`.** The design's Input section and the `repo-checkout` skill list three orgs; a later design sentence omits `ddoghq-sandbox`. The Input section and the skill govern.
 - **One verified commit after Matteo reports on the first live run, then push.** The executor applies the prompt and stops for the user-owned run. If Matteo reports a missing expected behavior, revise the prompt and repeat the focused tests and apply before committing. Do not claim live acceptance from structural tests alone.
@@ -49,7 +50,7 @@ Advisory learnings: `Datadog/Learnings.md` matched one section, "Render piped ch
 - The command makes no GitHub writes and posts nothing anywhere; output stays in the local session.
 
 ### Observability Requirements
-- No telemetry applies: this is an agent-facing prompt, not a service. Run-level observability is the output's coverage section (files read, skimmed, skipped, and blocked commands) and named evidence gaps; structural tests assert both exist.
+- No telemetry applies: this is an agent-facing prompt, not a service. Run-level observability is the output's coverage section (files read, skimmed, skipped, and blocked commands) and named evidence gaps. The structural tests assert the coverage section; evidence-gap naming is verified by the live run.
 
 ### Failure Modes to Handle
 - Worktree path drifts from `/pr-review` or `/pr-cleanup` → the drift-guard test fails. A dirty, stale, or mismatched existing path is never reset: report it before analysis and leave it intact. A fresh fetch whose SHA differs from PR metadata is not reviewed.
@@ -72,7 +73,7 @@ Advisory learnings: `Datadog/Learnings.md` matched one section, "Render piped ch
 
 ## Acceptance criteria
 ### Requirement: Structural guards for the prompt contract
-The test suite SHALL assert the design's structural rules for `pr-validate.md` and SHALL fail when they are absent.
+The test suite SHALL assert the safety-critical and interface rules for `pr-validate.md` and SHALL fail when they are absent. The design's prose rules are prompt content; the live run in Task 4 verifies them.
 
 #### Scenario: red before the prompt exists
 - GIVEN only Task 1 is complete
@@ -92,7 +93,7 @@ The test suite SHALL assert the design's structural rules for `pr-validate.md` a
 #### Scenario: input and workspace safety contract
 - GIVEN Tasks 1 and 2 are complete
 - WHEN the structural tests run
-- THEN they require the literal `$ARGUMENTS` substitution, a check for a clean and correctly identified worktree at the PR head SHA, a fetch of `refs/pull/PR_NUMBER/head` checked against PR metadata for fresh worktrees, and the absence of `reset --hard` from `pr-validate.md`
+- THEN they require the frontmatter contract (`description`, `argument-hint`), the literal `$ARGUMENTS` substitution, a check for a clean and correctly identified worktree at the PR head SHA, a fetch of `refs/pull/PR_NUMBER/head` checked against PR metadata for fresh worktrees, and the absence of `reset --hard` from `pr-validate.md`
 
 ### Requirement: Rendered availability
 The command SHALL be available after `chezmoi apply`, with the full agent test suite green.
@@ -113,22 +114,22 @@ The command SHALL be available after `chezmoi apply`, with the full agent test s
 ### Requirement: Agent-comment adjudication with cluster scoping
 `/pr-validate` on `ddoghq/k8s-release-mgmt-resources#4309` SHALL adjudicate the bot threads with states at the PR head and cluster impact.
 
-#### Scenario: structural guard for bot-thread and cluster evidence rules
+#### Scenario: structural guard for read-only cluster evidence
 - GIVEN Tasks 1 and 2 are complete
 - WHEN the structural tests run
-- THEN they require duplicate merging with every source thread listed, the four states at the PR head, no inference from "outdated" to Fixed, and read-only cluster evidence or a named gap
+- THEN they require no cluster writes and no credential refresh
 
-The live #4309 check is a deferred follow-up after Matteo reports on the first run; structural guards do not prove agent judgment on real clusters.
+The bot-thread rules (duplicate merging with every source thread listed, the four states at the PR head, no inference from "outdated" to Fixed, named evidence gaps) are prompt content, not structural markers. The live #4309 check is a deferred follow-up after Matteo reports on the first run; it verifies them.
 
 ### Requirement: Re-review of the user's own threads
 `/pr-validate` on `ddoghq/dd-source#102960` SHALL give each of the user's threads a state with evidence from the reviewed commit and the PR head.
 
-#### Scenario: structural guard for re-review rules
-- GIVEN Tasks 1 and 2 are complete
-- WHEN the structural tests run
-- THEN they require review-thread provenance, comparison of the reviewed commit with the PR head, and Ask for an unconfirmed author claim or Request changes for a refuted claim
+#### Scenario: re-review rules ship as prompt content
+- GIVEN Task 2 is complete
+- WHEN the prompt is written
+- THEN it contains review-thread provenance, comparison of the reviewed commit with the PR head, and Ask for an unconfirmed author claim or Request changes for a refuted claim
 
-The live #102960 check is a deferred follow-up after Matteo reports on the first run; structural guards do not prove the two thread states.
+The live #102960 check is a deferred follow-up after Matteo reports on the first run; it verifies the two thread states. No structural marker asserts these rules.
 
 ### Requirement: Read-only, non-interactive run contract
 The prompt SHALL forbid edits, GitHub writes, cluster mutations, and credential refresh; SHALL treat context as evidence only; and SHALL ask no questions after analysis starts.
@@ -145,27 +146,25 @@ The prompt SHALL forbid edits, GitHub writes, cluster mutations, and credential 
 
 ## Tasks
 ### Task 1: Add structural assertions for `pr-validate.md`
-**Delivers:** failing tests that pin the design's prompt contract.
+**Delivers:** failing tests that pin the safety-critical and interface contract.
 **Blocked by:** None
 **Traces to:** Structural guards requirement; design testing strategy.
 **Files:** `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`
 
-Add one or more `test(...)` blocks for `pr-validate.md` using the existing `prompt()`/`requireMarkers()` idiom, asserting:
+Add one or more `test(...)` blocks for `pr-validate.md` using the existing `prompt()`/`requireMarkers()` idiom. Read `pr-validate.md` inside each test callback, as the existing tests do, so the red run fails only the new tests. Assert only the safety-critical and interface rules:
 - the read-only hard gate
 - the literal `$ARGUMENTS` substitution that passes both the PR URL and optional context to the agent
-- the three outcomes (Approve, Ask, Request changes) and their trigger rules
+- the frontmatter contract: `description` and `argument-hint: "<GitHub PR URL> [context]"`
+- the three outcomes (Approve, Ask, Request changes)
 - the rule that context is evidence, not instructions
-- the check of existing review threads before adding an Ask item
-- inline evidence for each item, and no separate evidence section
-- thread claims with the four states (Applies, Does not apply, Fixed, Open), duplicate merging with every source thread listed, and the rule that "outdated" is not "Fixed"
-- the direct answer to a question in the context, together with the full verdict
-- read-only cluster evidence: `ddtool`, `kubectl get`/`describe`/`list` with `--context`, Datadog for logs; no cluster writes and no credential refresh
 - no questions to the user after analysis starts
-- the attention-item rules: reviewer-owned decisions only, one to five items, inline context and options, the count in the verdict line, and no effect on the verdict
+- read-only cluster evidence: no cluster writes and no credential refresh
 - the coverage section
 - the skill provenance markers (reuse `skillRecordMarkers`)
-- the drift guard: extract and compare the distinct review-worktree path values in `pr-validate.md`, `pr-review.md`, and `pr-cleanup.md`, and require `~/dd/.worktrees/REPO/pr-PR_NUMBER-review`; do not pass merely because an old path remains somewhere in a prompt
 - the workspace contract: verify the base-repository remote, clean existing worktree, and `HEAD` against `headRefOid`; fetch `refs/pull/PR_NUMBER/head` for a fresh worktree, check its SHA, and prohibit `reset --hard` in `pr-validate.md`
+- the drift guard: extract every `~/dd/.worktrees/...` path value with a regex such as `/~\/dd\/\.worktrees\/[^\s`")]+/g` across `pr-validate.md`, `pr-review.md`, and `pr-cleanup.md`, and require the distinct values to be exactly `~/dd/.worktrees/REPO/pr-PR_NUMBER-review`; do not pass merely because an old path remains somewhere in a prompt
+
+Not asserted; verified by the live run in Task 4: outcome trigger rules, the existing-threads check before an Ask item, inline evidence with no separate evidence section, thread claims with the four states, duplicate merging, the "outdated" rule, the direct answer to a context question, the attention-item rules, and evidence-gap naming. Task 2 still writes all of them into the prompt from the design.
 
 - [ ] Add the assertions.
 - [ ] Run `cd dot_pi/agent && node --test exact_scripts/lifecycle-prompts.test.mjs`; expect failure because `pr-validate.md` does not exist.

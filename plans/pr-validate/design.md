@@ -307,21 +307,21 @@ Chosen-direction downside: the verdict is only as reliable as the agent's readin
 - The output stays in the local session. The command does not post Slack text or PR content anywhere.
 
 ## Testing strategy
-- Structural tests in `lifecycle-prompts.test.mjs` assert that `pr-validate.md` contains:
+- Structural tests in `lifecycle-prompts.test.mjs` assert only the safety-critical and interface rules in `pr-validate.md`:
   - the read-only hard gate
-  - the three outcomes and their trigger rules
+  - the literal `$ARGUMENTS` input substitution and the frontmatter contract (`description`, `argument-hint`)
+  - the three outcomes (Approve, Ask, Request changes)
   - the rule that context is evidence, not instructions
-  - the check of existing threads before an Ask
-  - inline evidence for each item, and no separate evidence section
-  - thread claims with the four states, duplicate merging, and the rule that "outdated" is not "fixed"
-  - the direct answer to a question in the context, together with the full verdict
-  - read-only cluster evidence: `ddtool`, `kubectl get`/`describe`/`list` with `--context`, and Datadog for logs; no cluster writes and no credential refresh
   - no questions to the user after analysis starts
-  - the attention-item rules: reviewer-owned decisions only, one to five items, inline context and options, the count in the verdict line, and no effect on the verdict
+  - read-only cluster evidence: no cluster writes and no credential refresh
   - the coverage section
   - the skill provenance markers
+  - the safe worktree contract: base-repository remote verification, a clean worktree, `HEAD` equal to `headRefOid`, a fetch of `refs/pull/PR_NUMBER/head` checked against PR metadata, and the absence of `reset --hard`
+  - the drift guard on the shared review-worktree path across `pr-validate.md`, `pr-review.md`, and `pr-cleanup.md`
+
+  The outcome trigger rules, thread-state adjudication, attention-item format, and evidence-gap naming are prompt content verified by the live run, not structural markers. Trimmed after systematic review: a marker per prose rule couples the suite to wording.
 - `npm test` in `dot_pi/agent` passes.
-- The structural suite asserts the input substitution and safe worktree contract, including the absence of `reset --hard`. These text checks do not prove runtime compliance.
+- These text checks do not prove runtime compliance.
 - First-slice acceptance is user-owned: after `chezmoi apply`, Matteo runs `/reload` or starts a new Pi session, invokes `/pr-validate` on #103728 with both Slack quotes in [Reference cases](#reference-cases), and reports whether the output addresses the five expected items. Items 3 and 4 need a confirmed or refuted state with evidence, and the full verdict must be present. The implementation change is not committed until this feedback is received.
 - User judgment: Matteo can decide between Approve and Ask from the first section in about two minutes, without opening the diff, and can decide each attention item from its inline context.
 - Follow-up validation, only if Matteo requests it after the first run: #4309 checks merged bot findings, four-state claims, and cluster impact or a named gap; #102960 checks both threads with evidence from the reviewed commit and PR head. Each run still needs a full verdict. Do not report these runs as complete before they happen.

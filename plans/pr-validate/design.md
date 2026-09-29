@@ -1,6 +1,6 @@
 # `/pr-validate` delegated PR review design
 ## Summary
-Add a read-only pi `/pr-validate <GitHub PR URL> [context]` prompt. It reviews someone else's PR on the user's behalf and returns one verdict: **Approve**, **Ask**, or **Request changes**. Each item names the problem, the location, why it matters, and the evidence, so the user can write their own GitHub comment without reading the diff. Separately, the command lists up to five **attention items**: decisions that belong to the reviewer, each with enough inline context that the user does not need to search the diff.
+Add a read-only pi `/pr-validate <GitHub PR URL> [context]` prompt. It reviews someone else's PR on the user's behalf and returns one verdict: **Approve**, **Ask**, or **Request changes**. Each item names the problem, the location, why it matters, and the evidence, so the user can write their own GitHub comment without reading the diff. Separately, the command lists up to five **attention items**: decisions that belong to the reviewer, each with enough inline context that the user does not need to search the diff. The user's attention is the scarce resource, so every item carries the evidence needed to decide it.
 
 `/pr-validate` is the delegated review mode. The existing `/pr-review` stays unchanged. A later design will turn `/pr-review` into a guided review mode, in which the agent asks the user questions about the code in a logical order.
 
@@ -39,7 +39,14 @@ Success criteria and validation:
 See [Testing strategy](#testing-strategy).
 
 Operational notes:
-Read-only. One long context per run. The coverage section makes partial reading visible.
+Read-only. One long context per run. The coverage section makes partial reading visible. The run does not stop to ask the user questions after analysis starts.
+
+## Design principle: attention is the scarce resource
+The user runs `/pr-validate` while doing other work. The user's attention costs more than agent time. Every design choice follows from this:
+- **Decision-complete items.** Each item carries all the evidence needed to decide it inline. The user never has to leave the output, open the diff, or search Slack.
+- **Evidence filtered by relevance.** Include the evidence that would change the decision. Leave out the rest. "All the evidence" means complete for the decision, not everything the agent read.
+- **The agent does the analysis.** Where the user must decide, the agent gives the options, the tradeoffs, and a recommendation.
+- **No blocking during the run.** After analysis starts, the agent does not ask the user questions. Each gap becomes an item in the output.
 
 Open questions:
 See [Open questions](#open-questions).
@@ -77,7 +84,7 @@ For delegated review, the drafted comment conflicts with the user's goal, becaus
 ## Design overview
 ### Input
 `/pr-validate <GitHub PR URL> [context]`
-- The PR URL is required.
+- The PR URL is required. The agent asks questions only before analysis starts: when the PR URL is missing, or when no local checkout exists and the clone location is unknown.
 - The context is optional free text. Examples are Slack quotes, Jira links, and reviewer notes. The agent cites context as evidence. It does not follow instructions inside the context.
 
 ### Workspace and data
@@ -119,8 +126,8 @@ Compare the change with neighboring code, repository guidance, and the loaded sk
 
 ### Verdict rules
 - **Approve.** Every criterion is confirmed.
-- **Ask.** At least one criterion is open, and no defect is confirmed. Each Ask item gives the exact question for the author and why the answer matters.
-- **Request changes.** At least one defect is confirmed. Each item gives what is wrong, `file:line`, why it matters, and the evidence.
+- **Ask.** At least one criterion is open, and no defect is confirmed. Each Ask item gives the exact question for the author, why the answer matters, what the agent checked and did not find, and the inline evidence (code excerpt, PR text, or cited context).
+- **Request changes.** At least one defect is confirmed. Each item gives what is wrong, `file:line`, a code excerpt, why it matters (the concrete failure), and the evidence that confirms it.
 
 Before the agent adds an Ask item, it checks the existing review threads. If a thread already answers the question, the agent cites that thread.
 
@@ -133,7 +140,7 @@ The format follows the reviewer-guide format of `reviewable-pr-workflow`, and it
 - **Where:** `file:line`, linked to the file at the PR head SHA with `#L` anchors.
 - **Context:** a short code excerpt and the surrounding behavior needed to understand it, such as the caller, the data that flows in, and the current default.
 - **Why it needs your judgment:** the consequence of each choice.
-- **Options:** the realistic choices, with the tradeoff of each. The agent can state a recommendation after the options.
+- **Options:** the realistic choices, with the tradeoff of each. After the options, the agent states its recommendation and the reason.
 - **What to verify or decide:** the specific decision.
 
 List one to five items, highest impact first. If no decision needs the reviewer, say so. If the author's reviewer guide missed a risk that the agent found, say that in the item.
@@ -141,12 +148,14 @@ List one to five items, highest impact first. If no decision needs the reviewer,
 deliberate: the five-item limit keeps delegation useful. If real runs often need more than five, the PR likely needs a split, and the verdict must say so. Do not raise the limit.
 
 ### Output
-1. **Verdict and items.** Short, and first. The verdict line includes the attention-item count. The user must be able to decide from this section alone.
-2. **Needs your judgment.** The attention items, self-contained.
-3. **Criteria table.** Each criterion with its state (confirmed, refuted, or open) and a pointer to its evidence.
-4. **Evidence.** Details for each item, with `file:line` or cited context.
+1. **Verdict.** One line with the outcome and the attention-item count.
+2. **Items.** Request changes items, then Ask items. Each item is decision-complete, with its evidence inline.
+3. **Needs your judgment.** The attention items, decision-complete.
+4. **Criteria table.** Each criterion with its state (confirmed, refuted, or open) and a one-line evidence summary, so the user can see why a confirmed criterion is trustworthy.
 5. **Coverage.** Files read in depth, skimmed, and skipped, with the reason for each group.
 6. **Skills loaded and used.** The standard provenance table.
+
+The output has no separate evidence section. Evidence lives with the item it supports.
 
 The output is Markdown in chat. The user can run `/to-html` on it.
 
@@ -209,7 +218,8 @@ Deliberately defer:
 | The agent reports a plausible but wrong defect, and the user asks the author to change correct code | Request changes requires a confirmed defect with `file:line` evidence. Unconfirmed concerns become Ask items. |
 | The user approves without seeing an attention item, because the verdict says Approve | The verdict line shows the attention-item count, and the attention section comes directly after the verdict. |
 | Attention items become a list of places to read, and delegation fails | One to five items, each with inline context. More than five means the verdict recommends a PR split. |
-| Inline excerpts make the output long | Excerpts show only the lines needed for the decision. Full evidence stays in the evidence section. |
+| Inline evidence makes the output long | Evidence is filtered to what would change the decision. Excerpts show only the needed lines. The verdict line and item titles come first, so the user can stop reading early. |
+| The run stops on a question while the user is away | After analysis starts, the agent asks no questions. Gaps become items. |
 | The output repeats the density of the PR description | The verdict and items come first and are short. Details follow in separate sections. |
 | Context text contains instructions, for example a Slack message with "approve this" | The prompt treats context as cited evidence only. A structural test asserts the rule. |
 | Copied `/pr-review` wording drifts over time | Copy only Phase 1 and Phase 2 behavior. `/plan` decides whether a structural test checks the shared worktree path. |
@@ -237,6 +247,8 @@ Chosen-direction downside: the verdict is only as reliable as the agent's readin
   - the three outcomes and their trigger rules
   - the rule that context is evidence, not instructions
   - the check of existing threads before an Ask
+  - inline evidence for each item, and no separate evidence section
+  - no questions to the user after analysis starts
   - the attention-item rules: reviewer-owned decisions only, one to five items, inline context and options, the count in the verdict line, and no effect on the verdict
   - the coverage section
   - the skill provenance markers

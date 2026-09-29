@@ -24,6 +24,11 @@ const blockedCases = [
   "ddtool cordons apply --name get",
   "ddtool namespaces migrate --to describe",
   "rm --recursive /tmp/foo",
+  "cat > run.sh <<EOF\n`kubectl delete pod p`\nEOF",
+  "cat > run.sh <<EOF\n$(aws ec2 terminate-instances --instance-ids i-1)\nEOF",
+  "bash -lc 'cat <<EOF\n$(kubectl delete pod p)\nEOF'",
+  "x=$(( 1 << 2 ))\nkubectl delete pod p\n2",
+  "cat > f <<EOF\nbody\nEOF\nkubectl delete pod p",
 ];
 
 const allowedCases = [
@@ -42,6 +47,14 @@ const allowedCases = [
   "ddtool auth gitlab project-token DataDog/experimental",
   "command -v kubectl",
   "echo kubectl delete pod foo",
+  "cat > notes.md <<'EOF'\n- `ddtool`, through `ddtool-cluster-datacenter-info`, for cluster metadata.\nEOF",
+  "cat > notes.md <<'EOF'\n- `kubectl delete pod p` is a blocked command.\nEOF",
+  "cat > notes.txt <<EOF\nddtool cordons create\nEOF",
+  "cat > run.sh <<EOF\nddtool clusters list --config x\nEOF",
+  "rg 'kubectl delete' clusters/",
+  "printf 'see `ddtool` docs'",
+  "kubectl",
+  "ddtool --verbose",
 ];
 
 test("compute guardrails block mutating protected commands", () => {

@@ -438,6 +438,115 @@ function findShellCommand(tokens: string[]): string | null {
   return null;
 }
 
+const HEREDOC_DELIMITER = /^[A-Za-z_][A-Za-z0-9_-]*$/;
+
+// Heredoc bodies are data: their lines never execute as commands, so they are
+// removed from the command before segment inspection. Unquoted delimiters
+// still expand $() and backticks inside the body, so those bodies are returned
+// for separate substitution inspection. Quoted delimiters produce literal
+// bodies with no expansion.
+// deliberate: two heredocs on one operator line are not split; the second body
+// stays in the command text and is inspected, which can still block text that
+// is inert. Upgrade path: parse the operator line's redirect list in order.
+function extractHeredocs(command: string): { stripped: string; heredocs: { quoted: boolean; body: string }[] } {
+  const heredocs: { quoted: boolean; body: string }[] = [];
+  let stripped = "";
+  let quote: "'" | '"' | null = null;
+  let i = 0;
+
+  while (i < command.length) {
+    const char = command[i];
+
+    if (quote) {
+      if (quote === '"' && char === "\\" && i + 1 < command.length) {
+        stripped += command.slice(i, i + 2);
+        i += 2;
+        continue;
+      }
+      stripped += char;
+      if (char === quote) quote = null;
+      i++;
+      continue;
+    }
+
+    if (char === "'" || char === '"') {
+      quote = char;
+      stripped += char;
+      i++;
+      continue;
+    }
+
+    const isHeredocStart =
+      char === "<" &&
+      command[i + 1] === "<" &&
+      command[i + 2] !== "<" && // <<< is a here-string, not a heredoc
+      (i === 0 || /\s/.test(command[i - 1]));
+
+    if (isHeredocStart) {
+      const parsed = parseHeredoc(command, i);
+      if (parsed) {
+        heredocs.push({ quoted: parsed.quoted, body: parsed.body });
+        stripped += command.slice(i, parsed.bodyStart);
+        i = parsed.end;
+        continue;
+      }
+    }
+
+    stripped += char;
+    i++;
+  }
+
+  return { stripped, heredocs };
+}
+
+// Parse one heredoc starting at the << operator. Returns null when the text is
+// not a bounded heredoc, for example a bitwise shift inside $(( )); the caller
+// then keeps the text, which fails closed.
+function parseHeredoc(command: string, start: number): { quoted: boolean; body: string; bodyStart: number; end: number } | null {
+  let i = start + 2;
+  const stripTabs = command[i] === "-";
+  if (stripTabs) i++;
+  while (i < command.length && /[ \t]/.test(command[i])) i++;
+
+  let quoted = false;
+  let delimiter = "";
+  if (command[i] === "'" || command[i] === '"') {
+    const close = command.indexOf(command[i], i + 1);
+    if (close === -1) return null;
+    delimiter = command.slice(i + 1, close);
+    quoted = true;
+    i = close + 1;
+  } else {
+    const wordStart = i;
+    while (i < command.length && !/[ \t\n;&|()]/.test(command[i])) i++;
+    delimiter = command.slice(wordStart, i);
+  }
+  if (!HEREDOC_DELIMITER.test(delimiter)) return null;
+
+  const newline = command.indexOf("\n", i);
+  if (newline === -1) return null;
+  // A ) after the delimiter marks arithmetic such as $(( x << y )), not a heredoc.
+  if (command.slice(i, newline).includes(")")) return null;
+
+  const bodyStart = newline + 1;
+  let lineStart = bodyStart;
+  for (;;) {
+    const lineEnd = command.indexOf("\n", lineStart);
+    const line = command.slice(lineStart, lineEnd === -1 ? command.length : lineEnd);
+    const terminator = stripTabs ? line.replace(/^\t+/, "") : line;
+    if (terminator === delimiter) {
+      return {
+        quoted,
+        body: command.slice(bodyStart, lineStart),
+        bodyStart,
+        end: lineEnd === -1 ? command.length : lineEnd + 1,
+      };
+    }
+    if (lineEnd === -1) return null;
+    lineStart = lineEnd + 1;
+  }
+}
+
 function exactDenyRecord(tool: string, args: string[]): DenyRecord | null {
   for (const record of DENY_RECORDS) {
     if (tool !== record.tool) continue;
@@ -448,6 +557,8 @@ function exactDenyRecord(tool: string, args: string[]): DenyRecord | null {
 }
 
 function protectedToolDecision(tool: string, args: string[]): DenyRecord | null {
+  // A bare tool name runs no operation; it prints usage.
+  if (args.length === 0) return null;
   const record = exactDenyRecord(tool, args);
   if (record) return record;
   if (isAllowedReadOnly(tool, args)) return null;
@@ -528,9 +639,15 @@ function checkSegment(segment: string, depth: number): DenyRecord | null {
  */
 export function findDeniedOperation(command: string, depth = 0): DenyRecord | null {
   if (depth > 3) return { tool: "shell", sub: [], reason: "nested shell command exceeded guardrail inspection depth" };
-  const nestedHit = inspectCommandSubstitutions(command, depth);
+  const { stripped, heredocs } = extractHeredocs(command);
+  const nestedHit = inspectCommandSubstitutions(stripped, depth);
   if (nestedHit) return nestedHit;
-  for (const segment of splitSegments(command)) {
+  for (const heredoc of heredocs) {
+    if (heredoc.quoted) continue;
+    const hit = inspectCommandSubstitutions(heredoc.body, depth);
+    if (hit) return hit;
+  }
+  for (const segment of splitSegments(stripped)) {
     const hit = checkSegment(segment, depth);
     if (hit) return hit;
   }

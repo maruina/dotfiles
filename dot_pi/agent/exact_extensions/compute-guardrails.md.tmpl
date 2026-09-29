@@ -10,6 +10,8 @@ Covers `kubectl`, `ddtool`, `helm`, `aws`, and `rm -r`. All other commands pass 
 Read-only operations (`get`, `describe`, `list`, `logs`, `diff`, …) are always allowed.
 Any command that **creates, mutates, deletes, or opens a shell** on live infrastructure is blocked and must be run manually in a terminal.
 
+Command text that does not run is not blocked. Heredoc bodies are data: their lines never execute, and only command substitutions inside unquoted heredoc bodies are inspected. A protected tool name with no subcommand passes, because a bare tool prints usage.
+
 ## Controls
 
 | Action | How |

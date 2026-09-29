@@ -445,6 +445,7 @@ test("worktree and PR checkout procedures live in skills, not prompts", () => {
     /gh pr checkout <PR_NUMBER>/,
     /never reset or discard local changes/i,
     /Never run `git checkout`, `git switch`, or `gh pr checkout` in the base checkout/,
+    /mkdir -p.*WORKTREES_ROOT|parent directory if it does not exist/i,
   ]);
 
   for (const file of ["brainstorm.md", "plan.md", "execute.md", "simplify.md", "pr-review.md", "pr-address-feedback.md"]) {

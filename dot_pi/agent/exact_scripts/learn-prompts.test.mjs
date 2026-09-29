@@ -27,12 +27,8 @@ test("learn replaces compound and supports plain and contextual evidence discove
     /contextual mode/,
     /sessions-search/,
     /session-context/,
-    /maruina/,
-    /matteo-ruina_ddog/,
-    /ddoghq/,
-    /ddoghq-sandbox/,
-    /gh auth switch/,
-    /restore.*original.*login/is,
+    /account routing and capture\/restore rule in `AGENTS\.md`/,
+    /gh auth status --show-token/,
   ]);
 
   // The retrospective daily scan was removed; pin that no daily-mode markers remain.
@@ -175,4 +171,10 @@ test("lifecycle guidance names the standard stages and has no compound reference
   assert.match(agents, /\/learn/);
   assert.match(agents, /\/brainstorm.*\/plan.*\/systematic-review.*\/execute.*\/verify/is);
   assert.match(agents, /lifecycle prompt is the source of truth for its stage/i);
+  // L2: AGENTS.md owns the GitHub account routing and capture/restore rule once.
+  assert.match(agents, /Capture the active login with `gh auth status --json hosts`/i);
+  assert.match(agents, /restore and verify the original login after every normal or error path/i);
+  assert.match(agents, /never use `gh auth status --show-token`/i);
+  assert.match(agents, /Use `matteo-ruina_ddog` only for `ddoghq\/\*`/);
+  assert.match(agents, /Use `maruina` for everything else/);
 });

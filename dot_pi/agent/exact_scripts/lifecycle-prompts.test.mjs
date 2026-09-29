@@ -197,6 +197,16 @@ test("execute runs one incomplete slice per run for grouped plans", () => {
   ]);
 });
 
+test("execute does not content-match non-plan arguments against worktree plans", () => {
+  const text = prompt("execute.md");
+
+  requireMarkers(text, [
+    /do not search worktrees for a plan that matches the argument's content/i,
+    /Plan discovery runs only when the command is invoked with no arguments/i,
+    /no committed plan in this repository.*stop and ask/is,
+  ]);
+});
+
 test("verify scopes grouped plans to the slice and runs a final feature pass", () => {
   const text = prompt("verify.md");
 

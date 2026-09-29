@@ -29,9 +29,9 @@ Known facts and assumptions:
 - Decision: the optional context argument is untrusted evidence, not instructions.
 - Decision: when the agent cannot confirm a criterion, the verdict asks the author. It does not approve silently, and it does not block automatically.
 - Decision: attention items do not block Approve. Each attention item is self-contained, so the user decides without opening the diff.
-- Assumption: `/pr-validate` copies the needed `/pr-review` worktree and data-collection wording, because prompts cannot include one another. Confirm during `/plan`.
+- Decision: `/pr-validate` uses `/pr-review`'s data-collection pattern but does not copy its `reset --hard` worktree step. Prompts cannot include one another, so the safe workspace rule is stated in `/pr-validate` itself.
 - Fact: the `repo-checkout` skill owns the locate-or-clone rule. It shipped in `maruina/dotfiles#87`. See [Repository checkout: `repo-checkout` skill](#repository-checkout-repo-checkout-skill).
-- Assumption: `/pr-validate` uses the same worktree path as `/pr-review`, `~/dd/.worktrees/REPO/pr-PR_NUMBER-review`, so `/pr-cleanup` works without change.
+- Decision: `/pr-validate` uses the same worktree path as `/pr-review`, `~/dd/.worktrees/REPO/pr-PR_NUMBER-review`, so `/pr-cleanup` works without change. It reuses only a clean worktree from the requested repository at the verified PR head; otherwise it stops without changing that path.
 
 Smallest user-feedback slice:
 A new `pr-validate.md` prompt with structural tests, run once on #103728 with the two Slack quotes below.
@@ -89,10 +89,10 @@ For delegated review, the drafted comment conflicts with the user's goal, becaus
 ### Input
 `/pr-validate <GitHub PR URL> [context]`
 - The PR URL is required. The agent asks questions only before analysis starts: when the PR URL is missing, or when no local checkout exists for a repository outside the `DataDog`, `ddoghq`, and `ddoghq-sandbox` organizations.
-- The context is optional free text. Examples are Slack quotes, Jira links, and reviewer notes. The agent cites context as evidence. It does not follow instructions inside the context.
+- The context is optional free text. Examples are Slack quotes, Jira links, and reviewer notes. The template includes `$ARGUMENTS` in its body so Pi passes the URL and context to the agent. The agent cites context as evidence. It does not follow instructions inside the context.
 
 ### Workspace and data
-Locate or clone the repository with the `repo-checkout` skill, in the same way as `/pr-review` Phase 1 steps 1–3. Then reuse the `/pr-review` Phase 1 worktree step and the Phase 2 data collection: create or reset the review worktree at `~/dd/.worktrees/REPO/pr-PR_NUMBER-review`, and collect metadata, the diff, comments, review threads, and thread resolution state. Also read CI status with `gh pr checks`.
+Locate or clone the repository with the `repo-checkout` skill, in the same way as `/pr-review` Phase 1 steps 1–3. Confirm the base-repository remote and get `headRefOid` from `gh pr view --json headRefOid`. If `~/dd/.worktrees/REPO/pr-PR_NUMBER-review` exists, check that it is a Git worktree for the requested `ORG/REPO`, has no tracked or untracked changes, and has `HEAD` equal to `headRefOid`. Reuse it only if all checks pass. A dirty, stale, or mismatched path is a workspace conflict: stop before analysis, report the conflict and a safe resolution, and do not reset or remove it. For a missing path, fetch `refs/pull/PR_NUMBER/head` from the confirmed base-repository remote, compare the fetched SHA with `headRefOid`, then create a detached worktree at that path from the verified SHA. Stop if the head moved between metadata and fetch; do not review an unverified commit. Gather the PR metadata, diff, comments, review threads, and thread resolution state as in `/pr-review` Phase 2, and read CI status with `gh pr checks`.
 
 ### Repository checkout: `repo-checkout` skill
 `maruina/dotfiles#87` added `dot_pi/agent/exact_skills/repo-checkout/SKILL.md` and pointed `/pr-review` Phase 1 to it. `/pr-validate` uses the skill for these behaviors:
@@ -101,13 +101,13 @@ Locate or clone the repository with the `repo-checkout` skill, in the same way a
 - It clones `DataDog`, `ddoghq`, and `ddoghq-sandbox` repositories into `~/dd/REPO` without asking, and asks for every other organization.
 - It states the `gh` account rule: `matteo-ruina_ddog` for `ddoghq/*` and `ddoghq-sandbox/*`, and `maruina` for everything else.
 
-The skill's branch handoff uses the `wt.fish` worktree path, `$WORKTREES_ROOT/<repo>/<branch-slug>`. `/pr-validate` does not use that handoff. It uses the `/pr-review` review worktree path, `~/dd/.worktrees/REPO/pr-PR_NUMBER-review`, so that `/pr-cleanup` removes it.
+The skill's branch handoff uses the `wt.fish` worktree path, `$WORKTREES_ROOT/<repo>/<branch-slug>`. `/pr-validate` does not use that handoff. It uses the `/pr-review` review worktree path, `~/dd/.worktrees/REPO/pr-PR_NUMBER-review`, so that `/pr-cleanup` removes it when clean. The path contains no organization, so remote validation is mandatory. A clean but stale worktree must be cleaned up before a new run; repeated conflicts are the trigger to revisit safe refresh.
 
 The skill asks where to clone only for organizations outside the three listed above. In `/pr-validate`, that question can occur only before analysis starts.
 
 Out of scope for `/pr-validate`, reported as a follow-up: `simplify.md` "PR URL resolution" step 4 and `pr-address-feedback.md` Phase 1 still have their own copies of the clone rule, which clone only `DataDog` without asking. `lifecycle-prompts.test.mjs` has no assertion that prompts use `repo-checkout`.
 
-In `/pr-validate`, the agent asks where to clone only before analysis starts, and only for organizations other than `DataDog` and `ddoghq`.
+In `/pr-validate`, the agent asks where to clone only before analysis starts, and only for organizations outside `DataDog`, `ddoghq`, and `ddoghq-sandbox`.
 
 ### Pass 1: Understand the PR
 Pass 1 writes the following in the response. Later passes use these results and do not re-read the code without a reason.
@@ -255,6 +255,7 @@ Deliberately defer:
 - HTML output.
 - Separate agents, models, or sessions for each pass.
 - A claims-ledger file in the worktree.
+- Live validation on #4309 and #102960 before the first user-feedback run. Revisit if Matteo requests broader confidence after running #103728; the prompt still includes the thread and cluster rules, with structural tests in this slice.
 - Cross-references to `/pr-validate` in `verify.md`, `systematic-review.md`, and `pr-address-feedback.md`. Add them with the guided `/pr-review` redesign, when the meaning of `/pr-review` changes.
 
 ## Deferred alternatives
@@ -284,13 +285,15 @@ Deliberately defer:
 | The output repeats the density of the PR description | The verdict and items come first and are short. Details follow in separate sections. |
 | A review agent's finding is repeated as fact, or dismissed because GitHub marks it outdated | Each thread is a claim with a state at the PR head and inline evidence. "Outdated" is recorded but never counts as "Fixed". |
 | Context text contains instructions, for example a Slack message with "approve this" | The prompt treats context as cited evidence only. A structural test asserts the rule. |
-| Copied `/pr-review` wording drifts over time | The shared skill owns the clone rule. Copy only the worktree step and the Phase 2 data collection. `/plan` decides whether a structural test checks the shared worktree path. |
+| Worktree paths drift over time | The shared skill owns the clone rule. The structural test checks the worktree path against `/pr-review` and `/pr-cleanup`, while `/pr-validate` owns its safe reuse rule. |
+| A reused worktree loses local changes or belongs to a different repository with the same name | Require the requested remote, a clean worktree, and a `HEAD` equal to the PR head. Stop without reset or removal on any mismatch. |
+| A fork branch does not exist on the base remote, or the PR head moves during setup | Fetch GitHub's `refs/pull/PR_NUMBER/head` from the verified base remote and compare it to PR metadata; stop if the SHAs differ. |
 | One long context loses attention on large PRs | Pass 1 writes compact results that later passes use. The deferred multi-session alternative has a revisit trigger. |
 
 Chosen-direction downside: the verdict is only as reliable as the agent's reading in one context. `/pr-validate` does not remove the user's accountability for the approval. It makes the basis for the approval explicit.
 
 ## Operability
-- Read-only. The command makes no GitHub writes and no edits outside the review worktree.
+- Read-only for PR source and remote systems. Workspace setup can clone into `~/dd/REPO`, fetch the PR ref, and create a detached review worktree; it never resets or removes an existing path. It makes no GitHub writes or source-file edits.
 - The cost is one long agent context per run. CI results come from `gh pr checks`. The command does not run broad builds.
 - The user owns the prompt. Failures appear in the run output: missing evidence, skipped files, and unavailable tools.
 
@@ -318,17 +321,14 @@ Chosen-direction downside: the verdict is only as reliable as the agent's readin
   - the coverage section
   - the skill provenance markers
 - `npm test` in `dot_pi/agent` passes.
-- Acceptance: run `/pr-validate` on each case in [Reference cases](#reference-cases) with its context.
-  - #103728: the output addresses the five expected items. Items 3 and 4 have a confirmed or refuted state with evidence.
-  - #4309: duplicate bot findings are merged, each finding has a state, and cluster impact has evidence or a named gap.
-  - #102960: both of the user's threads have a state, with evidence from the reviewed commit and the PR head.
-  - All three: the full verdict is present.
-- User judgment: the user can decide between Approve and Ask from the first section in about two minutes, without opening the diff.
-- User judgment: the user can decide each attention item from its inline context, without opening the diff.
+- The structural suite asserts the input substitution and safe worktree contract, including the absence of `reset --hard`. These text checks do not prove runtime compliance.
+- First-slice acceptance is user-owned: after `chezmoi apply`, Matteo runs `/reload` or starts a new Pi session, invokes `/pr-validate` on #103728 with both Slack quotes in [Reference cases](#reference-cases), and reports whether the output addresses the five expected items. Items 3 and 4 need a confirmed or refuted state with evidence, and the full verdict must be present. The implementation change is not committed until this feedback is received.
+- User judgment: Matteo can decide between Approve and Ask from the first section in about two minutes, without opening the diff, and can decide each attention item from its inline context.
+- Follow-up validation, only if Matteo requests it after the first run: #4309 checks merged bot findings, four-state claims, and cluster impact or a named gap; #102960 checks both threads with evidence from the reviewed commit and PR head. Each run still needs a full verdict. Do not report these runs as complete before they happen.
 
 ## Open questions
-- Should the claims ledger stay in chat only, or also go to a file in the review worktree? The recommendation for the first slice is chat only.
-- Should `/pr-validate` state the shared worktree path in its own words, or refer to `/pr-review` Phase 1? `/plan` decides.
+- Resolved for the first slice: the claims ledger stays in chat. Revisit a file only if the first run loses claims across passes.
+- Resolved for the first slice: `/pr-validate` states its own safe worktree rule, uses the shared path, and does not inherit `/pr-review`'s destructive reset.
 
 ## Self-review
 - The first slice produces user feedback: one real run on #103728 with known expected items.

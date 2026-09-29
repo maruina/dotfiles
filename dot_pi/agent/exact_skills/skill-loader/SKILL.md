@@ -1,6 +1,6 @@
 ---
 name: skill-loader
-description: Load the right best-practice skills before writing, reviewing, or planning code. Use this skill at the start of /execute, /plan, and /systematic-review to determine which language and domain skills to read based on affected files.
+description: Load the right best-practice skills before writing, reviewing, or planning code. Use this skill at the start of /execute, /plan, and /systematic-review to determine which language and domain skills to read based on affected files. Also defines the `Skills loaded and used` provenance record that lifecycle and review prompts report.
 ---
 # Skill Loader
 
@@ -72,3 +72,22 @@ Before editing, confirm each of these:
 - [ ] Noted any conflicts between loaded skills and recorded which takes precedence.
 
 If no trigger matches (e.g. pure YAML config or Helm), proceed without a best-practice skill and note that in chat.
+
+## Provenance record
+Lifecycle and review prompts report which skills they used under `Skills loaded and used`. The calling prompt names where the record goes; this section defines its content.
+
+Record a skill only when its `SKILL.md` was read and its guidance was applied in the current stage. Include workflow skills such as `resolve-worktree` or `skill-loader` when their instructions were followed. Do not infer use from skills that were only available, named in this prompt, or listed in an upstream design, plan, or other artifact.
+
+Use this table:
+
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `skill-name` | `skill-loader` / `prompt-required` / `user-requested` / `agent-selected` | [trigger] | [guidance applied] |
+
+Sources:
+- `skill-loader`: selected by a trigger in this skill.
+- `prompt-required`: the calling prompt requires it.
+- `user-requested`: the user asked for it.
+- `agent-selected`: chosen outside this skill. Say why, because such a choice can show a missing trigger.
+
+If no skill was used, say so explicitly. This provenance is feedback for improving `skill-loader`.

@@ -41,7 +41,13 @@ A reviewable PR has:
 - evidence links when external proof helps,
 - no accidental files, temporary scripts, noisy fixups, or confusing commit order before review.
 
-Split into a stack when one PR mixes independent concerns, touches many subsystems, exceeds roughly 400 non-generated net lines, touches more than about 15 non-generated files, or needs more than five reviewer-guide topics.
+### Stack-split check
+Evaluate the change against these signals before opening a PR:
+
+- Strong signals: 2+ distinct subsystems that could ship independently; more than ~400 net lines of non-generated, non-test code; more than ~15 non-generated files.
+- Soft signals: the reviewer guide would need more than five topics; commits fall into independent groups; the branch mixes refactor, feature, and behavior change.
+
+Split into a stack when any strong signal or two or more soft signals trip. Propose the stack as one row per branch in dependency order, and ask before restructuring.
 
 ## Commit story
 Good review commits are independently understandable, ordered for reading, scoped to one topic, and named clearly.

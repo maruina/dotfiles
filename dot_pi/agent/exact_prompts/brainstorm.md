@@ -7,7 +7,7 @@ Idea or problem:
 
 > $ARGUMENTS
 
-Use this command to clarify what problem to solve, who it affects, the desired outcome, and the smallest useful next step. Planning decides how to implement it; execution makes the approved change.
+Use this command to clarify what problem to solve, who it affects, the desired outcome, and the smallest useful next step.
 
 <HARD-GATE>
 Do not write implementation code, scaffold application files, or finalize product or design decisions without user confirmation. The default terminal state for non-trivial work is a committed `design.md` in a feature worktree. Use a chat-only alignment brief only when the user explicitly requests lightweight brainstorming, no artifacts, no worktree, or a quick discussion.
@@ -92,9 +92,7 @@ For codebase work, use the `codebase-research` skill when correctness depends on
 Evidence may include user reports, code, tests, configs, logs, metrics, traces, dashboards, docs, tickets, incidents, and stakeholder confirmation. State when evidence is stale, incomplete, indirect, or unavailable.
 
 ### Advisory learning lookup
-After understanding the request and repository context, but before confirming design decisions, derive narrow terms for the technology, error, API, tool, and pattern. When the request supplies enough terms, do this before the first response or question. Read `Datadog/Learnings.md` through Obsidian and pipe it locally to `learn-evidence.mjs learning-sections`. Pass only returned complete H2 sections into reasoning; apply no repository filter. Report matched section titles and material guidance used; do not report unrelated sections.
-
-Learnings are advisory. Current source code, tests, and tool behavior, then authoritative documentation, take precedence. Sections whose date line is older than six months are hypotheses to re-check against current evidence, not established facts. Treat an absent `Datadog/Learnings.md` as empty without warning noise. If Obsidian is unavailable, continue and record the skipped advisory source in `design.md`, or in the alignment brief for chat-only brainstorming. Record material guidance in `design.md` or the chat-only alignment brief, including when stronger evidence makes a learning stale, corrected, or intentionally omitted. Do not retrieve the mutable store after the design decision is committed.
+After understanding the request and repository context, but before confirming design decisions, use the `learning-lookup` skill. When the request supplies enough terms, do this before the first response or question. Record skipped sources and material guidance in `design.md`, or in the alignment brief for chat-only brainstorming. Do not retrieve the mutable store after the design decision is committed.
 
 ## Operational Soundness
 Apply the skeptical posture to these material concerns before recommending a technical direction:
@@ -141,7 +139,7 @@ The slice should be independently useful, reviewable, verifiable, reversible, in
 When more than one design or approach is viable, select the one whose smallest slice produces user feedback fastest. Every non-selected design becomes a non-goal or a deferred item with a revisit trigger. Do not merge designs to satisfy more stakeholders. A better long-term design is not a reason to widen the first slice.
 
 ## Alignment and durable output
-Summarize the agreed framing in chat before writing an artifact. The alignment brief and durable design spec must include `Skills loaded and used`; use the exact durable-spec heading `## Skills loaded and used`. Record only skills whose `SKILL.md` was read and applied, with source (`skill-loader`, `prompt-required`, `user-requested`, or `agent-selected`), loading reason, and effect. This provenance is feedback for improving `skill-loader`. If none were used, say so explicitly.
+Summarize the agreed framing in chat before writing an artifact. The alignment brief and durable design spec must include `Skills loaded and used`; use the exact durable-spec heading `## Skills loaded and used`. Fill it per the `## Provenance record` section of the `skill-loader` skill.
 
 ```md
 ## Alignment brief
@@ -184,7 +182,7 @@ Ask the user to confirm or adjust the brief. After confirmation, create the dura
 ## Design artifact
 When creating or updating `design.md`:
 
-1. Fetch the latest default branch and use a feature worktree based on it. Continue in the correct existing worktree; never write or commit the design on `main` or `master`. Use `maruina/<ticket-or-feature>` and repository-specific worktree guidance.
+1. Use the `feature-worktree` skill to continue in the correct existing worktree or create one from the latest default branch.
 2. Write `plans/<ticket-or-feature>/design.md`, preferably under the relevant package in a monorepo.
 3. Include the confirmed alignment brief plus context reviewed, goals and non-goals, assumptions, the smallest user-feedback slice and the deferred alternatives, design overview, alternatives, risks and mitigations, operability, rollout/rollback, security and data handling, testing strategy, and open questions. Preserve skill provenance and add skills used while writing or reviewing the spec. Write for a reader outside the conversation: explain context, domain terms, and current behavior where relevant. The design is a synthesis, not a transcript or quiz report; omit coaching exchanges and question history.
 4. Self-review as a skeptical staff engineer. The chosen direction must name at least one downside, and every considered alternative must name a genuine merit. Check that the smallest user-feedback slice produces user feedback and that non-selected alternatives are deferred rather than merged. Fix blocking issues inline and record material rejected findings with rationale.

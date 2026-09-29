@@ -7,7 +7,7 @@ Planning input:
 
 > $ARGUMENTS
 
-Turn an agreed problem framing, design spec, issue, or clear request into a concrete implementation plan. Brainstorming decides what to solve; planning decides how; execution makes the approved change.
+Turn an agreed problem framing, design spec, issue, or clear request into a concrete implementation plan.
 
 <HARD-GATE>
 Do not write implementation code, scaffold application files, or change files outside the plan document. The default terminal state for non-trivial work is a committed `plan.md` in a feature worktree.
@@ -42,9 +42,7 @@ Use the upstream design, alignment brief, issue, PR feedback, or request as the 
 - Every task must trace to a goal, requirement, or explicit instruction. Carry source-defined non-goals and deliberate deferrals into the alignment brief and plan; do not silently add, drop, or reinterpret scope.
 
 ### Advisory learning lookup
-After resolving the input and repository context, but before feasibility decisions or recommendations, derive narrow terms for the technology, error, API, tool, and pattern. Read `Datadog/Learnings.md` through Obsidian and pipe it locally to `learn-evidence.mjs learning-sections`. Pass only returned complete H2 sections into reasoning; apply no repository filter. Report matched section titles and material guidance used; do not report unrelated sections.
-
-Learnings are advisory. Current source code, tests, and tool behavior, then authoritative documentation, take precedence. Sections whose date line is older than six months are hypotheses to re-check against current evidence, not established facts. Treat an absent `Datadog/Learnings.md` as empty without warning noise. If Obsidian is unavailable, continue and record the skipped source in `plan.md`, or in the chat plan for chat-only planning. Record material guidance in `plan.md` or the chat-only plan, including when stronger evidence makes a learning stale, corrected, or intentionally omitted. Do not retrieve the mutable store during `/execute` or `/verify`.
+After resolving the input and repository context, but before feasibility decisions or recommendations, use the `learning-lookup` skill. Record skipped sources and material guidance in `plan.md`, or in the chat plan for chat-only planning. Do not retrieve the mutable store during `/execute` or `/verify`.
 
 ## Feasibility and planning decisions
 Before acceptance criteria or tasks, establish a concrete mechanism and observable validation path for every requirement involving a tool, runtime capability, external service, metadata source, or workflow behavior. For Medium and Large/Risky work, record:
@@ -70,7 +68,7 @@ Pressure-test only material risks:
 Prefer boring existing technology and APIs. Avoid speculative abstractions or ceremony. If the owning team would not accept being paged for the result, revise or narrow the plan.
 
 ## Planning alignment gate
-The planning alignment brief and durable plan must include `Skills loaded and used`; use the exact durable-plan heading `## Skills loaded and used`. Record only skills whose `SKILL.md` was read and applied, with source (`skill-loader`, `prompt-required`, `user-requested`, or `agent-selected`), loading reason, and effect. This provenance is feedback for improving `skill-loader`; do not infer usage from an upstream artifact. If none were used, say so explicitly.
+The planning alignment brief and durable plan must include `Skills loaded and used`; use the exact durable-plan heading `## Skills loaded and used`. Fill it per the `## Provenance record` section of the `skill-loader` skill.
 
 ```md
 ## Planning alignment brief
@@ -116,7 +114,7 @@ In interactive mode: ask the user to confirm or adjust the brief, including slic
 ## Durable plan contract
 For a durable plan:
 
-- Fetch the latest default branch and use a feature worktree based on it. Continue in the correct existing worktree; never write or commit the plan on `main` or `master`. Use `maruina/<ticket-or-feature>` and repository-specific worktree guidance.
+- Use the `feature-worktree` skill to continue in the correct existing worktree or create one from the latest default branch.
 - Write `plans/<ticket-or-feature>/plan.md`, preferably beside its `design.md` and under the relevant package in a monorepo.
 - Use repo-relative paths inside the plan. Use an absolute plan path only in the final chat handoff.
 - Commit only the plan with `docs: add <ticket-or-feature> implementation plan` after self-review.
@@ -222,7 +220,7 @@ Before committing, confirm:
 Self-review as a skeptical implementer and fix issues inline. Do not pre-write implementation code or shell-command choreography; use snippets only to pin an interface, schema, command, or invariant. Honor user-named resources rather than silently substituting them.
 
 ## Learning candidates
-When a candidate occurs, append `- YYYY-MM-DD: <what happened> — evidence: <shareable pointer: PR thread URL, repo-relative file and line, or command and result>` under `## Learning candidates`, creating the section only on the first candidate. Record only surprises a fresh model would not reliably produce and apply unaided — `/systematic-review` findings or reviewer feedback that disproved an initial approach and changed the design or plan; never routine best practice, design rationale, session paths, secrets, or vault content.
+When `/systematic-review` findings or reviewer feedback disprove an initial approach and change the design or plan, record a learning candidate in the plan with the `learning-candidates` skill.
 
 ## Handoff
 Report the exact handoff phrase below.

@@ -32,21 +32,7 @@ If the input is missing or unparseable, ask for a PR URL or comment link and sto
 When a specific comment link is supplied, assess that comment and its thread. Otherwise, assess all unresolved feedback.
 
 ## Phase 1: Locate the PR workspace
-Prefer an existing checkout of the PR repository. Inspect the current repository first:
-
-```bash
-git remote -v
-git status --short
-gh repo view --json nameWithOwner
-```
-
-If it matches `ORG/REPO`, use it. Prefer the PR head branch. Otherwise locate an existing checkout in:
-- `~/dd/REPO`
-- `~/go/src/github.com/ORG/REPO`
-
-If no checkout exists and `ORG` is `DataDog`, clone into `~/dd/REPO`. Otherwise ask where to clone.
-
-If the selected checkout is not at the PR head, warn before switching it with `gh pr checkout <PR_NUMBER>`. Record the resulting path as `WORKTREE`. Use `WORKTREE` for all subsequent code reads.
+Use the PR URL procedure in the `feature-worktree` skill to switch to a worktree on the PR head branch. Never switch the base checkout to the PR branch. Record the resulting path as `WORKTREE`. Use `WORKTREE` for all subsequent code reads.
 
 ## Phase 2: Gather PR and feedback data
 Collect:
@@ -54,7 +40,7 @@ Collect:
 - Inline comments, top-level PR comments, review bodies, and thread resolution state.
 - For each selected thread: reviewer, timestamp, path, current/original line, diff hunk, full thread, and whether it is outdated.
 
-Use the fetching mechanics in the `pr-comment-triage` skill. Skip resolved threads unless the user explicitly selected one. Do not silently drop outdated comments; label them.
+Fetch comments with the `reviewThreads` GraphQL query in the `pr-comment-triage` skill. This prompt's autonomy contract and decision outcomes take precedence over that skill's confirmation and classification rules. Skip resolved threads unless the user explicitly selected one. Do not silently drop outdated comments; label them.
 
 ## Phase 3: Build a targeted model before adjudicating comments
 Do not judge a comment from its hunk alone. First understand the PR enough to assess all selected feedback efficiently.
@@ -106,7 +92,7 @@ For every comment adjudicated `adopt as suggested`:
 2. Run the relevant tests or validation. If they fail, stop, report the failure, and do not commit or push.
 3. Commit on the PR head branch with a Conventional Commit message. If the checkout is dirty or not on the PR head branch, stop and ask.
 4. Push to the PR head branch.
-5. Resolve each implemented comment's review thread using the GraphQL mechanics in the `pr-comment-triage` skill (step 10). Resolve only threads whose fix is in this push.
+5. Resolve each implemented comment's review thread with the `resolveReviewThread` mutation in the `pr-comment-triage` skill. Resolve only threads whose fix is in this push.
 
 Do not implement `adopt different approach` items; present them for discussion. Never post GitHub comments or replies.
 
@@ -165,7 +151,7 @@ Keep system context brief and shared across comments. Do not repeat it per comme
 Keep each comment assessment proportional to its importance. Prefer a compact, evidence-backed paragraph over a mini code review.
 
 ## Learning candidates
-When adjudication recorded accepted reviewer guidance — `adopt as suggested` with generalizable content, or an `adopt different approach` whose chosen alternative embodies a lesson — append `- YYYY-MM-DD: <what happened> — evidence: <shareable pointer: PR thread URL, repo-relative file and line, or command and result>` under the plan's `## Learning candidates` section, creating it only on the first candidate. Record only surprises a fresh model would not reliably produce and apply unaided — never routine best practice, design rationale, session paths, secrets, or vault content. Write to the ledger only when exactly one branch-correlated `**/plans/<branch-slug>/plan.md` exists in the PR worktree (the PR branch with its first `<owner>/` prefix stripped); with zero or multiple matches, report the candidates in the Phase 6 output instead and never pick silently.
+When adjudication recorded accepted reviewer guidance — `adopt as suggested` with generalizable content, or an `adopt different approach` whose chosen alternative embodies a lesson — record a learning candidate with the `learning-candidates` skill. Write to the plan's `## Learning candidates` ledger only when exactly one branch-correlated `**/plans/<branch-slug>/plan.md` exists in the PR worktree (the PR branch with its first `<owner>/` prefix stripped); with zero or multiple matches, report the candidates in the Phase 6 output instead and never pick silently.
 
 ## Follow-up
 End by listing: what was implemented and pushed, which threads were resolved, which `adopt different approach` proposals await the user's decision, and which comments need a manual reply. Use `WORKTREE` for any follow-up investigation. When candidates were recorded or accepted reviewer guidance exists, end by suggesting plain `/learn`; otherwise make no `/learn` suggestion.

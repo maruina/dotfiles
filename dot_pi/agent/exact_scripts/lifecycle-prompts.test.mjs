@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -17,6 +17,14 @@ function requireMarkers(text, markers) {
   for (const marker of markers) assert.match(text, marker);
 }
 
+const skillsDir = existsSync(path.join(agentDir, "exact_skills"))
+  ? path.join(agentDir, "exact_skills")
+  : path.join(agentDir, "skills");
+
+function skill(name) {
+  return readFileSync(path.join(skillsDir, name, "SKILL.md"), "utf8");
+}
+
 const skillRecordMarkers = [
   /Skills loaded and used/,
   /Skill \| Source \| Why loaded \| How used/,
@@ -24,11 +32,40 @@ const skillRecordMarkers = [
   /feedback for improving `skill-loader`/i,
 ];
 
+const provenanceReference = /`## Provenance record` section of the `skill-loader` skill/;
+
+const provenancePrompts = [
+  "brainstorm.md",
+  "plan.md",
+  "execute.md",
+  "systematic-review.md",
+  "verify.md",
+  "simplify.md",
+  "pr-review.md",
+  "troubleshoot.md",
+];
+
+test("skill-loader owns the provenance record and prompts reference it", () => {
+  requireMarkers(skill("skill-loader"), [
+    /^## Provenance record$/m,
+    ...skillRecordMarkers,
+    /Include workflow skills/i,
+    /Do not infer use/i,
+    /If no skill was used, say so explicitly/i,
+  ]);
+
+  for (const file of provenancePrompts) {
+    const text = prompt(file);
+    assert.match(text, provenanceReference, `${file} must reference the skill-loader provenance record`);
+    assert.doesNotMatch(text, /feedback for improving `skill-loader`/i, `${file} must not restate the provenance contract`);
+  }
+});
+
 test("brainstorm records skill provenance before approval and in design specs", () => {
   const text = prompt("brainstorm.md");
 
   requireMarkers(text, [
-    ...skillRecordMarkers,
+    provenanceReference,
     /alignment brief.*must include `Skills loaded and used`/is,
     /durable design spec.*must include `Skills loaded and used`/is,
     /`## Skills loaded and used`/,
@@ -135,7 +172,7 @@ test("plan records skill provenance before approval and in durable plans", () =>
   const text = prompt("plan.md");
 
   requireMarkers(text, [
-    ...skillRecordMarkers,
+    provenanceReference,
     /planning alignment brief.*must include `Skills loaded and used`/is,
     /durable plan.*must include `Skills loaded and used`/is,
     /## Skills loaded and used/,
@@ -248,7 +285,8 @@ test("brainstorm and plan preserve dependency-aware lifecycle contracts", () => 
 test("downstream lifecycle stages preserve or report skill provenance", () => {
   const execute = prompt("execute.md");
   requireMarkers(execute, [
-    ...skillRecordMarkers,
+    provenanceReference,
+    /Skill \| Source \| Why loaded \| How used/,
     /`### Execution` subsection under `## Skills loaded and used`/,
     /source, loading reason, and effect on execution/i,
   ]);
@@ -256,20 +294,29 @@ test("downstream lifecycle stages preserve or report skill provenance", () => {
   for (const file of ["systematic-review.md", "verify.md"]) {
     const text = prompt(file);
     requireMarkers(text, [
-      ...skillRecordMarkers,
+      provenanceReference,
+      /Skill \| Source \| Why loaded \| How used/,
       /\*\*Skills loaded and used:?\*\*/,
     ]);
   }
 });
 
 test("writable stages record learning candidates; read-only stages capture nothing", () => {
+  requireMarkers(skill("learning-candidates"), [
+    /## Learning candidates/,
+    /— evidence: <shareable pointer/,
+    /creat.*only on the first candidate/is,
+    /fresh model.*reliably|reliably.*fresh model/is,
+    /routine best practice/i,
+    /session paths/i,
+    /secrets/i,
+    /vault content/i,
+  ]);
+
   for (const file of ["plan.md", "execute.md", "simplify.md", "pr-address-feedback.md"]) {
     const text = prompt(file);
-    requireMarkers(text, [
-      /## Learning candidates/,
-      /— evidence: /,
-      /fresh model.*reliably|reliably.*fresh model/is,
-    ]);
+    assert.match(text, /`learning-candidates` skill/, `${file} must use the learning-candidates skill`);
+    assert.doesNotMatch(text, /— evidence: /, `${file} must not restate the ledger format`);
   }
 
   requireMarkers(prompt("pr-address-feedback.md"), [
@@ -280,7 +327,7 @@ test("writable stages record learning candidates; read-only stages capture nothi
   ]);
 
   for (const file of ["systematic-review.md", "verify.md"]) {
-    assert.doesNotMatch(prompt(file), /Learning candidates/);
+    assert.doesNotMatch(prompt(file), /Learning candidates|learning-candidates/i);
   }
 });
 
@@ -288,7 +335,7 @@ test("simplify and PR review report skill provenance", () => {
   for (const file of ["simplify.md", "pr-review.md"]) {
     const text = prompt(file);
     requireMarkers(text, [
-      ...skillRecordMarkers,
+      provenanceReference,
       /\*\*Skills loaded and used\*\*|## Skills loaded and used/,
     ]);
   }
@@ -387,4 +434,65 @@ test("PR commands have distinct roles and aligned review artifacts", () => {
   assert.match(cleanup, /git worktree remove "\$WORKTREE"/);
   assert.doesNotMatch(cleanup, /\bHTML\b/);
   assert.doesNotMatch(cleanup, /git worktree remove[^\n]*--force/);
+});
+
+test("worktree and PR checkout procedures live in skills, not prompts", () => {
+  requireMarkers(skill("feature-worktree"), [
+    /^## Choose a worktree$/m,
+    /^## PR URL to worktree$/m,
+    /`repo-checkout` skill/,
+    /isCrossRepository/,
+    /gh pr checkout <PR_NUMBER>/,
+    /never reset or discard local changes/i,
+    /Never run `git checkout`, `git switch`, or `gh pr checkout` in the base checkout/,
+  ]);
+
+  for (const file of ["brainstorm.md", "plan.md", "execute.md", "simplify.md", "pr-review.md", "pr-address-feedback.md"]) {
+    assert.match(prompt(file), /`feature-worktree` skill/, `${file} must use the feature-worktree skill`);
+  }
+
+  for (const file of readdirSync(promptsDir).filter((name) => name.endsWith(".md"))) {
+    const text = prompt(file);
+    assert.doesNotMatch(text, /~\/go\/src\/github\.com\/ORG\/REPO/, `${file} must locate checkouts with repo-checkout`);
+    assert.doesNotMatch(text, /~\/dd\/\.worktrees\/<repo>\/<branch-slug>/, `${file} must defer the worktree root to AGENTS.md`);
+  }
+});
+
+test("the stack-split check has one owner", () => {
+  requireMarkers(skill("reviewable-pr-workflow"), [
+    /### Stack-split check/,
+    /Strong signals:.*~400.*~15/s,
+    /Soft signals:.*more than five topics/s,
+    /any strong signal or two or more soft signals/i,
+  ]);
+
+  const execute = prompt("execute.md");
+  assert.match(execute, /stack-split check from the `reviewable-pr-workflow` skill/);
+  assert.doesNotMatch(execute, /~400|~15 non-generated/);
+});
+
+test("pr-address-feedback policy overrides pr-comment-triage without step-number references", () => {
+  assert.match(skill("pr-comment-triage"), /calling prompt.*take precedence/is);
+
+  const text = prompt("pr-address-feedback.md");
+  assert.match(text, /`reviewThreads` GraphQL query in the `pr-comment-triage` skill/);
+  assert.match(text, /`resolveReviewThread` mutation in the `pr-comment-triage` skill/);
+  assert.doesNotMatch(text, /\(step \d+\)/);
+});
+
+test("execute and simplify emit the same /verify handoff contract", () => {
+  const steps = (text) =>
+    text
+      .slice(text.indexOf("## Handoff"))
+      .split("\n")
+      .filter((line) => /^\d\. (Run|Confirm)/.test(line))
+      .map((line) => line.replace(/implementation model|simplification model/g, "<producer> model"));
+
+  const execute = steps(prompt("execute.md"));
+  const simplify = steps(prompt("simplify.md"));
+  assert.ok(execute.length >= 5, "execute must carry the numbered handoff steps");
+  assert.deepEqual(simplify, execute);
+
+  const verify = prompt("verify.md");
+  for (const flag of ["--implemented-by", "--task"]) assert.match(verify, new RegExp(flag));
 });

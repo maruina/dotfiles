@@ -74,7 +74,7 @@ Challenge scope against the smallest user-feedback slice, not only against the d
 ## Method
 
 1. Use `codebase-research` to locate the target area, analyze current behavior, and find similar patterns.
-2. Use the `skill-loader` skill to determine which language and domain skills to read based on the target files. Load them before evaluating findings. Keep a record of each skill actually read and applied: source (`skill-loader`, `prompt-required`, `user-requested`, or `agent-selected`), why it was loaded, and how its guidance affected the review. This provenance is feedback for improving `skill-loader`; do not infer use from skills named in an artifact.
+2. Use the `skill-loader` skill to determine which language and domain skills to read based on the target files. Load them before evaluating findings. Keep a provenance record per the `## Provenance record` section of the `skill-loader` skill.
 3. Identify the project shape: language, package boundaries, test/build commands, entry points, and relevant guidance files.
 4. Map the target area: core files, tests, dependencies, callers, and ownership boundaries. For plans, also read the sibling `design.md`.
 5. Review from multiple angles: correctness, concurrency, security, performance, API/UX, tests, and maintainability.

@@ -60,7 +60,7 @@ When an investigation reveals a repeatable, previously missing route, emit a `Ro
 Do not modify skills, prompts, or routing knowledge during the investigation.
 
 ## Output contract
-Produce a concise, evidence-oriented result:
+Produce a concise, evidence-oriented result. Fill `Skills loaded and used` per the `## Provenance record` section of the `skill-loader` skill.
 
 ```md
 ## Troubleshooting result
@@ -97,5 +97,5 @@ Include only when the investigation uncovered a repeatable missing or unclear ro
 ### Skills loaded and used
 | Skill | Source | Why loaded | How used |
 |---|---|---|---|
-| ... | prompt-required / agent-selected | ... | ... |
+| ... | `skill-loader` / `prompt-required` / `user-requested` / `agent-selected` | ... | ... |
 ```

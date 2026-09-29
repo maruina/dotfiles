@@ -9,8 +9,6 @@ Target:
 
 Simplify code for clarity and maintainability while preserving behavior exactly. This is an opt-in refinement pass, distinct from the within-step "refactor after green" in `/execute`: it reviews the whole recent diff and improves it as a unit.
 
-Lifecycle: `/brainstorm` creates a committed design spec, `/plan` creates a committed implementation plan, `/systematic-review` validates code or plans, `/execute` implements verified changes, `/simplify` optionally refines them, and `/learn` captures evidence-backed guidance after the work lands.
-
 <HARD-GATE>
 Do not change behavior. Existing tests must pass before and after; run the focused tests for the touched code first, and again after simplifying. If no tests cover the touched code, say so and stop rather than guessing at behavior. Do not add features, abstractions, or configurability. Do not start on `main` or `master` without explicit user consent.
 </HARD-GATE>
@@ -24,36 +22,18 @@ Resolve the target from the first positional in `$ARGUMENTS` and switch context 
 - **Plan path** — resolve it with the `resolve-worktree` skill with `$GLOB = **/plans/*/plan.md`. Switch to the owning worktree and simplify the branch diff there against its base; do not treat a plan path as a single-file target.
 - **File path** — resolve it with the `resolve-worktree` skill (no `$GLOB`). Simplify only that file.
 - **Worktree or directory path** — resolve it with the `resolve-worktree` skill (no `$GLOB`). Simplify the branch diff there against its base.
-- **PR URL** — follow PR URL resolution below.
+- **PR URL** — use the PR URL procedure in the `feature-worktree` skill. Simplify the branch diff there against the PR's `baseRefName` unless `--base` overrides it.
 - **No positional** — simplify the current checkout's working-tree changes, or the branch diff against its base when the tree is clean.
 
-### PR URL resolution
-A PR URL selects the PR's feature worktree, not the current checkout.
-
-1. Extract `ORG`, `REPO`, and `PR_NUMBER` from the URL.
-2. Read PR metadata with `gh pr view <url> --json headRefName,baseRefName,headRepositoryOwner`. Record `headRefName` as the working branch and `baseRefName` as the diff base unless `--base` overrides it. When `headRepositoryOwner.login` differs from `ORG`, the head is on a fork.
-3. Locate an existing worktree on `headRefName`: run `git worktree list --porcelain` from any checkout of `ORG/REPO` and match by branch name. If exactly one matches, switch context there and use its current state; do not reset or discard local changes.
-4. If none matches, locate an existing checkout of `ORG/REPO` (current repo, `~/dd/REPO`, or `~/go/src/github.com/ORG/REPO`). If none exists and `ORG` is `DataDog`, clone into `~/dd/REPO`; otherwise ask where to clone.
-5. Create a feature worktree at the PR head following the Worktree Policy below. From the located checkout, fetch the head branch and create the worktree on it. When the head is on a fork, create the worktree at the default branch and run `gh pr checkout <PR_NUMBER>` inside it instead.
-6. Switch context to the resolved worktree. If the branch, base, or worktree location is ambiguous, stop and ask.
-
-Do not move HEAD in the current checkout to inspect a PR. Use a worktree.
-
 ## Worktree Policy
-Prefer feature worktrees for simplification work.
-
-- If a path or PR URL resolves to a worktree, switch to that worktree and continue there.
-- If already in the correct feature worktree, continue there.
-- If in a base checkout on `main` or `master`, create or switch to a feature worktree before simplifying unless the user explicitly asks not to.
-- For Datadog repositories, use `~/dd/.worktrees/<repo>/<branch-slug>` unless repository guidance says otherwise.
-- Stop and ask if the branch, base branch, or worktree location is ambiguous.
+Before changing files, use the `feature-worktree` skill to continue in the resolved worktree or the correct feature worktree, or to create one.
 
 ## Delegate the "how"
 Do not restate style rules here. Before proposing or making simplifications, use the `skill-loader` skill to determine which language and domain skills to read based on the touched files. Load those skills and defer to them, plus the repository's `AGENTS.md`.
 
 If the touched code is in an unfamiliar area, also load `codebase-research` before changing it. Match the repository's existing conventions over any general preference.
 
-Keep a record of each skill actually read and applied: source (`skill-loader`, `prompt-required`, `user-requested`, or `agent-selected`), why it was loaded, and how its guidance affected simplification. Include workflow skills such as `resolve-worktree` or `skill-loader` when their instructions were actually followed. This provenance is feedback for improving `skill-loader`; do not infer use from skills merely named in this prompt or another artifact.
+Keep a provenance record per the `## Provenance record` section of the `skill-loader` skill.
 
 ## Simplification Lens
 Understand the affected behavior before minimizing its implementation. Apply the decision ladder from the active instructions and stop at the first option that fully preserves behavior.
@@ -89,7 +69,7 @@ If a change is cosmetic-only with no clarity gain, skip it. If nothing is worth 
 Snapshot `git status --porcelain=v1 --untracked-files=all` before editing, and commit the simplification only when the worktree started clean:
 
 - After the post-simplification tests pass, stage only files changed by this pass and commit with a `refactor:` conventional message describing the simplification.
-- When a plan file exists, append a short note about the simplification pass to the plan ledger and include it in the same commit. This keeps a fresh `/verify` from treating the extra commit as an unexplained change. Extend the note with learning candidates: append `- YYYY-MM-DD: <what happened> — evidence: <shareable pointer: PR thread URL, repo-relative file and line, or command and result>` under the plan's `## Learning candidates` section, creating it only on the first candidate; record only lessons where a materially simpler path existed and was initially missed and a fresh model would not reliably produce unaided — never routine best practice, design rationale, session paths, secrets, or vault content.
+- When a plan file exists, append a short note about the simplification pass to the plan ledger and include it in the same commit. This keeps a fresh `/verify` from treating the extra commit as an unexplained change. When a materially simpler path existed and was initially missed, record a learning candidate with the `learning-candidates` skill.
 - When the branch has an open PR or a configured upstream, push the new commit; never force-push. Otherwise leave the commit local and report that.
 
 When the worktree had uncommitted changes before simplification started, do not commit; commit boundaries belong to the plan or `/execute`. Report the simplification as uncommitted alongside the pre-existing changes.

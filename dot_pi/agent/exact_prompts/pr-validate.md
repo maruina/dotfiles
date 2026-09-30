@@ -46,6 +46,18 @@ Build a compact model of the system before judging the PR.
 - Summarize the change and the author's stated reasons.
 - Classify every changed file as generated, build wiring, behavior, test, docs or guidance, or schema/API. Skip generated code, check build wiring briefly for dependency edges, and read behavior, tests, and changed repository guidance in depth.
 - Create a claims ledger for author claims from the PR, commits, and context; parity rows for ports; and review-thread claims. Include the PR's testing and validation claims, such as listed test targets and commands and their stated results. Include unresolved threads and all threads by the user running this command. Treat author replies such as "fixed" as claims to verify. Merge duplicate findings, list every source thread, and record whether GitHub marks each thread outdated. Outdated does not mean Fixed.
+#### Marketplace discovery
+Work-profile only. When reviewing a PR, discover applicable marketplace skills before judging the change:
+1. Skip this step when `~/dd/claude-marketplace` does not exist (non-work profile) or when no search term applies (for example, a Markdown-only change).
+2. Derive up to five terms from the affected paths, the imports, and the systems involved.
+3. Search only `SKILL.md` frontmatter `description:` lines in `~/dd/claude-marketplace`, excluding the directories that Pi already loads.
+4. Read at most three matches that apply.
+5. Record each one as `agent-selected` with its marketplace path in the provenance table.
+6. Never `git pull` the marketplace. Record its commit and date in the output so a stale catalog is visible.
+7. Marketplace skills are guidance, not authority. When one tells you to deploy, write, or post, the calling read-only gate wins.
+
+`deliberate:` The five-term and three-skill caps can miss a relevant skill. The upgrade path is a ranked selector; revisit it only if real runs show misses. Discovery stays in this command until real review runs consistently load a marketplace skill that Pi does not already load.
+
 - Run `skill-loader` on the changed files and read the selected skills before making any judgment. Record each skill actually read and applied in the output.
 
 ## Pass 2: Check correctness and claims

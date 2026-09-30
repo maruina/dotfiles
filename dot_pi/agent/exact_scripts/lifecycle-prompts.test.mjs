@@ -470,7 +470,21 @@ test("PR validation revision 2 report shape, severity, and provenance", () => {
   assert.doesNotMatch(text, /feedback for improving `skill-loader`/i);
 });
 
-;
+test("PR validation marketplace discovery is bounded, local, and read-only", () => {
+  const text = prompt("pr-validate.md");
+
+  requireMarkers(text, [
+    /Marketplace discovery/i,
+    /up to five terms|five search terms|no more than five terms/i,
+    /at most three|no more than three|up to three/i,
+    /frontmatter `description:`|`description:` lines/i,
+    /already loads|directories.*pi.*loads|exclud/i,
+    /never `git pull`|no `git pull`|do not pull/i,
+    /commit and date|commit.*date/i,
+    /agent-selected/i,
+    /caller.*gate|gates win|read-only gate/i,
+  ]);
+});
 
 test("PR validation shares the review-worktree path with review and cleanup", () => {
   const paths = ["pr-validate.md", "pr-review.md", "pr-cleanup.md"]

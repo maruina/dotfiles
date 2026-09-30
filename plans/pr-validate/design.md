@@ -2,7 +2,7 @@
 ## Summary
 Add a read-only pi `/pr-validate <GitHub PR URL> [context]` prompt. It reviews someone else's PR on the user's behalf and returns one verdict: **Approve**, **Ask**, or **Request changes**. Each item names the problem, the location, why it matters, and the evidence, so the user can write their own GitHub comment without reading the diff. Separately, the command lists up to five **attention items**: decisions that belong to the reviewer, each with enough inline context that the user does not need to search the diff. The user's attention is the scarce resource, so every item carries the evidence needed to decide it. Existing review threads, from humans and from review agents, are claims that the command confirms or refutes. This supports two more questions within the same full verdict: "do these agent comments apply?" and "were my comments addressed?"
 
-Revision 2 (2026-09-29) changes how the report is presented and what counts as evidence. Revision 1 moved the verdict to an HTML report, but that report was still a wall of text. In revision 2, every item follows a fixed story (why it matters, what the code does, why that is bad, whether it is real, the shape of the fix), with diagrams, chips, and short text in the style of the `show-me` story pages. Severity now depends on real exposure and fix cost, not only on whether the code is wrong. Three criteria are new: observability, dependencies, and docs. `skill-loader` also learns to discover skills in the company marketplace. See [Revision 2: presentation and evidence](#revision-2-presentation-and-evidence).
+Revision 2 (2026-09-29) changes how the report is presented and what counts as evidence. Revision 1 moved the verdict to an HTML report, but that report was still a wall of text. In revision 2, every item follows a fixed story (why it matters, what the code does, why that is bad, whether it is real, the shape of the fix), with diagrams, chips, and short text in the style of the `show-me` story pages. Severity now depends on real exposure and fix cost, not only on whether the code is wrong. Three criteria are new: observability, dependencies, and docs. `/pr-validate` also learns to discover skills in the company marketplace. See [Revision 2: presentation and evidence](#revision-2-presentation-and-evidence).
 
 `/pr-validate` is the delegated review mode. The existing `/pr-review` stays unchanged. A later design will turn `/pr-review` into a guided review mode, in which the agent asks the user questions about the code in a logical order.
 
@@ -56,11 +56,11 @@ Decisions:
 - Severity depends on exposure and fix cost (see [Severity](#severity-exposure-and-fix-cost-revision-2)). Missing exposure evidence is visible on the item. After the run, the user finds the evidence with the agent or accepts the gap.
 - Three new criteria: observability, dependencies, and docs.
 - The summary and the page name the model and thinking level. `user-context` adds the thinking level.
-- `skill-loader` discovers skills in `~/dd/claude-marketplace` (work profile, bounded).
+- `/pr-validate` discovers skills in `~/dd/claude-marketplace` (work profile, bounded). Discovery stays inside `/pr-validate` until real runs prove it consistently loads skills Pi does not already load.
 - The slice starts with a mock page from run 4's content and real exposure evidence. The prompt changes only after Matteo approves the mock.
 
 Non-goals:
-A shared `/pr-review` and `/to-html` template, the GitHub dark style, a TypeSafe skill selector, and changes to the passes other than the exposure check and the new criteria.
+A shared `/pr-review` and `/to-html` template, the GitHub dark style, a TypeSafe skill selector, changes to `skill-loader`, and changes to the passes other than the exposure check, the new criteria, and the marketplace-discovery step.
 
 ## Design principle: attention is the scarce resource
 The user runs `/pr-validate` while doing other work. The user's attention costs more than agent time. Every design choice follows from this:
@@ -154,7 +154,7 @@ Pass 1 writes the following in the response. Later passes use these results and 
   - *Parity rows* when the PR ports behavior: old site, new site, and what must stay the same. An intentional behavior drop is also a row, with its stated reason.
   - *Thread claims* from review threads. Each unresolved thread is an entry, whether a human or an agent wrote it. Each thread by the user running the command is an entry, resolved or not. An author reply such as "fixed" or "this already handles it" is its own claim. Merge duplicate findings from different reviewers into one entry, and list every source thread. Record whether GitHub marks the thread outdated, but do not treat "outdated" as "fixed".
 
-Pass 1 also runs `skill-loader` on the changed files and loads the selected skills before any judgment. Revision 2: `skill-loader` also discovers skills in the company marketplace. See [Marketplace skill discovery in `skill-loader`](#marketplace-skill-discovery-in-skill-loader).
+Pass 1 also runs `skill-loader` on the changed files and loads the selected skills before any judgment. Revision 2: `/pr-validate` also discovers skills in the company marketplace. See [Marketplace skill discovery in `/pr-validate`](#marketplace-skill-discovery-in-pr-validate).
 
 ### Pass 2: Correctness and internal consistency
 Confirm or refute each claims-ledger entry against the code and the tests at the PR head. Check that tests would fail if the changed behavior broke.
@@ -293,7 +293,7 @@ Code and links:
 ### Model and thinking level
 The summary and the page header name the model and thinking level that did the review. The `user-context` extension already injects `## Current Model` (`formatCurrentModel` in `user-context.ts`). The thinking level is not visible to the agent today, but pi exposes it through `pi.getThinkingLevel()`. Revision 2 adds one line with the thinking level to the same `user-context` section, with a unit test. Until that lands, the report says `thinking level: not available to the agent`.
 
-### Marketplace skill discovery in `skill-loader`
+### Marketplace skill discovery in `/pr-validate`
 `~/dd/claude-marketplace` is the company skill repository. At commit `d78228531` it had 1,355 `SKILL.md` files. Pi loads only three of its directories (`compute`, `compute-support`, and `dd/skills/conductor`, work profile only, in `modify_private_settings.json.tmpl`). The rest is invisible to the agent. For #103728, a description search finds `atlas/skills/go-check-version-gate` and `atlas/skills/go-replay-test`, which match item 1 exactly, and `change-orchestration/skills/notification-prompts`.
 
 Context cost:
@@ -305,7 +305,7 @@ Context cost:
 | A targeted `description:` search for the PR's terms | about 25 KB, about 6k tokens, or less when paths are listed first |
 | One matched skill | about 4 KB, about 1k tokens |
 
-The rule goes in `skill-loader`, so `/plan`, `/execute`, `/systematic-review`, and `/pr-validate` all get it:
+The rule goes in `/pr-validate`'s Pass 1, so only review runs pay the discovery cost; `/plan`, `/execute`, and the other lifecycle stages keep their ordinary skill selection:
 1. Skip the step when `~/dd/claude-marketplace` does not exist (the personal profile) or when no search term applies (for example, a Markdown-only change).
 2. Derive up to five terms from the affected paths, the imports, and the systems involved.
 3. Search only frontmatter `description:` lines, excluding the directories that pi already loads.
@@ -315,6 +315,8 @@ The rule goes in `skill-loader`, so `/plan`, `/execute`, `/systematic-review`, a
 7. Marketplace skills are guidance, not authority. When one tells the agent to deploy, write, or post, the calling prompt's gates win.
 
 deliberate: the five-term and three-skill caps can miss a relevant skill. The upgrade path is a ranked selector; see the TypeSafe row in [Deferred alternatives](#deferred-alternatives).
+
+Extending discovery to the other lifecycle stages (through `skill-loader` or a shared skill) waits until real `/pr-validate` runs consistently load a marketplace skill that Pi does not already load; see the extension row in [Deferred alternatives](#deferred-alternatives).
 
 This change can ship on its own and is a separate plan task and commit, so it can be reverted on its own.
 
@@ -383,7 +385,7 @@ Do first:
 1. **Mock page.** Render run 4's #103728 content in the revision 2 page shape as a separate file, `~/.pi/agent/pr-validate-reports/dd-source-103728-mock.html`. Do not overwrite the run 4 report. For item 1, run the real read-only `atlas workflow list` exposure query. If access fails, show `Exposure: unknown` with the query. Never invent evidence. Before handing the mock to Matteo, check it against the five-slot item story and against the CMPT-4066 page. Then open it. Matteo decides whether it passes.
 2. **Only after Matteo approves the mock:** update the Output, verdict, criteria, and severity sections of `pr-validate.md`, and update its structural tests.
 3. Add the thinking level to `user-context`, with a unit test.
-4. Add marketplace discovery to `skill-loader`, as a separate commit.
+4. Add marketplace discovery to `/pr-validate`'s Pass 1, as a separate commit.
 5. Run the full `/pr-validate` on #103728 with the reference context.
 
 What the user sees:
@@ -419,7 +421,7 @@ Deliberately defer:
 | Keep the revision 1 GitHub dark style (fixed header, left navigation) and only add diagrams and the item story | Familiar GitHub look, and code in dark themes is easy to read | The only page that worked for Matteo is the light `show-me` story shape. Mixing two styles makes the mock test two changes at once | The mock fails on readability, not on structure |
 | Extract a shared report template for `/pr-review` and `/to-html` now | One style for every HTML output | No page shape has passed yet. Designing for three consumers before one works widens the slice | The revision 2 page passes on #103728, and a second command needs the same shape |
 | TypeSafe or Jev as a skill selector, as in the TypeSafe skill-suggestion cookbook | Calibrated probabilities and a code-owned threshold; it matches by meaning, not by the exact words | 1,355 skills against a limit of 255 options per Choice; the cookbook picks one skill, and reviews need up to three; PR-derived text would go to an external service (#103728 has the `pci` label) with no approval evidence; a new API key, a new tool, and rate limits in an unattended run | `rg` discovery misses relevant skills or loads wrong ones in live runs, and sending PR-derived text (or only the search terms) to TypeSafe is approved |
-| Discovery in `/pr-validate` only, not in `skill-loader` | Smaller blast radius; only review runs pay the context cost | Every lifecycle stage can use the same marketplace skills, and one rule in one place avoids copies | Discovery adds noise or cost to `/plan` or `/execute` runs |
+| Extend marketplace discovery to every lifecycle stage through `skill-loader` | Every stage can use the same marketplace skills; one rule in one place avoids copies | No run has yet loaded a marketplace skill through it, and every `/plan` and `/execute` run would pay the context cost before the value is proven | Real `/pr-validate` runs consistently load a marketplace skill that Pi does not already load |
 | Move the running-executions query into the `atlas-workflows` skill | Other commands can reuse it | Only `/pr-validate` needs it today | A second command needs to find running executions by type |
 | No report on Approve; chat only | Less output on the happy path | An approval then has no record of why it was safe | None |
 
@@ -443,7 +445,7 @@ Deliberately defer:
 | Revision 2: a diagram looks authoritative but is wrong, and the user trusts it over the code | Each diagram sits next to the excerpt and the permalink that it summarizes. Diagrams appear only where a mechanism exists. |
 | Revision 2: exposure queries are slow, fail, or need credentials that expired | The run records `Exposure: unknown` and the query on the item, does not refresh credentials, and does not block. The user decides after the run. |
 | Revision 2: "none now" exposure is read as "safe" | Exposure is a snapshot. An accept-the-risk item always states a deploy-time condition and the query to check it. |
-| Revision 2: marketplace discovery adds noise or context to every lifecycle stage | It is skipped without the checkout or without a matching term, and it is capped at five terms and three skills. Revert the separate commit if it hurts `/plan` or `/execute`. |
+| Revision 2: marketplace discovery adds noise or context to review runs | It is skipped without the checkout or without a matching term, and it is capped at five terms and three skills. Revert the separate commit if it hurts review runs. |
 | Revision 2: a marketplace skill tells the agent to write, deploy, or post | The calling prompt's gates win. Marketplace skills are guidance, not authority. |
 | Revision 2: the mock passes but the prompt does not reproduce it | The full run on #103728 is still the acceptance gate. |
 | Revision 2: the page gets long again as the three new criteria add items | New criteria become items only on a gap. The five-attention-item limit and the PR-split rule still apply. |
@@ -451,13 +453,13 @@ Deliberately defer:
 Chosen-direction downside: the verdict is only as reliable as the agent's reading in one context. `/pr-validate` does not remove the user's accountability for the approval. It makes the basis for the approval explicit.
 
 ## Operability
-- Revision 2: exposure checks add read-only `atlas` calls to each run that touches Temporal or Atlas workflows. Marketplace discovery adds about 2–10k tokens when a term matches, in every stage that runs `skill-loader`, and nothing when it is skipped.
+- Revision 2: exposure checks add read-only `atlas` calls to each run that touches Temporal or Atlas workflows. Marketplace discovery adds about 2–10k tokens to a `/pr-validate` run when a term matches, and nothing when it is skipped; no other lifecycle stage pays it.
 - Read-only for PR source and remote systems. Workspace setup can clone into `~/dd/REPO`, fetch the PR ref, and create a detached review worktree; it never resets or removes an existing path. It makes no GitHub writes or source-file edits.
 - The cost is one long agent context per run. CI results come from `gh pr checks`. The command does not run broad builds.
 - The user owns the prompt. Failures appear in the run output: missing evidence, skipped files, and unavailable tools.
 
 ## Rollout and rollback
-- Revision 2 ships as separate commits: the `pr-validate.md` and test changes, the `user-context` thinking level, and the `skill-loader` discovery. Each one reverts on its own with `git revert` and `chezmoi apply`. The mock page is a local file with no rollout.
+- Revision 2 ships as separate commits: the `pr-validate.md` and test changes, the `user-context` thinking level, and the `/pr-validate` marketplace-discovery hunks. Each one reverts on its own with `git revert` and `chezmoi apply`. The mock page is a local file with no rollout.
 - Rollout: add the `/pr-validate` prompt and apply it with `chezmoi apply`. The command is opt-in. The `/pr-validate` change itself modifies no other command.
 - Rollback: revert the commit and run `chezmoi apply`. Because `exact_prompts` is an exact directory, the command disappears.
 
@@ -496,7 +498,7 @@ Chosen-direction downside: the verdict is only as reliable as the agent's readin
 - User judgment (revision 1): Matteo can decide between Approve and Ask from the first section in about two minutes, without opening the diff, and can decide each attention item from its inline context. Run 4 failed this. Revision 2 replaces it with the next three checks.
 - Revision 2 mock acceptance (user-owned): Matteo opens the mock page and understands item 1's reason, its reality, and its fix shape without leaving the page. He says it reads like the CMPT-4066 page, not like run 4. Before handing it over, the agent checks that every item has the five slots and that item 1's exposure slot shows real evidence or a named gap.
 - Revision 2 full-run acceptance (user-owned): the full #103728 run reproduces the approved mock shape. Every item fills the five slots or marks a slot as not applicable. The exposure chips show evidence or a named gap with its query. The three new criteria appear as chip rows. The summary and the page header show the model and thinking level. The provenance table lists any marketplace skills with their paths.
-- The slot anatomy, the severity rule, the diagram rules, and marketplace discovery are prompt or skill content, verified by the live runs, not by structural markers.
+- The slot anatomy, the severity rule, the diagram rules, and marketplace skill selection are prompt content, verified by the live runs. Only the discovery caps, exclusions, and no-pull rule get structural markers.
 - `user-context` gets a unit test for the thinking-level line in `user-context.test.mjs`.
 - Follow-up validation, only if Matteo requests it after the first run: #4309 checks merged bot findings, four-state claims, and cluster impact or a named gap; #102960 checks both threads with evidence from the reviewed commit and PR head. Each run still needs a full verdict. Do not report these runs as complete before they happen.
 
@@ -506,14 +508,14 @@ Chosen-direction downside: the verdict is only as reliable as the agent's readin
 - Resolved 2026-09-29 (revision 1): the output medium is an HTML report file, not chat Markdown. The report lives at `~/.pi/agent/pr-validate-reports/REPO-PR_NUMBER.html`, outside the review worktree so the worktree stays clean. One report per PR, overwritten per run. The report is the artifact of record; the chat carries only the short summary. Revision 2 replaces the style: see the next item.
 - Resolved 2026-09-29 (revision 2): the report uses the `show-me` story shape with the five-slot item story, diagrams only where they replace mechanism prose, and severity from exposure and fix cost. The mock decides between the light style and the dark style. The recommendation is light.
 - Resolved 2026-09-29 (revision 2): the running-executions query lives in the prompt for now, not in the `atlas-workflows` skill.
-- Open for `/plan`: `origin/main` moved two commits ahead of this branch (`8466574`, which consolidated prompt instructions into skills and changed `pr-review.md` and `lifecycle-prompts.test.mjs`). Rebase before execution, and resolve conflicts with the uncommitted `pr-validate.md` and test changes.
-- Open for `/plan`: `lifecycle-prompts.test.mjs` forbids prompts from restating "feedback for improving `skill-loader`". The uncommitted `pr-validate.md` contains that sentence. Check whether `pr-validate.md` should be in that test's file list.
+- Resolved 2026-09-30 (plan revision): Task 1 pre-approves the reversible integration path — a temporary WIP commit, a rebase onto the fetched `origin/main`, a hand-resolved test conflict, and a soft reset back to uncommitted changes.
+- Resolved 2026-09-30 (plan revision): `pr-validate.md` joins the test's `provenancePrompts` list, references the `## Provenance record` section of the `skill-loader` skill, and its test uses `provenanceReference` instead of `skillRecordMarkers`.
 
 ## Self-review
 - The first slice produces user feedback: one real run on #103728 with known expected items.
 - The deferred alternatives are not merged into the slice. Each alternative has a merit and a revisit trigger.
 - Revision 2: the slice produces feedback before a full run. The mock uses real content and real exposure evidence or a named gap, so it tests the new "Is it real?" slot.
 - Revision 2 chosen-direction downside: the mock shows that the shape works when an agent writes one page with full attention, not that the prompt reproduces it at the end of a long review. The full run is still required. The new criteria and the exposure checks also make each run longer and more expensive.
-- Revision 2: every non-selected alternative (dark style, shared template, TypeSafe, discovery in `/pr-validate` only, the query in the skill, no page on Approve) is a deferred row with a merit and a trigger. None is merged into the slice.
+- Revision 2: every non-selected alternative (dark style, shared template, TypeSafe, the query in the skill, no page on Approve) is a deferred row with a merit and a trigger. The 2026-09-30 plan revision selected discovery inside `/pr-validate` only; extending it to every lifecycle stage is the deferred row. None is merged into the slice.
 - Revision 2 rejected finding: "split marketplace discovery into its own design". It is independent, but the user asked for it in this revision, and it is small. It stays a separate plan task and commit, so it can be reverted on its own.
 - Rejected finding: "add `/pr-validate` cross-references to the other lifecycle prompts in this slice". The references describe `/pr-review` as the tool to assess someone else's PR, which stays true until the guided redesign. Changing them now adds review surface with no user feedback.

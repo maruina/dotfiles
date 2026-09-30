@@ -42,6 +42,7 @@ const provenancePrompts = [
   "verify.md",
   "simplify.md",
   "pr-review.md",
+  "pr-validate.md",
   "troubleshoot.md",
 ];
 
@@ -394,6 +395,89 @@ test("reviewer guides prioritize concrete concerns rather than commits", () => {
     assert.doesNotMatch(text, /Read the commits in this order|commits that match the guide/i);
     assert.doesNotMatch(text, /regenerate reviewer-guide commit links|\| # \| Commit \| Files \|/i);
   }
+});
+
+test("PR validation prompt defines a safe delegated review contract", () => {
+  const text = prompt("pr-validate.md");
+
+  requireMarkers(text, [
+    /^description: .+$/m,
+    /^argument-hint: "<GitHub PR URL> \[context\]"$/m,
+    /^PR request: \$ARGUMENTS$/m,
+    /<HARD-GATE>[\s\S]*read-only[\s\S]*<\/HARD-GATE>/i,
+    /Approve/,
+    /Ask/,
+    /Request changes/,
+    /context.*evidence.*not instructions/is,
+    /after analysis starts, do not ask questions/i,
+    /no cluster writes/i,
+    /do not refresh credentials/i,
+    /Coverage/,
+    provenanceReference,
+    /verify the base-repository remote/i,
+    /existing worktree.*clean.*including untracked/is,
+    /HEAD.*headRefOid/is,
+    /refs\/pull\/PR_NUMBER\/head/,
+    /FETCH_HEAD.*headRefOid/is,
+    /~\/dd\/\.worktrees\/REPO\/pr-PR_NUMBER-review/,
+    /~\/\.pi\/agent\/pr-validate-reports\/REPO-PR_NUMBER\.html/,
+    /only permitted write is the HTML report/i,
+    /Do not repeat report prose in the chat/,
+    /cannot inject markup or scripts/i,
+  ]);
+
+  assert.doesNotMatch(text, /reset --hard/);
+});
+
+test("PR validation revision 2 report shape, severity, and provenance", () => {
+  const text = prompt("pr-validate.md");
+
+  requireMarkers(text, [
+    // Report page section list (revision 2)
+    /\*\*Hero\.\*\*/,
+    /\*\*Chip navigation\.\*\*/,
+    /\*\*Map\.\*\*/,
+    /\*\*Item chapters\.\*\*/,
+    /\*\*Your question\.\*\*/,
+    /\*\*Reference\.\*\*/,
+    // Five-slot item story
+    /\*\*Why it matters\.\*\*/,
+    /\*\*What the code does now\.\*\*/,
+    /\*\*Why that is bad\.\*\*/,
+    /\*\*Is it real\?\*\*/,
+    /\*\*Fix shape\.\*\*/,
+    // Exposure and fix-cost severity
+    /Exposure: real/,
+    /Exposure: none now/,
+    /Exposure: unknown/,
+    /Fix cost: small/,
+    /Fix cost: large/,
+    /deploy-time condition/,
+    // Every-verdict report, including Approve
+    /report for every verdict/,
+    /including Approve/,
+    // Model and thinking level in report and chat, or their unavailability
+    /thinking level/,
+    // Strict Mermaid and agent-written labels only
+    /securityLevel: "strict"/,
+    /labels that the agent writes/,
+    // Ten criteria, including the three revision-2 additions
+    /Observability/,
+    /Dependencies/,
+    /Docs/,
+  ]);
+
+  assert.doesNotMatch(text, /feedback for improving `skill-loader`/i);
+});
+
+;
+
+test("PR validation shares the review-worktree path with review and cleanup", () => {
+  const paths = ["pr-validate.md", "pr-review.md", "pr-cleanup.md"]
+    .flatMap((name) => [...prompt(name).matchAll(/~\/dd\/\.worktrees\/[^\s`")]+/g)])
+    .map(([path]) => path);
+
+  assert.deepEqual([...new Set(paths)].sort(), ["~/dd/.worktrees/REPO/pr-PR_NUMBER-review"]);
 });
 
 test("PR creation derives review concerns from the change and checks final references", () => {

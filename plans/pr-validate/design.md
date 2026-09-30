@@ -2,6 +2,8 @@
 ## Summary
 Add a read-only pi `/pr-validate <GitHub PR URL> [context]` prompt. It reviews someone else's PR on the user's behalf and returns one verdict: **Approve**, **Ask**, or **Request changes**. Each item names the problem, the location, why it matters, and the evidence, so the user can write their own GitHub comment without reading the diff. Separately, the command lists up to five **attention items**: decisions that belong to the reviewer, each with enough inline context that the user does not need to search the diff. The user's attention is the scarce resource, so every item carries the evidence needed to decide it. Existing review threads, from humans and from review agents, are claims that the command confirms or refutes. This supports two more questions within the same full verdict: "do these agent comments apply?" and "were my comments addressed?"
 
+Revision 2 (2026-09-29) changes how the report is presented and what counts as evidence. Revision 1 moved the verdict to an HTML report, but that report was still a wall of text. In revision 2, every item follows a fixed story (why it matters, what the code does, why that is bad, whether it is real, the shape of the fix), with diagrams, chips, and short text in the style of the `show-me` story pages. Severity now depends on real exposure and fix cost, not only on whether the code is wrong. Three criteria are new: observability, dependencies, and docs. `skill-loader` also learns to discover skills in the company marketplace. See [Revision 2: presentation and evidence](#revision-2-presentation-and-evidence).
+
 `/pr-validate` is the delegated review mode. The existing `/pr-review` stays unchanged. A later design will turn `/pr-review` into a guided review mode, in which the agent asks the user questions about the code in a logical order.
 
 ## Alignment brief
@@ -16,8 +18,8 @@ Goal:
 
 Non-goals:
 - Redesign of `/pr-review` into a guided review. Deferred; see [Deferred alternatives](#deferred-alternatives).
-- HTML walkthroughs, a `/to-html` template upgrade, or a `gh pr review` command panel.
-- Drafted review comments.
+- Interactive HTML walkthroughs, a shared `/pr-review` and `/to-html` template, or a `gh pr review` command panel. The single-file report is in scope since revision 1.
+- Drafted review comments. A fix-shape snippet or sketch (revision 2) is evidence for the user's own comment, not a drafted comment.
 - Posting comments, approving, or requesting changes on GitHub.
 - Separate agents, models, or pi sessions for each pass or file type.
 
@@ -42,6 +44,24 @@ See [Testing strategy](#testing-strategy).
 Operational notes:
 Read-only. One long context per run. The coverage section makes partial reading visible. The run does not stop to ask the user questions after analysis starts.
 
+### Revision 2 alignment brief
+Problem:
+The revision 1 report (run 4 on #103728) had sound content, but it was a wall of text. Understanding an item took almost as long as verifying it. The proof that a defect was real was in the Coverage section, not on the item.
+
+Goal:
+For every Ask, Request changes, and attention item, the user understands why it matters, what the code does, why that is bad, whether it is real, and the shape of the fix, without leaving the page. Approve still writes a short page as the record.
+
+Decisions:
+- The five-slot [item story](#item-story), on a `show-me` story page (see [Report page (revision 2)](#report-page-revision-2)).
+- Severity depends on exposure and fix cost (see [Severity](#severity-exposure-and-fix-cost-revision-2)). Missing exposure evidence is visible on the item. After the run, the user finds the evidence with the agent or accepts the gap.
+- Three new criteria: observability, dependencies, and docs.
+- The summary and the page name the model and thinking level. `user-context` adds the thinking level.
+- `skill-loader` discovers skills in `~/dd/claude-marketplace` (work profile, bounded).
+- The slice starts with a mock page from run 4's content and real exposure evidence. The prompt changes only after Matteo approves the mock.
+
+Non-goals:
+A shared `/pr-review` and `/to-html` template, the GitHub dark style, a TypeSafe skill selector, and changes to the passes other than the exposure check and the new criteria.
+
 ## Design principle: attention is the scarce resource
 The user runs `/pr-validate` while doing other work. The user's attention costs more than agent time. Every design choice follows from this:
 - **Decision-complete items.** Each item carries all the evidence needed to decide it inline. The user never has to leave the output, open the diff, or search Slack.
@@ -58,10 +78,13 @@ See [Open questions](#open-questions).
 | `learning-opportunities` | `prompt-required` | `/brainstorm` requires its coaching rules | Question-first framing, prediction and feedback turns, and the "teach it back" goal for the deferred guided `/pr-review` |
 | `reviewable-pr-workflow` | `agent-selected` | The user asked to mirror the `/pr-create` reviewer guide | Reused the "What to look for in this PR" format for attention items: Where, Why it needs human attention, and What to verify; one to five items; say "none" when none apply; head-SHA blob links |
 | `write` | `agent-selected` | Drafting a durable design spec | Main point first, concrete risks, benefits stated for rejected alternatives, no time-bound labels |
+| `show-me` | `agent-selected` | Revision 2: the positive reference page came from it | Its rules (the smallest view that makes the point, each visual next to the short text it supports) became the report's page principle |
+| `mermaid-best-practices` | `agent-selected` | Revision 2 adds Mermaid diagrams | Diagram type for each item slot; one concept per diagram; short labels |
+| `typesafe-ai` | `user-requested` | Revision 2: the user asked whether Jev can select skills | Read the live skill-suggestion cookbook and the Choice and API docs; found the 255-option limit and the single-pick output; deferred with a trigger |
 
 `skill-loader` was not used. This design changes a Markdown prompt and a `node:test` file. No language or domain skill applied.
 
-Advisory learnings: `Datadog/Learnings.md` returned no sections that match `html`, `to-html`, `mermaid`, `walkthrough`, `playground`, `pr-review`, or `skill`. No learning guidance was used.
+Advisory learnings: `Datadog/Learnings.md` returned no sections that match `html`, `to-html`, `mermaid`, `walkthrough`, `playground`, `pr-review`, or `skill`. No learning guidance was used. Revision 2 lookup (`mermaid`, `html`, `diagram`, `report`, `pr-validate`, `pr-review`, `show-me`, `presentation`) returned only unrelated distributed-systems sections. No learning guidance was used.
 
 ## Context reviewed
 - `plans/html-walkthrough/brainstorm-input.md` (untracked seed on `main`): the original request for interactive HTML walkthroughs and the prior art.
@@ -77,6 +100,15 @@ Advisory learnings: `Datadog/Learnings.md` returned no sections that match `html
 - `ddoghq/dd-source#102960`: metadata, reviews, and review threads.
 - `dot_pi/agent/exact_skills/pr-comment-triage/SKILL.md` and `dot_pi/agent/exact_prompts/pr-address-feedback.md`: existing comment-adjudication behavior.
 - Two Slack messages that the user supplied. They are quoted in [Reference cases](#reference-cases).
+- Revision 2:
+  - Run 4 report `~/.pi/agent/pr-validate-reports/dd-source-103728.html` (the negative reference).
+  - The CMPT-4066 story page, `show-me-cmpt-4066-story.html` in the `maruina/cmpt-4066` dd-source worktree (the positive reference).
+  - `~/.claude/commands/pr-review.md` (the playground exploration).
+  - The `show-me`, `mermaid-best-practices`, `atlas-workflows`, `skill-loader`, and `typesafe-ai` skills, and `atlas workflow --help`.
+  - `dot_pi/agent/exact_extensions/user-context.ts` and `statusline.ts`, for model and thinking-level exposure.
+  - `dot_pi/agent/modify_private_settings.json.tmpl`, for the marketplace directories that pi already loads.
+  - A size survey of `~/dd/claude-marketplace` at commit `d78228531` (2026-09-29).
+  - The TypeSafe skill-suggestion cookbook, and its Choice and API pages.
 
 ## Current behavior
 `/pr-review` serves two different jobs in one prompt:
@@ -122,7 +154,7 @@ Pass 1 writes the following in the response. Later passes use these results and 
   - *Parity rows* when the PR ports behavior: old site, new site, and what must stay the same. An intentional behavior drop is also a row, with its stated reason.
   - *Thread claims* from review threads. Each unresolved thread is an entry, whether a human or an agent wrote it. Each thread by the user running the command is an entry, resolved or not. An author reply such as "fixed" or "this already handles it" is its own claim. Merge duplicate findings from different reviewers into one entry, and list every source thread. Record whether GitHub marks the thread outdated, but do not treat "outdated" as "fixed".
 
-Pass 1 also runs `skill-loader` on the changed files and loads the selected skills before any judgment.
+Pass 1 also runs `skill-loader` on the changed files and loads the selected skills before any judgment. Revision 2: `skill-loader` also discovers skills in the company marketplace. See [Marketplace skill discovery in `skill-loader`](#marketplace-skill-discovery-in-skill-loader).
 
 ### Pass 2: Correctness and internal consistency
 Confirm or refute each claims-ledger entry against the code and the tests at the PR head. Check that tests would fail if the changed behavior broke.
@@ -158,6 +190,11 @@ Compare the change with neighboring code, repository guidance, and the loaded sk
 | Fixable | Another engineer can find and fix a bug from the structure and names. |
 | Best practices | No unresolved violation of repository guidance or of a loaded skill. |
 | Necessity | Evidence shows why the change must exist. |
+| Observability (revision 2) | New or changed behavior that operators must see has metrics, logs, or traces, or evidence shows that existing telemetry already covers it. |
+| Dependencies (revision 2) | Each new dependency on an external service is named, with its failure behavior. The change adds no circular dependency between packages, services, or build targets. |
+| Docs (revision 2) | The architecture docs, `AGENTS.md` files, and other repository guidance that the change makes wrong are updated. |
+
+The three revision 2 criteria are rows in the criteria table. They become items only when they find a gap, so they do not add volume to a clean PR.
 
 ### Verdict rules
 - **Approve.** Every criterion is confirmed.
@@ -165,6 +202,22 @@ Compare the change with neighboring code, repository guidance, and the loaded sk
 - **Request changes.** At least one defect is confirmed. Each item gives what is wrong, `file:line`, a code excerpt, why it matters (the concrete failure), and the evidence that confirms it.
 
 Before the agent adds an Ask item, it checks the existing review threads. If a thread already answers the question, the agent cites that thread.
+
+### Severity: exposure and fix cost (revision 2)
+A confirmed code defect is not enough for Request changes. The agent also checks **exposure**: whether the defect affects real executions, data, or clusters. It also estimates the **fix cost**. Run 4 showed the gap: it raised a Request changes item for Temporal replay safety because executions "will almost certainly exist at deploy time", and it listed the in-flight executions as unavailable evidence in the Coverage section.
+
+| Code defect | Exposure | Fix cost | Item |
+|---|---|---|---|
+| Confirmed | Real, with evidence | Any | Request changes |
+| Confirmed | None now, or rare | Small | Request changes, framed as cheap insurance |
+| Confirmed | None now, or rare | Large | Attention item: accept the risk with a deploy-time condition, or require the fix |
+| Confirmed | Unknown (evidence gap) | Any | Ask or attention item, with the gap and the query that would settle it |
+
+Exposure evidence at review time is a snapshot. The PR deploys later, and new executions start in the meantime. "None now" shows the likelihood of a break, not its absence. So an accept-the-risk item always states the condition that must hold at deploy time, for example "deploy only when `atlas workflow list` shows no running executions of these types", with the exact read-only query.
+
+When the agent cannot run an exposure check, it says so on the item, not only in the Coverage section. After the run, the user either finds the evidence together with the agent and records how to find it (through `/learn` or a skill update), or accepts the gap. The run itself stays read-only and asks no questions.
+
+For Temporal and Atlas workflows, exposure evidence comes from read-only `atlas workflow list` and `inspect` commands. The `atlas-workflows` skill works only from a workflow URL, so the prompt names the query that finds running executions by workflow type.
 
 ### Attention items
 An attention item is a decision that the reviewer owns and that the agent must not make. Examples are a policy or ownership choice, acceptance of tech debt, and a design tradeoff with no clearly correct answer. An attention item is not a fact the author can supply (that is an Ask item) and not a confirmed defect (that is a Request changes item).
@@ -180,22 +233,90 @@ The format follows the reviewer-guide format of `reviewable-pr-workflow`, and it
 
 List one to five items, highest impact first. If no decision needs the reviewer, say so. If the author's reviewer guide missed a risk that the agent found, say that in the item.
 
+Revision 2: attention items use the [item story](#item-story). Where and Context fill slots 2 and 3, Why it needs your judgment fills slot 1, and Options with the recommendation fill slot 5.
+
 deliberate: the five-item limit keeps delegation useful. If real runs often need more than five, the PR likely needs a split, and the verdict must say so. Do not raise the limit.
 
 ### Output
-1. **Verdict.** One line with the outcome and the attention-item count.
-2. **Items.** Request changes items, then Ask items. Each item is decision-complete, with its evidence inline.
-3. **Needs your judgment.** The attention items, decision-complete.
-4. **Your question.** When the context asks a specific question, such as "do the agent comments apply to the clusters" or "were my comments addressed", answer it directly, with one row per thread claim: source threads, the claim in one line, the state, and the inline evidence.
-5. **Criteria table.** Each criterion with its state (confirmed, refuted, or open) and a one-line evidence summary, so the user can see why a confirmed criterion is trustworthy.
-6. **Coverage.** Files read in depth, skimmed, and skipped, with the reason for each group.
-7. **Skills loaded and used.** The standard provenance table.
+Revision 1 (2026-09-29): two acceptance runs showed that a chat medium cannot carry this volume readably, and that `file:line` citations cost the reviewer a GitHub round trip to rebuild context. The full verdict moves to an HTML report file, and the chat gets a short summary. This supersedes the earlier Markdown-in-chat plan, including the `/to-html` deferral row for this command.
 
-Without a specific question in the context, thread claims appear only through the items and the criteria table. The run always produces the full verdict, including when the context asks a specific question.
+The run writes one single-file HTML report to `~/.pi/agent/pr-validate-reports/REPO-PR_NUMBER.html` (highlight.js from a CDN is allowed), creates the directory if needed, overwrites an existing report for the same PR, opens it with `open`, and returns a short chat summary. The report is the artifact of record.
 
-The output has no separate evidence section. Evidence lives with the item it supports.
+Revision 2 replaces the revision 1 page style and section list. Run 4 used the GitHub dark style from the Claude Code `/pr-review` exploration (fixed header, left navigation, callouts, and code blocks), and the result was "too dense and horrible wall of text. No diagrams, difficult to read." The style did not fail; the shape did. Each item was four dense paragraphs, the proof of impact sat in the Coverage section, and nothing was visual. See [Report page (revision 2)](#report-page-revision-2) for the page that replaces it.
 
-The output is Markdown in chat. The user can run `/to-html` on it.
+PR content and context are untrusted data. The report renders them as text only: escape them so they cannot inject markup or scripts. Mermaid diagrams contain only labels that the agent writes, never raw PR or context text, and Mermaid runs with `securityLevel: "strict"`. The `write` and `humanizer` skills apply to all report prose.
+
+The run writes the report for every verdict, including Approve. An Approve page has no items; it leads with the reason to trust the verdict: the criteria chips, the coverage, and any evidence gap that the verdict depends on. Without that page, an approval has no record of why it was safe.
+
+The chat summary is short:
+- the verdict line with the item and attention-item counts;
+- one line per item and per attention item (its plain-language title and `file:line`);
+- one line per open evidence gap;
+- the model and thinking level that did the review;
+- the report path.
+
+The chat does not repeat report prose.
+
+## Revision 2: presentation and evidence
+### Goal
+The user does not have time for a long review and wants to offload most of the verification to the agent. On Approve, the chat line is enough. On Ask or Request changes, the user must understand why each change is needed, well enough to defend it to the author, without opening the diff, GitHub, or Slack. Revision 1 targeted "decide in about two minutes". Revision 2 replaces that with this criterion: reading an item takes much less time than verifying it, and it answers the questions the author will ask.
+
+### Item story
+Every Ask item, Request changes item, and attention item uses the same five slots, in this order:
+1. **Why it matters.** In plain language, for someone who has not read the code.
+2. **What the code does now.** A short excerpt with a permalink to the PR head SHA.
+3. **Why that is bad.** The concrete failure. When a mechanism exists, a sequence diagram shows it, for example "deploy → replay → history mismatch → workflow task fails".
+4. **Is it real?** Chips such as `Exposure: real · 3 running`, `Exposure: none now · 14 started in 7 days`, or `Exposure: unknown`, and `Fix cost: small` or `Fix cost: large`. Links to the evidence, such as the running Atlas executions. The deploy-time condition when the item accepts risk. The exact query when evidence is missing.
+5. **Fix shape.** A snippet that the user can paste into a comment, or a short sketch when the fix is more than a few lines. The author's LLM writes the implementation. For attention items, **Options** with a recommendation replace this slot.
+
+A slot that does not apply says so in one line. It is not left out. Each item has a plain-language title, like a CMPT-4066 chapter title, for example "In-flight workflows will fail after deploy", not "Add replay protection".
+
+### Report page (revision 2)
+The page follows the `show-me` story shape of the CMPT-4066 page (light theme, hero, sticky chip navigation, chapters, cards, chips, and small tables):
+1. **Hero.** The verdict, count chips, a lead of one sentence, the PR link, the head SHA, and the model and thinking level.
+2. **Chip navigation.** One entry per item chapter, then the reference sections.
+3. **Map.** One flowchart of the changed flow, with the nodes that carry items colored red (Request changes) or amber (Ask or attention). It orients the user before the items.
+4. **Item chapters.** Request changes, then Ask, then attention items, each in the five-slot story.
+5. **Your question.** Only when the context asks one. It gives a direct answer. For thread questions, it gives one row per thread claim. A state diagram is allowed here when it clarifies thread states.
+6. **Reference.** The criteria table as chip rows, Coverage, and Skills loaded and used. Detail stays in `<details>` blocks. The claims ledger is not a top-level section.
+
+Diagram rules:
+- Use a diagram only where it replaces a paragraph of mechanism or flow. An item without a mechanism gets no diagram.
+- Follow `mermaid-best-practices`: one concept per diagram and short labels.
+- Mermaid and highlight.js load from a CDN. Offline, the diagram source shows as text, and the page still reads.
+
+Code and links:
+- Excerpts stay short: only the lines that support the slot.
+- Each excerpt has one permalink to the PR head SHA.
+- A list of `file:line` links stays in `<details>`, not in the item head.
+
+### Model and thinking level
+The summary and the page header name the model and thinking level that did the review. The `user-context` extension already injects `## Current Model` (`formatCurrentModel` in `user-context.ts`). The thinking level is not visible to the agent today, but pi exposes it through `pi.getThinkingLevel()`. Revision 2 adds one line with the thinking level to the same `user-context` section, with a unit test. Until that lands, the report says `thinking level: not available to the agent`.
+
+### Marketplace skill discovery in `skill-loader`
+`~/dd/claude-marketplace` is the company skill repository. At commit `d78228531` it had 1,355 `SKILL.md` files. Pi loads only three of its directories (`compute`, `compute-support`, and `dd/skills/conductor`, work profile only, in `modify_private_settings.json.tmpl`). The rest is invisible to the agent. For #103728, a description search finds `atlas/skills/go-check-version-gate` and `atlas/skills/go-replay-test`, which match item 1 exactly, and `change-orchestration/skills/notification-prompts`.
+
+Context cost:
+
+| What the agent loads | Size |
+|---|---|
+| All skill bodies | 16.7 MB (impossible) |
+| Every `name` and `description` line | 369 KB, about 90k tokens |
+| A targeted `description:` search for the PR's terms | about 25 KB, about 6k tokens, or less when paths are listed first |
+| One matched skill | about 4 KB, about 1k tokens |
+
+The rule goes in `skill-loader`, so `/plan`, `/execute`, `/systematic-review`, and `/pr-validate` all get it:
+1. Skip the step when `~/dd/claude-marketplace` does not exist (the personal profile) or when no search term applies (for example, a Markdown-only change).
+2. Derive up to five terms from the affected paths, the imports, and the systems involved.
+3. Search only frontmatter `description:` lines, excluding the directories that pi already loads.
+4. Read at most three matches that apply.
+5. Record each one as `agent-selected`, with its marketplace path, in the provenance table.
+6. Never `git pull` the marketplace. Record its commit and date in the calling output, so a stale catalog is visible.
+7. Marketplace skills are guidance, not authority. When one tells the agent to deploy, write, or post, the calling prompt's gates win.
+
+deliberate: the five-term and three-skill caps can miss a relevant skill. The upgrade path is a ranked selector; see the TypeSafe row in [Deferred alternatives](#deferred-alternatives).
+
+This change can ship on its own and is a separate plan task and commit, so it can be reverted on its own.
 
 ## Reference cases
 ### Delegated review of a large port
@@ -252,11 +373,35 @@ Why no smaller slice produces this feedback:
 
 Deliberately defer:
 - The guided `/pr-review` redesign.
-- HTML output.
 - Separate agents, models, or sessions for each pass.
 - A claims-ledger file in the worktree.
 - Live validation on #4309 and #102960 before the first user-feedback run. Revisit if Matteo requests broader confidence after running #103728; the prompt still includes the thread and cluster rules, with structural tests in this slice.
 - Cross-references to `/pr-validate` in `verify.md`, `systematic-review.md`, and `pr-address-feedback.md`. Add them with the guided `/pr-review` redesign, when the meaning of `/pr-review` changes.
+
+### Revision 2 slice
+Do first:
+1. **Mock page.** Render run 4's #103728 content in the revision 2 page shape as a separate file, `~/.pi/agent/pr-validate-reports/dd-source-103728-mock.html`. Do not overwrite the run 4 report. For item 1, run the real read-only `atlas workflow list` exposure query. If access fails, show `Exposure: unknown` with the query. Never invent evidence. Before handing the mock to Matteo, check it against the five-slot item story and against the CMPT-4066 page. Then open it. Matteo decides whether it passes.
+2. **Only after Matteo approves the mock:** update the Output, verdict, criteria, and severity sections of `pr-validate.md`, and update its structural tests.
+3. Add the thinking level to `user-context`, with a unit test.
+4. Add marketplace discovery to `skill-loader`, as a separate commit.
+5. Run the full `/pr-validate` on #103728 with the reference context.
+
+What the user sees:
+- First, a mock page that uses real content and real exposure evidence or a named gap. Second, a full run whose page has the same shape.
+
+What the team learns:
+- From the mock: whether the page shape lets Matteo understand each item without the diff. This costs one render, not a full review run.
+- From the full run: whether the prompt reproduces the shape at the end of a long review context, and whether the exposure checks and the new criteria work.
+
+Why no smaller slice produces this feedback:
+- A prompt change without a mock repeats the pattern that failed three times: each attempt costs a full run before Matteo sees anything.
+- A mock without real exposure evidence cannot test the "Is it real?" slot, which is the main new part of the item story.
+
+Deliberately defer:
+- A shared `/pr-review` and `/to-html` template.
+- The GitHub dark style.
+- A TypeSafe or Jev skill selector.
+- Moving the exposure query into the `atlas-workflows` skill.
 
 ## Deferred alternatives
 | Alternative | Merit | Why deferred | Revisit trigger |
@@ -271,6 +416,12 @@ Deliberately defer:
 | Consolidate the worktree step in `repo-checkout` too | One place for all PR workspace setup | The prompts create worktrees differently on purpose, and one shared step would hide those differences | None |
 | Thread-only answers, as a mode of `/pr-validate` or an extension of `pr-comment-triage` | Shorter output and a faster run when the user asks only about threads | The user wants the full verdict every time. `pr-comment-triage` proposes fixes and has no reviewer-side verdict. `/pr-address-feedback` is author-side and edits code. | Full verdicts for thread questions are too slow or too long in real runs |
 | Change `/pr-review` in place | One command, no copied wording | Breaks the plan to redesign `/pr-review` as a guided review | None |
+| Keep the revision 1 GitHub dark style (fixed header, left navigation) and only add diagrams and the item story | Familiar GitHub look, and code in dark themes is easy to read | The only page that worked for Matteo is the light `show-me` story shape. Mixing two styles makes the mock test two changes at once | The mock fails on readability, not on structure |
+| Extract a shared report template for `/pr-review` and `/to-html` now | One style for every HTML output | No page shape has passed yet. Designing for three consumers before one works widens the slice | The revision 2 page passes on #103728, and a second command needs the same shape |
+| TypeSafe or Jev as a skill selector, as in the TypeSafe skill-suggestion cookbook | Calibrated probabilities and a code-owned threshold; it matches by meaning, not by the exact words | 1,355 skills against a limit of 255 options per Choice; the cookbook picks one skill, and reviews need up to three; PR-derived text would go to an external service (#103728 has the `pci` label) with no approval evidence; a new API key, a new tool, and rate limits in an unattended run | `rg` discovery misses relevant skills or loads wrong ones in live runs, and sending PR-derived text (or only the search terms) to TypeSafe is approved |
+| Discovery in `/pr-validate` only, not in `skill-loader` | Smaller blast radius; only review runs pay the context cost | Every lifecycle stage can use the same marketplace skills, and one rule in one place avoids copies | Discovery adds noise or cost to `/plan` or `/execute` runs |
+| Move the running-executions query into the `atlas-workflows` skill | Other commands can reuse it | Only `/pr-validate` needs it today | A second command needs to find running executions by type |
+| No report on Approve; chat only | Less output on the happy path | An approval then has no record of why it was safe | None |
 
 ## Risks and mitigations
 | Risk | Mitigation |
@@ -289,22 +440,36 @@ Deliberately defer:
 | A reused worktree loses local changes or belongs to a different repository with the same name | Require the requested remote, a clean worktree, and a `HEAD` equal to the PR head. Stop without reset or removal on any mismatch. |
 | A fork branch does not exist on the base remote, or the PR head moves during setup | Fetch GitHub's `refs/pull/PR_NUMBER/head` from the verified base remote and compare it to PR metadata; stop if the SHAs differ. |
 | One long context loses attention on large PRs | Pass 1 writes compact results that later passes use. The deferred multi-session alternative has a revisit trigger. |
+| Revision 2: a diagram looks authoritative but is wrong, and the user trusts it over the code | Each diagram sits next to the excerpt and the permalink that it summarizes. Diagrams appear only where a mechanism exists. |
+| Revision 2: exposure queries are slow, fail, or need credentials that expired | The run records `Exposure: unknown` and the query on the item, does not refresh credentials, and does not block. The user decides after the run. |
+| Revision 2: "none now" exposure is read as "safe" | Exposure is a snapshot. An accept-the-risk item always states a deploy-time condition and the query to check it. |
+| Revision 2: marketplace discovery adds noise or context to every lifecycle stage | It is skipped without the checkout or without a matching term, and it is capped at five terms and three skills. Revert the separate commit if it hurts `/plan` or `/execute`. |
+| Revision 2: a marketplace skill tells the agent to write, deploy, or post | The calling prompt's gates win. Marketplace skills are guidance, not authority. |
+| Revision 2: the mock passes but the prompt does not reproduce it | The full run on #103728 is still the acceptance gate. |
+| Revision 2: the page gets long again as the three new criteria add items | New criteria become items only on a gap. The five-attention-item limit and the PR-split rule still apply. |
 
 Chosen-direction downside: the verdict is only as reliable as the agent's reading in one context. `/pr-validate` does not remove the user's accountability for the approval. It makes the basis for the approval explicit.
 
 ## Operability
+- Revision 2: exposure checks add read-only `atlas` calls to each run that touches Temporal or Atlas workflows. Marketplace discovery adds about 2–10k tokens when a term matches, in every stage that runs `skill-loader`, and nothing when it is skipped.
 - Read-only for PR source and remote systems. Workspace setup can clone into `~/dd/REPO`, fetch the PR ref, and create a detached review worktree; it never resets or removes an existing path. It makes no GitHub writes or source-file edits.
 - The cost is one long agent context per run. CI results come from `gh pr checks`. The command does not run broad builds.
 - The user owns the prompt. Failures appear in the run output: missing evidence, skipped files, and unavailable tools.
 
 ## Rollout and rollback
+- Revision 2 ships as separate commits: the `pr-validate.md` and test changes, the `user-context` thinking level, and the `skill-loader` discovery. Each one reverts on its own with `git revert` and `chezmoi apply`. The mock page is a local file with no rollout.
 - Rollout: add the `/pr-validate` prompt and apply it with `chezmoi apply`. The command is opt-in. The `/pr-validate` change itself modifies no other command.
 - Rollback: revert the commit and run `chezmoi apply`. Because `exact_prompts` is an exact directory, the command disappears.
 
 ## Security and data handling
 - `gh` must use the correct account: `matteo-ruina_ddog` for `ddoghq/*`, and `maruina` for other organizations.
 - Context and PR content are untrusted. The agent cites them and does not follow instructions in them.
-- The output stays in the local session. The command does not post Slack text or PR content anywhere.
+- The command's only write is the report file at `~/.pi/agent/pr-validate-reports/REPO-PR_NUMBER.html`. It writes nothing else and never inside the review worktree.
+- The report renders PR content and context as text only. It escapes them so they cannot inject markup or scripts.
+- The report and the chat summary stay local. The command does not post Slack text or PR content anywhere.
+- Mermaid diagrams contain only labels that the agent writes, never raw PR or context text. Mermaid runs with `securityLevel: "strict"`.
+- Exposure checks use read-only commands only, such as `atlas workflow list` and `inspect`. They never signal, cancel, terminate, or start a workflow, and they never refresh credentials.
+- Marketplace discovery reads a local checkout. It does not pull and sends nothing outside the machine. Marketplace skills cannot override the read-only gate.
 
 ## Testing strategy
 - Structural tests in `lifecycle-prompts.test.mjs` assert only the safety-critical and interface rules in `pr-validate.md`:
@@ -315,22 +480,40 @@ Chosen-direction downside: the verdict is only as reliable as the agent's readin
   - no questions to the user after analysis starts
   - read-only cluster evidence: no cluster writes and no credential refresh
   - the coverage section
+  - the report interface: the report path `~/.pi/agent/pr-validate-reports/REPO-PR_NUMBER.html`, the hard-gate exception that names the report as the only permitted write, the chat summary that does not repeat report prose, and the escaping of untrusted PR and context text in the report
   - the skill provenance markers
   - the safe worktree contract: base-repository remote verification, a clean worktree, `HEAD` equal to `headRefOid`, a fetch of `refs/pull/PR_NUMBER/head` checked against PR metadata, and the absence of `reset --hard`
   - the drift guard on the shared review-worktree path across `pr-validate.md`, `pr-review.md`, and `pr-cleanup.md`
+  - revision 2: the report is written for every verdict, including Approve
+  - revision 2: the chat summary and the report name the model and thinking level
+  - revision 2: Mermaid `securityLevel: "strict"` and no raw PR or context text in diagram labels
+  - revision 2: exposure checks are read-only
 
   The outcome trigger rules, thread-state adjudication, attention-item format, and evidence-gap naming are prompt content verified by the live run, not structural markers. Trimmed after systematic review: a marker per prose rule couples the suite to wording.
 - `npm test` in `dot_pi/agent` passes.
 - These text checks do not prove runtime compliance.
 - First-slice acceptance is user-owned: after `chezmoi apply`, Matteo runs `/reload` or starts a new Pi session, invokes `/pr-validate` on #103728 with both Slack quotes in [Reference cases](#reference-cases), and reports whether the output addresses the five expected items. Items 3 and 4 need a confirmed or refuted state with evidence, and the full verdict must be present. The implementation change is not committed until this feedback is received.
-- User judgment: Matteo can decide between Approve and Ask from the first section in about two minutes, without opening the diff, and can decide each attention item from its inline context.
+- User judgment (revision 1): Matteo can decide between Approve and Ask from the first section in about two minutes, without opening the diff, and can decide each attention item from its inline context. Run 4 failed this. Revision 2 replaces it with the next three checks.
+- Revision 2 mock acceptance (user-owned): Matteo opens the mock page and understands item 1's reason, its reality, and its fix shape without leaving the page. He says it reads like the CMPT-4066 page, not like run 4. Before handing it over, the agent checks that every item has the five slots and that item 1's exposure slot shows real evidence or a named gap.
+- Revision 2 full-run acceptance (user-owned): the full #103728 run reproduces the approved mock shape. Every item fills the five slots or marks a slot as not applicable. The exposure chips show evidence or a named gap with its query. The three new criteria appear as chip rows. The summary and the page header show the model and thinking level. The provenance table lists any marketplace skills with their paths.
+- The slot anatomy, the severity rule, the diagram rules, and marketplace discovery are prompt or skill content, verified by the live runs, not by structural markers.
+- `user-context` gets a unit test for the thinking-level line in `user-context.test.mjs`.
 - Follow-up validation, only if Matteo requests it after the first run: #4309 checks merged bot findings, four-state claims, and cluster impact or a named gap; #102960 checks both threads with evidence from the reviewed commit and PR head. Each run still needs a full verdict. Do not report these runs as complete before they happen.
 
 ## Open questions
 - Resolved for the first slice: the claims ledger stays in chat. Revisit a file only if the first run loses claims across passes.
 - Resolved for the first slice: `/pr-validate` states its own safe worktree rule, uses the shared path, and does not inherit `/pr-review`'s destructive reset.
+- Resolved 2026-09-29 (revision 1): the output medium is an HTML report file, not chat Markdown. The report lives at `~/.pi/agent/pr-validate-reports/REPO-PR_NUMBER.html`, outside the review worktree so the worktree stays clean. One report per PR, overwritten per run. The report is the artifact of record; the chat carries only the short summary. Revision 2 replaces the style: see the next item.
+- Resolved 2026-09-29 (revision 2): the report uses the `show-me` story shape with the five-slot item story, diagrams only where they replace mechanism prose, and severity from exposure and fix cost. The mock decides between the light style and the dark style. The recommendation is light.
+- Resolved 2026-09-29 (revision 2): the running-executions query lives in the prompt for now, not in the `atlas-workflows` skill.
+- Open for `/plan`: `origin/main` moved two commits ahead of this branch (`8466574`, which consolidated prompt instructions into skills and changed `pr-review.md` and `lifecycle-prompts.test.mjs`). Rebase before execution, and resolve conflicts with the uncommitted `pr-validate.md` and test changes.
+- Open for `/plan`: `lifecycle-prompts.test.mjs` forbids prompts from restating "feedback for improving `skill-loader`". The uncommitted `pr-validate.md` contains that sentence. Check whether `pr-validate.md` should be in that test's file list.
 
 ## Self-review
 - The first slice produces user feedback: one real run on #103728 with known expected items.
 - The deferred alternatives are not merged into the slice. Each alternative has a merit and a revisit trigger.
+- Revision 2: the slice produces feedback before a full run. The mock uses real content and real exposure evidence or a named gap, so it tests the new "Is it real?" slot.
+- Revision 2 chosen-direction downside: the mock shows that the shape works when an agent writes one page with full attention, not that the prompt reproduces it at the end of a long review. The full run is still required. The new criteria and the exposure checks also make each run longer and more expensive.
+- Revision 2: every non-selected alternative (dark style, shared template, TypeSafe, discovery in `/pr-validate` only, the query in the skill, no page on Approve) is a deferred row with a merit and a trigger. None is merged into the slice.
+- Revision 2 rejected finding: "split marketplace discovery into its own design". It is independent, but the user asked for it in this revision, and it is small. It stays a separate plan task and commit, so it can be reverted on its own.
 - Rejected finding: "add `/pr-validate` cross-references to the other lifecycle prompts in this slice". The references describe `/pr-review` as the tool to assess someone else's PR, which stays true until the guided redesign. Changing them now adds review surface with no user feedback.

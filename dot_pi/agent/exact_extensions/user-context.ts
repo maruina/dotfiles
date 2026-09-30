@@ -33,6 +33,8 @@ type RecentPullRequest = {
   headRefName?: string;
 };
 
+type ThinkingLevel = "off" | "low" | "medium" | "high";
+
 function runSync(command: string, args: string[] = [], cwd?: string, timeout = 2000): string | null {
   try {
     return execFileSync(command, args, { encoding: "utf8", timeout, cwd, stdio: ["ignore", "pipe", "ignore"] }).trim() || null;
@@ -204,9 +206,16 @@ export function formatPR(pr: RecentPullRequest | CurrentPullRequest): string {
   return `- [${state}] #${pr.number}${base}: ${pr.title} [head: ${head}]${link}`;
 }
 
-export function formatCurrentModel(model?: { id?: string; name?: string }): string[] {
+export function formatCurrentModel(model?: { id?: string; name?: string }, thinkingLevel?: string): string[] {
   if (!model?.id) return [];
-  return ["## Current Model", `- ${model.name ?? model.id} (${model.id})`];
+  const lines = ["## Current Model", `- ${model.name ?? model.id} (${model.id})`];
+  if (thinkingLevel) {
+    lines.push(`- Thinking level: ${thinkingLevel}`);
+    // deliberate: getThinkingLevel always returns a level on current pi; the
+    // undefined branch guards an older pi or a failed call and must not be
+    // removed as dead code. Upgrade path: drop the branch when min pi exposes it.
+  }
+  return lines;
 }
 
 export function shouldAddSkillLoaderGuidance(prompt: string): boolean {
@@ -239,7 +248,14 @@ export default function (pi: ExtensionAPI) {
       if (email) lines.push(`- Email: ${email}`);
     }
 
-    const currentModelLines = formatCurrentModel(ctx.model);
+    let thinkingLevel: string | null = null;
+    try {
+      thinkingLevel = pi.getThinkingLevel();
+    } catch {
+      // Older pi or a failed call; the report shows the level as unavailable.
+      thinkingLevel = null;
+    }
+    const currentModelLines = formatCurrentModel(ctx.model, thinkingLevel ?? undefined);
     if (currentModelLines.length > 0) {
       if (lines.length > 0) lines.push("");
       lines.push(...currentModelLines);

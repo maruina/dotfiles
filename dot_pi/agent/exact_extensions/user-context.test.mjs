@@ -47,6 +47,21 @@ test("formatCurrentModel emits a named model and omits missing IDs", () => {
   assert.deepEqual(formatCurrentModel({ name: "GPT-5" }), []);
 });
 
+test("formatCurrentModel adds a known thinking level and omits a missing one", () => {
+  assert.deepEqual(
+    formatCurrentModel({ id: "gpt-5", name: "GPT-5" }, "high"),
+    ["## Current Model", "- GPT-5 (gpt-5)", "- Thinking level: high"],
+  );
+  assert.deepEqual(
+    formatCurrentModel({ id: "gpt-5", name: "GPT-5" }),
+    ["## Current Model", "- GPT-5 (gpt-5)"],
+  );
+  assert.deepEqual(
+    formatCurrentModel({ id: "gpt-5", name: "GPT-5" }, undefined),
+    ["## Current Model", "- GPT-5 (gpt-5)"],
+  );
+});
+
 test("formatPR includes state, number, base, title, head, and link", () => {
   assert.equal(
     formatPR({

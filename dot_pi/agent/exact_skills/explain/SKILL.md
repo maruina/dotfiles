@@ -1,5 +1,5 @@
 ---
-name: show-me
+name: explain
 description: Help the user understand the current topic with concise diagrams, code-shape sketches, and focused HTML artifacts.
 ---
 
@@ -75,7 +75,7 @@ For a file-layout change:
 ```diff
  src/
  ├── commands/
-+│   └── show-me.ts       # expands the slash command
++│   └── explain.ts       # expands the slash command
  ├── sessions/
 -└── transport.ts
 +└── transport/
@@ -119,7 +119,7 @@ function expandSkill(command: string): string {
 - For a visual UI, layout, state comparison, or concept too dense for Mermaid, write one focused HTML file — a diagram, an infographic, or a short slide deck, whichever fits the point. Match the product's colors, type, spacing, and components; use real labels and data; support desktop and mobile. Then open it for the user with the bash tool:
 
 ```text
-open path/to/show-me-{description}.html
+open path/to/explain-{description}.html
 ```
 
 - Place each visual next to the short text it supports. Keep only the calls, files, props, states, and boundaries needed to answer the user's current question.

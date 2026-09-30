@@ -134,7 +134,7 @@ Write the full verdict to an HTML report file and return a short summary in the 
 
 Write one single-file HTML report to `~/.pi/agent/pr-validate-reports/REPO-PR_NUMBER.html`. Create the directory if needed, overwrite an existing report for the same PR, and open the report with `open`. The report is the artifact of record.
 
-Follow the `show-me` story page shape (light theme, hero, sticky chip navigation, chapters, cards, chips, and small tables):
+Follow the `explain` story page shape (light theme, hero, sticky chip navigation, chapters, cards, chips, and small tables):
 1. **Hero.** The verdict, count chips, a one-sentence lead, the PR link, the head SHA, and the model and thinking level.
 2. **Chip navigation.** One entry per item chapter, then the reference sections.
 3. **Map.** One flowchart of the changed flow, with the nodes that carry items colored red (Request changes) or amber (Ask and attention). It orients the reader before the items.

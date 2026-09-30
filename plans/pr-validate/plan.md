@@ -1,233 +1,241 @@
 # `/pr-validate` Implementation Plan
 > Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add a read-only `/pr-validate <GitHub PR URL> [context]` prompt that reviews someone else's PR and returns an evidence-backed Approve, Ask, or Request changes verdict, guarded by structural tests.
-**Smallest user-feedback slice:** A new `pr-validate.md` prompt with structural tests, applied locally for Matteo to run once on `ddoghq/dd-source#103728` with the two Slack quotes from the design.
-**Out of Scope:** Guided `/pr-review` redesign; HTML output; separate agents, models, or sessions per pass; a claims-ledger file; cross-references to `/pr-validate` in `verify.md`, `systematic-review.md`, and `pr-address-feedback.md`; fixes to the clone-rule copies in `simplify.md` and `pr-address-feedback.md`; `compute-guardrails` false-positive matching; opening a PR or merging to `main`; live validation on #4309 and #102960 before feedback on #103728 (deferred until Matteo requests it after the first run).
-**Architecture:** A new Markdown slash command in `dot_pi/agent/exact_prompts/`, rendered by chezmoi to `~/.pi/agent/prompts/`. It references the `repo-checkout` skill for locate-or-clone, shares the `/pr-review` worktree path without copying its unsafe reset, and reuses its data-collection pattern. Regex-marker structural tests in the existing `node:test` suite guard the contract; Matteo's live run on #103728 supplies the first behavioral feedback.
-**Tech Stack:** pi Markdown prompts, `node:test`, chezmoi.
+**Goal:** Make `/pr-validate` produce an evidence-backed, readable HTML verdict that lets Matteo decide what to tell a PR author without opening the diff.
+**Smallest user-feedback slice:** Matteo approves a mock story page for #103728 with real Atlas exposure evidence or an explicit evidence gap before the prompt changes.
+**Out of Scope:** Guided `/pr-review`; a shared `/pr-review` and `/to-html` template; GitHub dark styling; TypeSafe/Jev skill selection; separate review agents or sessions; a claims-ledger file; moving the Atlas query into `atlas-workflows`; cross-references in other lifecycle prompts; clone-rule cleanup; `compute-guardrails` changes; live #4309 and #102960 runs before Matteo requests them after #103728; posting reviews or comments on GitHub.
+**Architecture:** Keep the Markdown slash command and its existing worktree/data-collection contract. Use one local HTML report with a five-slot story for each item, read-only exposure checks, and a short chat summary. Extend `user-context` to expose the thinking level and extend `skill-loader` for capped local marketplace discovery; neither component depends on the report layout.
+**Tech Stack:** Pi Markdown prompts and TypeScript extension, `node:test`, chezmoi, local Atlas CLI, Mermaid and highlight.js from CDNs in the report.
 
 ---
 
 ## Skills loaded and used
 | Skill | Source | Why loaded | How used |
 |---|---|---|---|
-| `skill-loader` | `prompt-required` | `/plan` requires it before implementation recommendations | Determined the skill set below |
-| `chezmoi` | `skill-loader` | Files under the chezmoi source are created and modified | Source-not-target rule, worktree `--source "$PWD"` rule, diff→apply→commit→push workflow, `npm test`/`npm run test:all` validation commands |
-| `write` | `skill-loader` | The plan and the prompt are prose read by humans | Simplified Technical English, main point first, `must`/imperative for requirements, no time-bound labels in the durable prompt |
-| `cli-best-practices` | `skill-loader` | Borderline: `/pr-validate` is a command with arguments and an output contract | Marginal fit (agent prompt, not a machine CLI); applied only the "never block non-interactive callers" principle, which reinforces the no-questions-after-analysis gate |
-| `codebase-research` | `skill-loader` | Cross-file effects (test↔prompt, `pr-cleanup`↔worktree path) in a partially unfamiliar area | Ran locate→analyze→patterns→assumptions before recommending; verified current file contents instead of trusting the design's quotes |
+| `resolve-worktree` | `prompt-required` | The design path identifies another worktree | Resolved and kept all repository reads and the plan edit in `maruina/pr-validate` |
+| `skill-loader` | `prompt-required` | `/plan` requires skill selection | Selected the relevant domain, codebase, prose, and workflow guidance |
+| `feature-worktree` | `prompt-required` | A durable plan must be committed in its feature worktree | Reused the design's existing feature worktree without moving the base checkout |
+| `learning-lookup` | `prompt-required` | Planning must consult advisory learnings | Looked up narrow terms; no sections matched |
+| `codebase-research` | `skill-loader` | The prompt, tests, extension, and skill share behavior | Mapped live files, tests, conventions, and the dirty baseline before choosing tasks |
+| `chezmoi` | `skill-loader` | The implementation changes managed source | Used source-not-target, explicit target verification, and scoped apply rules |
+| `write` | `skill-loader` | This plan and the prompt are human-readable prose | Used direct requirements and preserved prior-run uncertainty |
+| `cli-best-practices` | `skill-loader` | The slash command has input, failure, and output contracts | Kept unattended runs non-blocking after analysis starts and gaps explicit |
+| `mermaid-best-practices` | `skill-loader` | Report diagrams are required | Limited each diagram to one mechanism and short labels |
+| `show-me` | `agent-selected` | The design's positive example is a story page | Put a visual beside the short text it supports in the mock requirement |
+| `atlas-best-practices` | `skill-loader` | Replay compatibility and exposure are review criteria | Kept replay-safety proof separate from an execution-count snapshot |
+| `repo-checkout` | `agent-selected` | `/pr-validate` delegates repository selection to this skill | Verified the three-organization auto-clone boundary and remote check |
 
-Advisory learnings: `Datadog/Learnings.md` matched one section, "Render piped chezmoi templates against an initialized config, not `--init`". Reviewed and not applied: prompts are plain Markdown and the tests read files directly, so no template rendering is involved.
+Advisory lookup: `Datadog/Learnings.md` returned no matching sections for `pr-validate`, `pr-review`, `mermaid`, `marketplace`, `report`, or `user-context`; none was applied. No advisory source was skipped.
+
+## Planning alignment
+Matteo confirmed the alignment brief: preserve the uncommitted prompt/test/plan work; get mock feedback before changing the prompt; keep marketplace discovery separately reversible. Do not overwrite the prior report at `~/.pi/agent/pr-validate-reports/dd-source-103728.html` with the mock. The existing uncommitted prompt and test edits are the implementation baseline, not plan-stage changes.
+
+## Feasibility and validation map
+| Requirement | Mechanism | Evidence it exists | Validation | If unavailable |
+|---|---|---|---|---|
+| Mock with real exposure evidence | `atlas workflow list --workflow-type ... --status Running --limit ... --output json`, scoped to the relevant domain/context | `atlas workflow list --help` exposes these flags; the design names #103728 | Preserve the actual read-only query, scope, timestamp, and result or error beside item 1; Matteo opens the mock | Label `Exposure: unknown`, show the failed query and decision impact; never infer zero or refresh credentials |
+| Five-slot report and diagrams | Pi prompt writes a single HTML report; Mermaid in strict mode, generated labels only | Existing uncommitted `pr-validate.md` writes a report; `show-me` provides the visual precedent; Pi prompt templates support `$ARGUMENTS` | Human checks the mock in a browser; full #103728 run checks reproduction | Stop for feedback on the mock; do not change the prompt to an unapproved style |
+| Safe report rendering | Escape PR and context text as HTML text; keep them out of Mermaid labels | Existing prompt and structural tests enforce the report path and escaping | Structural guard plus inspect mock and full report with untrusted excerpts | Do not ship a report that can interpret PR text as markup or script |
+| Thinking-level provenance | `pi.getThinkingLevel()` in `before_agent_start`, next to `formatCurrentModel` | Pi's `border-status-editor.ts` example uses the API; `user-context.ts` and its test expose the model | Focused `user-context.test.mjs` and full-run page/chat | Show `thinking level: not available to the agent` until the extension works; do not invent a level |
+| Bounded marketplace discovery | Up to five derived terms, search local `SKILL.md` frontmatter descriptions, exclude already-loaded directories, read up to three matches | Work-profile settings list loaded directories; local marketplace exists; `skill-loader` is the shared entry point | Structural test for caps, exclusions, and no pull; sample search on the checkout; full-run provenance | Skip when absent or no relevant terms; keep built-in loader behavior |
+| Read-only delegated review | `repo-checkout`, verified PR-head worktree, `gh` reads, read-only cluster and Atlas queries | Existing prompt and lifecycle tests encode workspace/safety contract; design records four runs | Focused lifecycle tests and user-owned #103728 run | Stop before analysis on workspace conflict; turn evidence outages into visible items, not guessed findings |
+
+The Atlas CLI defaults to a limit of 10. The exposure chip must not call a capped result an exact total; use an honest lower bound or an unknown count when completion cannot be proven. An empty result is evidence only for the queried workflow type and domain/context, not for every cluster. Exposure at review time is a snapshot, not replay compatibility proof.
 
 ## Implementation Contract
 ### Components Affected
 | Component | Files | Responsibility | Verification |
 |---|---|---|---|
-| `/pr-validate` prompt | `dot_pi/agent/exact_prompts/pr-validate.md` | Command spec: input, workspace, four passes, verdict, attention items, output | Structural tests; one user-run acceptance on #103728 |
-| Lifecycle prompt tests | `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs` | Structural guards for the prompt contract | `node --test` red→green; `npm test` |
+| Review report and prompt | `dot_pi/agent/exact_prompts/pr-validate.md` | Severity, added criteria, five-slot item stories, safe HTML, model/thinking provenance, chat summary | Focused lifecycle tests, browser mock acceptance, full #103728 run |
+| Prompt structural tests | `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs` | Guard interface and safety rules, not every prose rule | `node --test exact_scripts/lifecycle-prompts.test.mjs` |
+| Model context | `dot_pi/agent/exact_extensions/user-context.ts`, `dot_pi/agent/exact_extensions/user-context.test.mjs` | Expose active thinking level beside the model | `node --experimental-strip-types --test exact_extensions/user-context.test.mjs` |
+| Skill discovery | `dot_pi/agent/exact_skills/skill-loader/SKILL.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs` | Bounded, local marketplace search and provenance | Focused structural test, sample bounded read, full-run provenance |
+| Planning and guidance | `plans/pr-validate/plan.md`; inspect `dot_pi/agent/AGENTS.md` and relevant README files | Record scope and confirm whether durable instructions change | Review documentation decisions in the final task |
 
 ### Key Decisions
-- **Claims ledger stays chat-only.** Design open question 1; the design's recommendation is accepted. A ledger file adds a handoff format before the need is proven.
-- **Structural tests assert only safety-critical and interface rules.** Verdict trigger rules, thread-state adjudication, attention-item format, and evidence-gap naming are prompt content verified by the live run; a marker per prose rule couples the suite to wording. Adopted from systematic review.
-- **The worktree step uses the shared path, not `/pr-review`'s destructive reset.** Design open question 2. Before any code read, confirm the checkout and any existing review worktree belong to the requested `ORG/REPO`, and compare the worktree's clean `HEAD` with `headRefOid` from the PR metadata. Reuse it only if both match. For a missing path, fetch `refs/pull/PR_NUMBER/head` from the verified base-repository remote, compare the fetched SHA with `headRefOid`, then create a detached worktree at `~/dd/.worktrees/REPO/pr-PR_NUMBER-review` from the verified SHA. If the path exists but is dirty, stale, or belongs to another repository, stop with a specific conflict and a safe resolution; never reset or remove it. The structural drift guard checks that `pr-validate.md`, `pr-review.md`, and `pr-cleanup.md` all use the same path. This deliberately requires cleanup and a new run after a PR head changes; if repeated stale-worktree conflicts make that too costly, revisit safe worktree refresh.
-- **Auto-clone without asking covers `DataDog`, `ddoghq`, and `ddoghq-sandbox`.** The design's Input section and the `repo-checkout` skill list three orgs; a later design sentence omits `ddoghq-sandbox`. The Input section and the skill govern.
-- **One verified commit after Matteo reports on the first live run, then push.** The executor applies the prompt and stops for the user-owned run. If Matteo reports a missing expected behavior, revise the prompt and repeat the focused tests and apply before committing. Do not claim live acceptance from structural tests alone.
-- **No slice grouping.** This plan contains one shippable slice and defers the other reference runs as follow-ups with a revisit trigger, rather than making them commit blockers.
+- Revise the existing plan rather than lose its prior acceptance-run history. Keep the uncommitted prompt and tests untouched during planning. Commit only this plan file in `/plan`.
+- Preserve `/pr-review` and its distinct workspace behavior. `/pr-validate` keeps the verified, clean PR-head worktree rule and never copies `/pr-review`'s reset.
+- Mock first; Matteo's approval blocks changes to the prompt's presentation contract. The mock is an execution artifact, not a chezmoi source file or a substitute for the full run.
+- Retain the seven existing criteria and add Observability, Dependencies, and Docs. A clean criterion adds a chip, not an item.
+- A confirmed defect with real exposure or small fix cost can request changes; a large-cost defect with no/rare exposure becomes a reviewer decision with a deploy-time condition; unknown exposure becomes Ask or attention with the missing query. Do not turn unknown exposure into a confirmed-impact claim.
+- Keep marketplace discovery in `skill-loader` so lifecycle stages can use it. Its separate commit is reversible if it adds noise or cost. A marketplace skill cannot override the caller's read-only or approval gate.
 
 ### Implementation Constraints
-- Preserve the `prompt()`/`requireMarkers()` idiom and reuse `skillRecordMarkers` for the provenance assertion in `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`.
-- Match the `pr-review.md` shape: frontmatter (`description`, `argument-hint`), an explicit `PR request: $ARGUMENTS` input line, a `<HARD-GATE>` block, phased sections. `argument-hint` alone does not pass the URL or context to a Pi prompt template.
-- `/pr-validate` is a read-only stage: no `Learning candidates` section.
-- Write the prompt in Simplified Technical English; no blank line after frontmatter or headings.
-- Every `chezmoi` command runs from the worktree with `--source "$PWD"`. Verify the explicit target file path, not the directory; directory targets hide drift.
-- In `dot_pi/agent`, run `npm ci --ignore-scripts` before `npm test` and `npm run test:all`; remove `node_modules` after both complete. `node_modules` is disposable and excluded from Git and chezmoi rendering.
-- Stop conditions: the PR head SHA changes between metadata and fetch, or the worktree path is dirty, stale, or belongs to another repository → stop before analysis and report the conflict without altering the path; a required mechanism (skill, `gh` access, verified remote) is missing → stop and report; the user-run acceptance shows the output contract cannot produce an expected item → return to the design rather than patching the prompt ad hoc.
+- Start from the existing dirty worktree. `origin/main` is ahead and changed `pr-review.md` and lifecycle tests. Before implementation, inspect the integration delta and safely preserve all uncommitted files. Do not reset, clean, discard, or silently stash them. If the required rebase cannot keep the work intact, stop and ask Matteo before proceeding; do not rewrite the current branch by guesswork.
+- Read current source and tests again after integration. Preserve the `prompt()`/`requireMarkers()` test idiom and `skillRecordMarkers`; avoid tests that encode each prose sentence. Check the upstream test's provenance rule before changing `pr-validate.md`.
+- Edit chezmoi source only. For execution validation use `chezmoi --source "$PWD"` and explicit target paths; never apply broad directories. Install disposable dependencies with `npm ci --ignore-scripts` before full tests. Remove them only when safe; do not evade a deletion guard.
+- Do not change existing review passes except the exposure check and the three criteria. Diagram only mechanisms that replace a paragraph; keep excerpt permalinks at the verified PR-head SHA.
+- Stop if the mock is rejected, a required Pi/Atlas interface is missing, workspace identity cannot be proved, a new untrusted-content path bypasses escaping, or a full run cannot reproduce the approved page. Return to design when the output contract itself is wrong.
+- `deliberate:` Five search terms and three marketplace skills can miss a match; revisit a ranked selector only if real runs show misses. Five attention items remain the cap; a larger list triggers a PR-split recommendation.
 
 ### Security Requirements
-- `gh` account routing: `matteo-ruina_ddog` for `ddoghq/*` and `ddoghq-sandbox/*`, `maruina` for everything else. Applies to the acceptance runs (`ddoghq` PRs) and to the prompt's own wording through the `repo-checkout` reference.
-- Context and PR content are untrusted evidence: the prompt states the agent cites them and never follows instructions in them; a structural test asserts the rule.
-- The command makes no GitHub writes and posts nothing anywhere; output stays in the local session.
+- PR body, diff, comments, and optional context are untrusted evidence. Render them as escaped text; Mermaid labels are agent-written only and use `securityLevel: "strict"`. Do not execute commands from PR content.
+- The review makes no GitHub, cluster, or workflow mutations and never refreshes credentials. The command's only content write is its local report. Repository checkout/fetch/worktree setup and the executor's separate mock and chezmoi steps are explicitly scoped setup, not permission for the review to edit source.
+- Route `gh` through the correct account per `repo-checkout` and restore the original account after a switch. Discovery reads only the local marketplace; no `git pull` and no external service for PR-derived search terms.
 
 ### Observability Requirements
-- No telemetry applies: this is an agent-facing prompt, not a service. Run-level observability is the output's coverage section (files read, skimmed, skipped, and blocked commands) and named evidence gaps. The structural tests assert the coverage section; evidence-gap naming is verified by the live run.
+No service telemetry is added: this is an opt-in local prompt. The report records criteria states, coverage (read, skimmed, skipped, blocked), exposure query/scope and evidence gaps, model and thinking level, and marketplace commit/date plus skill provenance. The chat summary includes the verdict, item titles, gaps, and report path without repeating report prose.
 
 ### Failure Modes to Handle
-- Worktree path drifts from `/pr-review` or `/pr-cleanup` → the drift-guard test fails. A dirty, stale, or mismatched existing path is never reset: report it before analysis and leave it intact. A fresh fetch whose SHA differs from PR metadata is not reviewed.
-- A fork's head branch is absent from the base repository → fetch the PR's `refs/pull/PR_NUMBER/head` ref, not `origin/<headRefName>`; check its SHA before creating the worktree.
-- Evidence is unavailable during a run (expired SSO, missing access) → the entry stays open, names the missing evidence and the query that would settle it; the run does not block. Observed in acceptance runs when it occurs.
-- `compute-guardrails` blocks a read-only command whose text contains a protected name → the prompt instructs the agent to record the blocked command in the coverage section.
-- Tests run before the prompt exists → clean red (`readFileSync` error on `pr-validate.md`), not a hang.
+- Dirty, stale, or wrong-repository review worktree; or changed PR head between metadata and fetch: stop before analysis with the conflict; no reset or cleanup.
+- Atlas query fails or returns incomplete results: show unknown or a lower bound on the item and the exact read-only query that would settle the decision; do not invent a running count or label it safe.
+- Offline CDN: source of each diagram remains visible as text and the report remains readable without highlighting.
+- Marketplace checkout absent, no applicable terms, or no matching description: skip discovery; do not block an ordinary lifecycle stage. Ignore skills that request writes forbidden by the caller.
+- Thinking level unavailable: explicitly say so rather than guessing from the model name.
+- Mock or full report misrepresents evidence: stop the rollout and correct the prompt; a structural test alone does not establish reviewer trust.
 
 ### Rollout and Rollback
-- Rollout: `chezmoi --source "$PWD" apply ~/.pi/agent/prompts/pr-validate.md` from the worktree. The command is opt-in; no other command changes. Owner: Matteo.
-- Rollback: revert the commit and run `chezmoi apply`; `exact_prompts` is an exact directory, so the rendered prompt disappears.
+Matteo owns mock approval and the user-run acceptance. After approval, apply only changed Pi targets with `chezmoi --source "$PWD"`, reload Pi, and run #103728. Keep prompt/tests, `user-context`/test, and `skill-loader` as separate implementation commits after verification and feedback; do not push an unaccepted report contract. Roll back each commit with `git revert` and scoped `chezmoi apply`; the command disappears on revert because `exact_prompts` is exact. The mock is a local disposable report and does not ship.
 
 ### Test Strategy
-- Structural rules → `node --test exact_scripts/lifecycle-prompts.test.mjs` in `dot_pi/agent`, the highest deterministic interface; existing seam (`prompt()`/`requireMarkers()`), no new seams.
-- Full suite → `npm test` and `npm run test:all` in `dot_pi/agent` after `npm ci --ignore-scripts`.
-- Rendered availability → `chezmoi --source "$PWD" diff` and `apply` on the explicit target file.
-- Behavior → Matteo invokes `/pr-validate` on #103728 in a reloaded Pi session, then reports the output and whether the two judgment criteria hold. Automation is impractical: this is agent judgment on a live PR. #4309 and #102960 remain reference cases for later user-requested validation, not blockers for this slice.
-- No mocks: structural tests read files; live runs need real PRs.
-- Narrow command expected to fail before implementation: `cd dot_pi/agent && node --test exact_scripts/lifecycle-prompts.test.mjs` fails because `pr-validate.md` does not exist.
+- Prompt safety and interface → existing `node:test` file seam, `cd dot_pi/agent && node --test exact_scripts/lifecycle-prompts.test.mjs`; first add assertions that fail against the current prompt, then update it. Mock the prompt by reading source, not `gh` or internal model calls.
+- Thinking-level injection → existing `formatCurrentModel` test seam (or smallest adjacent pure formatter), `cd dot_pi/agent && node --experimental-strip-types --test exact_extensions/user-context.test.mjs`; add a failing value/missing-value assertion before the extension edit. Confirm the `before_agent_start` call site uses the active Pi level.
+- Marketplace discovery → structural test on `SKILL.md` for caps, exclusions, read-only/no-pull rule, and provenance; a sample frontmatter search in the local catalog; full #103728 run for actual selection. No new runtime code seam is justified for a Markdown skill.
+- Visual comprehension → render the mock from run 4's real content; inspect each item for five slots, evidence links, safe markup, and diagram fallback; then have Matteo view it. Automation cannot decide whether the page is readable to him.
+- Full behavior → user-run `/pr-validate` on #103728 with both reference Slack quotes after `/reload`; verify the five expected items, new criteria, exposure evidence/gap, approved visual shape, and model/thinking provenance. Do not claim #4309 or #102960 validated by this run.
+- Full package → `cd dot_pi/agent && npm ci --ignore-scripts`, `npm test`, `npm run test:all`; scoped `chezmoi diff`, `apply`, and explicit-file `verify` for changed targets. Run diagnostics on `user-context.ts` after editing.
 
 ## Acceptance criteria
-### Requirement: Structural guards for the prompt contract
-The test suite SHALL assert the safety-critical and interface rules for `pr-validate.md` and SHALL fail when they are absent. The design's prose rules are prompt content; the live run in Task 4 verifies them.
+### Requirement: Mock before implementation
+The executor SHALL show Matteo a separate, browser-readable mock that uses run 4 content and verifiable Atlas exposure evidence or a named gap, without overwriting run 4's report.
 
-#### Scenario: red before the prompt exists
-- GIVEN only Task 1 is complete
-- WHEN `cd dot_pi/agent && node --test exact_scripts/lifecycle-prompts.test.mjs` runs
-- THEN the run fails because `pr-validate.md` does not exist
+#### Scenario: mock accepted or rejected
+- GIVEN run 4's local report and the relevant workflow type and domain/context are identified from code
+- WHEN the read-only Atlas query is run and the mock at `~/.pi/agent/pr-validate-reports/dd-source-103728-mock.html` is opened
+- THEN every item has five slots or a one-line not-applicable slot; item 1 shows the query, scope, result or error, and the fix shape; Matteo can decide whether the page reads like the CMPT-4066 story page without opening the diff
+- AND the executor does not change the prompt presentation until Matteo approves the mock
 
-#### Scenario: green after the prompt exists
-- GIVEN Tasks 1 and 2 are complete
-- WHEN `cd dot_pi/agent && node --test exact_scripts/lifecycle-prompts.test.mjs` runs
-- THEN every test passes
+### Requirement: Evidence-backed report
+`/pr-validate` SHALL write a single-file HTML report for all three verdicts and a short chat summary. Each Ask, Request changes, and attention item SHALL explain why it matters, the current code, the failure or decision, whether it is real, and a fix shape or options.
 
-#### Scenario: drift guard on the shared worktree path
-- GIVEN Tasks 1 and 2 are complete
-- WHEN the review-worktree path value in any of `pr-validate.md`, `pr-review.md`, or `pr-cleanup.md` differs from the other two
-- THEN the drift-guard test fails; retaining the old path as an extra marker does not make it pass
+#### Scenario: a confirmed defect with incomplete exposure evidence
+- GIVEN the code defect is confirmed but the read-only exposure query fails or covers only some domains
+- WHEN `/pr-validate` chooses severity
+- THEN the item says `Exposure: unknown` for the unverified scope, gives the missing query, and does not assert real exposure or silently approve
 
-#### Scenario: input and workspace safety contract
-- GIVEN Tasks 1 and 2 are complete
-- WHEN the structural tests run
-- THEN they require the frontmatter contract (`description`, `argument-hint`), the literal `$ARGUMENTS` substitution, a check for a clean and correctly identified worktree at the PR head SHA, a fetch of `refs/pull/PR_NUMBER/head` checked against PR metadata for fresh worktrees, and the absence of `reset --hard` from `pr-validate.md`
+#### Scenario: rare exposure and a costly fix
+- GIVEN a confirmed defect with no or rare observed exposure and a large fix cost
+- WHEN the reviewer reads the report
+- THEN the choice is an attention item with options, a recommendation, an explicit deploy-time condition, and a read-only query to check that condition
 
-### Requirement: Rendered availability
-The command SHALL be available after `chezmoi apply`, with the full agent test suite green.
+#### Scenario: untrusted material and offline assets
+- GIVEN PR or context text contains markup or script syntax and the CDN cannot load
+- WHEN the HTML report opens
+- THEN untrusted text cannot inject markup or scripts, Mermaid runs in strict mode with generated labels only, diagram source remains readable, and the excerpt permalink still points at the PR-head commit
 
-#### Scenario: apply renders the prompt
-- GIVEN Tasks 1 and 2 are complete
-- WHEN Task 3 runs `chezmoi --source "$PWD" apply ~/.pi/agent/prompts/pr-validate.md`
-- THEN `~/.pi/agent/prompts/pr-validate.md` exists and is identical to the source, and `npm test` and `npm run test:all` pass in `dot_pi/agent`
+#### Scenario: approval still has a record
+- GIVEN all ten criteria are confirmed and there are no findings
+- WHEN `/pr-validate` writes an Approve report
+- THEN the hero, criterion chips, coverage, model, thinking level, and evidence basis appear in the report, while chat stays short
 
-### Requirement: Delegated verdict on a large port
-`/pr-validate` on `ddoghq/dd-source#103728` SHALL produce a full verdict that addresses the design's five expected items.
+### Requirement: Observable review coverage and provenance
+The report SHALL include the ten criteria, coverage, and actually used skills. The chat and page header SHALL name the review model and thinking level or mark the latter unavailable.
 
-#### Scenario: run with the reference Slack context
-- GIVEN the applied prompt and a reloaded Pi session
-- WHEN Matteo invokes `/pr-validate https://github.com/ddoghq/dd-source/pull/103728` with the two Slack quotes from `plans/pr-validate/design.md` as context
-- THEN the output leads with a one-line verdict and attention-item count; addresses routing as one Ask item and one attention item; asks the author to record the `azure_cloudops` reason; confirms or refutes the `//…/worker/utils:go_default_test` claim and Temporal replay safety with evidence; cites the necessity evidence; and includes the coverage and skills sections
+#### Scenario: missing thinking level and skipped skills
+- GIVEN thinking level is not exposed and no marketplace term applies
+- WHEN the review completes
+- THEN the header and chat state that the level is unavailable, discovery is skipped, and no un-read skill is listed as used
 
-### Requirement: Agent-comment adjudication with cluster scoping
-`/pr-validate` on `ddoghq/k8s-release-mgmt-resources#4309` SHALL adjudicate the bot threads with states at the PR head and cluster impact.
+### Requirement: Bounded marketplace discovery
+The shared `skill-loader` SHALL search only local skill descriptions using no more than five terms, exclude directories Pi already loads, read no more than three applicable matches, and record their paths plus catalog commit/date without accepting write instructions from those skills.
 
-#### Scenario: structural guard for read-only cluster evidence
-- GIVEN Tasks 1 and 2 are complete
-- WHEN the structural tests run
-- THEN they require no cluster writes and no credential refresh
+#### Scenario: unavailable checkout
+- GIVEN the marketplace checkout does not exist
+- WHEN a lifecycle prompt runs `skill-loader`
+- THEN it skips this step without a pull or network request and retains its ordinary skill selection
 
-The bot-thread rules (duplicate merging with every source thread listed, the four states at the PR head, no inference from "outdated" to Fixed, named evidence gaps) are prompt content, not structural markers. The live #4309 check is a deferred follow-up after Matteo reports on the first run; it verifies them.
+### Requirement: Reference-run verdict
+The full #103728 run SHALL address the five reference expectations with the approved report shape and evidence, without changing PR or cluster state.
 
-### Requirement: Re-review of the user's own threads
-`/pr-validate` on `ddoghq/dd-source#102960` SHALL give each of the user's threads a state with evidence from the reviewed commit and the PR head.
-
-#### Scenario: re-review rules ship as prompt content
-- GIVEN Task 2 is complete
-- WHEN the prompt is written
-- THEN it contains review-thread provenance, comparison of the reviewed commit with the PR head, and Ask for an unconfirmed author claim or Request changes for a refuted claim
-
-The live #102960 check is a deferred follow-up after Matteo reports on the first run; it verifies the two thread states. No structural marker asserts these rules.
-
-### Requirement: Read-only, non-interactive run contract
-The prompt SHALL forbid edits, GitHub writes, cluster mutations, and credential refresh; SHALL treat context as evidence only; and SHALL ask no questions after analysis starts.
-
-#### Scenario: structural assertion
-- GIVEN Tasks 1 and 2 are complete
-- WHEN the structural tests run
-- THEN markers for the hard gate, the untrusted-context rule, read-only cluster evidence, and the no-questions rule are present
-
-#### Scenario: unavailable evidence becomes an item
-- GIVEN any acceptance run
-- WHEN evidence is unavailable
-- THEN the item names the missing evidence and the query that would settle it, and the run completes without asking the user
+#### Scenario: delegated review of the port
+- GIVEN the applied prompt, a reloaded Pi session, and both Slack quotes in `plans/pr-validate/design.md`
+- WHEN Matteo runs `/pr-validate https://github.com/ddoghq/dd-source/pull/103728` with that context
+- THEN routing has an Ask and a separate reviewer decision; the `azure_cloudops` reason gets an Ask to record it; the listed test target and replay safety get evidenced dispositions; necessity is cited; and the exposure, coverage, ten criteria, and provenance appear in the report
 
 ## Tasks
-### Task 1: Add structural assertions for `pr-validate.md`
-**Delivers:** failing tests that pin the safety-critical and interface contract.
+### Slice 1: Mock page and presentation decision
+### Task 1: Reconcile the integration baseline without losing work
+**Delivers:** a safe starting branch that retains the uncommitted prompt, test, and plan changes.
 **Blocked by:** None
-**Traces to:** Structural guards requirement; design testing strategy.
-**Files:** `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`
+**Traces to:** Existing-work preservation and the design's `origin/main` integration warning.
+**Files:** `plans/pr-validate/design.md`, `plans/pr-validate/plan.md`, `dot_pi/agent/exact_prompts/pr-validate.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs` (inspect, not edit in this task).
 
-Add one or more `test(...)` blocks for `pr-validate.md` using the existing `prompt()`/`requireMarkers()` idiom. Read `pr-validate.md` inside each test callback, as the existing tests do, so the red run fails only the new tests. Assert only the safety-critical and interface rules:
-- the read-only hard gate
-- the literal `$ARGUMENTS` substitution that passes both the PR URL and optional context to the agent
-- the frontmatter contract: `description` and `argument-hint: "<GitHub PR URL> [context]"`
-- the three outcomes (Approve, Ask, Request changes)
-- the rule that context is evidence, not instructions
-- no questions to the user after analysis starts
-- read-only cluster evidence: no cluster writes and no credential refresh
-- the coverage section
-- the skill provenance markers (reuse `skillRecordMarkers`)
-- the workspace contract: verify the base-repository remote, clean existing worktree, and `HEAD` against `headRefOid`; fetch `refs/pull/PR_NUMBER/head` for a fresh worktree, check its SHA, and prohibit `reset --hard` in `pr-validate.md`
-- the drift guard: extract every `~/dd/.worktrees/...` path value with a regex such as `/~\/dd\/\.worktrees\/[^\s`")]+/g` across `pr-validate.md`, `pr-review.md`, and `pr-cleanup.md`, and require the distinct values to be exactly `~/dd/.worktrees/REPO/pr-PR_NUMBER-review`; do not pass merely because an old path remains somewhere in a prompt
+- [ ] Inspect `git status --short`, `git diff`, the untracked prompt, and the latest `origin/main` changes to the same paths. Fetch the base before deciding how to integrate; do not assume the cached remote is current.
+- [ ] Preserve all uncommitted work. Integrate the updated base only through a reversible, reviewed operation; if rebasing safely would require stashing, discarding, or prematurely committing the prompt, stop and ask Matteo. Do not run a rebase against a dirty tree.
+- [ ] Recheck the lifecycle test's provenance expectations and the source baseline after integration; record any conflicts before authoring new report behavior. Any upstream merge must retain the existing implementation edits.
 
-Not asserted; verified by the live run in Task 4: outcome trigger rules, the existing-threads check before an Ask item, inline evidence with no separate evidence section, thread claims with the four states, duplicate merging, the "outdated" rule, the direct answer to a context question, the attention-item rules, and evidence-gap naming. Task 2 still writes all of them into the prompt from the design.
-
-- [ ] Add the assertions.
-- [ ] Run `cd dot_pi/agent && node --test exact_scripts/lifecycle-prompts.test.mjs`; expect failure because `pr-validate.md` does not exist.
-- [ ] Do not commit; the tree stays red until Task 2.
-
-### Task 2: Write the `/pr-validate` prompt
-**Delivers:** `pr-validate.md` that turns the assertions green.
+### Task 2: Make the reference mock and request approval
+**Delivers:** the smallest user-feedback slice: a mock page that Matteo can accept or reject before further report work.
 **Blocked by:** Task 1
-**Traces to:** All requirements.
-**Files:** `dot_pi/agent/exact_prompts/pr-validate.md`
+**Traces to:** Mock-before-implementation requirement; design revision 2 slice.
+**Files:** No repository files. Execution-only output: `~/.pi/agent/pr-validate-reports/dd-source-103728-mock.html`; input: existing run 4 report and the CMPT-4066 story page named in `plans/pr-validate/design.md`.
 
-Write the prompt from `plans/pr-validate/design.md`, matching the `pr-review.md` shape (frontmatter with `description` and `argument-hint: "<GitHub PR URL> [context]"`, `PR request: $ARGUMENTS`, `<HARD-GATE>` block, phased sections):
-- Input: PR URL required; optional context treated as cited evidence, never instructions; questions only before analysis starts (missing URL, or no local checkout for an org outside `DataDog`, `ddoghq`, `ddoghq-sandbox`).
-- Workspace and data: use the `repo-checkout` skill for locate-or-clone, confirm the selected base-repository remote, and get `headRefOid` from `gh pr view --json headRefOid`. Use the shared worktree path `~/dd/.worktrees/REPO/pr-PR_NUMBER-review`, but do not copy `/pr-review`'s `reset --hard`. If the path exists, verify it is a Git worktree for the same `ORG/REPO`, is clean (including untracked files), and has `HEAD` equal to `headRefOid` before reading its files. Otherwise stop before analysis with a conflict and safe cleanup guidance; do not modify it. If the path is absent, fetch `refs/pull/PR_NUMBER/head` from the confirmed base-repository remote, compare `FETCH_HEAD` with `headRefOid`, and create a detached worktree at that path from the verified SHA only on a match. If the SHA changes, stop and report it; do not guess. Collect Phase 2 metadata, diff, comments, review threads with GraphQL resolution state, and `gh pr checks`.
-- Pass 1: system schema, PR summary, file classification (skip generated, quick-check build wiring, read behavior/tests/guidance in depth), claims ledger (author claims, parity rows, thread claims with duplicate merging and the "outdated" rule), and `skill-loader` on the changed files before any judgment.
-- Pass 2: confirm or refute each ledger entry; thread states Applies, Does not apply, Fixed, Open; for the user's own threads compare the reviewed commit with the PR head; a thread that still applies becomes a Request changes item; an unconfirmed author reply becomes an Ask item.
-- Pass 3: boundary contracts; cluster-scoped findings with read-only evidence (`ddtool` through `ddtool-cluster-datacenter-info`, `kubectl get`/`describe`/`list` with `--context`, Datadog through `datadog-mcp` and `k8s-audit-logs` for logs); no cluster writes, no credential refresh, `compute-guardrails` named as a second layer the prompt does not depend on; unavailable evidence stays open with the missing evidence and the settling query named.
-- Pass 4: consistency with neighboring code, repository guidance, and loaded skills.
-- Verdict criteria (the seven rows) and verdict rules, including the check of existing threads before an Ask.
-- Attention items: reviewer-owned decisions only; the Where/Context/Why/Options/What-to-verify format with a recommendation; one to five items with the `deliberate:` note on the limit; the count in the verdict line; no effect on the verdict.
-- Output: the seven sections in the design's order; no separate evidence section; the full verdict even when the context asks a specific question; the "Skills loaded and used" provenance table.
+- [ ] Read run 4's report and the positive reference page; determine workflow types and their domain/context from the referenced PR code. Run the scoped read-only `atlas workflow list` query with an explicit limit and output format. Preserve the actual result or error, scope, timestamp, and truncation status; do not refresh credentials.
+- [ ] Render the mock as a separate HTML file, never overwriting `dd-source-103728.html`. Use run 4's content; escape untrusted text; keep Mermaid labels generated and `securityLevel: "strict"`.
+- [ ] Check all five slots per item and the exposure query/gap on item 1. Open the mock and ask Matteo whether it conveys the reason, reality, and fix shape without the diff and matches the CMPT-4066 story shape. **Stop until approved.** If rejected, revise only the mock and repeat this task.
 
-- [ ] Write the prompt in Simplified Technical English, no blank line after frontmatter or headings.
-- [ ] Run `cd dot_pi/agent && node --test exact_scripts/lifecycle-prompts.test.mjs`; expect every test to pass.
-- [ ] Refactor wording only after green, then rerun the command.
-- [ ] Do not commit yet.
+### Slice 2: Ship the approved delegated-review report
+### Task 3: Adapt the prompt and safety tests as one vertical change
+**Delivers:** an approved report format and severity policy, with the command's safety contract guarded by focused tests.
+**Blocked by:** Task 2 approval
+**Traces to:** Evidence-backed report and observable review coverage requirements.
+**Files:** `dot_pi/agent/exact_prompts/pr-validate.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`.
 
-### Task 3: Run the full suite and apply with chezmoi
-**Delivers:** a fully green suite and the rendered command at `~/.pi/agent/prompts/pr-validate.md`.
-**Blocked by:** Task 2
-**Traces to:** Rendered availability requirement.
-**Files:** `dot_pi/agent/exact_prompts/pr-validate.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs` (verified, not modified)
+- [ ] Add focused structural checks for every-verdict report, short chat summary with model/thinking, strict Mermaid and safe labels, read-only exposure checks, and the existing untrusted-input/worktree guards. Run `cd dot_pi/agent && node --test exact_scripts/lifecycle-prompts.test.mjs`; expect only the new revision-2 checks to fail against the existing prompt.
+- [ ] Replace the dark, prose-heavy Output section with the approved hero, chip navigation, changed-flow map, five-slot item chapters, conditional Your question, and reference details. Add ten criterion chips and exposure/fix-cost severity rules; keep the existing four passes except their specified exposure and criterion additions. Keep the report on Approve; make the summary name model and thinking level or their unavailability.
+- [ ] Rerun the same focused command; expect all tests green. Inspect report rules for untrusted markup, missing evidence, truncated counts, and deploy-time conditions. Do not assert visual quality from marker tests alone.
 
-- [ ] Run `cd dot_pi/agent && npm ci --ignore-scripts`.
-- [ ] Run `npm test`; expect pass. Run `npm run test:all`; expect pass.
-- [ ] Remove `dot_pi/agent/node_modules`.
-- [ ] From the worktree root, run `chezmoi --source "$PWD" diff ~/.pi/agent/prompts/pr-validate.md`; expect it to show only the new file.
-- [ ] Run `chezmoi --source "$PWD" apply ~/.pi/agent/prompts/pr-validate.md`.
-- [ ] Run `chezmoi --source "$PWD" verify ~/.pi/agent/prompts/pr-validate.md`; expect no output (explicit file path, not the directory). Treat npm `allow-scripts` warnings from apply as non-fatal unless the apply fails.
+### Slice 3: Make the review context complete
+### Task 4: Expose active thinking level
+**Delivers:** model and thinking provenance through Pi's established context injection.
+**Blocked by:** Task 1
+**Traces to:** Observable review coverage and provenance requirement.
+**Files:** `dot_pi/agent/exact_extensions/user-context.ts`, `dot_pi/agent/exact_extensions/user-context.test.mjs`.
 
-### Task 4: Hand off the first live acceptance run to Matteo
-**Delivers:** the primary user-feedback run on the large port, performed by the user in Pi.
-**Blocked by:** Task 3
-**Traces to:** Delegated verdict requirement; smallest user-feedback slice.
-**Files:** none (user-run validation)
+- [ ] Add a test for a known level and a missing-level fallback in the existing formatter seam. Run `cd dot_pi/agent && node --experimental-strip-types --test exact_extensions/user-context.test.mjs`; expect only the new assertion to fail.
+- [ ] Read the active level using `pi.getThinkingLevel()` in `before_agent_start` and put it beside Current Model without inventing a value when absent. Keep other injected context unchanged.
+- [ ] Rerun the focused test and run `lsp_diagnostics` on `user-context.ts`; expect green tests and no new diagnostics.
 
-- [ ] Executor: after Task 3, stop and give Matteo the invocation below. Do not try to send `/pr-validate` through Bash or mark this task complete from structural tests.
-- [ ] Matteo: run `/reload` in Pi (or open a new Pi session), then invoke `/pr-validate https://github.com/ddoghq/dd-source/pull/103728` with both Slack quotes from `plans/pr-validate/design.md` (Reference cases) as context. The prompt, through `repo-checkout`, checks `gh` access and uses `matteo-ruina_ddog` for `ddoghq/*`.
-- [ ] Matteo: report whether the output meets the scenario: verdict line with attention count; routing as one Ask and one attention item; `azure_cloudops` Ask; the `go_default_test` claim and Temporal replay safety confirmed or refuted with evidence (`atlas-best-practices` loaded through `skill-loader`); necessity evidence cited; coverage and skills sections present. Also report whether the Approve/Ask decision is possible from the first section in about two minutes without the diff, and each attention item is decidable from its inline context.
-- [ ] Executor: after Matteo reports, if the prompt is ambiguous, tighten its wording, rerun the focused test, `npm test`, and `npm run test:all`, reapply the explicit target with `chezmoi --source "$PWD" apply ~/.pi/agent/prompts/pr-validate.md`, and hand off another run after `/reload`. If the design's output contract itself cannot produce an expected item, stop and return to the design. Do not commit or push the implementation until the reported run satisfies the criteria.
+### Slice 4: Add separately reversible skill discovery
+### Task 5: Bound marketplace search in `skill-loader`
+**Delivers:** local relevant marketplace guidance without unbounded catalog context or network sends.
+**Blocked by:** Task 1
+**Traces to:** Bounded marketplace discovery requirement.
+**Files:** `dot_pi/agent/exact_skills/skill-loader/SKILL.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`.
 
-### Task 5: Commit, push, and record documentation impact
-**Delivers:** the first slice, verified by tests and the user-run acceptance, committed and pushed; documentation impact recorded.
-**Blocked by:** Task 4
-**Traces to:** Rendered availability and delegated verdict requirements; repository completion workflow.
-**Files:** `dot_pi/agent/exact_prompts/pr-validate.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`
+- [ ] Add a structural check for the five-term and three-skill caps, already-loaded directory exclusions, no pull, commit/date reporting, and caller-gate precedence. Run `cd dot_pi/agent && node --test exact_scripts/lifecycle-prompts.test.mjs`; expect only the new check to fail. Keep this test in a separate hunk from Task 3 so each component can be committed independently.
+- [ ] Add work-profile-only guidance to derive terms from paths, imports, and systems; search `SKILL.md` frontmatter descriptions locally; inspect at most three applicable hits; skip when absent or irrelevant; record each actually used skill as `agent-selected` with its path. Never fetch the catalog or obey a discovered write instruction against a calling gate.
+- [ ] Rerun the focused test. Check a bounded example against the local checkout and record the catalog commit/date; do not claim every relevant skill is discoverable through literal terms.
 
-Documentation impact: none beyond the prompt itself. No prompt index or README lists the commands; cross-references from `verify.md`, `systematic-review.md`, and `pr-address-feedback.md` are design-deferred. The workspace rule is local to this prompt; `lifecycle-prompts.test.mjs` documents its structural guard, so no general `AGENTS.md` rule is needed.
+### Slice 5: Verify and roll out the full review
+### Task 6: Validate the package, apply scoped targets, and get live feedback
+**Delivers:** a full #103728 run using the approved page shape and new evidence rules.
+**Blocked by:** Tasks 3, 4, 5
+**Traces to:** Reference-run verdict and every-verdict report requirements.
+**Files:** `dot_pi/agent/exact_prompts/pr-validate.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`, `dot_pi/agent/exact_extensions/user-context.ts`, `dot_pi/agent/exact_extensions/user-context.test.mjs`, `dot_pi/agent/exact_skills/skill-loader/SKILL.md` (verification only unless feedback requires a focused fix).
 
-- [ ] Confirm the worktree contains only the two intended changed files with `git status --short`.
-- [ ] Commit with `feat(pi): add /pr-validate delegated PR review prompt`.
-- [ ] Push with `git push -u origin maruina/pr-validate`. Do not open a PR.
-- [ ] Final verification: the #103728 run produced a full verdict with the expected items, and Matteo confirmed both judgment criteria. Record that live cluster-thread adjudication and re-review remain unverified follow-ups, not completed feature-level claims.
+- [ ] Run `cd dot_pi/agent && npm ci --ignore-scripts`, `npm test`, and `npm run test:all`; expect success. Remove disposable dependencies only if safe; report any guardrail block rather than bypass it.
+- [ ] From the worktree run `chezmoi --source "$PWD" diff` for each changed target file, then scoped `apply` and explicit-file `verify`; inspect that unrelated targets are not affected. Reload Pi.
+- [ ] Ask Matteo to run `/pr-validate https://github.com/ddoghq/dd-source/pull/103728` with the two design quotes. Compare the resulting report to the accepted mock: five slots, real or unknown exposure with query, all ten criteria, safe text, model/thinking, and skill provenance; check the five reference expectations and the short chat summary. If it fails, make the smallest focused correction and repeat verification and the run.
+- [ ] Do not claim acceptance from structural checks or the mock alone; Matteo confirms whether the full item can be read without opening the diff.
+
+### Task 7: Document impact, commit independently, and finish verification
+**Delivers:** accepted changes with reversible history and explicit coverage limits.
+**Blocked by:** Task 6
+**Traces to:** Rollout/rollback requirement; repository completion workflow.
+**Files:** `dot_pi/agent/exact_prompts/pr-validate.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`, `dot_pi/agent/exact_extensions/user-context.ts`, `dot_pi/agent/exact_extensions/user-context.test.mjs`, `dot_pi/agent/exact_skills/skill-loader/SKILL.md`; inspect `dot_pi/agent/AGENTS.md` and relevant README files.
+
+- [ ] Check user/developer docs, examples, generated references, runbooks, and `AGENTS.md`. Update only if a durable command, source-of-truth, trap, or rollout procedure changed; otherwise record why prompt and skill documentation suffice. Do not add the design-deferred cross-references.
+- [ ] Confirm the mock approval and full-run feedback, package tests, explicit target verification, and branch integration are complete. Stage only accepted implementation paths; keep the marketplace discovery in its own Conventional Commit, separate from the prompt/tests and thinking-level extension commits. Do not stage the mock or any unrelated changes.
+- [ ] Push the feature branch only after the accepted commits and status review. Final verification: #103728 meets its complete reference scenario with the approved layout; #4309 cluster-thread and #102960 re-review behavior remain unverified follow-ups until Matteo requests those runs.
+
+## Prior runs and preserved feedback
+The uncommitted prompt and structural tests already passed focused and full agent tests and were applied locally during the earlier slice. Run 1 missed the listed test target and the durable `azure_cloudops` reason. Run 2 addressed those claims but Matteo found the chat too dense. Run 3 showed that prose tightening could not fit the required evidence in chat. Run 4 moved the verdict to HTML, but its dark, paragraph-heavy page was still hard to read; it lacked diagrams and put exposure proof away from item 1. Revision 2 replaces the presentation and exposure policy, not the safe checkout and claims-ledger work. Prior test results do not validate the revision-2 behavior.
 
 ## Deferred follow-ups
-After Matteo reviews the first run, ask whether the additional coverage is worth the cost. If he requests it, run #4309 with "do the agent comments apply to the clusters?" and check merged bot findings, four-state claims, `orange.yaml`, and cluster impact or named gaps. Run #102960 with "were my two comments addressed?" and check both threads against reviewed commit `a0b19ba8` and the PR head. Keep each full verdict; these runs are not prerequisites for Task 5. Revisit the worktree-refresh policy if repeated stale-worktree conflicts block normal re-reviews.
+If Matteo asks after the #103728 run, validate #4309 with merged bot threads and actual cluster impact or named gaps, and #102960 against reviewed commit `a0b19ba8` and the PR head. Revisit a ranked skill selector only after real discovery misses; revisit worktree refresh only if stale-worktree conflicts recur; consider a shared report template only after this layout works for a second command.
+
+## Learning candidates
+- 2026-09-29: Run 1 showed that general author-claim language did not capture listed test targets and that context could be mistaken for durable change rationale. The existing Pass 1 testing-claims and Pass 2 context-is-not-durable rules address this.
+- 2026-09-29: Run 2 showed that inline evidence alone did not make a long chat verdict readable. Run 3 showed that tightening prose did not resolve the medium's limits; revision 1 moved the full verdict to HTML.
+- 2026-09-29: Run 4 showed that HTML alone did not solve density. The revision-2 mock tests the item story and exposure placement before another full run; the full run still must reproduce the approved shape.

@@ -52,6 +52,17 @@
 | `write` | skill-loader | All Slice 2 edits are agent-facing prose | Kept headings, rules, and examples concise; preserved safety rules while replacing mcp-cli mechanics. |
 | `reviewable-pr-workflow` | prompt-required | Required before preparing the completed slice for PR review | Applied the stack-split check; Slice 2 is one cohesive skills rewrite plus its ledger. |
 
+#### Slice 3 execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `resolve-worktree` | prompt-required | Resolve the supplied plan path | Confirmed the plan belongs to this feature worktree. |
+| `skill-loader` | prompt-required | Required at execution start | Selected applicable chezmoi, shell script, and prose guidance. |
+| `feature-worktree` | prompt-required | Required before repository work | Confirmed the existing feature worktree was the correct location. |
+| `chezmoi` | skill-loader | Source removal and target cleanup | Removed source templates and obsolete rendered targets (`~/.config/mcp`, `mcp.fish`). |
+| `script-best-practices` | skill-loader | Deleted shell files and fish config | Removed `mcp-cli-install.sh.tmpl`, `mcp.fish`, and `HA_MCP_URL` export from `private_config.fish.tmpl`. |
+| `write` | skill-loader | The execution ledger was updated | Kept status and verification results concise and evidence-based. |
+| `reviewable-pr-workflow` | prompt-required | Required before preparing completed slice | Applied stack-split check; Slice 3 is one removal commit plus ledger. |
+
 ## Validated mechanisms (discovery evidence)
 
 | Requirement | Mechanism | Evidence (validated live) | Validation command |
@@ -320,26 +331,28 @@ Delivers: skills guide agents through native tools; `npm run test:skills:profile
 Delivers: no mcp-cli binary, config, installer, or shell integration remains.
 
 ### Task 7: Delete mcp-cli sources and targets
+**Status:** Complete.
 **Delivers:** All mcp-cli plumbing removed from source and machine.
 **Blocked by:** 2
 **Traces to:** Requirement "mcp-cli fully removed"
 **Files:** `run_onchange_mcp-cli-install.sh.tmpl` (delete), `dot_config/mcp/mcp_servers.json.tmpl` (delete), `dot_config/mcp/slack_mcp_servers.json.tmpl` (delete), `dot_config/private_fish/conf.d/mcp.fish` (delete), `dot_config/private_fish/private_config.fish.tmpl` (remove the `HA_MCP_URL` export and its comment)
 
-- [ ] Delete the four source files and the `dot_config/mcp/` directory.
-- [ ] Remove the `HA_MCP_URL` export (with its comment) from the personal block of `private_config.fish.tmpl`; its consumer is gone and the URL now resolves at apply time.
-- [ ] Remove rendered targets that source deletion leaves behind: `rm -rf ~/.config/mcp` (contains only the two rendered files — verify with `ls` first) and `rm ~/.config/fish/conf.d/mcp.fish`.
-- [ ] Remove the binaries: `rm ~/.local/bin/mcp-cli` and `bun remove --global mcp-cli` (clears `~/.bun/bin/mcp-cli` and the bun global package entry).
-- [ ] Commit with `chore(pi): remove mcp-cli install, config, and env plumbing`.
+- [x] Delete the four source files and the `dot_config/mcp/` directory.
+- [x] Remove the `HA_MCP_URL` export (with its comment) from the personal block of `private_config.fish.tmpl`; its consumer is gone and the URL now resolves at apply time.
+- [x] Remove rendered targets that source deletion leaves behind: `rm ~/.config/mcp/mcp_servers.json ~/.config/mcp/slack_mcp_servers.json && rmdir ~/.config/mcp` and `rm ~/.config/fish/conf.d/mcp.fish`.
+- [x] Remove the binaries: `rm ~/.local/bin/mcp-cli` and `bun remove --global mcp-cli` (clears `~/.bun/bin/mcp-cli` and the bun global package entry).
+- [x] Commit with `chore(pi): remove mcp-cli install, config, and env plumbing`.
 
 ### Task 8: Verify no residual references
+**Status:** Complete.
 **Delivers:** Source tree is mcp-cli-free.
 **Blocked by:** 7
 **Traces to:** Requirement "mcp-cli fully removed"
 **Files:** none (verification)
 
-- [ ] Run `command -v mcp-cli`; expect failure.
-- [ ] Run `grep -rn "mcp-cli" . --exclude-dir=plans --exclude-dir=.git`; expect matches only in `dot_pi/agent/exact_extensions/` (removed in Task 9); the repo-wide zero-match check runs in Task 10.
-- [ ] Run `grep -rn "HA_MCP_URL\|MCP_NO_DAEMON\|MCP_STRICT_ENV" . --exclude-dir=plans --exclude-dir=.git`; expect no matches.
+- [x] Run `command -v mcp-cli`; expect failure. Exited nonzero (`mcp-cli not found`).
+- [x] Run `grep -rn "mcp-cli" . --exclude-dir=plans --exclude-dir=.git`; matches only in `dot_pi/agent/exact_extensions/` (to be removed in Task 9) and root `AGENTS.md` (to be updated in Task 10).
+- [x] Run `grep -rn "HA_MCP_URL\|MCP_NO_DAEMON\|MCP_STRICT_ENV" . --exclude-dir=plans --exclude-dir=.git`; 0 matches.
 
 ## Slice 4: Extension cleanup and documentation
 

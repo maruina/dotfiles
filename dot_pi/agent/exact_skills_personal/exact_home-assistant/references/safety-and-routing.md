@@ -4,11 +4,11 @@ This reference expands the safety policy from the `home-assistant` skill. The lo
 ## Routing decision
 | Need | Route |
 |---|---|
-| Live inventory, current state, service/schema discovery, history, logbook, or confirmed control | Load `home-assistant-mcp`, run `mcp-cli info ha-mcp`, discover tools, then call only the selected tool. |
+| Live inventory, current state, service/schema discovery, history, logbook, or confirmed control | Load `home-assistant-mcp`, use `tool_search` to discover tools, then call only the selected tool. |
 | Durable best practices or local policy | Use this reference and `core-concepts.md`. |
 | MCP unavailable | Stop and report the blocker. Do not fall back to direct REST calls. |
 
-Do not invent `ha-mcp` tool names. Run `mcp-cli info ha-mcp` and `mcp-cli info ha-mcp <tool>` to discover the current tool list and schemas.
+Do not invent `ha-mcp` tool names. Use `tool_search` or codemode `describeNamespace("mcp__ha-mcp")` to discover the current tool list and schemas.
 
 ## Safety tiers
 | Tier | Confirmation | Examples | Requirements |

@@ -108,6 +108,7 @@ The three revision-2 criteria are rows in the criteria table. They become items 
 - **Approve** only when every criterion is confirmed.
 - **Ask** when at least one criterion is open and no defect is confirmed. Each Ask item gives the exact author question, why the answer matters, what you checked and did not find, and inline evidence.
 - **Request changes** when at least one defect is confirmed. Each item states the problem, `file:line`, a short code excerpt, the concrete failure, and the evidence that confirms it.
+- For each Ask or Request changes item, identify the specific changed line or smallest changed line range where the reviewer can leave an inline PR comment. If the relevant code is unchanged, use the nearest relevant changed line and explain the placement. If no relevant changed line exists, say that an inline comment is unavailable and link to the evidence instead.
 - If both confirmed defects and open questions exist, use Request changes and include the relevant Ask items.
 - Do not turn uncertainty into a defect. Do not approve when a criterion is open.
 
@@ -138,7 +139,7 @@ Follow the `explain` story page shape (light theme, hero, sticky chip navigation
 1. **Hero.** The verdict, count chips, a one-sentence lead, the PR link, the head SHA, and the model and thinking level.
 2. **Chip navigation.** One entry per item chapter, then the reference sections.
 3. **Map.** One flowchart of the changed flow, with the nodes that carry items colored red (Request changes) or amber (Ask and attention). It orients the reader before the items.
-4. **Item chapters.** Request changes, then Ask, then attention items, each in the five-slot item story.
+4. **Item chapters.** Request changes, then Ask, then attention items, each in the five-slot item story. For each Ask and Request changes item, put the inline-comment link and copy box together after the five slots, so the explanation remains easy to read.
 5. **Your question.** Only when the context asks one. Answer it directly. For thread questions, use one row per thread claim. A state diagram is allowed here when it clarifies thread states.
 6. **Reference.** The ten criteria as chip rows, Coverage, and Skills loaded and used. Detail stays in `<details>` blocks. The claims ledger is not a top-level section.
 
@@ -147,7 +148,13 @@ Every Ask item, Request changes item, and attention item uses the same five slot
 2. **What the code does now.** A short excerpt with a permalink to the PR head SHA.
 3. **Why that is bad.** The concrete failure. When a mechanism exists, a sequence diagram shows it, for example "deploy → replay → history mismatch → workflow task fails".
 4. **Is it real?** Chips such as `Exposure: real · 3 running`, `Exposure: none now · 14 started in 7 days`, or `Exposure: unknown`, and `Fix cost: small` or `Fix cost: large`. Link to the evidence, such as the running Atlas executions. State the deploy-time condition when the item accepts risk. Give the exact query when evidence is missing.
-5. **Fix shape.** A snippet the user can paste into a comment, or a short sketch when the fix is more than a few lines. For attention items, **Options** with a recommendation replace this slot.
+5. **Fix shape.** A short sketch of the recommended change, or a one-line statement when the author must supply the answer. For attention items, **Options** with a recommendation replace this slot.
+
+For every Ask and Request changes item, add a **Leave this comment** box immediately after the five slots:
+- Show a clickable `file:line` link to the exact changed line or smallest relevant range in the PR's **Files changed** view, when possible. Verify the link targets that file and line at the reviewed head SHA; do not invent a diff anchor. If an exact PR diff link cannot be verified, use a commit-pinned GitHub source permalink with a `#Lstart-Lend` fragment and say that the reviewer must navigate to the PR diff to post inline. If neither link can be verified, state the limitation and show the location as text.
+- Put only the ready-to-post GitHub inline review comment in a readonly text box, with a nearby **Copy comment** button. Ask items ask the exact unanswered question and briefly state why the answer matters; Request changes items name the defect, its effect, and the requested change. Include only enough context for the author to act. Do not copy the five-slot explanation, code excerpt, HTML, or a source-code patch into this box.
+- Make the button copy exactly the text visible in its own box. Use a small inline script in the single-file report; handle clipboard failures with a selectable-text fallback and show whether copying succeeded. Keep PR-supplied content inert: escape HTML and do not interpolate it into executable script. No external clipboard library is needed.
+- This is preparation for a manual review, not permission to post a comment or submit a review on GitHub.
 
 A slot that does not apply says so in one line. It is not left out. Each item has a plain-language title, like a CMPT-4066 chapter title, for example "In-flight workflows will fail after deploy", not "Add replay protection".
 

@@ -1,5 +1,4 @@
 import { createLocalBashOperations, formatSize, isToolCallEventType, truncateTail, type BashToolDetails, type ExtensionAPI, type SessionEntry } from "@earendil-works/pi-coding-agent";
-import { spawn } from "node:child_process";
 import { createReadStream, createWriteStream } from "node:fs";
 import { mkdtemp, open, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -7,7 +6,6 @@ import { basename, isAbsolute, join, resolve as resolvePath } from "node:path";
 import { Type } from "typebox";
 
 const BASH_MAX_BYTES = 16 * 1024;
-const MCP_MAX_BYTES = 6 * 1024;
 const MAX_OUTPUT_LINES = 2_000;
 const READ_MAX_LINES = 800;
 const SKILL_FILE_NAME = "SKILL.md";
@@ -101,13 +99,6 @@ function formatOutput(output: CommandOutput): string {
   if (!output.truncated) return output.text || "(no output)";
 
   return `${output.text}\n\n[Output truncated: showing the last ${formatSize(Buffer.byteLength(output.text, "utf8"))} of ${formatSize(output.totalBytes)} across ${output.totalLines} lines. Full output: ${output.fullOutputPath}]`;
-}
-
-function mcpIdentifier(value: string, name: string): string {
-  if (!/^[A-Za-z0-9_.-]+$/.test(value)) {
-    throw new Error(`${name} must contain only letters, numbers, dots, underscores, or hyphens`);
-  }
-  return value;
 }
 
 // deliberate: mirror the formats supported by Pi's read tool with a small signature
@@ -225,25 +216,6 @@ async function isUnchangedSkillInContext(absolutePath: string, cwd: string, entr
   }
 }
 
-async function runMcpCli(args: string[], signal: AbortSignal | undefined): Promise<{ exitCode: number | null; output: CommandOutput }> {
-  return captureCommandOutput(
-    (onData) =>
-      new Promise<number | null>((resolve, reject) => {
-        const child = spawn("mcp-cli", args, { stdio: ["ignore", "pipe", "pipe"] });
-        const abort = (): void => child.kill("SIGTERM");
-
-        child.stdout.on("data", onData);
-        child.stderr.on("data", onData);
-        child.once("error", reject);
-        child.once("close", (code) => resolve(code));
-        signal?.addEventListener("abort", abort, { once: true });
-        child.once("close", () => signal?.removeEventListener("abort", abort));
-      }),
-    MCP_MAX_BYTES,
-    "pi-mcp",
-  );
-}
-
 export default function (pi: ExtensionAPI) {
   const bashOperations = createLocalBashOperations();
 
@@ -313,61 +285,6 @@ export default function (pi: ExtensionAPI) {
         : undefined;
 
       return { content: [{ type: "text", text }], details };
-    },
-  });
-
-  pi.registerTool({
-    name: "mcps_list",
-    label: "MCP list",
-    description: "List MCP servers and their tools from the active profile's mcp-cli configuration.",
-    promptSnippet: "List configured MCP servers and tools",
-    parameters: Type.Object({}),
-    async execute(_toolCallId, _params, signal) {
-      const result = await runMcpCli([], signal);
-      const text = formatOutput(result.output);
-      if (result.exitCode !== 0 && result.exitCode !== null) throw new Error(text);
-      return { content: [{ type: "text", text }], details: result.output };
-    },
-  });
-
-  pi.registerTool({
-    name: "mcps_describe",
-    label: "MCP describe",
-    description: "Describe an MCP server or one of its tools. Call mcps_list first when the server or tool name is unknown.",
-    promptSnippet: "Describe a configured MCP server or tool",
-    parameters: Type.Object({
-      server: Type.String({ description: "MCP server name" }),
-      tool: Type.Optional(Type.String({ description: "MCP tool name; omit to describe the server" })),
-    }),
-    async execute(_toolCallId, params, signal) {
-      const args = ["info", mcpIdentifier(params.server, "server")];
-      if (params.tool) args.push(mcpIdentifier(params.tool, "tool"));
-      const result = await runMcpCli(args, signal);
-      const text = formatOutput(result.output);
-      if (result.exitCode !== 0 && result.exitCode !== null) throw new Error(text);
-      return { content: [{ type: "text", text }], details: result.output };
-    },
-  });
-
-  pi.registerTool({
-    name: "mcps_call",
-    label: "MCP call",
-    description: "Call a configured MCP tool with JSON arguments. Output is truncated to the last 2000 lines or 6KiB, whichever is hit first. If truncated, full output is saved to a temporary file.",
-    promptSnippet: "Call a configured MCP tool",
-    promptGuidelines: ["Use mcps_describe before mcps_call when the MCP tool schema is unknown."],
-    parameters: Type.Object({
-      server: Type.String({ description: "MCP server name" }),
-      tool: Type.String({ description: "MCP tool name" }),
-      arguments: Type.Optional(Type.Unknown({ description: "JSON arguments accepted by the MCP tool" })),
-    }),
-    async execute(_toolCallId, params, signal) {
-      const result = await runMcpCli(
-        ["call", mcpIdentifier(params.server, "server"), mcpIdentifier(params.tool, "tool"), JSON.stringify(params.arguments ?? {})],
-        signal,
-      );
-      const text = formatOutput(result.output);
-      if (result.exitCode !== 0 && result.exitCode !== null) throw new Error(text);
-      return { content: [{ type: "text", text }], details: result.output };
     },
   });
 }

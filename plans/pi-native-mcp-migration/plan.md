@@ -30,6 +30,7 @@
 | `script-best-practices` | skill-loader | The change adds a Bash run script | Matched the repository's script style and checked rendered Bash syntax. |
 | `write` | skill-loader | The plan ledger and execution notes changed | Kept status and deviation notes concise and evidence-based. |
 | `learning-candidates` | skill-loader | The plan's full-apply assumption did not match observed diff behavior | Recorded the lifecycle-plan target surprise and the filtered apply evidence. |
+| `reviewable-pr-workflow` | prompt-required | Required before preparing the completed slice for PR review | Applied the stack-split check; this slice is one registration-script change plus its ledger, with no independent subsystem to split. |
 
 ## Validated mechanisms (discovery evidence)
 
@@ -225,15 +226,17 @@ chmod 600 "$HOME/.pi/agent/mcp.json"
 - [x] Commit with `feat(pi): register native MCP servers via run_onchange script`.
 
 ### Task 2: Apply and validate the work branch
-**Status:** In progress.
+**Status:** Complete.
 **Delivers:** Work servers connected natively; stale `trajectory` entry removed.
 **Blocked by:** 1
 **Traces to:** Requirements "Native servers per profile", "Datadog org routing"
 **Files:** none (runtime validation)
 
-- [ ] From the worktree, run `pi mcp remove trajectory` (user decision: remove for now, revisit separately).
-- [ ] Run `chezmoi --source "$PWD" apply`; the new script is the only change, so its first rendered content hash runs it. Confirm the registration commands execute.
-- [ ] Run `pi mcp list`; expect `datadog-prod`, `datadog-staging`, `slack` all `connected` and exit 0.
+- [x] From the worktree, run `pi mcp remove trajectory` (user decision: remove for now, revisit separately).
+- [x] Run `chezmoi --source "$PWD" apply`; the new script is the only change, so its first rendered content hash runs it. Confirm the registration commands execute. Execution used `--include=scripts` because a full apply would also create plan files under `$HOME`.
+- [x] Run `pi mcp list`; expect `datadog-prod`, `datadog-staging`, `slack` all `connected` and exit 0. On retry, `dd-auth --domain ddstaging.datadoghq.com -- true` exited 0, and `pi mcp list` showed all three servers connected (34 tools each for Datadog); `mcp.json` has mode `0600`.
+
+**Execution note:** The first `pi mcp list` failed for staging during `dd-auth` header resolution. A later safe auth probe and retry succeeded without configuration changes.
 - [ ] Optional mechanism check for the personal branch (best effort, Tier 0 read-only): run `pi mcp add ha-test --url "$(op read 'op://Private/Home Assistant/mcp_url')" --exposure deferred --description test`, then `pi mcp list 2>&1 | grep -c '^ha-test: connected'` (the grep count keeps the connect URL out of the transcript; `pi mcp list` prints server URLs), then `pi mcp remove ha-test`. If `op read` cannot reach the `Private` vault, record the gap and continue.
 - [ ] Commit any fixes with `fix(pi): adjust native MCP registration script`.
 

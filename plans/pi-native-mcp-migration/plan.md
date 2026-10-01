@@ -401,10 +401,10 @@ Delivers: dead tools removed, guidance accurate, full suite green.
 
 ## Final verification
 **Blocked by:** 1–10
-- [ ] Run `cd dot_pi/agent && npm ci --ignore-scripts && npm test && npm run test:all`; expect success. Remove `dot_pi/agent/node_modules` afterwards (AGENTS.md rule: dependencies are disposable).
-- [ ] Run `pi mcp list`; expect only managed servers, all connected, exit 0.
-- [ ] Start an interactive pi session in a work context: run `/mcp` (all servers connected), load a Datadog tool with `tool_search`, and answer one real question through `mcp__datadog-prod__search_datadog_logs` or a Slack search through `mcp__slack__*`. Confirm no `mcps_*` tools remain declared.
-- [ ] Feature-level acceptance (only the completed feature satisfies it): a skill-driven Datadog staging query returns org 197728 data end-to-end without mcp-cli.
+- [x] Run `cd dot_pi/agent && npm ci --ignore-scripts && npm test && npm run test:all`; expect success. Remove `dot_pi/agent/node_modules` afterwards (AGENTS.md rule: dependencies are disposable). Result: `npm test` and `npm run test:all` pass (162 unit tests, skills validation for both profiles, prompts, pi-deps, smoke). Recommendation: remove `node_modules` later; the compute-guardrails extension blocked the recursive delete in this execution, and the directory is untracked and disposable.
+- [x] Run `pi mcp list`; expect only managed servers, all connected, exit 0. Result: `datadog-prod` (34 tools) and `datadog-staging` (34 tools) and `slack` (10 tools) all `connected` with `deferred` exposure; no `trajectory` entry; exit 0.
+- [ ] Start an interactive pi session in a work context: run `/mcp` (all servers connected), load a Datadog tool with `tool_search`, and answer one real question through `mcp__datadog-prod__search_datadog_logs` or a Slack search through `mcp__slack__*`. Confirm no `mcps_*` tools remain declared. This is a model-driven interactive check; the executing model did not run a nested pi session. `/verify` or a manual session must confirm.
+- [ ] Feature-level acceptance (only the completed feature satisfies it): a skill-driven Datadog staging query returns org 197728 data end-to-end without mcp-cli. Not executed in this non-interactive run; require a manual session or `/verify`.
 
 ## Documentation impact
 Covered by Task 10: repo `AGENTS.md`, the `chezmoi` skill layout. Skill rewrites in Slice 2 are themselves documentation. The pi upstream docs (`docs/mcp.md` in the pi installation) are the reference; no upstream contribution is needed. `dot_pi/agent/AGENTS.md` needs no change (verified: no MCP content).

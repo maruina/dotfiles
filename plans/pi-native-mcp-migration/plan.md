@@ -32,6 +32,17 @@
 | `learning-candidates` | skill-loader | The plan's full-apply assumption did not match observed diff behavior | Recorded the lifecycle-plan target surprise and the filtered apply evidence. |
 | `reviewable-pr-workflow` | prompt-required | Required before preparing the completed slice for PR review | Applied the stack-split check; this slice is one registration-script change plus its ledger, with no independent subsystem to split. |
 
+#### Task 2 validation follow-up
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `resolve-worktree` | prompt-required | Resolve the supplied plan path | Confirmed the plan belongs to this feature worktree. |
+| `skill-loader` | prompt-required | Required at execution start | Selected applicable worktree, chezmoi, shell, and prose guidance. |
+| `feature-worktree` | prompt-required | Required before repository work | Confirmed the existing feature worktree was the correct location. |
+| `chezmoi` | skill-loader | The task validates a chezmoi-managed run script | Confirmed the registration was already applied; made no target-side changes. |
+| `script-best-practices` | skill-loader | The task validates a run script | Compared the existing script with the planned shape; no code changes were needed. |
+| `write` | skill-loader | The execution ledger was updated | Recorded the validation gap and outcome concisely. |
+| `reviewable-pr-workflow` | prompt-required | Required before PR handoff | Checked the slice for stack splitting and found an existing draft PR. |
+
 ## Validated mechanisms (discovery evidence)
 
 | Requirement | Mechanism | Evidence (validated live) | Validation command |
@@ -237,8 +248,10 @@ chmod 600 "$HOME/.pi/agent/mcp.json"
 - [x] Run `pi mcp list`; expect `datadog-prod`, `datadog-staging`, `slack` all `connected` and exit 0. On retry, `dd-auth --domain ddstaging.datadoghq.com -- true` exited 0, and `pi mcp list` showed all three servers connected (34 tools each for Datadog); `mcp.json` has mode `0600`.
 
 **Execution note:** The first `pi mcp list` failed for staging during `dd-auth` header resolution. A later safe auth probe and retry succeeded without configuration changes.
-- [ ] Optional mechanism check for the personal branch (best effort, Tier 0 read-only): run `pi mcp add ha-test --url "$(op read 'op://Private/Home Assistant/mcp_url')" --exposure deferred --description test`, then `pi mcp list 2>&1 | grep -c '^ha-test: connected'` (the grep count keeps the connect URL out of the transcript; `pi mcp list` prints server URLs), then `pi mcp remove ha-test`. If `op read` cannot reach the `Private` vault, record the gap and continue.
-- [ ] Commit any fixes with `fix(pi): adjust native MCP registration script`.
+- [x] Optional mechanism check attempted for the personal branch. `op read` could not access the `Private` vault; no temporary server was added. Recorded as a validation gap; continued per plan.
+- [x] No registration fixes were needed; no fix commit was required.
+
+**Execution note:** Re-ran `pi mcp list`; all three work servers reported connected. The optional personal-profile check could not proceed because the `Private` vault was unavailable to `op read`; this did not change `mcp.json`.
 
 ## Slice 2: Skills migration
 

@@ -1,6 +1,6 @@
 ---
 name: diataxis
-description: Create, organize, and improve documentation with the Diátaxis framework. Use when writing tutorials, how-to guides, reference pages, or explanations; when deciding which kind of document a piece of content belongs in; or when reviewing or restructuring existing docs.
+description: Create, organize, and improve documentation with the Diátaxis framework. Use when writing tutorials, how-to guides, reference pages, or explanations; when deciding which kind of document a piece of content belongs in; when reviewing or restructuring existing docs; or when applying documentation style rules (tone, prescriptive language, claims, code formatting, jargon).
 ---
 # Diátaxis
 Documentation has exactly four kinds, defined by two user needs: the user is either at study (acquiring skill) or at work (applying it), and the content either informs action or informs cognition. Classify before writing. Each kind has its own purpose, form, and language. Crossing the boundaries between kinds is the most common cause of bad documentation.
@@ -78,4 +78,43 @@ Explanation provides context and background. It answers "Can you tell me about�
 - Improve one small piece at a time: pick something in front of you, assess it against the user need it serves, decide one improvement, do it, publish/commit. Repeat. Structure emerges from the inside.
 - Documentation is never finished but should always be complete: useful at its current stage of growth.
 - Diátaxis exposes functional-quality lapses (accuracy, completeness, consistency, usefulness) but does not fix them — verify facts against the actual product.
-- For prose style within any of the four kinds, apply the `write` skill.
+
+## Style
+Apply the `write` skill for sentence-level prose. The rules below are type-independent conventions for documentation; several are deliberately stricter than ordinary writing because docs must survive translation, outlive their author, and be actionable.
+
+### Prescriptive language
+Documentation prescribes a path instead of listing options.
+- Use imperative for a required action, `must` for a hard requirement, `can` for an option, `might` for a possible outcome. Avoid `should`: readers cannot tell whether it means required or optional. Decide which you mean (required vs optional, expected vs possible, is vs ought to be) and say it.
+- Tutorial steps are unconditional commands; how-to guides are where forking belongs: "If you want x, do y."
+- In reference, describe behavior with `must`, `can`, and `cannot` instead of hedging with `should`.
+
+### No excessive claims
+- Do not use superlatives (*best*, *fastest*, *simplest*) or absolutes (*always*, *never*) unless the statement is exactly true for the reader and easy to verify.
+- Do not guarantee performance, cost, or security. Write what the feature does rather than promising an outcome: "encrypts traffic in transit", "helps prevent account takeover", not "prevents phishing" or "is secure". A claim a single incident can invalidate stays out.
+- Back performance and cost numbers with a source the reader can check, or drop the number.
+- Compare with third-party products factually and neutrally; never disparage, never assert how their internals work.
+
+### Timeless documentation
+- Describe how the product works now. Avoid *now*, *new*, *currently*, *latest*, *soon*, *eventually*, *at present*, *as of this writing* in product documentation; they anchor the text to a date or leak plans.
+- Do not promise or imply future change. Link to release notes or a roadmap instead of writing "will support".
+- Time-bound words are fine only where time is the point: release notes, blog posts, and similar time-stamped content.
+
+### Jargon
+- Let the audience decide: a term the reader uses daily is vocabulary, everything else is jargon.
+- In order of preference: write around the term, replace it with a plainer or more precise word, or define it on first use in parentheses (or a link to a trusted definition): "move the check earlier in the process (*shifting left*)".
+- Replace known non-inclusive jargon (*whitelist*, *blacklist*, *master/slave*) everywhere in your own prose.
+- Jargon inside commands or identifiers is code, not prose: format it as code and discuss the concept around it in plain words.
+- Keep one word per concept across a document, including capitalization.
+
+### Code in text
+- Format as code anything the reader types verbatim or that names a code entity: commands, subcommands and flags, file names and paths, function/class/method names, config keys and values, environment variables, placeholders (`API_TOKEN`), HTTP status codes and ranges (`4xx`), and text entered into UI fields.
+- Do not format domain names, product names, organizations, or prose.
+- UI elements that render previously entered text take bold plus code; other UI elements take bold only.
+- Do not inflect code elements grammatically: "send a `POST` request", never "`POST` the data". Attach the English noun after the code and inflect that noun.
+- Introduce each code block with a standard phrase ("The output is similar to the following:"), and explain placeholders in a list after the block, in order of appearance.
+
+### Commands
+- Show one runnable command for the common case, with the fewest arguments that complete the task. Link to the command reference for the full option list.
+- Never put bracket, brace, pipe, or ellipsis syntax (`[arg]`, `{a|b}`, `...`) in a command the reader copies; those characters break commands. Show each variant as its own click-to-copy block with its own sentence.
+- Show output only when the reader must verify or copy something from it. Trim with `...` on its own line; never fabricate plausible output values.
+- Break long commands on flags with a trailing continuation character (`\\`) and indent continuation lines; the command must still run pasted as-is.

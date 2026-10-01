@@ -104,8 +104,6 @@ set -gx DD_APP_KEY '{{ onepasswordRead "op://Private/Datadoghq Sandbox/pup-cli-a
 # Tavily agentic web search
 set -gx TAVILY_API_KEY '{{ onepasswordRead "op://Private/Tavily/api-key" }}'
 
-# HA-MCP component direct URL (HACS in-process server); consumed by mcp_servers.json.
-set -gx HA_MCP_URL '{{ onepasswordRead "op://Private/Home Assistant/mcp_url" }}'
 {{- end }}
 
 # Set age key location for SOPS

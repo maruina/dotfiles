@@ -10,7 +10,7 @@ Use this skill for personal smart-home work. Treat entity names, states, presenc
 2. Use `references/core-concepts.md` for `ha-mcp` basics and `references/safety-and-routing.md` for detailed safety guidance.
 3. If MCP is unavailable, stop and report the blocker instead of falling back to direct REST calls.
 
-For live work, load `home-assistant-mcp`, run `mcp-cli info ha-mcp`, and discover tool names before calling anything.
+For live work, load `home-assistant-mcp`, use `tool_search` to discover tool names, and inspect schemas before calling anything.
 
 ## Safety tiers
 - **Tier 0 — read-only, no confirmation:** list or inspect state, inventory, history, logbook, config, schemas, or draft changes without applying them.

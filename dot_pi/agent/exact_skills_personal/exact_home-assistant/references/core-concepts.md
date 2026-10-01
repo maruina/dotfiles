@@ -4,10 +4,8 @@ Use `ha-mcp` through the `home-assistant-mcp` skill for live Home Assistant acce
 ## Discovery first
 Discover available tools and schemas before choosing a call:
 
-```bash
-mcp-cli info ha-mcp
-mcp-cli info ha-mcp <tool>
-```
+- Use `tool_search` to find a tool by intent, or codemode `describeNamespace("mcp__ha-mcp")` to list tool names.
+- Call a tool by its native name: `mcp__ha-mcp__<tool>`.
 
 Tool names and argument schemas can change upstream. Treat discovery output as the source of truth.
 

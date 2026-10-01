@@ -20,10 +20,10 @@ Use for chezmoi-managed dotfiles.
   dot_pi/agent/exact_extensions/_shared/    # shared helpers, not extension entrypoints
   dot_pi/agent/exact_scripts/               # ~/.pi/agent/scripts/
   dot_pi/agent/models.json.tmpl             # ~/.pi/agent/models.json
-  dot_config/mcp/
   dot_config/private_fish/
   dot_ssh/config.tmpl
   run_onchange_brew-install.sh.tmpl
+  run_onchange_pi-mcp-servers.sh.tmpl
 ```
 
 ## Prefixes

@@ -4,6 +4,8 @@
 {{- if eq .profile "work" }}
 .pi/agent/skills_personal
 run_onchange_tavily-cli-install.sh
+# IT-managed trajectory MCP extension. Keep it out of the exact_ extensions dir.
+.pi/agent/extensions/trajectory
 {{- end }}
 .pi/agent/node_modules
 

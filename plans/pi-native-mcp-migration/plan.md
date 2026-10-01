@@ -43,6 +43,15 @@
 | `write` | skill-loader | The execution ledger was updated | Recorded the validation gap and outcome concisely. |
 | `reviewable-pr-workflow` | prompt-required | Required before PR handoff | Checked the slice for stack splitting and found an existing draft PR. |
 
+#### Slice 2 execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `resolve-worktree` | prompt-required | Resolve the supplied plan path | Confirmed the plan and feature branch belong to the worktree before editing. |
+| `skill-loader` | prompt-required | Required at execution start | Selected the applicable prose and chezmoi guidance; found no shell, Go, or Terraform trigger in Slice 2. |
+| `chezmoi` | skill-loader | Edits are chezmoi source files | Edited source only and prepared a targeted apply of the changed work-profile skill targets. |
+| `write` | skill-loader | All Slice 2 edits are agent-facing prose | Kept headings, rules, and examples concise; preserved safety rules while replacing mcp-cli mechanics. |
+| `reviewable-pr-workflow` | prompt-required | Required before preparing the completed slice for PR review | Applied the stack-split check; Slice 2 is one cohesive skills rewrite plus its ledger. |
+
 ## Validated mechanisms (discovery evidence)
 
 | Requirement | Mechanism | Evidence (validated live) | Validation command |
@@ -258,49 +267,53 @@ chmod 600 "$HOME/.pi/agent/mcp.json"
 Delivers: skills guide agents through native tools; `npm run test:skills:profiles` green.
 
 ### Task 3: Rewrite the datadog-mcp skill
+**Status:** Complete.
 **Delivers:** `datadog-mcp` skill drives `mcp__datadog-prod__*` and `mcp__datadog-staging__*` tools.
 **Blocked by:** 1
 **Traces to:** Requirements "Skills guide native access", "Datadog org routing"
 **Files:** `dot_pi/agent/exact_skills_work/datadog-mcp/SKILL.md`
 
-- [ ] Update the frontmatter description (drop "through mcp-cli and dd-auth").
-- [ ] Replace the Config section: servers live in `~/.pi/agent/mcp.json` (pi native); auth is resolved by pi at connect time through the `dd-auth` header commands; no `dd-auth` wrapper is needed per call.
-- [ ] Replace Discovery: `tool_search` for tool discovery, or codemode `describeNamespace("mcp__datadog-prod")` for tool names; keep the prod/staging selection rules by cluster/datacenter name verbatim.
-- [ ] Rewrite the example calls as native tool invocations (`mcp__datadog-prod__search_datadog_logs` with `query`/`from`/`to`/`max_tokens`/`telemetry: {"dd_mcp_source":"pi"}`); keep the staging examples with `mcp__datadog-staging__*`.
-- [ ] Keep the Rules section (read-only preference, narrow windows, `max_tokens`, telemetry, never print keys); drop mcp-cli quoting advice that no longer applies.
-- [ ] Commit with `refactor(pi): point datadog-mcp skill at native MCP tools`.
+- [x] Update the frontmatter description (drop "through mcp-cli and dd-auth").
+- [x] Replace the Config section: servers live in `~/.pi/agent/mcp.json` (pi native); auth is resolved by pi at connect time through the `dd-auth` header commands; no `dd-auth` wrapper is needed per call.
+- [x] Replace Discovery: `tool_search` for tool discovery, or codemode `describeNamespace("mcp__datadog-prod")` for tool names; keep the prod/staging selection rules by cluster/datacenter name verbatim.
+- [x] Rewrite the example calls as native tool invocations (`mcp__datadog-prod__search_datadog_logs` with `query`/`from`/`to`/`max_tokens`/`telemetry: {"dd_mcp_source":"pi"}`); keep the staging examples with `mcp__datadog-staging__*`.
+- [x] Keep the Rules section (read-only preference, narrow windows, `max_tokens`, telemetry, never print keys); drop mcp-cli quoting advice that no longer applies.
+- [x] Commit with `refactor(pi): point datadog-mcp skill at native MCP tools`.
 
 ### Task 4: Rewrite the slack-mcp skill
+**Status:** Complete.
 **Delivers:** `slack-mcp` skill drives `mcp__slack__*` tools.
 **Blocked by:** 1
 **Traces to:** Requirement "Skills guide native access"
 **Files:** `dot_pi/agent/exact_skills_work/slack-mcp/SKILL.md`, `dot_pi/agent/exact_skills_work/slack-mcp/scripts/executable_slack-mcp-proxy.py`
 
-- [ ] Update the frontmatter description (drop "through mcp-cli").
-- [ ] Replace the Config section: server `slack` is a stdio server in `~/.pi/agent/mcp.json`; keep the proxy path, keychain auth, client ID, and the auth script instructions; drop the `SLACK_MCP_CONFIG` indirection (single config file now).
-- [ ] Replace Discovery with `tool_search` / `describeNamespace("mcp__slack")` and native tool names (`mcp__slack__slack_search_public_and_private`, `slack_read_channel`, `slack_read_thread`).
-- [ ] Rewrite the read and write examples as native tool calls; keep every rule (write approval, draft preference, `response_format` values, attribution note, token secrecy, re-auth flow).
-- [ ] In the proxy script docstring, replace the stale `~/.config/mcp/mcp.json` usage example with `~/.pi/agent/mcp.json` (one line).
-- [ ] Commit with `refactor(pi): point slack-mcp skill at native MCP tools`.
+- [x] Update the frontmatter description (drop "through mcp-cli").
+- [x] Replace the Config section: server `slack` is a stdio server in `~/.pi/agent/mcp.json`; keep the proxy path, keychain auth, client ID, and the auth script instructions; drop the `SLACK_MCP_CONFIG` indirection (single config file now).
+- [x] Replace Discovery with `tool_search` / `describeNamespace("mcp__slack")` and native tool names (`mcp__slack__slack_search_public_and_private`, `slack_read_channel`, `slack_read_thread`).
+- [x] Rewrite the read and write examples as native tool calls; keep every rule (write approval, draft preference, `response_format` values, attribution note, token secrecy, re-auth flow).
+- [x] In the proxy script docstring, replace the stale `~/.config/mcp/mcp.json` usage example with `~/.pi/agent/mcp.json` (one line).
+- [x] Commit with `refactor(pi): point slack-mcp skill at native MCP tools`.
 
 ### Task 5: Rewrite the Home Assistant skills
+**Status:** Complete.
 **Delivers:** HA router and mechanics skills drive `mcp__ha-mcp__*` tools.
 **Blocked by:** 1
 **Traces to:** Requirement "Skills guide native access"
 **Files:** `dot_pi/agent/exact_skills_personal/exact_home-assistant/SKILL.md`, `…/exact_home-assistant/references/core-concepts.md`, `…/exact_home-assistant/references/safety-and-routing.md`, `…/exact_home-assistant-mcp/SKILL.md`
 
-- [ ] Router skill: replace the `mcp-cli info ha-mcp` routing step with native discovery (`tool_search`); keep the safety tiers, confirmation protocol, verification and rollback, token/URL secrecy, and "stop if MCP unavailable".
-- [ ] Mechanics skill (`home-assistant-mcp`): update Configuration (server `ha-mcp` in `~/.pi/agent/mcp.json`, URL resolved from 1Password at apply time, never print it; `pi mcp list` prints URLs, so keep the redirect caution), Discovery (`tool_search` / `describeNamespace`), read calls (`mcp__ha-mcp__<tool>` with JSON args; the heredoc advice no longer applies), mutations (schema from discovery output; keep the router gating), and the BestPracticeKey flow (`mcp__ha-mcp__ha_get_skill_guide`, hourly rotation, `BPS_ACKNOWLEDGMENT_REQUIRED` retry, `config` parameter) with unchanged semantics.
-- [ ] Update the two `references/` files where they mention mcp-cli.
-- [ ] Commit with `refactor(pi): point home-assistant skills at native MCP tools`.
+- [x] Router skill: replace the `mcp-cli info ha-mcp` routing step with native discovery (`tool_search`); keep the safety tiers, confirmation protocol, verification and rollback, token/URL secrecy, and "stop if MCP unavailable".
+- [x] Mechanics skill (`home-assistant-mcp`): update Configuration (server `ha-mcp` in `~/.pi/agent/mcp.json`, URL resolved from 1Password at apply time, never print it; `pi mcp list` prints URLs, so keep the redirect caution), Discovery (`tool_search` / `describeNamespace`), read calls (`mcp__ha-mcp__<tool>` with JSON args; the heredoc advice no longer applies), mutations (schema from discovery output; keep the router gating), and the BestPracticeKey flow (`mcp__ha-mcp__ha_get_skill_guide`, hourly rotation, `BPS_ACKNOWLEDGMENT_REQUIRED` retry, `config` parameter) with unchanged semantics.
+- [x] Update the two `references/` files where they mention mcp-cli.
+- [x] Commit with `refactor(pi): point home-assistant skills at native MCP tools`.
 
 ### Task 6: Validate skills
+**Status:** Complete.
 **Delivers:** Both profiles' skills pass validation.
 **Blocked by:** 3, 4, 5
 **Traces to:** Requirement "Skills guide native access"
 **Files:** none (test run)
 
-- [ ] Run `cd dot_pi/agent && npm run test:skills:profiles`; expect success for `work` and `personal`.
+- [x] Run `cd dot_pi/agent && npm run test:skills:profiles`; expect success for `work` and `personal`. Result: `Validated 44 skill(s) for work profile` and `Validated 44 skill(s) for personal profile`, both exit 0.
 
 ## Slice 3: mcp-cli removal
 

@@ -22,6 +22,10 @@ pi mcp add datadog-staging --url "$DD_MCP_URL" \
   --exposure deferred \
   --description 'Query Datadog staging org 197728 (ddstaging.datadoghq.com) for staging clusters and datacenters.'
 
+pi mcp add ddci-mcp-prod --url "https://ddci-mcp.mcp.us1.ddbuild.io/internal/mcp" \
+  --exposure deferred \
+  --description 'Query and control DDCI (GitLab CI) pipelines: status, AI error summaries, job logs, retry failed jobs, trigger auto/on-demand runs, local build impact analysis. Sign in once with: pi mcp login ddci-mcp-prod.'
+
 pi mcp add slack \
   --exposure deferred \
   --description 'Search and read Datadog Slack channels, threads, and users. Send only on explicit request.' \
@@ -29,6 +33,7 @@ pi mcp add slack \
 {{ else }}
 pi mcp remove datadog-prod >/dev/null 2>&1 || true
 pi mcp remove datadog-staging >/dev/null 2>&1 || true
+pi mcp remove ddci-mcp-prod >/dev/null 2>&1 || true
 pi mcp remove slack >/dev/null 2>&1 || true
 
 # The connect URL is the only Home Assistant credential; resolve it from

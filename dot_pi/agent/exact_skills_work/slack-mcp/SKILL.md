@@ -1,12 +1,12 @@
 ---
 name: slack-mcp
-description: Uses Slack MCP through mcp-cli and a local Python stdio proxy backed by Claude Code's macOS keychain token. Use when searching Slack messages, reading channels or threads, finding users/channels, or explicitly sending Slack messages.
+description: Uses the native pi Slack MCP server, a local Python stdio proxy backed by Claude Code's macOS keychain token. Use when searching Slack messages, reading channels or threads, finding users/channels, or explicitly sending Slack messages.
 ---
 # Slack MCP
-Use `mcp-cli` to access Datadog Slack through the `slack` MCP server.
+Use the native pi MCP server `slack` to access Datadog Slack.
 
 Config:
-- Server: `slack`
+- Server: `slack` (stdio, in `~/.pi/agent/mcp.json`)
 - Endpoint: `https://mcp.slack.com/mcp`
 - Proxy: `~/.pi/agent/skills_work/slack-mcp/scripts/slack-mcp-proxy.py`
 - Auth: macOS keychain service `Claude Code-credentials`, account `$(whoami)`
@@ -17,54 +17,57 @@ Setup and auth:
 python3 ~/.pi/agent/skills_work/slack-mcp/scripts/slack-mcp-auth.py
 ```
 
-Use the Slack-only config to avoid resolving unrelated Datadog MCP environment variables:
-```fish
-set -l SLACK_MCP_CONFIG ~/.config/mcp/slack_mcp_servers.json
-```
-
 Discovery:
-```fish
-mcp-cli -c $SLACK_MCP_CONFIG info slack
-mcp-cli -c $SLACK_MCP_CONFIG info slack slack_search_public_and_private
-mcp-cli -c $SLACK_MCP_CONFIG info slack slack_read_channel
-mcp-cli -c $SLACK_MCP_CONFIG info slack slack_read_thread
-```
+- Use `tool_search` to find a tool by intent, for example "Slack search messages".
+- Or list the server's tools with codemode `describeNamespace("mcp__slack")`.
+- Call a tool by its native name: `mcp__slack__<tool>`, for example `mcp__slack__slack_search_public_and_private`, `mcp__slack__slack_read_channel`, `mcp__slack__slack_read_thread`.
 
 Common read-only calls:
-```fish
-mcp-cli -c $SLACK_MCP_CONFIG call slack slack_search_public_and_private '{
+```text
+mcp__slack__slack_search_public_and_private
+{
   "query": "search terms",
   "limit": 10,
   "include_context": true,
   "response_format": "detailed"
-}'
+}
+```
 
-mcp-cli -c $SLACK_MCP_CONFIG call slack slack_search_channels '{
+```text
+mcp__slack__slack_search_channels
+{
   "query": "channel-name",
   "limit": 10,
   "response_format": "detailed"
-}'
+}
+```
 
-mcp-cli -c $SLACK_MCP_CONFIG call slack slack_read_channel '{
+```text
+mcp__slack__slack_read_channel
+{
   "channel_id": "CHANNEL_ID",
   "limit": 20,
   "response_format": "detailed"
-}'
+}
+```
 
-mcp-cli -c $SLACK_MCP_CONFIG call slack slack_read_thread '{
+```text
+mcp__slack__slack_read_thread
+{
   "channel_id": "CHANNEL_ID",
   "message_ts": "MESSAGE_TS",
   "limit": 50,
   "response_format": "detailed"
-}'
+}
 ```
 
 Write calls require explicit user approval:
-```fish
-mcp-cli -c $SLACK_MCP_CONFIG call slack slack_send_message_draft '{
+```text
+mcp__slack__slack_send_message_draft
+{
   "channel_id": "CHANNEL_ID",
   "message": "draft text"
-}'
+}
 ```
 
 Rules:

@@ -13,7 +13,7 @@ Token lifecycle:
   - On refresh failure: exits with a message telling the user to re-auth
 
 Usage:
-  Add to ~/.claude.json (or ~/.config/mcp/mcp.json for Space Jam):
+  Add to ~/.claude.json (or ~/.pi/agent/mcp.json for pi):
     "slack": {
       "command": "python3",
       "args": ["/path/to/slack-mcp-proxy.py"]

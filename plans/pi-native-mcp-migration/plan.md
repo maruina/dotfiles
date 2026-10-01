@@ -20,6 +20,17 @@
 | `write` | skill-loader | The plan is a prose artifact | Concise, evidence-backed prose; imperative requirements |
 | `feature-worktree` | prompt-required | /plan durable-plan contract | Created `maruina/pi-native-mcp-migration` worktree at `~/.worktrees/dotfiles-pi-native-mcp-migration` from `origin/main` |
 
+### Execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `resolve-worktree` | prompt-required | Resolve the supplied plan path | Confirmed the plan and feature branch belong to this worktree. |
+| `skill-loader` | prompt-required | Required at execution start | Selected applicable source, shell, and prose guidance before editing. |
+| `feature-worktree` | prompt-required | Required before file changes | Confirmed the existing feature worktree was the correct write location. |
+| `chezmoi` | skill-loader | The change adds a chezmoi run script | Used source-only editing and `--source` commands; identified the need to limit apply to scripts. |
+| `script-best-practices` | skill-loader | The change adds a Bash run script | Matched the repository's script style and checked rendered Bash syntax. |
+| `write` | skill-loader | The plan ledger and execution notes changed | Kept status and deviation notes concise and evidence-based. |
+| `learning-candidates` | skill-loader | The plan's full-apply assumption did not match observed diff behavior | Recorded the lifecycle-plan target surprise and the filtered apply evidence. |
+
 ## Validated mechanisms (discovery evidence)
 
 | Requirement | Mechanism | Evidence (validated live) | Validation command |
@@ -155,12 +166,13 @@ The HA connect URL SHALL exist only in 1Password and in `~/.pi/agent/mcp.json` (
 Delivers: all managed servers connected through pi native MCP; `pi mcp list` clean per profile.
 
 ### Task 1: Create the registration script
+**Status:** Complete.
 **Delivers:** `run_onchange_pi-mcp-servers.sh.tmpl` registers the servers for both profiles.
 **Blocked by:** None
 **Traces to:** Requirement "Native servers per profile"
 **Files:** `run_onchange_pi-mcp-servers.sh.tmpl` (new, repo root)
 
-- [ ] Create the script with this pinned shape (validated during discovery):
+- [x] Create the script with this pinned shape (validated during discovery):
 ```bash
 #!/bin/bash
 set -eufo pipefail
@@ -208,11 +220,12 @@ pi mcp add ha-mcp \
 # mcp.json can contain the Home Assistant connect URL; keep it user-readable only.
 chmod 600 "$HOME/.pi/agent/mcp.json"
 ```
-- [ ] Use non-trimming template delimiters in the script (`{{ if }}`, not `{{- if }}`): bash is whitespace-tolerant, and trimming delimiters would merge the comment lines with the following command.
-- [ ] Verify `pi mcp add` accepts the `--exposure` and `--description` flags in this order with `pi mcp add --help` (the discovery test used headers and `--url` only).
-- [ ] Commit with `feat(pi): register native MCP servers via run_onchange script`.
+- [x] Use non-trimming template delimiters in the script (`{{ if }}`, not `{{- if }}`): bash is whitespace-tolerant, and trimming delimiters would merge the comment lines with the following command.
+- [x] Verify `pi mcp add` accepts the `--exposure` and `--description` flags in this order with `pi mcp add --help` (the discovery test used headers and `--url` only).
+- [x] Commit with `feat(pi): register native MCP servers via run_onchange script`.
 
 ### Task 2: Apply and validate the work branch
+**Status:** In progress.
 **Delivers:** Work servers connected natively; stale `trajectory` entry removed.
 **Blocked by:** 1
 **Traces to:** Requirements "Native servers per profile", "Datadog org routing"
@@ -342,3 +355,6 @@ Delivers: dead tools removed, guidance accurate, full suite green.
 
 ## Documentation impact
 Covered by Task 10: repo `AGENTS.md`, the `chezmoi` skill layout. Skill rewrites in Slice 2 are themselves documentation. The pi upstream docs (`docs/mcp.md` in the pi installation) are the reference; no upstream contribution is needed. `dot_pi/agent/AGENTS.md` needs no change (verified: no MCP content).
+
+## Learning candidates
+- 2026-10-01: `chezmoi diff` includes lifecycle plan files as target files, so a full apply would copy the plan under `$HOME`; `chezmoi apply --include=scripts --dry-run --verbose` isolates the intended run script. Evidence: dry-run output listed only `pi-mcp-servers.sh`.

@@ -1,0 +1,45 @@
+#!/bin/bash
+set -eufo pipefail
+
+# Register pi native MCP servers (pi >= 0.99.2) in ~/.pi/agent/mcp.json.
+# pi mcp add is add-or-replace and preserves unrelated entries, such as the
+# IT-managed trajectory server. Removals keep the other profile's servers
+# out of mcp.json after a profile switch.
+{{ if eq .profile "work" }}
+readonly DD_MCP_URL="https://mcp.datadoghq.com/api/unstable/mcp-server/mcp"
+
+pi mcp remove ha-mcp >/dev/null 2>&1 || true
+
+pi mcp add datadog-prod --url "$DD_MCP_URL" \
+  --header 'DD-API-KEY=!dd-auth --domain app.datadoghq.com -- printenv DD_API_KEY' \
+  --header 'DD-APPLICATION-KEY=!dd-auth --domain app.datadoghq.com -- printenv DD_APP_KEY' \
+  --exposure deferred \
+  --description 'Query Datadog production org 2 (app.datadoghq.com): metrics, logs, traces, monitors, dashboards, incidents, notebooks.'
+
+pi mcp add datadog-staging --url "$DD_MCP_URL" \
+  --header 'DD-API-KEY=!dd-auth --domain ddstaging.datadoghq.com -- printenv DD_API_KEY' \
+  --header 'DD-APPLICATION-KEY=!dd-auth --domain ddstaging.datadoghq.com -- printenv DD_APP_KEY' \
+  --exposure deferred \
+  --description 'Query Datadog staging org 197728 (ddstaging.datadoghq.com) for staging clusters and datacenters.'
+
+pi mcp add slack \
+  --exposure deferred \
+  --description 'Search and read Datadog Slack channels, threads, and users. Send only on explicit request.' \
+  -- python3 '~/.pi/agent/skills_work/slack-mcp/scripts/slack-mcp-proxy.py'
+{{ else }}
+pi mcp remove datadog-prod >/dev/null 2>&1 || true
+pi mcp remove datadog-staging >/dev/null 2>&1 || true
+pi mcp remove slack >/dev/null 2>&1 || true
+
+# The connect URL is the only Home Assistant credential; resolve it from
+# 1Password at apply time so it never lives in fish env or chezmoi source.
+ha_url="$(op read 'op://Private/Home Assistant/mcp_url')"
+
+pi mcp add ha-mcp \
+  --url "$ha_url" \
+  --exposure deferred \
+  --description 'Home Assistant inventory, state, history, and confirmed control. Routed by the home-assistant skill tiers.'
+{{ end }}
+
+# mcp.json can contain the Home Assistant connect URL; keep it user-readable only.
+chmod 600 "$HOME/.pi/agent/mcp.json"

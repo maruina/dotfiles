@@ -63,6 +63,15 @@
 | `write` | skill-loader | The execution ledger was updated | Kept status and verification results concise and evidence-based. |
 | `reviewable-pr-workflow` | prompt-required | Required before preparing completed slice | Applied stack-split check; Slice 3 is one removal commit plus ledger. |
 
+#### Slice 4 execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `resolve-worktree` | prompt-required | Resolve the supplied plan path | Confirmed the worktree and that Slice 3 was already committed. |
+| `skill-loader` | prompt-required | Required at execution start | Selected prose and chezmoi guidance; the TypeScript edit is removal-only, so no Go or controller skill applies. |
+| `write` | skill-loader | `AGENTS.md` and the chezmoi skill listing changed | Kept guidance concise and evidence-backed. |
+| `chezmoi` | skill-loader | `AGENTS.md` and a skill source file changed | Applied the changed shared-skill target after committing. |
+| `reviewable-pr-workflow` | prompt-required | Required before finalizing the PR | Re-ran the stack-split check; Slice 4 is extension cleanup plus docs. |
+
 ## Validated mechanisms (discovery evidence)
 
 | Requirement | Mechanism | Evidence (validated live) | Validation command |
@@ -359,23 +368,25 @@ Delivers: no mcp-cli binary, config, installer, or shell integration remains.
 Delivers: dead tools removed, guidance accurate, full suite green.
 
 ### Task 9: Remove mcps_* tools from the cost-optimization extension
+**Status:** Complete.
 **Delivers:** Extension no longer spawns mcp-cli; tests updated.
 **Blocked by:** None (independent of Slices 1–3; ordered here so Task 10 verifies the final state)
 **Traces to:** Requirement "Extension tools removed"
 **Files:** `dot_pi/agent/exact_extensions/cost-optimization.ts`, `dot_pi/agent/exact_extensions/cost-optimization.test.mjs`
 
-- [ ] Remove the `mcps_list`, `mcps_describe`, and `mcps_call` registrations, the `runMcpCli` helper, `mcpIdentifier`, and the now-unused `MCP_MAX_BYTES` constant (verify no other use).
-- [ ] Remove the `limits MCP call output to 6KiB` test (it builds a fake `mcp-cli` binary); keep all other tests.
-- [ ] Run `cd dot_pi/agent && npm run test:unit`; expect success. Run `npx tsc --noEmit` if the repo has a typecheck path, otherwise rely on the test suite.
-- [ ] Commit with `refactor(pi): drop mcps_* tools from cost-optimization extension`.
+- [x] Remove the `mcps_list`, `mcps_describe`, and `mcps_call` registrations, the `runMcpCli` helper, `mcpIdentifier`, and the now-unused `MCP_MAX_BYTES` constant (verify no other use). The now-unused `spawn` import and test `chmod` import were also removed.
+- [x] Remove the `limits MCP call output to 6KiB` test (it builds a fake `mcp-cli` binary); keep all other tests.
+- [x] Run `cd dot_pi/agent && npm run test:unit`; expect success. Run `npx tsc --noEmit` if the repo has a typecheck path, otherwise rely on the test suite. Result: 162 tests pass, 0 fail. No tsconfig or typecheck script exists in `dot_pi/agent`, so the test suite is the validation.
+- [x] Commit with `refactor(pi): drop mcps_* tools from cost-optimization extension`.
 
 ### Task 10: Update guidance documents
+**Status:** Complete.
 **Delivers:** AGENTS.md and the chezmoi skill describe the native setup.
 **Blocked by:** 9 (the repo-wide grep check needs the extension edit landed)
 **Traces to:** Requirement "mcp-cli fully removed" (guidance half)
 **Files:** `AGENTS.md` (repo root), `dot_pi/agent/exact_skills/chezmoi/SKILL.md`
 
-- [ ] Replace the "Pi MCP and Home Assistant" section in `AGENTS.md` with:
+- [x] Replace the "Pi MCP and Home Assistant" section in `AGENTS.md` with:
 ```md
 ## Pi MCP
 - Pi connects to MCP servers natively from `~/.pi/agent/mcp.json`. Tool names follow `mcp__<server>__<tool>`; all managed servers use `deferred` exposure, so load tools with `tool_search` before calling them.
@@ -383,10 +394,10 @@ Delivers: dead tools removed, guidance accurate, full suite green.
 - Work profile: `datadog-prod` and `datadog-staging` (keys injected at connect time by `!dd-auth` header commands) and `slack` (stdio proxy reading the macOS keychain). Personal profile: `ha-mcp`; the connect URL resolves from 1Password at apply time, so `mcp.json` is mode 0600. Home Assistant capability is personal-profile-only.
 - Validate with `pi mcp list`. The IT-managed `trajectory` entry is not managed by this script; if its installer re-adds it, leave it alone (tracked separately).
 ```
-- [ ] In the chezmoi skill, update the source-layout listing: remove `dot_config/mcp/`, add `run_onchange_pi-mcp-servers.sh.tmpl` beside `run_onchange_brew-install.sh.tmpl`.
-- [ ] Leave `dot_pi/agent/AGENTS.md` unchanged; it contains no MCP guidance (verified by grep during planning).
-- [ ] Re-run the Task 8 greps; expect zero matches repo-wide (excluding `plans/` and `.git/`).
-- [ ] Commit with `docs: update MCP guidance for native pi MCP`.
+- [x] In the chezmoi skill, update the source-layout listing: remove `dot_config/mcp/`, add `run_onchange_pi-mcp-servers.sh.tmpl` beside `run_onchange_brew-install.sh.tmpl`.
+- [x] Leave `dot_pi/agent/AGENTS.md` unchanged; it contains no MCP guidance (verified by grep during planning). Re-verified: `grep -in mcp dot_pi/agent/AGENTS.md` returns no matches.
+- [x] Re-run the Task 8 greps; expect zero matches repo-wide (excluding `plans/` and `.git/`). Result: `grep -rn "mcp-cli"` and the env-var grep return no matches; `command -v mcp-cli` fails.
+- [x] Commit with `docs: update MCP guidance for native pi MCP`.
 
 ## Final verification
 **Blocked by:** 1–10

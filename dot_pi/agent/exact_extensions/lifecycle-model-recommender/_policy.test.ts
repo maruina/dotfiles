@@ -42,7 +42,9 @@ type Catalog = {
     {
       baseUrl: string;
       api: Model<any>["api"];
-      models: Array<{
+      // deliberate: classifier routers such as the Jev `typesafe` entry carry no
+      // models list; they contribute no models to the catalog checks.
+      models?: Array<{
         id: string;
         name: string;
         reasoning: boolean;
@@ -74,7 +76,7 @@ function renderedCatalog(): Catalog {
 
 function catalogModels(catalog: Catalog): CatalogModel[] {
   return Object.entries(catalog.providers).flatMap(([provider, config]) =>
-    config.models.map((model) => ({ ...model, provider, api: config.api })),
+    (config.models ?? []).map((model) => ({ ...model, provider, api: config.api })),
   );
 }
 

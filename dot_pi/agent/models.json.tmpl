@@ -27,6 +27,26 @@
           ],
           "contextWindow": 272000,
           "maxTokens": 128000,
+          "compat": {
+            "supportsStrictMode": true,
+            "supportsOpenAIGrammarTools": true,
+            "supportsAdditionalTools": true,
+            "supportsToolSearch": true,
+            "supportsMidConvoSystemMessages": true,
+            "supportsExplicitPromptCacheMode": true
+          },
+          "inputLimits": {
+            "maxRequestBytes": 536870912,
+            "images": {
+              "maxPerRequest": 1500,
+              "resize": {
+                "maxWidth": 2000,
+                "maxHeight": 2000,
+                "maxBytes": 4718592,
+                "jpegQuality": 80
+              }
+            }
+          },
           "thinkingLevelMap": {
             "off": "none",
             "minimal": null,
@@ -48,6 +68,26 @@
           ],
           "contextWindow": 272000,
           "maxTokens": 128000,
+          "compat": {
+            "supportsStrictMode": true,
+            "supportsOpenAIGrammarTools": true,
+            "supportsAdditionalTools": true,
+            "supportsToolSearch": true,
+            "supportsMidConvoSystemMessages": true,
+            "supportsExplicitPromptCacheMode": true
+          },
+          "inputLimits": {
+            "maxRequestBytes": 536870912,
+            "images": {
+              "maxPerRequest": 1500,
+              "resize": {
+                "maxWidth": 2000,
+                "maxHeight": 2000,
+                "maxBytes": 4718592,
+                "jpegQuality": 80
+              }
+            }
+          },
           "thinkingLevelMap": {
             "off": "none",
             "minimal": null,
@@ -69,6 +109,26 @@
           ],
           "contextWindow": 272000,
           "maxTokens": 128000,
+          "compat": {
+            "supportsStrictMode": true,
+            "supportsOpenAIGrammarTools": true,
+            "supportsAdditionalTools": true,
+            "supportsToolSearch": true,
+            "supportsMidConvoSystemMessages": true,
+            "supportsExplicitPromptCacheMode": true
+          },
+          "inputLimits": {
+            "maxRequestBytes": 536870912,
+            "images": {
+              "maxPerRequest": 1500,
+              "resize": {
+                "maxWidth": 2000,
+                "maxHeight": 2000,
+                "maxBytes": 4718592,
+                "jpegQuality": 80
+              }
+            }
+          },
           "thinkingLevelMap": {
             "off": null,
             "minimal": null,
@@ -148,7 +208,14 @@
           "contextWindow": 200000,
           "maxTokens": 128000,
           "compat": {
-            "forceAdaptiveThinking": true
+            "forceAdaptiveThinking": true,
+            "supportsTemperature": false
+          },
+          "inputLimits": {
+            "maxRequestBytes": 33554432,
+            "images": {
+              "maxPerRequest": 600
+            }
           },
           "thinkingLevelMap": {
             "off": null,
@@ -192,7 +259,14 @@
           "contextWindow": 1000000,
           "maxTokens": 128000,
           "compat": {
-            "forceAdaptiveThinking": true
+            "forceAdaptiveThinking": true,
+            "supportsTemperature": false
+          },
+          "inputLimits": {
+            "maxRequestBytes": 33554432,
+            "images": {
+              "maxPerRequest": 600
+            }
           },
           "thinkingLevelMap": {
             "off": null,
@@ -207,9 +281,9 @@
       ],
       "authHeader": true
     },
-    "ai-gw-baseten": {
+    "ai-gw-logical": {
       "baseUrl": "https://ai-gateway.us1.ddbuild.io/v1",
-      "api": "openai-responses",
+      "api": "openai-completions",
       "apiKey": "!sh -c \"ddtool auth token rapid-ai-platform --datacenter us1.ddbuild.io 2>/dev/null | grep -E '^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$' | head -1\"",
       "headers": {
         "source": "pi",
@@ -223,8 +297,8 @@
       },
       "models": [
         {
-          "id": "baseten/zai-org/GLM-5.3-Flash",
-          "name": "GLM 5.3 Flash (Baseten)",
+          "id": "glm-5-3-flash",
+          "name": "GLM 5.3 Flash (AI Gateway logical)",
           "api": "openai-completions",
           "reasoning": true,
           "input": [
@@ -247,8 +321,8 @@
           }
         },
         {
-          "id": "baseten/zai-org/GLM-5.3",
-          "name": "GLM 5.3 (Baseten)",
+          "id": "glm-5-3",
+          "name": "GLM 5.3 (AI Gateway logical)",
           "api": "openai-completions",
           "reasoning": true,
           "input": [
@@ -270,31 +344,8 @@
           }
         },
         {
-          "id": "baseten/zai-org/GLM-5.2",
-          "name": "GLM 5.2 (Baseten)",
-          "api": "openai-completions",
-          "reasoning": true,
-          "input": [
-            "text"
-          ],
-          "contextWindow": 1048576,
-          "maxTokens": 131072,
-          "compat": {
-            "supportsDeveloperRole": false
-          },
-          "thinkingLevelMap": {
-            "off": "none",
-            "minimal": null,
-            "low": null,
-            "medium": null,
-            "high": "high",
-            "xhigh": null,
-            "max": "max"
-          }
-        },
-        {
-          "id": "baseten/deepseek-ai/DeepSeek-V4.1-Flash",
-          "name": "DeepSeek V4.1 Flash (Baseten)",
+          "id": "deepseek-v4-1-flash",
+          "name": "DeepSeek V4.1 Flash (AI Gateway logical)",
           "api": "openai-completions",
           "reasoning": true,
           "input": [
@@ -316,6 +367,44 @@
             "max": "max"
           }
         },
+        {
+          "id": "kimi-k3",
+          "name": "Kimi K3 (AI Gateway logical)",
+          "api": "openai-completions",
+          "reasoning": true,
+          "input": [
+            "text",
+            "image"
+          ],
+          "contextWindow": 1048576,
+          "maxTokens": 65536,
+          "compat": {
+            "supportsDeveloperRole": false
+          },
+          "thinkingLevelMap": {
+            "off": null,
+            "low": "low",
+            "high": "high",
+            "max": "max"
+          }
+        }
+      ]
+    },
+    "ai-gw-baseten": {
+      "baseUrl": "https://ai-gateway.us1.ddbuild.io/v1",
+      "api": "openai-responses",
+      "apiKey": "!sh -c \"ddtool auth token rapid-ai-platform --datacenter us1.ddbuild.io 2>/dev/null | grep -E '^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$' | head -1\"",
+      "headers": {
+        "source": "pi",
+        "org-id": "2",
+        "x-llmo-force-redaction": "true",
+        "x-dd-tag-ml_app": "pi",
+        "x-dd-tag-ml_app_id": "aidevx.pi",
+        "x-dd-tag-client_session_id": "$PI_CLIENT_SESSION_ID",
+        "x-dd-tag-dd.user_email": "matteo.ruina@datadoghq.com",
+        "x-dd-tag-dd.team": "unknown"
+      },
+      "models": [
         {
           "id": "baseten/deepseek-ai/DeepSeek-V4-Flash-0731",
           "name": "DeepSeek V4 Flash 0731 (Baseten)",
@@ -341,9 +430,8 @@
         }
       ]
     },
-    "ai-gw-databricks": {
+    "typesafe": {
       "baseUrl": "https://ai-gateway.us1.ddbuild.io/v1",
-      "api": "openai-responses",
       "apiKey": "!sh -c \"ddtool auth token rapid-ai-platform --datacenter us1.ddbuild.io 2>/dev/null | grep -E '^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$' | head -1\"",
       "headers": {
         "source": "pi",
@@ -353,28 +441,9 @@
         "x-dd-tag-ml_app_id": "aidevx.pi",
         "x-dd-tag-client_session_id": "$PI_CLIENT_SESSION_ID",
         "x-dd-tag-dd.user_email": "matteo.ruina@datadoghq.com",
-        "x-dd-tag-dd.team": "unknown"
-      },
-      "models": [
-        {
-          "id": "databricks/system.ai.kimi-k3",
-          "name": "Kimi K3 (Databricks)",
-          "api": "openai-completions",
-          "reasoning": true,
-          "input": [
-            "text",
-            "image"
-          ],
-          "contextWindow": 1048576,
-          "maxTokens": 65536,
-          "thinkingLevelMap": {
-            "off": null,
-            "low": "low",
-            "high": "high",
-            "max": "max"
-          }
-        }
-      ]
+        "x-dd-tag-dd.team": "unknown",
+        "provider": "typesafe"
+      }
     }
   }
 }

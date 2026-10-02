@@ -46,6 +46,7 @@ printf '%s\n' "$input" | jq '
   del(.npmCommand) |
   del(.npmGuard) |
 {{- end }}
+  .defaultTools = ["+codemode"] |
   del(.extensions.files) |
   .extensionSettings.files.diffEditor = "zed" |
   .extensionSettings.files.externalEditor = "zed" |

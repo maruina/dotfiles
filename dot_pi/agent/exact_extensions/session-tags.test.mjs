@@ -333,6 +333,16 @@ test("the tool rejects an empty tags parameter", async () => {
   );
 });
 
+test("before_agent_start tells the agent about tags and the search tool", async () => {
+  const { handlers } = await loadExtension();
+  const result = handlers.get("before_agent_start")({ type: "before_agent_start", prompt: "what did we decide in sessions tagged cla?" }, { cwd: "/workspace" });
+  assert.equal(result.message.customType, "session-tags");
+  assert.equal(result.message.display, false);
+  assert.match(result.message.content, /search_sessions_by_tags/);
+  assert.match(result.message.content, /tool_search/);
+  assert.match(result.message.content, /\/tag/);
+});
+
 test("session_start reconstructs tags from the branch and /tag prefills the dialog", async () => {
   const { commands, handlers } = await loadExtension();
   await handlers.get("session_start")(

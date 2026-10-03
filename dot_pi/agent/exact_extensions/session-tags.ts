@@ -40,6 +40,10 @@ const TAG_ENTRY_TYPE = "pi.session-tags";
 const MAX_TOOL_RESULTS = 50;
 const FALLBACK_NAME_MAX_LENGTH = 100;
 const TAG_RE = /^[a-z0-9][a-z0-9-]*$/;
+const TAGS_GUIDANCE = `## Session Tags
+Sessions can carry user-assigned tags, set with /tag cla,controllers. To answer
+questions about sessions by tag, load the deferred tool \`search_sessions_by_tags\`
+through \`tool_search\`, then search the returned session files with rg/read.`;
 
 export interface ParsedTags {
   tags: string[];
@@ -253,6 +257,17 @@ export default function (pi: ExtensionAPI): void {
   pi.on("session_start", (_event, ctx) => {
     currentTags = tagsFromBranch(ctx.sessionManager.getBranch());
   });
+
+  // The deferred tool is invisible to the model, so the agent must be told the
+  // tag concept exists and how to reach the tool (user-context.ts pattern:
+  // before_agent_start returns a context message that hides from the TUI).
+  pi.on("before_agent_start", () => ({
+    message: {
+      customType: "session-tags",
+      content: TAGS_GUIDANCE,
+      display: false,
+    },
+  }));
 
   pi.registerCommand("tag", {
     description: "Set or edit this session's tags. Usage: /tag cla,controllers, or /tag with no arguments to edit in a dialog.",

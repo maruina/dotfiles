@@ -20,6 +20,14 @@
 | `codebase-research` | `skill-loader` | pi extension area | staged discovery: API declarations in pi 0.80.6 dist, `cost-optimization.ts` test seam, live session tree facts |
 | `write` | `skill-loader` | plan is a prose artifact | clarity rules applied while drafting this plan |
 
+### Execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `resolve-worktree` | `prompt-required` | `/execute` requires resolving the plan path | resolved to the owning worktree `/Users/ruio/src/.worktrees/dotfiles/pi-session-tags` |
+| `feature-worktree` | `prompt-required` | execute worktree policy | confirmed the plan's branch worktree already exists and is on `maruina/pi-session-tags`, not main |
+| `skill-loader` | `prompt-required` | execution skill selection | no TypeScript skill exists; the extension follows repo precedent (`cost-optimization.ts` / `user-context.ts`); loaded `chezmoi` for the source-tree apply steps |
+| `chezmoi` | `skill-loader` | changes under chezmoi source + Task 4 apply | `exact_` prefix semantics (top-level `*.ts` are entrypoints, colocated `.mjs` not auto-discovered), `--source "$PWD"` diff/apply from the worktree, explicit-target diffs to avoid directory-target drift |
+
 ## Implementation Contract
 
 **Components Affected:**
@@ -212,9 +220,9 @@ The extension SHALL register `search_sessions_by_tags` (deferred exposure) takin
 **Traces to:** R1 (restart persistence), R5 (agent retrieval via `tool_search`).
 **Files:** none (validation only)
 
-- [ ] From the worktree root, run `chezmoi --source "$PWD" diff ~/.pi/agent/extensions ~/.pi/agent/package.json`; expect only the new extension, the new test file, and the two script changes. Run `chezmoi diff` against explicit target file paths — directory targets can hide drift (repo AGENTS.md).
-- [ ] `chezmoi --source "$PWD" apply ~/.pi/agent/extensions ~/.pi/agent/package.json`.
-- [ ] `cd ~/.pi/agent && npm run test:smoke`; expect exit 0 and no `[Extension issues]` (loads the applied extension).
+- [x] From the worktree root, run `chezmoi --source "$PWD" diff ~/.pi/agent/extensions ~/.pi/agent/package.json`; expect only the new extension, the new test file, and the two script changes. Run `chezmoi diff` against explicit target file paths — directory targets can hide drift (repo AGENTS.md). Diff on `session-tags.ts`, `session-tags.test.mjs`, `package.json` showed exactly the two new files and the `test:session-tags` + `test:unit` script lines.
+- [x] `chezmoi --source "$PWD" apply ~/.pi/agent/extensions ~/.pi/agent/package.json`.
+- [x] `cd ~/.pi/agent && npm run test:smoke`; expect exit 0 and no `[Extension issues]` (loads the applied extension). Exit 0, no `[Extension issues]`. Extra headless validation: the applied `scanSessions` parsed the real tree (258 files, 0 skipped) — the parser handles live pi session data.
 - [ ] Restart pi. In any session, run `/tag cla,controllers`; expect a notification showing the stored set. Run `/tag`; expect the dialog prefilled `cla, controllers`. Restart pi again and resume the session; run `/tag`; expect the same tags (R1).
 - [ ] Run `/tags`; expect the listing shape from R4 with the tagged session present.
 - [ ] In a fresh session, ask the agent "what did we decide in sessions tagged cla?"; expect it to find `search_sessions_by_tags` via `tool_search`, receive the prefiltered files, and answer from their content with `rg` and reads (R5). Worktree-slug sessions must be reachable (R6).
@@ -225,8 +233,8 @@ The extension SHALL register `search_sessions_by_tags` (deferred exposure) takin
 **Traces to:** Plan-stage documentation contract.
 **Files:** none expected; update only if a gap is found
 
-- [ ] Review the dotfiles repo `AGENTS.md` (Pi Agent Development section) and the `chezmoi` skill: they already document the extension entrypoint rule, the `npm ci --ignore-scripts` loop, and `--source "$PWD"` worktree usage generically; the extension's header comment carries the session-tags-specific contracts (entry type, scan-root rule, scan simplification). Record any residual gap in the PR description instead of adding session-tags detail to `AGENTS.md`, which stays under 100 lines and generic.
-- [ ] If a review finding requires a file change, fix it and commit with `docs: record session-tags guidance`.
+- [x] Review the dotfiles repo `AGENTS.md` (Pi Agent Development section) and the `chezmoi` skill: they already document the extension entrypoint rule, the `npm ci --ignore-scripts` loop, and `--source "$PWD"` worktree usage generically; the extension's header comment carries the session-tags-specific contracts (entry type, scan-root rule, scan simplification). Record any residual gap in the PR description instead of adding session-tags detail to `AGENTS.md`, which stays under 100 lines and generic.
+- [x] If a review finding requires a file change, fix it and commit with `docs: record session-tags guidance`. No gap requiring a file change found; the extension's header comment plus the generic AGENTS.md rules cover the contracts.
 
 ## Validation
 

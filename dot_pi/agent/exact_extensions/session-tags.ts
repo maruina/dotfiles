@@ -52,6 +52,7 @@ export interface ParsedTags {
 
 export interface ScannedSession {
   file: string;
+  id: string;
   name: string;
   date: string;
   cwd: string;
@@ -145,7 +146,7 @@ async function parseSessionFile(file: string): Promise<{ session: ScannedSession
   } catch {
     return undefined;
   }
-  const h = header as { type?: unknown; timestamp?: unknown; cwd?: unknown };
+  const h = header as { type?: unknown; timestamp?: unknown; cwd?: unknown; id?: unknown };
   if (h.type !== "session") return undefined;
   const time = typeof h.timestamp === "string" ? Date.parse(h.timestamp) : NaN;
   if (Number.isNaN(time)) return undefined;
@@ -179,6 +180,7 @@ async function parseSessionFile(file: string): Promise<{ session: ScannedSession
   return {
     session: {
       file,
+      id: typeof h.id === "string" ? h.id : "",
       name: sessionName,
       date: formatDate(time),
       cwd: typeof h.cwd === "string" ? h.cwd : "",
@@ -238,9 +240,11 @@ export function formatTagsListing(scan: ScanResult): string {
     }
   }
   const groups = [...byTag.keys()].sort().map((tag) => {
+    // Show the session id (pasteable into /resume search) instead of the file
+    // path; the path is long and the picker does not search it.
     const rows = byTag
       .get(tag)!
-      .map((session) => `  ${session.date}  ${session.name}\n    ${session.file}`)
+      .map((session) => `  ${session.date}  ${session.name}\n    ${session.id}`)
       .join("\n");
     return `${tag} (${byTag.get(tag)!.length})\n${rows}`;
   });

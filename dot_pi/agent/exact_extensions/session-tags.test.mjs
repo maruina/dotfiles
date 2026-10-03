@@ -41,15 +41,15 @@ function infoEntry(name, timestamp) {
   };
 }
 
-async function writeSession(dir, { timestamp, cwd = "/repo", name, tags = [], userMessages = [], corruptLine, header } = {}) {
-  const id = `${timestamp}-${tags.length}-${userMessages.length}`.replace(/[^\w-]/g, "_");
-  const file = join(dir, `${id}.jsonl`);
+async function writeSession(dir, { timestamp, cwd = "/repo", name, tags = [], userMessages = [], corruptLine, header, sessionId = "session-id" } = {}) {
+  const fileId = `${timestamp}-${tags.length}-${userMessages.length}`.replace(/[^\w-]/g, "_");
+  const file = join(dir, `${fileId}.jsonl`);
   const lines = [];
   lines.push(
     header ??
-      JSON.stringify({ type: "session", version: 3, id: "session-id", timestamp, cwd }),
+      JSON.stringify({ type: "session", version: 3, id: sessionId, timestamp, cwd }),
   );
-  let parentId = "session-id";
+  let parentId = sessionId;
   for (const [index, text] of userMessages.entries()) {
     const entryId = `m${index}`;
     lines.push(JSON.stringify({ type: "message", id: entryId, parentId, timestamp, message: { role: "user", content: text } }));
@@ -402,20 +402,22 @@ test("/tag unchanged resubmission appends nothing", async () => {
   assert.deepEqual(entries, []);
 });
 
-test("/tags prints the tagged sessions grouped by tag with counts and paths", async () => {
+test("/tags prints the tagged sessions grouped by tag with counts and session ids", async () => {
   const { commands } = await loadExtension();
   const root = await mkdtemp(join(tmpdir(), "pi-session-tags-"));
   try {
-    const named = await writeSession(root, {
+    await writeSession(root, {
       timestamp: "2026-01-02T10:00:00.000Z",
       name: "Renovate incident follow-up",
       userMessages: ["renovate"],
       tags: [["cla"]],
+      sessionId: "id-named",
     });
-    const unnamed = await writeSession(root, {
+    await writeSession(root, {
       timestamp: "2026-01-03T10:00:00.000Z",
       userMessages: ["how do we structure the cla controller\npackage?"],
       tags: [["cla", "controllers"]],
+      sessionId: "id-unnamed",
     });
     await writeSession(root, { timestamp: "2026-01-01T10:00:00.000Z", userMessages: ["untagged"] });
     let message;
@@ -429,13 +431,13 @@ test("/tags prints the tagged sessions grouped by tag with counts and paths", as
       "",
       "cla (2)",
       "  2026-01-03 10:00  (no name) \"how do we structure the cla controller package?\"",
-      `    ${unnamed}`,
+      "    id-unnamed",
       "  2026-01-02 10:00  Renovate incident follow-up",
-      `    ${named}`,
+      "    id-named",
       "",
       "controllers (1)",
       "  2026-01-03 10:00  (no name) \"how do we structure the cla controller package?\"",
-      `    ${unnamed}`,
+      "    id-unnamed",
     ].join("\n");
     assert.equal(message, expected);
   } finally {

@@ -13,7 +13,7 @@ Pi sessions carry only a display name, so there is no way to group related sessi
 Sessions are stored as JSONL files under `~/.pi/agent/sessions/<cwd-slug>/<timestamp>_<id>.jsonl`. The session header and the `session_info` entry carry no user-defined metadata besides a display name. Questions such as "what did we decide across all sessions tagged `renovate-incident`?" or "we discussed this in a session with tag `foo`" have no answer path: the session picker (`/resume`) cannot filter by user metadata, and the agent has no structured way to find a group of related sessions.
 
 ### User / audience
-Matteo, personal profile only. Two consumers: Matteo interactively (tag a session, list tags, later resume a tagged session) and the agent in a future session (retrieve the file paths of sessions matching tags, then search their content).
+Matteo, on both the personal and work profiles. The extension deploys to both because `dot_pi/agent/exact_extensions/` is not profile-gated in `.chezmoiignore`; no ignore change is needed. Sessions and their tags stay machine-local, which matches the existing session storage. Two consumers: Matteo interactively (tag a session, list tags, later resume a tagged session) and the agent in a future session (retrieve the file paths of sessions matching tags, then search their content).
 
 ### Goal
 Human-assigned tags that are stored with the session file, survive session reload and restart, and can prefilter sessions by tag. After the prefilter, the agent reuses existing tools (`rg`, file reads) to answer questions about those sessions.
@@ -31,6 +31,7 @@ Verified facts:
 - `ExtensionAPI` provides `appendEntry(customType, data)` for persistence, `registerCommand` for `/` commands, `registerTool` with `exposure: "deferred"` (callable and listed by `tool_search`, not declared to the model), and `ctx.ui.input(title, placeholder)` for a text dialog. Command handlers receive session-replacement operations; `session_start` handlers receive the session manager.
 - State must be reconstructed from `ctx.sessionManager.getBranch()` during `session_start` because abandoned branches represent alternate histories (pi docs, `extensions.md` § State).
 - Sessions are machine-local files; scanning about 1k files with `rg` measured at 0.3s on the work laptop.
+- `.chezmoiignore` gates `skills_work`/`skills_personal` and the work-only `trajectory` extension per profile; `dot_pi/agent/exact_extensions/` deploys to every profile.
 - The existing personal extensions (`cost-optimization.ts`, `user-context.ts`, and others) are chezmoi-managed under `dot_pi/agent/exact_extensions/`, and some have a colocated `.test.mjs` file.
 
 Assumptions:
@@ -73,6 +74,24 @@ Deliberate simplification for the cross-session scan: when the tool or `/tags` r
 
 ### `/tags` command
 Scans the session directory once and prints each tag with its session count and, per session, the file's name (latest `session_info` entry, else the first user message), date, and path. Plain text output; no picker, no session switching.
+
+Example output:
+
+```
+Tags across 214 sessions (3 tagged):
+
+cla (2)
+  2026-09-30 14:22  Renovate incident follow-up
+    ~/.pi/agent/sessions/-Users-ruio-go-src-malazan-xyz/20260930-142233_a1b2c3d4.jsonl
+  2026-10-01 09:10  (no name) "how do we structure the cla controller package?"
+    ~/.pi/agent/sessions/-Users-ruio-go-src-malazan-xyz/20261001-091012_b2c3d4e5.jsonl
+
+controllers (1)
+  2026-10-01 09:10  (no name) "how do we structure the cla controller package?"
+    ~/.pi/agent/sessions/-Users-ruio-go-src-malazan-xyz/20261001-091012_b2c3d4e5.jsonl
+```
+
+A session carrying two tags appears under both. The first-user-message fallback truncates to one line.
 
 ### Search tool
 `registerTool` with `exposure: "deferred"` and name `search_sessions_by_tags`. Parameters: `tags: string[]` (required, non-empty; a session matches when it carries all of the given tags). The tool:

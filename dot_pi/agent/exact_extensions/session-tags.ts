@@ -15,7 +15,7 @@
 // surface in results as an unexpected file. Upgrade path: when scanning, resolve
 // each file's active branch from its tree before reading tags.
 
-import type { ExtensionAPI, SessionEntry, SessionManager, ToolDefinition } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionUIDialogOptions, SessionEntry, SessionManager, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { readdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { Type, type Static, type TSchema } from "typebox";
@@ -38,6 +38,7 @@ type DeferredTool<TParams extends TSchema> = ToolDefinition<TParams> & {
 
 const TAG_ENTRY_TYPE = "pi.session-tags";
 const MAX_TOOL_RESULTS = 50;
+const FALLBACK_NAME_MAX_LENGTH = 100;
 const TAG_RE = /^[a-z0-9][a-z0-9-]*$/;
 
 export interface ParsedTags {
@@ -101,7 +102,9 @@ export function resolveScanRoot(sessionDir: string, usesDefault: boolean): strin
 }
 
 function oneLine(text: string): string {
-  return text.replace(/\s+/g, " ").trim();
+  const collapsed = text.replace(/\s+/g, " ").trim();
+  if (collapsed.length <= FALLBACK_NAME_MAX_LENGTH) return collapsed;
+  return `${collapsed.slice(0, FALLBACK_NAME_MAX_LENGTH - 1)}…`;
 }
 
 function formatDate(ms: number): string {
@@ -254,7 +257,13 @@ export default function (pi: ExtensionAPI): void {
   pi.registerCommand("tag", {
     description: "Set or edit this session's tags. Usage: /tag cla,controllers, or /tag with no arguments to edit in a dialog.",
     handler: async (args, ctx) => {
-      const input = args.trim() === "" ? await ctx.ui.input("Session tags", currentTags.join(", ")) : args;
+      const prefill = currentTags.join(", ");
+      // deliberate: the TUI (ExtensionInputComponent) ignores the placeholder
+      // argument and only prefills from opts.initialValue, which the pinned
+      // ExtensionUIDialogOptions type does not declare. Pass both so the dialog
+      // shows the current tags. Upgrade path: drop the extra field once the
+      // declarations expose initialValue.
+      const input = args.trim() === "" ? await ctx.ui.input("Session tags", prefill, { initialValue: prefill } as ExtensionUIDialogOptions & { initialValue: string }) : args;
       if (input === undefined) return; // dialog cancelled
       const parsed = parseTags(input);
       if (parsed.invalid.length > 0) {

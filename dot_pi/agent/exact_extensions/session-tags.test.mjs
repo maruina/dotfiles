@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -179,6 +179,30 @@ test("scanSessions returns sessions newest first by header timestamp", async () 
   }
 });
 
+test("scanSessions truncates a long first-user-message fallback to one line", async () => {
+  const root = await mkdtemp(join(tmpdir(), "pi-session-tags-"));
+  try {
+    const longMessage = "how do we structure the cla controller package how do we structure the cla controller package how do we structure the cla controller package how do we structure the cla";
+    assert.ok(longMessage.length > 100);
+    const file = await writeSession(root, {
+      timestamp: "2026-01-01T10:00:00.000Z",
+      userMessages: [longMessage],
+      tags: [["cla"]],
+    });
+    const { sessions } = await scanSessions(root);
+    assert.equal(sessions.length, 1);
+    const name = sessions[0].name;
+    assert.ok(name.startsWith('(no name) "'));
+    assert.ok(name.endsWith('…"'));
+    // The message body is capped at 100 chars including the trailing ellipsis;
+    // the `(no name) "` prefix and closing quote add 12 more.
+    assert.ok(name.length <= 112, `name too long: ${name.length}`);
+    assert.ok((await readFile(file, "utf8")).length > 0);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("scanSessions uses the latest session_info name and falls back to the first user message", async () => {
   const root = await mkdtemp(join(tmpdir(), "pi-session-tags-"));
   try {
@@ -316,7 +340,15 @@ test("session_start reconstructs tags from the branch and /tag prefills the dial
     { sessionManager: { getBranch: () => [tagEntry("a", ["cla", "controllers"])] } },
   );
   let prefill;
-  const ui = { input: async (_title, placeholder) => { prefill = placeholder; return "aaa"; }, notify: () => {} };
+  const ui = {
+    input: async (_title, placeholder, opts) => {
+      // The TUI ignores the placeholder and prefills from opts.initialValue.
+      assert.equal(placeholder, "cla, controllers");
+      prefill = opts.initialValue;
+      return "aaa";
+    },
+    notify: () => {},
+  };
   await commands.get("tag").handler("", { ui });
   assert.equal(prefill, "cla, controllers");
 });

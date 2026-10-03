@@ -179,9 +179,9 @@ The extension SHALL register `search_sessions_by_tags` (deferred exposure) takin
 **Traces to:** All requirements (R1–R6).
 **Files:** `dot_pi/agent/exact_extensions/session-tags.test.mjs` (new)
 
-- [ ] `cd dot_pi/agent && npm ci --ignore-scripts` (repo convention; `node_modules` is gitignored and removed after the suite in Task 3).
-- [ ] Write `session-tags.test.mjs` with `node:test` + `assert/strict`: `parseTags` (normalize, dedupe, invalid list), `tagsFromBranch` (latest wins, empty clears, no entry), `resolveScanRoot` (default layout → parent, custom dir → itself), `scanSessions` over fixture JSONL trees in a temp dir (latest entry wins in file order, empty array clears, untagged files skipped, newest-first by header timestamp, `session_info` name and first-user-message fallback, corrupt file skipped and counted), match semantics (all tags required), truncation at 50, and the registered tool executed through a mocked `ExtensionAPI` (Maps for `registerTool`/`registerCommand`/`on`, per the `cost-optimization.test.mjs` pattern) asserting `structuredContent`, `outputSchema` presence, `content` table, and `details.skipped`.
-- [ ] Run `node --experimental-strip-types --test exact_extensions/session-tags.test.mjs`; expect failure with `ERR_MODULE_NOT_FOUND` for `./session-tags.ts` — not for `typebox` or a harness defect.
+- [x] `cd dot_pi/agent && npm ci --ignore-scripts` (repo convention; `node_modules` is gitignored and removed after the suite in Task 3).
+- [x] Write `session-tags.test.mjs` with `node:test` + `assert/strict`: `parseTags` (normalize, dedupe, invalid list), `tagsFromBranch` (latest wins, empty clears, no entry), `resolveScanRoot` (default layout → parent, custom dir → itself), `scanSessions` over fixture JSONL trees in a temp dir (latest entry wins in file order, empty array clears, untagged files skipped, newest-first by header timestamp, `session_info` name and first-user-message fallback, corrupt file skipped and counted), match semantics (all tags required), truncation at 50, and the registered tool executed through a mocked `ExtensionAPI` (Maps for `registerTool`/`registerCommand`/`on`, per the `cost-optimization.test.mjs` pattern) asserting `structuredContent`, `outputSchema` presence, `content` table, and `details.skipped`.
+- [x] Run `node --experimental-strip-types --test exact_extensions/session-tags.test.mjs`; expect failure with `ERR_MODULE_NOT_FOUND` for `./session-tags.ts` — not for `typebox` or a harness defect. Confirmed: `ERR_MODULE_NOT_FOUND: Cannot find module '.../exact_extensions/session-tags.ts'`; the harness and typebox resolution are fine.
 
 ### Task 2: Implement the extension
 **Delivers:** `session-tags.ts` passing the focused test; tags stored, listed, and searchable.
@@ -189,10 +189,10 @@ The extension SHALL register `search_sessions_by_tags` (deferred exposure) takin
 **Traces to:** R1–R6.
 **Files:** `dot_pi/agent/exact_extensions/session-tags.ts` (new)
 
-- [ ] Implement the pure functions named by the tests (`parseTags`, `tagsFromBranch`, `resolveScanRoot`, `scanSessions`, plus match/format helpers) and the default factory: `/tag` (argument replace-set and dialog edit, no-change guard, empty-clears, invalid-tags error notification), `/tags` (listing in the design's exact output shape), `session_start` reconstruction into a module variable refreshed per event, and the `search_sessions_by_tags` tool with `Type`-built `parameters` and `outputSchema`, `exposure: "deferred"`.
-- [ ] Header comment documenting: the `pi.session-tags` custom entry contract, the whole-tree scan-root rule, and the deliberate file-order (not active-branch) scan simplification with its upgrade path.
-- [ ] Run `node --experimental-strip-types --test exact_extensions/session-tags.test.mjs`; expect all tests green.
-- [ ] Refactor only after green, then rerun the focused test.
+- [x] Implement the pure functions named by the tests (`parseTags`, `tagsFromBranch`, `resolveScanRoot`, `scanSessions`, plus match/format helpers) and the default factory: `/tag` (argument replace-set and dialog edit, no-change guard, empty-clears, invalid-tags error notification), `/tags` (listing in the design's exact output shape), `session_start` reconstruction into a module variable refreshed per event, and the `search_sessions_by_tags` tool with `Type`-built `parameters` and `outputSchema`, `exposure: "deferred"`.
+- [x] Header comment documenting: the `pi.session-tags` custom entry contract, the whole-tree scan-root rule, and the deliberate file-order (not active-branch) scan simplification with its upgrade path.
+- [x] Run `node --experimental-strip-types --test exact_extensions/session-tags.test.mjs`; expect all tests green. 24/24 tests pass.
+- [x] Refactor only after green, then rerun the focused test. Refactor: hoisted tool parameters/outputSchema to named TypeBox constants and typed the execute handler against `Static`; reran → 24/24 still green. Deviation note: the plan pins the API surface to "installed pi 0.80.6", but the live `pi` CLI is 1.0.0 in this worktree's environment — the unit test install stays at the pinned 0.80.6 devDependency (deterministic), and I verified the live 1.0.0 dist declares every surface this extension needs (`ToolDefinition.exposure`, `outputSchema`, `AgentToolResult.structuredContent`, `SessionManager.usesDefaultSessionDir`), which the stale `^0.80.6` devDependency types do not. Implementation uses a documented `DeferredTool` cast for the tool registration and the full `SessionManager` type for the default-layout flag; `npx tsc --noEmit` against the installed devDependency is clean.
 
 ### Task 3: Register scripts, run the full suite, commit
 **Delivers:** The extension wired into the repo's npm validation and committed green.
@@ -200,11 +200,11 @@ The extension SHALL register `search_sessions_by_tags` (deferred exposure) takin
 **Traces to:** Repository conventions (`test:unit`, `test:compute-guardrails` pattern) and the design's validation section.
 **Files:** `dot_pi/agent/package.json` (modify), Task 1–2 files
 
-- [ ] Add `"test:session-tags"` following the `test:compute-guardrails` script shape, and append `"$ext"/session-tags.test.mjs` to `test:unit`.
-- [ ] Run `npm test`; expect the whole unit suite plus prompt/skill/pi-deps validations to pass.
-- [ ] Run `npm run test:all`; expect the same plus `test:smoke` to pass (no `[Extension issues]`).
-- [ ] Remove `node_modules`: `rm -rf node_modules` (AGENTS.md convention).
-- [ ] Commit with `feat(pi): add session-tags extension`.
+- [x] Add `"test:session-tags"` following the `test:compute-guardrails` script shape, and append `"$ext"/session-tags.test.mjs` to `test:unit`.
+- [x] Run `npm test`; expect the whole unit suite plus prompt/skill/pi-deps validations to pass. 186 unit + 53 prompt + 45 skills + pi-deps, all green (24 session-tags tests included in unit).
+- [x] Run `npm run test:all`; expect the same plus `test:smoke` to pass (no `[Extension issues]`). Smoke exit 0, no extension issues.
+- [x] Remove `node_modules`: `rm -rf node_modules` (AGENTS.md convention).
+- [x] Commit with `feat(pi): add session-tags extension`.
 
 ### Task 4: Targeted apply and manual round-trip
 **Delivers:** End-to-end proof of the smallest user-feedback slice on the live machine.

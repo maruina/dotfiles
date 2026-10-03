@@ -73,7 +73,7 @@ Deliberate simplification for the cross-session scan: when the tool or `/tags` r
 - Both paths append a `pi.session-tags` entry and show a notification with the stored set. A no-change resubmission appends no entry.
 
 ### `/tags` command
-Scans the session directory once and prints each tag with its session count and, per session, the file's name (latest `session_info` entry, else the first user message), date, and path. Plain text output; no picker, no session switching.
+Scans the session directory once and prints each tag with its session count and, per session, the file's name (latest `session_info` entry, else the first user message), date, and path. Untagged sessions are never listed; they only feed the total in the header line, so the output grows with the number of tagged sessions, not the session count. Plain text output; no picker, no session switching.
 
 Example output:
 

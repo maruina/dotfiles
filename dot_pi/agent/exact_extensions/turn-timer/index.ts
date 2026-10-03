@@ -105,11 +105,20 @@ export default function (pi: ExtensionAPI) {
 			// loop's promise continuations settle, so the first attempt is normally idle;
 			// the bounded poll only matters if a follow-up continuation is still draining.
 			const emitWhenIdle = (attemptsLeft: number): void => {
-				if (ctx.isIdle()) {
-					pi.sendMessage(
-						{ customType: CUSTOM_TYPE, content, display: true, details: { ms: elapsedMs } },
-						{ triggerTurn: false },
-					);
+				// A deferred emit can fire after `ctx.newSession()`, `fork()`, or `switchSession`
+				// marked the old extension runtime stale; touching ctx (and the captured pi)
+				// then throws. The timing line belongs to the replaced session, so abandon it.
+				// deliberate: we swallow all errors here, not just staleness — this message is a
+				// display-only ornament and any failure to render it must not crash the process.
+				try {
+					if (ctx.isIdle()) {
+						pi.sendMessage(
+							{ customType: CUSTOM_TYPE, content, display: true, details: { ms: elapsedMs } },
+							{ triggerTurn: false },
+						);
+					}
+					return;
+				} catch {
 					return;
 				}
 				if (attemptsLeft <= 0) return;

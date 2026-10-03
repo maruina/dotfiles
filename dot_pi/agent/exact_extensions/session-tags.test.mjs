@@ -341,10 +341,10 @@ test("session_start reconstructs tags from the branch and /tag prefills the dial
   );
   let prefill;
   const ui = {
-    input: async (_title, placeholder, opts) => {
-      // The TUI ignores the placeholder and prefills from opts.initialValue.
-      assert.equal(placeholder, "cla, controllers");
-      prefill = opts.initialValue;
+    // The input dialog cannot be prefilled in pi 1.0.0; the editor dialog is
+    // the prefill-capable one and /tag uses it.
+    editor: async (_title, value) => {
+      prefill = value;
       return "aaa";
     },
     notify: () => {},
@@ -371,7 +371,7 @@ test("/tag with invalid arguments appends nothing and notifies an error listing 
 
 test("/tag dialog cancel resolves undefined and changes nothing", async () => {
   const { commands, entries } = await loadExtension();
-  const ui = { input: async () => undefined, notify: () => {} };
+  const ui = { editor: async () => undefined, notify: () => {} };
   await commands.get("tag").handler("", { ui });
   assert.deepEqual(entries, []);
 });
@@ -379,7 +379,7 @@ test("/tag dialog cancel resolves undefined and changes nothing", async () => {
 test("/tag dialog empty submission clears the tags", async () => {
   const { commands, handlers, entries } = await loadExtension();
   await handlers.get("session_start")({ type: "session_start", reason: "resume" }, { sessionManager: { getBranch: () => [tagEntry("a", ["cla"])] } });
-  const ui = { input: async () => "", notify: () => {} };
+  const ui = { editor: async () => "", notify: () => {} };
   await commands.get("tag").handler("", { ui });
   assert.deepEqual(entries, [{ customType: "pi.session-tags", data: { tags: [] } }]);
 });
@@ -387,7 +387,7 @@ test("/tag dialog empty submission clears the tags", async () => {
 test("/tag unchanged resubmission appends nothing", async () => {
   const { commands, handlers, entries } = await loadExtension();
   await handlers.get("session_start")({ type: "session_start", reason: "resume" }, { sessionManager: { getBranch: () => [tagEntry("a", ["cla", "controllers"])] } });
-  const ui = { input: async () => "cla, controllers", notify: () => {} };
+  const ui = { editor: async () => "cla, controllers", notify: () => {} };
   await commands.get("tag").handler("", { ui });
   assert.deepEqual(entries, []);
 });

@@ -15,7 +15,7 @@
 // surface in results as an unexpected file. Upgrade path: when scanning, resolve
 // each file's active branch from its tree before reading tags.
 
-import type { ExtensionAPI, ExtensionUIDialogOptions, SessionEntry, SessionManager, ToolDefinition } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, SessionEntry, SessionManager, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { readdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { Type, type Static, type TSchema } from "typebox";
@@ -257,13 +257,12 @@ export default function (pi: ExtensionAPI): void {
   pi.registerCommand("tag", {
     description: "Set or edit this session's tags. Usage: /tag cla,controllers, or /tag with no arguments to edit in a dialog.",
     handler: async (args, ctx) => {
-      const prefill = currentTags.join(", ");
-      // deliberate: the TUI (ExtensionInputComponent) ignores the placeholder
-      // argument and only prefills from opts.initialValue, which the pinned
-      // ExtensionUIDialogOptions type does not declare. Pass both so the dialog
-      // shows the current tags. Upgrade path: drop the extra field once the
-      // declarations expose initialValue.
-      const input = args.trim() === "" ? await ctx.ui.input("Session tags", prefill, { initialValue: prefill } as ExtensionUIDialogOptions & { initialValue: string }) : args;
+      // deliberate: in pi 1.0.0 the input dialog cannot be prefilled — the TUI
+      // ignores the placeholder and its runner drops any opts value. The
+      // prefill-capable dialog is ctx.ui.editor(title, prefill), which resolves
+      // to the edited text or undefined on cancel, like input. Upgrade path:
+      // use ctx.ui.input once it supports a prefill argument.
+      const input = args.trim() === "" ? await ctx.ui.editor("Session tags", currentTags.join(", ")) : args;
       if (input === undefined) return; // dialog cancelled
       const parsed = parseTags(input);
       if (parsed.invalid.length > 0) {

@@ -347,7 +347,7 @@ test("session_start reconstructs tags from the branch and /tag prefills the dial
   const { commands, handlers } = await loadExtension();
   await handlers.get("session_start")(
     { type: "session_start", reason: "resume" },
-    { sessionManager: { getBranch: () => [tagEntry("a", ["cla", "controllers"])] } },
+    { sessionManager: { getEntries: () => [tagEntry("a", ["cla", "controllers"])] } },
   );
   let prefill;
   const ui = {
@@ -388,7 +388,7 @@ test("/tag dialog cancel resolves undefined and changes nothing", async () => {
 
 test("/tag dialog empty submission clears the tags", async () => {
   const { commands, handlers, entries } = await loadExtension();
-  await handlers.get("session_start")({ type: "session_start", reason: "resume" }, { sessionManager: { getBranch: () => [tagEntry("a", ["cla"])] } });
+  await handlers.get("session_start")({ type: "session_start", reason: "resume" }, { sessionManager: { getEntries: () => [tagEntry("a", ["cla"])] } });
   const ui = { editor: async () => "", notify: () => {} };
   await commands.get("tag").handler("", { ui });
   assert.deepEqual(entries, [{ customType: "pi.session-tags", data: { tags: [] } }]);
@@ -396,7 +396,7 @@ test("/tag dialog empty submission clears the tags", async () => {
 
 test("/tag unchanged resubmission appends nothing", async () => {
   const { commands, handlers, entries } = await loadExtension();
-  await handlers.get("session_start")({ type: "session_start", reason: "resume" }, { sessionManager: { getBranch: () => [tagEntry("a", ["cla", "controllers"])] } });
+  await handlers.get("session_start")({ type: "session_start", reason: "resume" }, { sessionManager: { getEntries: () => [tagEntry("a", ["cla", "controllers"])] } });
   const ui = { editor: async () => "cla, controllers", notify: () => {} };
   await commands.get("tag").handler("", { ui });
   assert.deepEqual(entries, []);

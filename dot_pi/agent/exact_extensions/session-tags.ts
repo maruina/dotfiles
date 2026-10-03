@@ -2,11 +2,11 @@
 //
 // Entry contract: /tag appends { type: "custom", customType: "pi.session-tags",
 // data: { tags: string[] } } via pi.appendEntry. The session_start handler
-// reconstructs the current set from the active branch (ctx.sessionManager
-// .getBranch(), newest entry wins; an empty tags array clears the set). /tags
-// and the search tool scan the whole sessions tree: parent of getSessionDir()
-// under the default layout, else the custom sessionDir, recursively for
-// *.jsonl, taking each file's last tag entry in file order.
+// reconstructs the current set from all entries in file order (newest entry
+// wins; an empty tags array clears the set). /tags and the search tool scan
+// the whole sessions tree: parent of getSessionDir() under the default
+// layout, else the custom sessionDir, recursively for *.jsonl, taking each
+// file's last tag entry in file order.
 //
 // deliberate: the scan takes each file's last tag entry in file order, not the
 // entry on the session's active branch. Rebuilding per-session active branches
@@ -258,8 +258,12 @@ function sameTags(a: string[], b: string[]): boolean {
 export default function (pi: ExtensionAPI): void {
   let currentTags: string[] = [];
 
+  // Pi anchors appendEntry custom entries to the session tree, but the next
+  // user message forks from the message chain, so tag entries can fall off the
+  // active branch once the conversation continues. Reconstruct from all entries
+  // in file order (getBranch() would miss them), matching the scan's rule.
   pi.on("session_start", (_event, ctx) => {
-    currentTags = tagsFromBranch(ctx.sessionManager.getBranch());
+    currentTags = tagsFromBranch(ctx.sessionManager.getEntries());
   });
 
   // The deferred tool is invisible to the model, so the agent must be told the

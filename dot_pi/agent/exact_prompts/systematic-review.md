@@ -1,5 +1,5 @@
 ---
-description: Review a plan, codebase, directory, or file systematically
+description: Review a plan, codebase, directory, or file systematically, then propose fixes
 argument-hint: "[target-path] [extra context]"
 ---
 # Systematic Review
@@ -7,12 +7,12 @@ Review input:
 
 > $ARGUMENTS
 
-Validate a plan or review code without editing files. Treat the first path in the input as the target (default: repository root / current codebase); treat any remaining text as extra context.
+Validate a plan or review code, then propose fixes for the findings. Treat the first path in the input as the target (default: repository root / current codebase); treat any remaining text as extra context.
 
 Use `/systematic-review` for a plan document or local code before execution. Use `/verify` for the final read-only closeout gate after execution, and `/pr-review` to understand and assess someone else's GitHub PR.
 
 <HARD-GATE>
-Do not edit files, apply chezmoi state, stage, commit, push, or post GitHub comments. This is a read-only review.
+Keep the review itself read-only: report findings before touching anything. After the report, propose fixes under ## Fix findings and apply only the ones the user confirms. Never apply chezmoi state, commit, push, or post GitHub comments.
 </HARD-GATE>
 
 If the target is a `plan.md`, use the `resolve-worktree` skill with `$GLOB = **/plans/*/plan.md`, switch to the owning worktree, and review whether the plan is executable, complete, and consistent with the codebase. If the target is another path, resolve it with `resolve-worktree` without `$GLOB`. If no target is given, use the current repository root.
@@ -104,12 +104,21 @@ Return a concise review with these sections:
 
 If no issues are found, say so explicitly and still include the design challenge and any residual risks.
 
+## Fix findings
+After the report, propose fixes instead of leaving them entirely to the user:
+
+1. List the findings that can be fixed in place, each with the file, the smallest concrete change, and how to verify it. Default to offering Critical and High findings first; name Low findings you would leave alone and why.
+2. Ask the user which findings to apply. Do not edit before an explicit confirmation.
+3. For each confirmed fix, stay in the resolved target worktree, use the `skill-loader` skill for touched files, make the smallest change that satisfies the finding, and run the narrow relevant tests or checks.
+4. Stop and ask when a fix is ambiguous, changes behavior beyond the finding, needs a design decision, or would touch unrelated code.
+5. Leave confirmed changes uncommitted for review, then summarize what was fixed, what was skipped, and why.
+
 ## Handoff
 Close with the recommended next step:
 
 - For a `plan.md` target with no blocking findings, say exactly:
   Review complete. Run /execute <absolute-path-to-plan.md> to implement it.
 - For a `plan.md` target with blocking findings, say exactly:
-  Review complete. Address the findings above, then re-run /systematic-review <absolute-path-to-plan.md>, or return to /plan to revise.
+  Review complete. I can fix the findings above on request; otherwise address them, then re-run /systematic-review <absolute-path-to-plan.md>, or return to /plan to revise.
 - For a code-only target with no plan, say exactly:
-  Review complete. Recommended next step: <highest-priority action>.
+  Review complete. Recommended next step: <highest-priority action>. I can apply the proposed fixes on request.

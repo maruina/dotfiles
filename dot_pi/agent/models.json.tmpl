@@ -1,447 +1,59 @@
 {{- if eq .profile "work" -}}
 {
   "providers": {
-    "ai-gw-openai": {
-      "baseUrl": "https://ai-gateway.us1.ddbuild.io/v1",
-      "api": "openai-responses",
-      "apiKey": "!sh -c \"ddtool auth token rapid-ai-platform --datacenter us1.ddbuild.io 2>/dev/null | grep -E '^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$' | head -1\"",
+    "anthropic": {
       "headers": {
-        "source": "pi",
-        "org-id": "2",
-        "x-llmo-force-redaction": "true",
         "x-dd-tag-ml_app": "pi",
-        "x-dd-tag-dd.user_email": "matteo.ruina@datadoghq.com",
-        "x-dd-tag-dd.team": "unknown",
+        "ml-app-id": "ai-devx.pi",
+        "x-dd-tag-dd.user_email": "{{ .email }}",
+        "x-dd-tag-dd.team": "compute",
         "x-dd-tag-client_session_id": "$PI_CLIENT_SESSION_ID",
-        "x-dd-tag-ml_app_id": "aidevx.pi"
+        "anthropic-beta": "context-1m-2025-08-07"
       },
-      "models": [
-        {
-          "id": "openai/gpt-6-sol",
-          "name": "GPT-6 Sol (OpenAI)",
-          "api": "openai-responses",
-          "reasoning": true,
-          "input": [
-            "text",
-            "image"
-          ],
-          "contextWindow": 272000,
-          "maxTokens": 128000,
-          "compat": {
-            "supportsStrictMode": true,
-            "supportsOpenAIGrammarTools": true,
-            "supportsAdditionalTools": true,
-            "supportsToolSearch": true,
-            "supportsMidConvoSystemMessages": true,
-            "supportsExplicitPromptCacheMode": true
-          },
-          "inputLimits": {
-            "maxRequestBytes": 536870912,
-            "images": {
-              "maxPerRequest": 1500,
-              "resize": {
-                "maxWidth": 2000,
-                "maxHeight": 2000,
-                "maxBytes": 4718592,
-                "jpegQuality": 80
-              }
-            }
-          },
-          "thinkingLevelMap": {
-            "off": "none",
-            "minimal": null,
-            "low": "low",
-            "medium": "medium",
-            "high": "high",
-            "xhigh": "xhigh",
-            "max": "max"
-          }
-        },
-        {
-          "id": "openai/gpt-6-luna",
-          "name": "GPT-6 Luna (OpenAI)",
-          "api": "openai-responses",
-          "reasoning": true,
-          "input": [
-            "text",
-            "image"
-          ],
-          "contextWindow": 272000,
-          "maxTokens": 128000,
-          "compat": {
-            "supportsStrictMode": true,
-            "supportsOpenAIGrammarTools": true,
-            "supportsAdditionalTools": true,
-            "supportsToolSearch": true,
-            "supportsMidConvoSystemMessages": true,
-            "supportsExplicitPromptCacheMode": true
-          },
-          "inputLimits": {
-            "maxRequestBytes": 536870912,
-            "images": {
-              "maxPerRequest": 1500,
-              "resize": {
-                "maxWidth": 2000,
-                "maxHeight": 2000,
-                "maxBytes": 4718592,
-                "jpegQuality": 80
-              }
-            }
-          },
-          "thinkingLevelMap": {
-            "off": "none",
-            "minimal": null,
-            "low": "low",
-            "medium": "medium",
-            "high": "high",
-            "xhigh": "xhigh",
-            "max": "max"
-          }
-        },
-        {
-          "id": "openai/gpt-6-astra",
-          "name": "GPT-6 Astra (OpenAI)",
-          "api": "openai-responses",
-          "reasoning": true,
-          "input": [
-            "text",
-            "image"
-          ],
-          "contextWindow": 272000,
-          "maxTokens": 128000,
-          "compat": {
-            "supportsStrictMode": true,
-            "supportsOpenAIGrammarTools": true,
-            "supportsAdditionalTools": true,
-            "supportsToolSearch": true,
-            "supportsMidConvoSystemMessages": true,
-            "supportsExplicitPromptCacheMode": true
-          },
-          "inputLimits": {
-            "maxRequestBytes": 536870912,
-            "images": {
-              "maxPerRequest": 1500,
-              "resize": {
-                "maxWidth": 2000,
-                "maxHeight": 2000,
-                "maxBytes": 4718592,
-                "jpegQuality": 80
-              }
-            }
-          },
-          "thinkingLevelMap": {
-            "off": null,
-            "minimal": null,
-            "low": "low",
-            "medium": "medium",
-            "high": "high",
-            "xhigh": "xhigh",
-            "max": "max"
-          }
-        }
-      ]
+      "compat": {
+        "supportsStrictTools": false,
+        "supportsMidConvoSystemMessages": false,
+        "supportsMidConvoToolChanges": false,
+        "supportsMidConvoEffort": false
+      }
     },
-    "ai-gw-google": {
-      "baseUrl": "https://ai-gateway.us1.ddbuild.io/v1beta",
-      "api": "google-generative-ai",
-      "apiKey": "!sh -c \"ddtool auth token rapid-ai-platform --datacenter us1.ddbuild.io 2>/dev/null | grep -E '^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$' | head -1\"",
+    "openai": {
       "headers": {
-        "source": "pi",
-        "org-id": "2",
-        "x-llmo-force-redaction": "true",
         "x-dd-tag-ml_app": "pi",
-        "x-dd-tag-ml_app_id": "aidevx.pi",
-        "x-dd-tag-client_session_id": "$PI_CLIENT_SESSION_ID",
-        "x-dd-tag-dd.user_email": "matteo.ruina@datadoghq.com",
-        "x-dd-tag-dd.team": "unknown"
-      },
-      "authHeader": true,
-      "models": [
-        {
-          "id": "gemini-3.8-flash",
-          "name": "Gemini 3.8 Flash (Google)",
-          "api": "google-generative-ai",
-          "reasoning": true,
-          "input": [
-            "text",
-            "image"
-          ],
-          "contextWindow": 1048576,
-          "maxTokens": 65536,
-          "thinkingLevelMap": {
-            "off": null,
-            "minimal": null,
-            "low": "LOW",
-            "medium": "MEDIUM",
-            "high": "HIGH",
-            "xhigh": null,
-            "max": null
-          }
-        }
-      ]
+        "ml-app-id": "ai-devx.pi",
+        "x-dd-tag-dd.user_email": "{{ .email }}",
+        "x-dd-tag-dd.team": "compute",
+        "x-dd-tag-client_session_id": "$PI_CLIENT_SESSION_ID"
+      }
     },
-    "ai-gw-anthropic-200k": {
-      "baseUrl": "https://ai-gateway.us1.ddbuild.io",
-      "api": "anthropic-messages",
-      "apiKey": "!sh -c \"ddtool auth token rapid-ai-platform --datacenter us1.ddbuild.io 2>/dev/null | grep -E '^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$' | head -1\"",
+    "google": {
       "headers": {
-        "source": "pi",
-        "org-id": "2",
-        "x-llmo-force-redaction": "true",
         "x-dd-tag-ml_app": "pi",
-        "x-dd-tag-dd.user_email": "matteo.ruina@datadoghq.com",
-        "x-dd-tag-dd.team": "unknown",
-        "provider": "anthropic",
-        "x-dd-tag-client_session_id": "$PI_CLIENT_SESSION_ID",
-        "x-dd-tag-ml_app_id": "aidevx.pi"
-      },
-      "models": [
-        {
-          "id": "anthropic/claude-opus-5-5",
-          "name": "Claude Opus 5.5 (AI Gateway, 200k)",
-          "api": "anthropic-messages",
-          "reasoning": true,
-          "input": [
-            "text",
-            "image"
-          ],
-          "contextWindow": 200000,
-          "maxTokens": 128000,
-          "compat": {
-            "forceAdaptiveThinking": true,
-            "supportsTemperature": false
-          },
-          "inputLimits": {
-            "maxRequestBytes": 33554432,
-            "images": {
-              "maxPerRequest": 600
-            }
-          },
-          "thinkingLevelMap": {
-            "off": null,
-            "minimal": null,
-            "low": "low",
-            "medium": "medium",
-            "high": "high",
-            "xhigh": "xhigh",
-            "max": "max"
-          }
-        }
-      ],
-      "authHeader": true
+        "ml-app-id": "ai-devx.pi",
+        "x-dd-tag-dd.user_email": "{{ .email }}",
+        "x-dd-tag-dd.team": "compute",
+        "x-dd-tag-client_session_id": "$PI_CLIENT_SESSION_ID"
+      }
     },
-    "ai-gw-anthropic-1m": {
-      "baseUrl": "https://ai-gateway.us1.ddbuild.io",
-      "api": "anthropic-messages",
-      "apiKey": "!sh -c \"ddtool auth token rapid-ai-platform --datacenter us1.ddbuild.io 2>/dev/null | grep -E '^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$' | head -1\"",
+    "baseten": {
       "headers": {
-        "source": "pi",
-        "org-id": "2",
-        "anthropic-beta": "context-1m-2025-08-07",
-        "x-llmo-force-redaction": "true",
         "x-dd-tag-ml_app": "pi",
-        "x-dd-tag-dd.user_email": "matteo.ruina@datadoghq.com",
-        "x-dd-tag-dd.team": "unknown",
-        "provider": "anthropic",
-        "x-dd-tag-client_session_id": "$PI_CLIENT_SESSION_ID",
-        "x-dd-tag-ml_app_id": "aidevx.pi"
-      },
-      "models": [
-        {
-          "id": "anthropic/claude-opus-5-5",
-          "name": "Claude Opus 5.5 (AI Gateway, 1M)",
-          "api": "anthropic-messages",
-          "reasoning": true,
-          "input": [
-            "text",
-            "image"
-          ],
-          "contextWindow": 1000000,
-          "maxTokens": 128000,
-          "compat": {
-            "forceAdaptiveThinking": true,
-            "supportsTemperature": false
-          },
-          "inputLimits": {
-            "maxRequestBytes": 33554432,
-            "images": {
-              "maxPerRequest": 600
-            }
-          },
-          "thinkingLevelMap": {
-            "off": null,
-            "minimal": null,
-            "low": "low",
-            "medium": "medium",
-            "high": "high",
-            "xhigh": "xhigh",
-            "max": "max"
-          }
-        }
-      ],
-      "authHeader": true
-    },
-    "ai-gw-logical": {
-      "baseUrl": "https://ai-gateway.us1.ddbuild.io/v1",
-      "api": "openai-completions",
-      "apiKey": "!sh -c \"ddtool auth token rapid-ai-platform --datacenter us1.ddbuild.io 2>/dev/null | grep -E '^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$' | head -1\"",
-      "headers": {
-        "source": "pi",
-        "org-id": "2",
-        "x-llmo-force-redaction": "true",
-        "x-dd-tag-ml_app": "pi",
-        "x-dd-tag-ml_app_id": "aidevx.pi",
-        "x-dd-tag-client_session_id": "$PI_CLIENT_SESSION_ID",
-        "x-dd-tag-dd.user_email": "matteo.ruina@datadoghq.com",
-        "x-dd-tag-dd.team": "unknown"
-      },
-      "models": [
-        {
-          "id": "glm-5-3-flash",
-          "name": "GLM 5.3 Flash (AI Gateway logical)",
-          "api": "openai-completions",
-          "reasoning": true,
-          "input": [
-            "text",
-            "image"
-          ],
-          "contextWindow": 1048576,
-          "maxTokens": 131072,
-          "compat": {
-            "supportsDeveloperRole": false
-          },
-          "thinkingLevelMap": {
-            "off": null,
-            "minimal": null,
-            "low": "low",
-            "medium": null,
-            "high": "high",
-            "xhigh": null,
-            "max": "max"
-          }
-        },
-        {
-          "id": "glm-5-3",
-          "name": "GLM 5.3 (AI Gateway logical)",
-          "api": "openai-completions",
-          "reasoning": true,
-          "input": [
-            "text"
-          ],
-          "contextWindow": 1048576,
-          "maxTokens": 131072,
-          "compat": {
-            "supportsDeveloperRole": false
-          },
-          "thinkingLevelMap": {
-            "off": null,
-            "minimal": null,
-            "low": "low",
-            "medium": null,
-            "high": "high",
-            "xhigh": null,
-            "max": "max"
-          }
-        },
-        {
-          "id": "deepseek-v4-1-flash",
-          "name": "DeepSeek V4.1 Flash (AI Gateway logical)",
-          "api": "openai-completions",
-          "reasoning": true,
-          "input": [
-            "text",
-            "image"
-          ],
-          "contextWindow": 1048576,
-          "maxTokens": 32768,
-          "compat": {
-            "supportsDeveloperRole": false
-          },
-          "thinkingLevelMap": {
-            "off": "none",
-            "minimal": null,
-            "low": "low",
-            "medium": null,
-            "high": "high",
-            "xhigh": null,
-            "max": "max"
-          }
-        },
-        {
-          "id": "kimi-k3",
-          "name": "Kimi K3 (AI Gateway logical)",
-          "api": "openai-completions",
-          "reasoning": true,
-          "input": [
-            "text",
-            "image"
-          ],
-          "contextWindow": 1048576,
-          "maxTokens": 65536,
-          "compat": {
-            "supportsDeveloperRole": false
-          },
-          "thinkingLevelMap": {
-            "off": null,
-            "low": "low",
-            "high": "high",
-            "max": "max"
-          }
-        }
-      ]
-    },
-    "ai-gw-baseten": {
-      "baseUrl": "https://ai-gateway.us1.ddbuild.io/v1",
-      "api": "openai-responses",
-      "apiKey": "!sh -c \"ddtool auth token rapid-ai-platform --datacenter us1.ddbuild.io 2>/dev/null | grep -E '^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$' | head -1\"",
-      "headers": {
-        "source": "pi",
-        "org-id": "2",
-        "x-llmo-force-redaction": "true",
-        "x-dd-tag-ml_app": "pi",
-        "x-dd-tag-ml_app_id": "aidevx.pi",
-        "x-dd-tag-client_session_id": "$PI_CLIENT_SESSION_ID",
-        "x-dd-tag-dd.user_email": "matteo.ruina@datadoghq.com",
-        "x-dd-tag-dd.team": "unknown"
-      },
-      "models": [
-        {
-          "id": "baseten/deepseek-ai/DeepSeek-V4-Flash-0731",
-          "name": "DeepSeek V4 Flash 0731 (Baseten)",
-          "api": "openai-completions",
-          "reasoning": true,
-          "input": [
-            "text"
-          ],
-          "contextWindow": 1048576,
-          "maxTokens": 262144,
-          "compat": {
-            "supportsDeveloperRole": false
-          },
-          "thinkingLevelMap": {
-            "off": "none",
-            "minimal": null,
-            "low": "low",
-            "medium": null,
-            "high": "high",
-            "xhigh": null,
-            "max": "max"
-          }
-        }
-      ]
+        "ml-app-id": "ai-devx.pi",
+        "x-dd-tag-dd.user_email": "{{ .email }}",
+        "x-dd-tag-dd.team": "compute",
+        "x-dd-tag-client_session_id": "$PI_CLIENT_SESSION_ID"
+      }
     },
     "typesafe": {
-      "baseUrl": "https://ai-gateway.us1.ddbuild.io/v1",
-      "apiKey": "!sh -c \"ddtool auth token rapid-ai-platform --datacenter us1.ddbuild.io 2>/dev/null | grep -E '^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$' | head -1\"",
       "headers": {
         "source": "pi",
         "org-id": "2",
         "x-llmo-force-redaction": "true",
         "x-dd-tag-ml_app": "pi",
-        "x-dd-tag-ml_app_id": "aidevx.pi",
+        "ml-app-id": "ai-devx.pi",
         "x-dd-tag-client_session_id": "$PI_CLIENT_SESSION_ID",
         "x-dd-tag-dd.user_email": "matteo.ruina@datadoghq.com",
-        "x-dd-tag-dd.team": "unknown",
+        "x-dd-tag-dd.team": "compute",
         "provider": "typesafe"
       }
     }

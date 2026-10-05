@@ -121,20 +121,8 @@ Use 1Password only. Never hardcode secrets:
 {{ onepasswordRead "op://vault/item/field" }}
 ```
 
-## Pi models after `/refresh-models`
-`/refresh-models` changes `~/.pi/agent/models.json`; sync those changes into `dot_pi/agent/models.json.tmpl`.
-
-Classify providers before editing:
-- Work: Datadog URLs such as `https://ai-gateway.us1.ddbuild.io` or `https://ai-gateway.us1.prod.dog`, or headers containing `x-dd-tag-dd.user_email: matteo.ruina@datadoghq.com`.
-- Personal: all other providers.
-- If URL and headers disagree, stop and ask.
-
-Verify after editing:
-
-```bash
-chezmoi execute-template < ~/.local/share/chezmoi/dot_pi/agent/models.json.tmpl | diff -u - ~/.pi/agent/models.json
-chezmoi diff ~/.pi/agent/models.json
-```
+## Pi models
+The work-profile `dd-ai-gateway` package provides the Datadog Gateway models. Keep model catalogs out of `dot_pi/agent/models.json.tmpl`; that template contains only local attribution headers and compatibility overrides for stock providers. Edit the template directly when you change the overlay. Do not sync generated catalogs into the template.
 
 ## Completion workflow
 For verified changes, unless unsafe or the user asked for preview only:

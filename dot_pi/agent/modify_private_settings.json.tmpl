@@ -1,6 +1,6 @@
 #!/bin/sh
 # Chezmoi owns stable pi settings only. Pi owns runtime fields such as
-# lastChangelogVersion, defaultProvider, defaultModel, and defaultThinkingLevel.
+# lastChangelogVersion, defaultProvider, defaultModel, defaultThinkingLevel, and enabledModels.
 set -eu
 
 input=$(cat)
@@ -19,7 +19,7 @@ printf '%s\n' "$input" | jq '
     "/Users/matteo.ruina/dd/claude-marketplace/dd/skills/conductor"
   ] |
   .packages = [
-    "../../go/src/github.com/DataDog/datadog-pi-packages/packages/refresh-models",
+    "../../go/src/github.com/DataDog/datadog-pi-packages/packages/dd-ai-gateway",
     "../../go/src/github.com/DataDog/datadog-pi-packages/packages/confluence-cli",
     "../../go/src/github.com/DataDog/datadog-pi-packages/packages/pi-npm-guard",
     "../../go/src/github.com/DataDog/datadog-pi-packages/packages/prompt-stash",

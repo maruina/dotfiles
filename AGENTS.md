@@ -32,6 +32,7 @@ Declare Homebrew packages in `run_onchange_brew-install.sh.tmpl`. Do not install
 ## Pi Agent Development
 - `dot_pi/agent/exact_prompts/*.md` defines global slash commands. The filename defines the command; keep lifecycle behavior in these prompts rather than duplicating it in guidance.
 - `dot_pi/agent/exact_extensions/*.ts` contains auto-discovered extension entrypoints, which must export a default factory. Put helpers and tests under `_shared/` or an extension subdirectory.
+- The work-profile `models.json.tmpl` header `x-dd-tag-client_session_id: $PI_CLIENT_SESSION_ID` requires `exact_extensions/pi-client-session-id/`; without it, every Gateway request fails, including `pi --no-extensions` unless the extension is loaded explicitly with `-e`.
 - Runtime dependencies belong under `~/.pi/agent/node_modules`. Dependencies under `dot_pi/agent/node_modules` are disposable and excluded from Git and chezmoi rendering.
 - Before `/verify` for changes under `dot_pi/agent/`, run `npm ci --ignore-scripts` in that directory. Keep dependencies until `npm test` and `npm run test:all` complete, then remove them.
 

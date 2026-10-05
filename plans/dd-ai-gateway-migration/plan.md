@@ -52,7 +52,7 @@ The `pi-client-session-id` extension SHALL set `process.env.PI_CLIENT_SESSION_ID
 - THEN `PI_CLIENT_SESSION_ID` equals the new id
 
 ### Requirement: Gateway providers carry the attribution overlay
-The work-profile `models.json` SHALL define `anthropic`, `openai`, `google`, `baseten`, and `typesafe` provider entries whose `headers` contain exactly `x-dd-tag-ml_app: pi`, `x-dd-tag-ml_app_id: aidevx.pi`, `x-dd-tag-dd.user_email: <chezmoi .email>`, `x-dd-tag-dd.team: compute`, and `x-dd-tag-client_session_id: $PI_CLIENT_SESSION_ID` (plus `provider: typesafe` on `typesafe`, kept for parity with today's entry). After cutover, these entries SHALL NOT set `baseUrl` or `apiKey`.
+The work-profile `models.json` SHALL define `anthropic`, `openai`, `google`, `baseten`, and `typesafe` provider entries whose `headers` contain the five attribution tags `x-dd-tag-ml_app: pi`, `x-dd-tag-ml_app_id: aidevx.pi`, `x-dd-tag-dd.user_email: <chezmoi .email>`, `x-dd-tag-dd.team: compute`, and `x-dd-tag-client_session_id: $PI_CLIENT_SESSION_ID`. The four new entries (`anthropic`, `openai`, `google`, `baseten`) SHALL carry exactly those five headers, except `anthropic` which additionally carries `anthropic-beta: context-1m-2025-08-07` for 1M-context parity with today's `ai-gw-anthropic-1m`. The existing `typesafe` entry keeps its other headers (`source`, `org-id`, `x-llmo-force-redaction`, `provider: typesafe`). After cutover, these entries SHALL NOT set `baseUrl` or `apiKey`.
 
 #### Scenario: rendered template has the overlay
 - GIVEN the work-profile chezmoi config
@@ -135,7 +135,7 @@ After cutover, the work-profile `models.json` SHALL contain no `ai-gw-*` provide
 - Render templates with `chezmoi --source <worktree> execute-template`, never `--init`.
 - `enabledModels`, `defaultProvider`, and `defaultModel` are Pi-owned (`modify_private_settings.json.tmpl` header comment). Set them through Pi (`/model`, `/scoped-models`), not chezmoi.
 - Do not run `/refresh-models` between Task 2 and Task 4: refresh-models manages the `typesafe` entry and can rewrite it during a save.
-- The throwaway probe extension lives in `/tmp` and is never committed. It MUST NOT print `Authorization` or any header value outside the allowlist: `source`, `org-id`, `provider`, `claude-code`, `x-llmo-force-redaction`, `x-dd-tag-*`.
+- The throwaway probe extension lives in `/tmp` and is never committed. It MUST NOT print `Authorization` or any header value outside the allowlist: `source`, `org-id`, `provider`, `claude-code`, `anthropic-beta`, `x-llmo-force-redaction`, `x-dd-tag-*`.
 - **Stop conditions:** stop and report if (a) the probe log does not include provider-configured headers (then use the DDSQL span check as the Slice 1 evidence instead, and record the gap); (b) any probe model returns a Gateway error that does not occur on the corresponding `ai-gw-*` model; (c) DDSQL shows no spans for the probe session after 10 minutes; (d) `session_start` does not fire before the first request in `-p` mode.
 - Safety and performance: the extension does one env assignment per session start; no processes, timers, or network. Header resolution is per request inside Pi; no new fan-out.
 
@@ -188,7 +188,7 @@ Delivers: stock `dd-ai-gateway` plus the local overlay sends the full attributio
 **Files:** `dot_pi/agent/exact_extensions/pi-client-session-id/index.ts`, `dot_pi/agent/exact_extensions/pi-client-session-id/index.test.ts`, `dot_pi/agent/package.json`
 
 - [ ] Run `npm ci --ignore-scripts` in `dot_pi/agent` (repository `AGENTS.md`).
-- [ ] Write `index.test.ts` with: the two session-id scenarios (fake `pi.on` capturing the `session_start` handler); a rendered-catalog test asserting the five providers each have the five attribution headers (`typesafe` also `provider: typesafe`) and the `anthropic` `compat` with four `false` flags; and the coupling guard (if any rendered header value contains `$PI_CLIENT_SESSION_ID`, the extension `index.ts` exists).
+- [ ] Write `index.test.ts` with: the two session-id scenarios (fake `pi.on` capturing the `session_start` handler); a rendered-catalog test asserting the five providers each have the five attribution headers (`typesafe` also `provider: typesafe`), the `anthropic` entry also carries `anthropic-beta: context-1m-2025-08-07`, and the `anthropic` `compat` has four `false` flags; and the coupling guard (if any rendered header value contains `$PI_CLIENT_SESSION_ID`, the extension `index.ts` exists).
 - [ ] Add `"$ext"/pi-client-session-id/*.test.ts` to `test:unit` in `dot_pi/agent/package.json`.
 - [ ] Run `node --experimental-strip-types --test exact_extensions/pi-client-session-id/index.test.ts` from `dot_pi/agent`; expect failures for the missing extension and missing overlay.
 - [ ] Implement `index.ts`: default factory registering `pi.on("session_start", (_event, ctx) => { process.env.PI_CLIENT_SESSION_ID = ctx.sessionManager.getSessionId(); })`, with a short header comment naming the `models.json` coupling.
@@ -201,7 +201,7 @@ Delivers: stock `dd-ai-gateway` plus the local overlay sends the full attributio
 **Traces to:** Requirement "Gateway providers carry the attribution overlay"; Requirement "Claude requests avoid flags that trigger Gateway fallback"
 **Files:** `dot_pi/agent/models.json.tmpl`, plus Task 1 files
 
-- [ ] In the work branch, add `anthropic`, `openai`, `google`, `baseten` entries with only `headers` (five attribution headers, email as `{{ .email }}`, team `compute`), and `compat` on `anthropic` only.
+- [ ] In the work branch, add `anthropic`, `openai`, `google`, `baseten` entries with only `headers` (five attribution headers, email as `{{ .email }}`, team `compute`; the `anthropic` entry also carries `anthropic-beta: context-1m-2025-08-07` for 1M-context parity with `ai-gw-anthropic-1m`), and `compat` on `anthropic` only.
 - [ ] In the existing `typesafe` entry, change only `x-dd-tag-dd.team` to `compute`; keep its `baseUrl` and `apiKey` until Task 4.
 - [ ] Leave all `ai-gw-*` providers unchanged.
 - [ ] Run `node --experimental-strip-types --test exact_extensions/pi-client-session-id/index.test.ts`; expect all tests pass.
@@ -218,8 +218,8 @@ Delivers: stock `dd-ai-gateway` plus the local overlay sends the full attributio
 - [ ] Run `git -C ~/go/src/github.com/DataDog/datadog-pi-packages pull --ff-only` so the installed `dd-ai-gateway` is current `main`.
 - [ ] Apply the Slice 1 targets: `chezmoi --source <worktree> apply ~/.pi/agent/models.json ~/.pi/agent/extensions/pi-client-session-id/index.ts`.
 - [ ] Write `/tmp/header-probe.ts`: a `before_provider_headers` handler that appends to `/tmp/dd-ai-gateway-probe.log` the `ctx.model` provider and id, `ctx.model.compat`, and allowlisted headers only (see Implementation Constraints).
-- [ ] Generate a lowercase UUID per run. For each model `anthropic/claude-opus-5-5`, `openai/openai/gpt-6-luna`, `google/gemini-3.8-flash`, `baseten/baseten/zai-org/GLM-5.3-Flash`, run `pi --no-extensions -e ~/go/src/github.com/DataDog/datadog-pi-packages/packages/dd-ai-gateway/extensions/dd-ai-gateway/index.ts -e ~/.pi/agent/extensions/pi-client-session-id/index.ts -e /tmp/header-probe.ts --session-id <uuid> --model <model> -p "Reply with ok"`; expect exit 0 and a reply.
-- [ ] Check the log: each request has `x-dd-tag-ml_app: pi`, `x-dd-tag-ml_app_id: aidevx.pi`, `x-dd-tag-dd.user_email: matteo.ruina@datadoghq.com`, `x-dd-tag-dd.team: compute`, `x-dd-tag-client_session_id: <uuid>`, `claude-code: true`; the Claude request shows the four compat flags `false`. Apply stop condition (a) if configured headers are absent.
+- [ ] Generate a lowercase UUID per run. For each model `anthropic/claude-opus-5-5`, `openai/openai/gpt-6-luna`, `google/gemini-3.8-flash`, `baseten/baseten/zai-org/GLM-5.3-Flash`, `baseten/baseten/zai-org/GLM-5.3`, run `pi --no-extensions -e ~/go/src/github.com/DataDog/datadog-pi-packages/packages/dd-ai-gateway/extensions/dd-ai-gateway/index.ts -e ~/.pi/agent/extensions/pi-client-session-id/index.ts -e /tmp/header-probe.ts --session-id <uuid> --model <model> -p "Reply with ok"`; expect exit 0 and a reply.
+- [ ] Check the log: each request has `x-dd-tag-ml_app: pi`, `x-dd-tag-ml_app_id: aidevx.pi`, `x-dd-tag-dd.user_email: matteo.ruina@datadoghq.com`, `x-dd-tag-dd.team: compute`, `x-dd-tag-client_session_id: <uuid>`, `claude-code: true`; the Claude request shows the four compat flags `false` and `anthropic-beta: context-1m-2025-08-07`. Apply stop condition (a) if configured headers are absent.
 - [ ] Failure path: run once with `-e` for `dd-ai-gateway` only (omit `pi-client-session-id`); expect the `PI_CLIENT_SESSION_ID` resolution error.
 - [ ] After up to 10 minutes, run `pup ddsql table` with a query on `dd.llm_observability` (`columns => ARRAY['ml_app','ml_app_id','dd.team','dd.user_email','client_session_id']`, `filter => 'service:ai_gateway client_session_id:<uuid>'`), grouped by model; expect one row per probe model with the expected tag values. Use the same `env -u DD_ORG -u DD_ACCESS_TOKEN -u DD_API_KEY -u DD_APP_KEY DD_SITE=datadoghq.com pup ...` prefix as `session-cost`.
 - [ ] Record the commands and results under `## Execution evidence` in this plan and commit with `docs: record dd-ai-gateway probe evidence`.
@@ -237,6 +237,7 @@ Delivers: refresh-models is uninstalled, Pi uses the builtin providers through s
 - [ ] Remove `baseUrl` and `apiKey` from the `typesafe` entry (stock `dd-ai-gateway` registers both).
 - [ ] Delete the `ai-gw-openai`, `ai-gw-google`, `ai-gw-anthropic-200k`, `ai-gw-anthropic-1m`, `ai-gw-logical`, and `ai-gw-baseten` entries from the work branch. Keep the personal branch unchanged.
 - [ ] In the work `.packages` list, replace `../../go/src/github.com/DataDog/datadog-pi-packages/packages/refresh-models` with `../../go/src/github.com/DataDog/datadog-pi-packages/packages/dd-ai-gateway`.
+- [ ] Add `enabledModels` to the Pi-owned fields comment at the top of `modify_private_settings.json.tmpl` (the comment names `defaultProvider` and `defaultModel` but not `enabledModels`, which Task 5 sets through Pi).
 - [ ] Run `npm test` in `dot_pi/agent`; expect pass, including the new cutover test (the recommender catalog test iterates no work models).
 - [ ] Run `chezmoi --source <worktree> diff ~/.pi/agent/models.json ~/.pi/agent/settings.json`; expect only the removals, the `typesafe` field removal, and the package swap.
 - [ ] Apply both targets with `chezmoi --source <worktree> apply` and restart Pi.

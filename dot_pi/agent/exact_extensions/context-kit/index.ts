@@ -2,7 +2,8 @@ import type { BeforeAgentStartEvent, BeforeAgentStartEventResult, ContextEvent, 
 import { getAgentDir, isToolCallEventType } from "@earendil-works/pi-coding-agent";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { Text } from "@earendil-works/pi-tui";
 import { findLocalSibling, walkUpForAgents } from "./_agents.ts";
 import { blockingPaths, clearPending, confirmDelivered, createState, discover, queue } from "./_delivery.ts";
 import {
@@ -40,8 +41,8 @@ import {
  * invalidates the cache for ALL subsequent content — including every prior
  * conversation turn. We therefore keep system-prompt modifications to an
  * absolute minimum and deliver reactively-discovered context (subdir
- * AGENTS.md, AGENTS.local.md siblings, rules) as hidden custom messages
- * that are injected once and then persist naturally in conversation history.
+ * AGENTS.md, AGENTS.local.md siblings, rules) as custom messages that persist
+ * naturally in conversation history. The TUI shows compact paths, not contents.
  *
  * ┌─────────────────────────────────────────────────────────────────────┐
  * │  Prompt layer    │ Operation       │ When                           │
@@ -87,12 +88,24 @@ const MAX_BATCH_BYTES = 96 * 1024;
 const TRUNCATION_MARKER = "[truncated: file exceeds the per-file size limit]";
 
 export default function (pi: ExtensionAPI) {
+  pi.registerMessageRenderer(CONTEXT_KIT_CUSTOM_TYPE, (message, _options, theme) => {
+    const details = message.details as { paths?: unknown; cwd?: unknown } | undefined;
+    const cwd = typeof details?.cwd === "string" ? details.cwd : "";
+    const paths = Array.isArray(details?.paths) ? details.paths.filter((path): path is string => typeof path === "string") : [];
+    const tree = paths.map((path, index) =>
+      `  ${index === paths.length - 1 ? "└─" : "├─"} [${contextKind(path)}] ${displayDiscoveryPath(path, cwd)}`,
+    );
+    const text = ["context-kit loaded:", ...tree].join("\n");
+    return new Text(`${theme.fg("success", "✓")} ${theme.fg("muted", text)}`, 0, 0);
+  });
+
   const state = createState();
   let piContextPaths = new Set<string>();
   const startupSiblingPaths = new Set<string>();
   const injectedFiles: InjectedContextFile[] = [];
   const ignoredFiles = new Map<string, IgnoredContextFile>();
   let injectionMessages = 0;
+  let blockedMutations = 0;
   // Count of files first recorded as ignored this turn. Reset at the top of
   // each before_agent_start; used to decide whether to persist the usage
   // record even when nothing was injected.
@@ -128,6 +141,7 @@ export default function (pi: ExtensionAPI) {
         formatContextKitStatus({
           cwd: ctx.cwd,
           injectionMessages,
+          blockedMutations,
           injected: injectedFiles,
           ignored: [...ignoredFiles.values()],
         }) +
@@ -221,8 +235,8 @@ export default function (pi: ExtensionAPI) {
           {
             customType: CONTEXT_KIT_CUSTOM_TYPE,
             content: batch.content,
-            display: false,
-            details: { paths },
+            display: true,
+            details: { paths, cwd },
           },
           { deliverAs: "steer" },
         );
@@ -248,6 +262,7 @@ export default function (pi: ExtensionAPI) {
     }
 
     if (isMutation && blocking.length > 0) {
+      blockedMutations++;
       return { block: true, reason: blockReason(abs, blocking) };
     }
   }));
@@ -361,8 +376,8 @@ export default function (pi: ExtensionAPI) {
             message: {
               customType: CONTEXT_KIT_CUSTOM_TYPE,
               content: batch.content,
-              display: false,
-              details: { paths: newBlocks.map((block) => block.file.path) },
+              display: true,
+              details: { paths: newBlocks.map((block) => block.file.path), cwd },
             },
           }
         : {}),
@@ -380,6 +395,12 @@ export default function (pi: ExtensionAPI) {
  */
 function warn(ctx: ExtensionContext, message: string): void {
   if (ctx.hasUI) ctx.ui.notify(message, "warning");
+}
+
+function displayDiscoveryPath(path: string, cwd: string): string {
+  if (!cwd) return path;
+  const rel = relative(cwd, path);
+  return rel && !rel.startsWith("..") && !isAbsolute(rel) ? rel : path;
 }
 
 function blockReason(targetPath: string, blocking: readonly string[]): string {

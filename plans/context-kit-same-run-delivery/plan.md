@@ -251,17 +251,17 @@ Delivers the smallest user-feedback slice: blocked first edit, same-turn visible
 - [x] Commit with `feat(pi): bound context-kit injection size and fail open on discovery errors` (`47918cd`).
 
 ### Task 3: Visible tree and blocked-mutation count
-**Execution status:** In progress.
+**Execution status:** Complete.
 **Delivers:** The UI shows what loaded and why an edit was blocked; status reports blocked mutations.
 **Blocked by:** 1
 **Traces to:** Requirements "Visible compact tree" and "Blocked-mutation observability"
 **Files:** `dot_pi/agent/exact_extensions/context-kit/index.ts`, `dot_pi/agent/exact_extensions/context-kit/_status.ts`, `dot_pi/agent/exact_extensions/context-kit/_status.test.ts`, `dot_pi/agent/exact_extensions/context-kit/_status-command.test.ts`, `dot_pi/agent/exact_extensions/context-kit/_lifecycle.test.ts`
 
-- [ ] Add failing tests for renderer output and `Blocked mutations: N`. Update the status-command stub to accept `registerMessageRenderer`.
-- [ ] Run `npm run test:context-kit`; expect those tests to fail.
-- [ ] Register the renderer with `Text` from `@earendil-works/pi-tui`, following `exact_extensions/turn-timer/index.ts`. Set `display: true` on discovery messages. Add the counter and the status line.
-- [ ] Run `npm run test:context-kit`; expect all tests to pass.
-- [ ] Commit with `feat(pi): show context-kit deliveries and blocked edits`.
+- [x] Add failing tests for renderer output and `Blocked mutations: N`. Update the status-command stub to accept `registerMessageRenderer`.
+- [x] Run `npm run test:context-kit`; renderer, status count, and cwd metadata assertions failed as expected.
+- [x] Register the renderer with `Text` from `@earendil-works/pi-tui`, following `exact_extensions/turn-timer/index.ts`. Set `display: true` on discovery messages. Add the counter and the status line.
+- [x] Run `npm run test:context-kit`; all 74 tests passed. `git diff --check` passed.
+- [x] Commit with `feat(pi): show context-kit deliveries and blocked edits` (`aabe3cf`).
 
 ### Slice 2: Direct interactions count
 Delivers: reading an instruction or rule file directly counts as delivery and unblocks edits once confirmed.

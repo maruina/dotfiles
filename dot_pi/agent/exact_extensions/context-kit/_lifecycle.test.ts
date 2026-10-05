@@ -16,27 +16,38 @@ after(() => {
 
 type AnyRecord = Record<string, unknown>;
 type Handler = (event: AnyRecord, ctx: AnyRecord) => unknown;
+type Renderer = (message: AnyRecord, options: AnyRecord, theme: AnyRecord) => {
+  render: (width: number) => string[];
+  invalidate: () => void;
+};
 type Harness = {
   handlers: Map<string, Handler>;
+  commands: Map<string, (args: string, ctx: AnyRecord) => Promise<void>>;
+  renderers: Map<string, Renderer>;
   sent: AnyRecord[];
   sentOptions: (AnyRecord | undefined)[];
   appended: AnyRecord[];
   warnings: string[];
+  notifications: Array<{ message: string; level: string }>;
   root: string;
 };
 
 function createHarness(root: string): Harness {
   const harness: Harness = {
     handlers: new Map(),
+    commands: new Map(),
+    renderers: new Map(),
     sent: [],
     sentOptions: [],
     appended: [],
     warnings: [],
+    notifications: [],
     root,
   };
   register({
     on: (name: string, handler: Handler) => harness.handlers.set(name, handler),
-    registerCommand() {},
+    registerCommand: (name: string, command: { handler: (args: string, ctx: AnyRecord) => Promise<void> }) => harness.commands.set(name, command.handler),
+    registerMessageRenderer: (name: string, renderer: Renderer) => harness.renderers.set(name, renderer),
     sendMessage: (message: AnyRecord, options?: AnyRecord) => {
       harness.sent.push(message);
       harness.sentOptions.push(options);
@@ -51,7 +62,10 @@ function ctx(h: Harness, hasUI = false): AnyRecord {
   return {
     cwd: h.root,
     hasUI,
-    ui: { notify: (message: string, level: string) => { if (level === "warning") h.warnings.push(message); } },
+    ui: { notify: (message: string, level: string) => {
+      h.notifications.push({ message, level });
+      if (level === "warning") h.warnings.push(message);
+    } },
     sessionManager: { getSessionId: () => "lifecycle-test" },
   };
 }
@@ -109,7 +123,7 @@ test("read discovers nested files and matching rules in the same run", async () 
 
     const message = h.sent[0] as { customType: string; content: string; display: boolean; details: { paths: string[] } };
     assert.equal(message.customType, "context-kit-discovery");
-    assert.equal(message.display, false);
+    assert.equal(message.display, true);
     assert.deepEqual(h.sentOptions[0], { deliverAs: "steer" });
     assert.deepEqual(message.details.paths, [
       join(root, "sub", "AGENTS.md"),
@@ -119,6 +133,18 @@ test("read discovers nested files and matching rules in the same run", async () 
     assert.ok(message.content.includes("sub instructions"));
     assert.ok(message.content.includes("personal sub instructions"));
     assert.ok(message.content.includes("Go instructions"));
+    const renderer = h.renderers.get("context-kit-discovery");
+    assert.ok(renderer, "discovery renderer must be registered");
+    const rendered = renderer(message, {}, { fg: (_color: string, text: string) => text }).render(120).map((line) => line.trimEnd());
+    assert.deepEqual(rendered, [
+      "✓ context-kit loaded:",
+      "  ├─ [AGENTS.md] sub/AGENTS.md",
+      "  ├─ [AGENTS.local.md] sub/AGENTS.local.md",
+      "  └─ [Claude rule] .claude/rules/go.md",
+    ]);
+    assert.ok(!rendered.join("\n").includes("sub instructions"));
+    assert.ok(!rendered.join("\n").includes("personal sub instructions"));
+    assert.ok(!rendered.join("\n").includes("Go instructions"));
 
     await deliver(h, message);
     assert.equal(await toolCall(h, "read", "sub/another.go"), undefined);
@@ -135,8 +161,13 @@ test("mutations block until delivery and parallel calls share one announcement",
     await start(h);
 
     const first = (await toolCall(h, "edit", "sub/example.go")) as { block: boolean; reason: string };
-    const second = (await toolCall(h, "write", "sub/other.go")) as { block: boolean; reason: string };
     assert.equal(first.block, true);
+    const status = h.commands.get("context-kit");
+    assert.ok(status, "status command must be registered");
+    await status("status", ctx(h, true));
+    assert.match(h.notifications.at(-1)?.message ?? "", /Blocked mutations: 1/);
+
+    const second = (await toolCall(h, "write", "sub/other.go")) as { block: boolean; reason: string };
     assert.equal(second.block, true);
     for (const result of [first, second]) {
       assert.ok(result.reason.includes(join(root, "sub", "AGENTS.md")));
@@ -283,7 +314,7 @@ test("startup local sibling is delivered and does not block later mutations", as
     assert.ok(startupMessage?.message);
     const message = startupMessage.message as AnyRecord;
     assert.equal(message.customType, "context-kit-discovery");
-    assert.deepEqual(message.details, { paths: [local] });
+    assert.deepEqual(message.details, { paths: [local], cwd: root });
     await deliver(h, message);
 
     assert.equal(await toolCall(h, "edit", "example.go"), undefined);

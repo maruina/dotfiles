@@ -334,8 +334,11 @@ export default function (pi: ExtensionAPI): void {
     },
   }));
 
+  // deliberate: pi-tui does not request slash-argument completions on a comma
+  // typed after a selected item. Typing and deleting a character reopens them.
+  // Upgrade path: add punctuation-triggered argument completion to pi-tui.
   pi.registerCommand("tag", {
-    description: "Set or edit this session's tags. Usage: /tag cla,controllers, or /tag with no arguments to edit in a dialog.",
+    description: "Set or edit this session's tags. Arguments autocomplete tags from session history. After a comma, type and delete a character to reopen suggestions. Usage: /tag cla,controllers, or /tag with no arguments to edit in a dialog.",
     getArgumentCompletions: async (argumentPrefix) => {
       if (!tagVocabularyPromise) return null;
       await tagVocabularyPromise;

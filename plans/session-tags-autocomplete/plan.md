@@ -2,8 +2,8 @@
 > Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Give `/tag <args>` fuzzy autocomplete over the tags used across all sessions, without a session scan on each keystroke.
-**Smallest user-feedback slice:** Type `/tag co`, see fuzzy-ranked tags from all sessions, select one, type `,`, and get completions for the next tag.
-**Out of Scope:** On-disk index or cache file; completion inside the no-argument `/tag` editor dialog; live visibility of tags that concurrent pi processes set; changes to `/tags`, `search_sessions_by_tags`, or their skipped counts; fzf integration.
+**Smallest user-feedback slice:** Type `/tag co`, see fuzzy-ranked tags from all sessions, select one, type `,`, then type and delete a character to reopen completions for the next tag.
+**Out of Scope:** On-disk index or cache file; completion inside the no-argument `/tag` editor dialog; live visibility of tags that concurrent pi processes set; changes to `/tags`, `search_sessions_by_tags`, or their skipped counts; automatic punctuation-trigger changes in pi-tui; fzf integration.
 **Architecture:** Session files stay the only source of truth. At the first `session_start` of a process, the extension starts one background scan that builds an in-memory tag vocabulary (tag → session count) and only JSON-parses files that contain the `"pi.session-tags"` marker. The `tag` command's `getArgumentCompletions` awaits that scan, then ranks the vocabulary with pi-tui `fuzzyFilter`.
 **Tech Stack:** TypeScript pi extension (pi 1.0.0 runtime), `@earendil-works/pi-tui` `fuzzyFilter`, Node `node:test` with `--experimental-strip-types`.
 
@@ -23,13 +23,15 @@
 | `skill-loader` | `prompt-required` | /execute start | Checked language and domain skill triggers before review and edits. |
 | `resolve-worktree` | `prompt-required` | The execution input is an absolute plan path | Resolved the plan to this Git worktree before reading repository files. |
 | `feature-worktree` | `prompt-required` | File changes must stay in the plan's feature worktree | Confirmed the resolved branch is `maruina/session-tags-autocomplete`; no worktree creation was needed. |
-| `codebase-research` | `skill-loader` | Extension behavior spans the command, session lifecycle, file scan, and tests | Mapped current behavior and test patterns before implementation. |
+| `codebase-research` | `skill-loader` | Extension behavior spans the command, session lifecycle, file scan, and tests | Mapped extension behavior and test patterns, then traced the comma behavior through pi-tui's trigger dispatch. |
 | `chezmoi` | `skill-loader` | The extension is a chezmoi source file | Followed source-only editing, scoped diff/apply, and Pi test guidance. |
 | `write` | `skill-loader` | The extension header and command description are prose | Applied concise, behavior-focused comment and description wording. |
+| `learning-candidates` | `prompt-required` | The TUI result disproved the plan's per-keystroke completion assumption | Recorded the runtime trigger finding for later `/learn` adjudication. |
+| `reviewable-pr-workflow` | `skill-loader` | Before PR and stack-split review | Found two soft split signals, proposed a stack, and followed the user's direction to keep one PR. |
 
 ## Context and evidence
 - Prior design `plans/pi-session-tags/design.md` deferred "tag-name completion in `/tag` arguments" (lifted by this plan at user request) and rejected a sidecar index because pi deletes and forks session files without notifying extensions (kept).
-- Pi API: `registerCommand(name, { getArgumentCompletions(argumentPrefix) })` returns `AutocompleteItem[] | null` or a Promise of it (`dist/core/extensions/types.d.ts`, `RegisteredCommand`). The editor calls it on each keystroke after `/tag ` with the full argument text, without an abort signal, and discards stale results. `applyCompletion` replaces the whole argument with `item.value` and adds no trailing character.
+- Pi API: `registerCommand(name, { getArgumentCompletions(argumentPrefix) })` returns `AutocompleteItem[] | null` or a Promise of it (`dist/core/extensions/types.d.ts`, `RegisteredCommand`). The editor invokes it for slash-command letters and explicit Tab requests, not when a comma is typed after a selected completion. `applyCompletion` replaces the whole argument with `item.value` and adds no trailing character.
 - `fuzzyFilter(items, query, getText)` from `@earendil-works/pi-tui` returns items unchanged for an empty query and is already used in `dot_pi/agent/exact_extensions/files.ts`. The pinned devDependency `0.80.6` exports it.
 - Measured on the work laptop: 1001 session files, 470 MB. List and stat: about 15 ms. Read all: 0.6–1.4 s. Files with tags: 6.
 - Usage pattern (user): tags are set at the end of a session, minutes after start. The background scan finishes long before the first `/tag` completion, so the await is a no-op in practice.
@@ -60,10 +62,11 @@
   - Return at most 20 items. Each item: `label` = tag, `description` = `N session` / `N sessions`, `value` = text up to and including the last comma, plus the token's leading whitespace, plus the tag. Example: `cla, co` → `cla, controllers`.
   - Return `null` when no item matches, and before the first `session_start` (no vocabulary yet).
 - The vocabulary includes the current session's tags and is updated after a successful `/tag` (new tags added; counts need not be exact for the current process).
+- After a selected item, pi-tui does not automatically request suggestions when the user types a comma. The accepted workaround is to type and delete one character; pi-tui input-trigger changes are out of scope.
 - The warm-up scan settles its own failure: attach a catch when the scan starts and store an empty vocabulary plus the current session's tags, so the stored promise never rejects and no `unhandledRejection` can escape (pi registers no such handler; Node's default would crash the process). Do not rely on a later await in `getArgumentCompletions` to handle the rejection.
 - Add `deliberate:` comments for: tags set by concurrent pi processes appear only after restart (upgrade path: refresh the vocabulary when `/tags` runs, or a derived mtime-keyed cache); the full read on startup (upgrade path: derived on-disk cache keyed by path, mtime, and size at about 10× the current session count).
 - Update the file header comment of `session-tags.ts` to describe the completion scan.
-- Stop and ask if the pi runtime does not call `getArgumentCompletions` for extension commands, or if `fuzzyFilter` is not importable at runtime.
+- Stop and ask if the pi runtime does not call `getArgumentCompletions` for extension commands at all, if `fuzzyFilter` is not importable at runtime, or if automatic comma-trigger behavior is requested without an approved pi-tui scope change.
 
 ### Security Requirements
 None new. The scan reads the same local session tree that `/tags` already reads. Completions show only tag names, which match `[a-z0-9][a-z0-9-]*`.
@@ -162,7 +165,7 @@ Completions SHALL NOT throw when the scan fails.
 - [x] Run `npm run test:session-tags`; all 36 tests pass.
 - [x] Run `lsp_diagnostics` on `dot_pi/agent/exact_extensions/session-tags.ts`; no diagnostics were reported.
 - [x] Review for post-green refactoring; none was needed; rerun `npm run test:session-tags`; all 36 tests pass.
-- [~] Commit with `feat(pi): fuzzy autocomplete for /tag arguments`.
+- [x] Commit with `feat(pi): fuzzy autocomplete for /tag arguments`.
 
 ### Task 2: Documentation and future-agent guidance
 **Delivers:** Accurate docs for the new behavior.
@@ -170,11 +173,16 @@ Completions SHALL NOT throw when the scan fails.
 **Traces to:** Plan contract documentation requirement
 **Files:** `dot_pi/agent/exact_extensions/session-tags.ts` (header comment, `/tag` command description), `AGENTS.md`, `dot_pi/agent/AGENTS.md`
 
-- [ ] Confirm the `session-tags.ts` header comment and the `/tag` command description mention argument autocomplete.
-- [ ] Review `AGENTS.md` and `dot_pi/agent/AGENTS.md`. Expected result: no change, because no durable command, trap, or procedure was added (the session-tags extension is not mentioned there). Record the outcome in the commit or PR description.
-- [ ] Commit any change with `docs(pi): describe /tag autocomplete`.
+- [x] Confirm the `session-tags.ts` header comment and the `/tag` command description mention argument autocomplete.
+- [x] Review `AGENTS.md` and `dot_pi/agent/AGENTS.md`; neither mentions session tags or `/tag`, so no guidance changes are needed. Record this in the docs commit or PR description.
+- [x] Commit the command-description change with `docs(pi): describe /tag autocomplete`.
+- [x] Document the accepted comma-refresh limitation in the `/tag` description and update the manual-check criteria; keep pi-tui unchanged. `chezmoi diff` showed only these planned source changes.
+- [x] Commit this clarification with `docs(pi): describe /tag autocomplete`.
 
 ## Final verification
-- [ ] Run `cd dot_pi/agent && npm test && npm run test:all`; expect all pass and no `[Extension issues]` in the smoke output. Then remove `dot_pi/agent/node_modules`.
-- [ ] Run `chezmoi --source "$PWD" diff ~/.pi/agent/extensions/session-tags.ts`; expect only the planned changes.
-- [ ] Manual check (the TUI keystroke path has no automated seam): run `chezmoi --source "$PWD" apply ~/.pi/agent/extensions/session-tags.ts`, start a new pi, type `/tag co`, and expect a suggestion list with tags from other sessions; select one, type `,`, and expect suggestions for the next tag without already-typed tags. Cleanup: press Escape and clear the input.
+- [x] Run `cd dot_pi/agent && npm test && npm run test:all`; both commands passed and the smoke output had no `[Extension issues]`. Removed `dot_pi/agent/node_modules` manually after the shell guard blocked cleanup through Pi.
+- [x] Run `chezmoi --source "$PWD" diff ~/.pi/agent/extensions/session-tags.ts`; it showed only the planned extension changes.
+- [x] Applied `chezmoi --source "$PWD" apply ~/.pi/agent/extensions/session-tags.ts`; the post-apply diff is empty. The user confirmed that typing and deleting a character reopens suggestions after a comma and accepted keeping this behavior without a pi-tui change.
+
+## Learning candidates
+- 2026-10-05: Punctuation typed after a selected extension-command completion does not request fresh suggestions; evidence: manual `/tag` check and installed `pi-tui/dist/components/editor.js:1019-1047` trigger dispatch.

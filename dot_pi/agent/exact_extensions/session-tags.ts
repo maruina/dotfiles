@@ -1,4 +1,6 @@
 // Session tags: human-assigned tags stored as pi.session-tags custom entries.
+// `/tag` arguments use a vocabulary warmed once at the first session_start. The
+// scan reads every session file but JSON-parses only files with the tag marker.
 //
 // Entry contract: /tag appends { type: "custom", customType: "pi.session-tags",
 // data: { tags: string[] } } via pi.appendEntry. The session_start handler
@@ -16,6 +18,7 @@
 // each file's active branch from its tree before reading tags.
 
 import type { ExtensionAPI, SessionEntry, SessionManager, ToolDefinition } from "@earendil-works/pi-coding-agent";
+import { fuzzyFilter } from "@earendil-works/pi-tui";
 import { readdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { Type, type Static, type TSchema } from "typebox";
@@ -130,13 +133,15 @@ function messageText(content: unknown): string {
   return "";
 }
 
-async function parseSessionFile(file: string): Promise<{ session: ScannedSession; time: number } | undefined> {
-  let text: string;
+async function readSessionFile(file: string): Promise<string | undefined> {
   try {
-    text = await readFile(file, "utf8");
+    return await readFile(file, "utf8");
   } catch {
     return undefined;
   }
+}
+
+function parseSessionText(file: string, text: string): { session: ScannedSession; time: number } | undefined {
   const lines = text.split("\n");
   if (lines.length === 0) return undefined;
 
@@ -188,6 +193,29 @@ async function parseSessionFile(file: string): Promise<{ session: ScannedSession
     },
     time,
   };
+}
+
+async function parseSessionFile(file: string): Promise<{ session: ScannedSession; time: number } | undefined> {
+  const text = await readSessionFile(file);
+  return text === undefined ? undefined : parseSessionText(file, text);
+}
+
+async function scanTagVocabulary(root: string): Promise<Map<string, number>> {
+  const vocabulary = new Map<string, number>();
+  const entries = await readdir(root, { recursive: true, withFileTypes: true });
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.endsWith(".jsonl")) continue;
+    const file = join(entry.parentPath, entry.name);
+    const text = await readSessionFile(file);
+    if (text === undefined || !text.includes(`"${TAG_ENTRY_TYPE}"`)) continue;
+    const result = parseSessionText(file, text);
+    if (!result) continue;
+    for (const tag of new Set(result.session.tags)) {
+      if (!TAG_RE.test(tag)) continue;
+      vocabulary.set(tag, (vocabulary.get(tag) ?? 0) + 1);
+    }
+  }
+  return vocabulary;
 }
 
 export async function scanSessions(root: string): Promise<ScanResult> {
@@ -257,6 +285,27 @@ function sameTags(a: string[], b: string[]): boolean {
 
 export default function (pi: ExtensionAPI): void {
   let currentTags: string[] = [];
+  let tagVocabulary: Map<string, number> | undefined;
+  let tagVocabularyPromise: Promise<void> | undefined;
+  const currentProcessTags = new Set<string>();
+
+  // deliberate: Tags written by another Pi process stay invisible until restart.
+  // Refresh when `/tags` runs or use a derived mtime-keyed cache for live updates.
+  // deliberate: The startup scan reads every session file. At about 10x the
+  // current session count, use a derived cache keyed by path, mtime, and size.
+  const rememberTags = (tags: string[]) => {
+    for (const tag of tags) {
+      if (!TAG_RE.test(tag)) continue;
+      currentProcessTags.add(tag);
+      if (tagVocabulary && !tagVocabulary.has(tag)) tagVocabulary.set(tag, 1);
+    }
+  };
+  const setTagVocabulary = (vocabulary: Map<string, number>) => {
+    tagVocabulary = vocabulary;
+    for (const tag of currentProcessTags) {
+      if (!tagVocabulary.has(tag)) tagVocabulary.set(tag, 1);
+    }
+  };
 
   // Pi anchors appendEntry custom entries to the session tree, but the next
   // user message forks from the message chain, so tag entries can fall off the
@@ -264,6 +313,14 @@ export default function (pi: ExtensionAPI): void {
   // in file order (getBranch() would miss them), matching the scan's rule.
   pi.on("session_start", (_event, ctx) => {
     currentTags = tagsFromBranch(ctx.sessionManager.getEntries());
+    rememberTags(currentTags);
+    if (tagVocabularyPromise) return;
+
+    const manager = ctx.sessionManager as ReadSessionManager;
+    const root = resolveScanRoot(manager.getSessionDir(), manager.usesDefaultSessionDir());
+    tagVocabularyPromise = scanTagVocabulary(root)
+      .then(setTagVocabulary)
+      .catch(() => setTagVocabulary(new Map()));
   });
 
   // The deferred tool is invisible to the model, so the agent must be told the
@@ -279,6 +336,28 @@ export default function (pi: ExtensionAPI): void {
 
   pi.registerCommand("tag", {
     description: "Set or edit this session's tags. Usage: /tag cla,controllers, or /tag with no arguments to edit in a dialog.",
+    getArgumentCompletions: async (argumentPrefix) => {
+      if (!tagVocabularyPromise) return null;
+      await tagVocabularyPromise;
+      if (!tagVocabulary) return null;
+
+      const lastComma = argumentPrefix.lastIndexOf(",");
+      const token = argumentPrefix.slice(lastComma + 1);
+      const leadingWhitespace = token.match(/^\s*/)?.[0] ?? "";
+      const query = token.trim().toLowerCase();
+      const valuePrefix = lastComma === -1 ? "" : argumentPrefix.slice(0, lastComma + 1);
+      const previousTags = new Set(parseTags(lastComma === -1 ? "" : argumentPrefix.slice(0, lastComma)).tags);
+      const items = [...tagVocabulary.entries()]
+        .filter(([tag]) => TAG_RE.test(tag) && !previousTags.has(tag))
+        .sort(([aTag, aCount], [bTag, bCount]) => bCount - aCount || aTag.localeCompare(bTag))
+        .map(([tag, count]) => ({
+          label: tag,
+          description: `${count} ${sessionsWord(count)}`,
+          value: `${valuePrefix}${leadingWhitespace}${tag}`,
+        }));
+      const matches = fuzzyFilter(items, query, (item) => item.label).slice(0, 20);
+      return matches.length === 0 ? null : matches;
+    },
     handler: async (args, ctx) => {
       // deliberate: in pi 1.0.0 the input dialog cannot be prefilled — the TUI
       // ignores the placeholder and its runner drops any opts value. The
@@ -295,6 +374,7 @@ export default function (pi: ExtensionAPI): void {
       if (sameTags(parsed.tags, currentTags)) return; // unchanged resubmission
       currentTags = parsed.tags;
       pi.appendEntry(TAG_ENTRY_TYPE, { tags: parsed.tags });
+      rememberTags(parsed.tags);
       ctx.ui.notify(parsed.tags.length > 0 ? `Tags: ${parsed.tags.join(", ")}` : "Tags cleared");
     },
   });

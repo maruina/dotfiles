@@ -17,6 +17,16 @@
 | `learning-lookup` | `prompt-required` | Before feasibility decisions | Matched "Make the durable log the source of truth; treat on-disk copies as a warm cache": keep session files as truth; any future cache must be derived and rebuildable. |
 | `feature-worktree` | `prompt-required` | Durable plan needs a feature worktree | Created `maruina/session-tags-autocomplete` from `origin/main` at `~/dd/.worktrees/dotfiles/maruina-session-tags-autocomplete`. |
 
+### Execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `skill-loader` | `prompt-required` | /execute start | Checked language and domain skill triggers before review and edits. |
+| `resolve-worktree` | `prompt-required` | The execution input is an absolute plan path | Resolved the plan to this Git worktree before reading repository files. |
+| `feature-worktree` | `prompt-required` | File changes must stay in the plan's feature worktree | Confirmed the resolved branch is `maruina/session-tags-autocomplete`; no worktree creation was needed. |
+| `codebase-research` | `skill-loader` | Extension behavior spans the command, session lifecycle, file scan, and tests | Mapped current behavior and test patterns before implementation. |
+| `chezmoi` | `skill-loader` | The extension is a chezmoi source file | Followed source-only editing, scoped diff/apply, and Pi test guidance. |
+| `write` | `skill-loader` | The extension header and command description are prose | Applied concise, behavior-focused comment and description wording. |
+
 ## Context and evidence
 - Prior design `plans/pi-session-tags/design.md` deferred "tag-name completion in `/tag` arguments" (lifted by this plan at user request) and rejected a sidecar index because pi deletes and forks session files without notifying extensions (kept).
 - Pi API: `registerCommand(name, { getArgumentCompletions(argumentPrefix) })` returns `AutocompleteItem[] | null` or a Promise of it (`dist/core/extensions/types.d.ts`, `RegisteredCommand`). The editor calls it on each keystroke after `/tag ` with the full argument text, without an abort signal, and discards stale results. `applyCompletion` replaces the whole argument with `item.value` and adds no trailing character.
@@ -144,15 +154,15 @@ Completions SHALL NOT throw when the scan fails.
 **Traces to:** Requirements "Fuzzy tag completion", "No per-keystroke scan", "Vocabulary stays current within the process", "Scan failure degrades safely"
 **Files:** `dot_pi/agent/exact_extensions/session-tags.ts`, `dot_pi/agent/exact_extensions/session-tags.test.mjs`
 
-- [ ] Run `cd dot_pi/agent && npm ci --ignore-scripts`.
-- [ ] Add focused failing tests for every scenario through `getArgumentCompletions`, reusing `writeSession` and `loadExtension()`.
-- [ ] Run `npm run test:session-tags`; expect the new tests to fail because `getArgumentCompletions` is undefined, and existing tests to pass.
-- [ ] Split `parseSessionFile` into read and text-parse steps; run `npm run test:session-tags`; expect existing tests to pass.
-- [ ] Implement the vocabulary scan, the once-per-process warm-up in `session_start`, the vocabulary update in the `/tag` handler, and `getArgumentCompletions` per the input contract, with the `deliberate:` comments and the header comment update.
-- [ ] Run `npm run test:session-tags`; expect all tests to pass.
-- [ ] Run `lsp_diagnostics` on `dot_pi/agent/exact_extensions/session-tags.ts`; expect no new errors.
-- [ ] Refactor only after green, then rerun `npm run test:session-tags`.
-- [ ] Commit with `feat(pi): fuzzy autocomplete for /tag arguments`.
+- [x] Run `cd dot_pi/agent && npm ci --ignore-scripts`.
+- [x] Add focused failing tests for every scenario through `getArgumentCompletions`, reusing `writeSession` and `loadExtension()`.
+- [x] Run `npm run test:session-tags`; expected failure observed: 10 new tests fail because `getArgumentCompletions` is undefined; all 26 existing tests pass.
+- [x] Split `parseSessionFile` into read and text-parse steps; run `npm run test:session-tags`; all 26 existing tests pass, while the 10 planned completion tests fail only because the callback is not implemented yet.
+- [x] Implement the vocabulary scan, the once-per-process warm-up in `session_start`, the vocabulary update in the `/tag` handler, and `getArgumentCompletions` per the input contract, with the `deliberate:` comments and the header comment update.
+- [x] Run `npm run test:session-tags`; all 36 tests pass.
+- [x] Run `lsp_diagnostics` on `dot_pi/agent/exact_extensions/session-tags.ts`; no diagnostics were reported.
+- [x] Review for post-green refactoring; none was needed; rerun `npm run test:session-tags`; all 36 tests pass.
+- [~] Commit with `feat(pi): fuzzy autocomplete for /tag arguments`.
 
 ### Task 2: Documentation and future-agent guidance
 **Delivers:** Accurate docs for the new behavior.

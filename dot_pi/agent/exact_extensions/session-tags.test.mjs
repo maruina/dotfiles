@@ -86,6 +86,28 @@ function toolContext(sessionManager) {
   return { sessionManager, cwd: "/workspace" };
 }
 
+function completionSessionManager(root, tags = []) {
+  return {
+    getEntries: () => (tags.length === 0 ? [] : [tagEntry("current-session", tags)]),
+    getSessionDir: () => root,
+    usesDefaultSessionDir: () => false,
+  };
+}
+
+async function startCompletionSession(extension, root, tags = []) {
+  await extension.handlers.get("session_start")(
+    { type: "session_start", reason: "resume" },
+    { sessionManager: completionSessionManager(root, tags) },
+  );
+}
+
+async function writeCompletionFixture(root) {
+  await writeSession(root, { timestamp: "2026-01-01T10:00:00.000Z", tags: [["controllers"]] });
+  await writeSession(root, { timestamp: "2026-01-02T10:00:00.000Z", tags: [["controllers"]] });
+  await writeSession(root, { timestamp: "2026-01-03T10:00:00.000Z", tags: [["cla"]] });
+  await writeSession(root, { timestamp: "2026-01-04T10:00:00.000Z", tags: [["cost"]] });
+}
+
 test("parseTags trims, lowercases, and deduplicates the valid tags", () => {
   const result = parseTags(" Cla ,  controllers, cla ");
   assert.deepEqual(result, { tags: ["cla", "controllers"], invalid: [] });
@@ -345,10 +367,7 @@ test("before_agent_start tells the agent about tags and the search tool", async 
 
 test("session_start reconstructs tags from the branch and /tag prefills the dialog", async () => {
   const { commands, handlers } = await loadExtension();
-  await handlers.get("session_start")(
-    { type: "session_start", reason: "resume" },
-    { sessionManager: { getEntries: () => [tagEntry("a", ["cla", "controllers"])] } },
-  );
+  await startCompletionSession({ handlers }, "/dev/null", ["cla", "controllers"]);
   let prefill;
   const ui = {
     // The input dialog cannot be prefilled in pi 1.0.0; the editor dialog is
@@ -388,7 +407,7 @@ test("/tag dialog cancel resolves undefined and changes nothing", async () => {
 
 test("/tag dialog empty submission clears the tags", async () => {
   const { commands, handlers, entries } = await loadExtension();
-  await handlers.get("session_start")({ type: "session_start", reason: "resume" }, { sessionManager: { getEntries: () => [tagEntry("a", ["cla"])] } });
+  await startCompletionSession({ handlers }, "/dev/null", ["cla"]);
   const ui = { editor: async () => "", notify: () => {} };
   await commands.get("tag").handler("", { ui });
   assert.deepEqual(entries, [{ customType: "pi.session-tags", data: { tags: [] } }]);
@@ -396,7 +415,7 @@ test("/tag dialog empty submission clears the tags", async () => {
 
 test("/tag unchanged resubmission appends nothing", async () => {
   const { commands, handlers, entries } = await loadExtension();
-  await handlers.get("session_start")({ type: "session_start", reason: "resume" }, { sessionManager: { getEntries: () => [tagEntry("a", ["cla", "controllers"])] } });
+  await startCompletionSession({ handlers }, "/dev/null", ["cla", "controllers"]);
   const ui = { editor: async () => "cla, controllers", notify: () => {} };
   await commands.get("tag").handler("", { ui });
   assert.deepEqual(entries, []);
@@ -457,6 +476,175 @@ test("/tags reports zero tagged sessions when the tree has none", async () => {
       ui,
     });
     assert.equal(message, "Tags across 1 session (0 tagged):");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("/tag completions are unavailable before session_start", async () => {
+  const { commands } = await loadExtension();
+  assert.equal(await commands.get("tag").getArgumentCompletions("cla"), null);
+});
+
+test("/tag completions fuzzy-rank matches and describe session counts", async () => {
+  const extension = await loadExtension();
+  const root = await mkdtemp(join(tmpdir(), "pi-session-tags-completion-"));
+  try {
+    await writeCompletionFixture(root);
+    await startCompletionSession(extension, root);
+    const items = await extension.commands.get("tag").getArgumentCompletions("co");
+    assert.deepEqual(items, [
+      { label: "controllers", description: "2 sessions", value: "controllers" },
+      { label: "cost", description: "1 session", value: "cost" },
+    ]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("/tag completions list tags by session count for an empty argument", async () => {
+  const extension = await loadExtension();
+  const root = await mkdtemp(join(tmpdir(), "pi-session-tags-completion-"));
+  try {
+    await writeCompletionFixture(root);
+    await startCompletionSession(extension, root);
+    const items = await extension.commands.get("tag").getArgumentCompletions("");
+    assert.deepEqual(items.map((item) => item.label), ["controllers", "cla", "cost"]);
+    assert.deepEqual(items.map((item) => item.value), ["controllers", "cla", "cost"]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("/tag completions preserve earlier text and exclude previously typed tags", async () => {
+  const extension = await loadExtension();
+  const root = await mkdtemp(join(tmpdir(), "pi-session-tags-completion-"));
+  try {
+    await writeCompletionFixture(root);
+    await startCompletionSession(extension, root);
+    const items = await extension.commands.get("tag").getArgumentCompletions("cla, co");
+    assert.deepEqual(items.map((item) => item.label), ["controllers", "cost"]);
+    assert.deepEqual(items.map((item) => item.value), ["cla, controllers", "cla, cost"]);
+    assert.equal(items.some((item) => item.label === "cla"), false);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("/tag completions return null when no tag matches", async () => {
+  const extension = await loadExtension();
+  const root = await mkdtemp(join(tmpdir(), "pi-session-tags-completion-"));
+  try {
+    await writeCompletionFixture(root);
+    await startCompletionSession(extension, root);
+    assert.equal(await extension.commands.get("tag").getArgumentCompletions("zzz"), null);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("/tag completions return no more than 20 tags", async () => {
+  const extension = await loadExtension();
+  const root = await mkdtemp(join(tmpdir(), "pi-session-tags-completion-"));
+  try {
+    for (let index = 0; index < 25; index++) {
+      const tag = `tag${String(index).padStart(2, "0")}`;
+      await writeSession(root, {
+        timestamp: new Date(Date.UTC(2026, 0, index + 1, 10, 0, 0)).toISOString(),
+        tags: [[tag]],
+      });
+    }
+    await startCompletionSession(extension, root);
+    const items = await extension.commands.get("tag").getArgumentCompletions("");
+    assert.equal(items.length, 20);
+    assert.deepEqual(items.map((item) => item.label), Array.from({ length: 20 }, (_, index) => `tag${String(index).padStart(2, "0")}`));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("the tag vocabulary scans once across session_start events", async () => {
+  const extension = await loadExtension();
+  const root = await mkdtemp(join(tmpdir(), "pi-session-tags-completion-"));
+  try {
+    await writeSession(root, { timestamp: "2026-01-01T10:00:00.000Z", tags: [["original"]] });
+    await startCompletionSession(extension, root);
+    assert.deepEqual(
+      (await extension.commands.get("tag").getArgumentCompletions("ori")).map((item) => item.label),
+      ["original"],
+    );
+    await extension.commands.get("tag").getArgumentCompletions("");
+    await writeSession(root, { timestamp: "2026-01-02T10:00:00.000Z", tags: [["later"]] });
+    await startCompletionSession(extension, root);
+    const items = await extension.commands.get("tag").getArgumentCompletions("");
+    assert.equal(items.some((item) => item.label === "later"), false);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("the completion scan skips untagged files and keeps the last tag entry", async () => {
+  const extension = await loadExtension();
+  const root = await mkdtemp(join(tmpdir(), "pi-session-tags-completion-"));
+  const untaggedHeader = JSON.stringify({ type: "session", version: 3, id: "untagged", timestamp: "2026-01-02T10:00:00.000Z", cwd: "/repo" });
+  try {
+    await writeSession(root, {
+      timestamp: "2026-01-01T10:00:00.000Z",
+      tags: [["a"], ["b"]],
+    });
+    await writeSession(root, {
+      timestamp: "2026-01-02T10:00:00.000Z",
+      header: untaggedHeader,
+      corruptLine: "{not json",
+    });
+    await writeSession(root, {
+      timestamp: "2026-01-03T10:00:00.000Z",
+      tags: [["corrupt"]],
+      corruptLine: "{not json",
+    });
+
+    const originalParse = JSON.parse;
+    let untaggedHeaderParsed = false;
+    let items;
+    JSON.parse = function (text, reviver) {
+      if (text === untaggedHeader) untaggedHeaderParsed = true;
+      return originalParse.call(JSON, text, reviver);
+    };
+    try {
+      await startCompletionSession(extension, root);
+      items = await extension.commands.get("tag").getArgumentCompletions("");
+    } finally {
+      JSON.parse = originalParse;
+    }
+
+    assert.deepEqual(items.map((item) => item.label), ["b"]);
+    assert.equal(untaggedHeaderParsed, false);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("tag completions fall back to current-session tags when the scan root is missing", async () => {
+  const extension = await loadExtension();
+  const parent = await mkdtemp(join(tmpdir(), "pi-session-tags-missing-root-"));
+  const root = join(parent, "missing");
+  try {
+    await startCompletionSession(extension, root, ["cla"]);
+    const items = await extension.commands.get("tag").getArgumentCompletions("c");
+    assert.deepEqual(items.map((item) => item.label), ["cla"]);
+  } finally {
+    await rm(parent, { recursive: true, force: true });
+  }
+});
+
+test("/tag adds new tags to the completion vocabulary", async () => {
+  const extension = await loadExtension();
+  const root = await mkdtemp(join(tmpdir(), "pi-session-tags-completion-"));
+  try {
+    await startCompletionSession(extension, root);
+    await extension.commands.get("tag").handler("newtag", { ui: { notify: () => {} } });
+    const items = await extension.commands.get("tag").getArgumentCompletions("new");
+    assert.deepEqual(items.map((item) => item.label), ["newtag"]);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

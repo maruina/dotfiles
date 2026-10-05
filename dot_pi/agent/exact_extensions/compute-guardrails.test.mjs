@@ -29,6 +29,15 @@ const blockedCases = [
   "bash -lc 'cat <<EOF\n$(kubectl delete pod p)\nEOF'",
   "x=$(( 1 << 2 ))\nkubectl delete pod p\n2",
   "cat > f <<EOF\nbody\nEOF\nkubectl delete pod p",
+  "rm -rf dot_pi/agent/node_modules/../..",
+  "rm -rf dot_pi/agent/node_modules /tmp/x",
+  "rm -rf dot_pi/agent",
+  "sudo rm -rf dot_pi/agent/node_modules",
+  "rm -rf dot_pi/agent/node_modules && rm -rf /tmp/x",
+  "rm -rf dot_pi/agent/node_modules*",
+  "rm -rf ~/dot_pi/agent/node_modules",
+  "rm -fr dot_pi/agent/node_modules",
+  "rm -rf node_modules",
 ];
 
 const allowedCases = [
@@ -55,6 +64,8 @@ const allowedCases = [
   "printf 'see `ddtool` docs'",
   "kubectl",
   "ddtool --verbose",
+  "rm -rf dot_pi/agent/node_modules",
+  "rm -rf \"dot_pi/agent/node_modules\"",
 ];
 
 test("compute guardrails block mutating protected commands", () => {

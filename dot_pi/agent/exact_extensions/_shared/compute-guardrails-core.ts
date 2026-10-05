@@ -207,6 +207,8 @@ const READ_ONLY_HELM = new Set(["env", "get", "history", "lint", "list", "search
 const READ_ONLY_HELM_REPO = new Set(["list"]);
 const READ_ONLY_DDTOOL = new Set(["describe", "find", "get", "info", "list", "search", "show"]);
 const ALLOWED_DDTOOL_AUTH = new Set(["auth gitlab project-token"]);
+// Exact token form "rm -rf dot_pi/agent/node_modules"; see checkSegment.
+const ALLOWED_RM_EXACT = new Set(["rm -rf dot_pi/agent/node_modules"]);
 const READ_ONLY_AWS_PREFIXES = ["describe", "get", "list"];
 const READ_ONLY_AWS_EXACT = new Set(["filter-log-events", "lookup-events", "query", "scan"]);
 
@@ -625,6 +627,10 @@ function checkSegment(segment: string, depth: number): DenyRecord | null {
 
   const tool = basename(tokens[0]);
   if (tool === "rm" && RM_RECURSIVE.test(segment)) {
+    // The /verify cleanup rule in dot_pi AGENTS.md removes exactly this path.
+    // Compare raw tokenize output so wrappers and extra arguments fall through
+    // to the deny below.
+    if (ALLOWED_RM_EXACT.has(tokenize(segment).join(" "))) return null;
     return { tool: "rm", sub: [], reason: "recursive filesystem delete" };
   }
   if (!PROTECTED_TOOLS.has(tool)) return null;

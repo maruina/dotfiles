@@ -1,9 +1,10 @@
-import type { BeforeAgentStartEvent, BeforeAgentStartEventResult, ExtensionAPI, Skill, ToolCallEvent, ToolCallEventResult } from "@earendil-works/pi-coding-agent";
+import type { BeforeAgentStartEvent, BeforeAgentStartEventResult, ContextEvent, ExtensionAPI, Skill, ToolCallEvent, ToolCallEventResult } from "@earendil-works/pi-coding-agent";
 import { getAgentDir, isToolCallEventType } from "@earendil-works/pi-coding-agent";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { findLocalSibling, walkUpForAgents } from "./_agents.ts";
+import { blockingPaths, clearPending, confirmDelivered, createState, queue } from "./_delivery.ts";
 import {
   isIgnored,
   loadAgentsIgnore,
@@ -59,16 +60,9 @@ import {
  *
  * Message injection details
  * ─────────────────────────
- * Each newly-discovered context file is emitted as a single hidden custom
- * message (display: false, customType: "context-kit-discovery") the first
- * time it is found. The `injectedAsMessages` Set prevents re-injection on
- * subsequent turns — the message is already in the conversation history and
- * benefits from Anthropic's normal prefix caching for messages.
- *
- * On session restore, `injectedAsMessages` is empty. If the same files are
- * re-discovered (same tool_call pattern), they will be injected again. The
- * model sees the context twice but correctness is unaffected; we accept this
- * as a known gap for V1.
+ * Newly applicable files are sent as steer messages when a tool call discovers
+ * them. The delivery state keeps pending files from being sent twice and blocks
+ * mutations until a `context` event confirms that the message reached the model.
  *
  * Consolidates four formerly-separate extensions:
  *
@@ -90,17 +84,8 @@ import {
 const CONTEXT_KIT_CUSTOM_TYPE = "context-kit-discovery";
 
 export default function (pi: ExtensionAPI) {
-  // Absolute paths of subdir AGENTS.md files discovered via tool_call walk-up
-  // this session. Pi-loaded ancestor AGENTS.md files live in
-  // `event.systemPromptOptions.contextFiles` and don't need to be re-tracked.
-  const discoveredAgents = new Set<string>();
-  // Absolute paths of rule files whose frontmatter glob/paths matched a
-  // touched file this session.
-  const discoveredRules = new Set<string>();
-  // Absolute paths already injected as messages this session. Each file is
-  // injected at most once — the message persists in conversation history and
-  // benefits from normal prefix caching on subsequent turns.
-  const injectedAsMessages = new Set<string>();
+  const state = createState();
+  let piContextPaths = new Set<string>();
   const injectedFiles: InjectedContextFile[] = [];
   const ignoredFiles = new Map<string, IgnoredContextFile>();
   let injectionMessages = 0;
@@ -150,12 +135,15 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("tool_call", traceHook<ToolCallEvent, ToolCallEventResult>(pi, "context-kit.tool_call", async (event, ctx) => {
     let filePath: string | undefined;
+    let isMutation = false;
     if (isToolCallEventType("read", event)) {
       filePath = event.input.path;
     } else if (isToolCallEventType("write", event)) {
       filePath = event.input.path;
+      isMutation = true;
     } else if (isToolCallEventType("edit", event)) {
       filePath = event.input.path;
+      isMutation = true;
     }
     if (!filePath) return;
 
@@ -168,22 +156,85 @@ export default function (pi: ExtensionAPI) {
     // `..`-prefixed rel = path escapes cwd, no business injecting context.
     if (relFromCwd === "" || relFromCwd.startsWith("..")) return;
 
-    for (const found of walkUpForAgents(dirname(abs), cwd)) {
-      discoveredAgents.add(found);
+    const agentsIgnore = loadAgentsIgnore(cwd);
+    const ruleIgnore = loadRuleIgnore(cwd);
+    const applicable: Array<{ path: string; content: string; file: InjectedContextFile }> = [];
+    const addApplicable = (path: string, source: ContextKitDiscovery, ignoreRules: boolean) => {
+      if (piContextPaths.has(path)) return;
+      const matcher = ignoreRules ? ruleIgnore : agentsIgnore;
+      if (isIgnored(matcher, path, cwd)) {
+        recordIgnored(path, source, ignoreRules ? ".pi/ruleignore" : ".pi/agentsignore");
+        return;
+      }
+      const content = readContent(path);
+      if (content === null) return;
+      applicable.push({
+        path,
+        content,
+        file: { path, kind: contextKind(path), discovery: source, bytes: Buffer.byteLength(content, "utf8") },
+      });
+    };
+
+    for (const agentsPath of walkUpForAgents(dirname(abs), cwd)) {
+      addApplicable(agentsPath, "nested instruction discovery", false);
+      const local = findLocalSibling(agentsPath);
+      if (local) addApplicable(local, "nested instruction discovery", false);
     }
-    for (const rule of findMatchingRules({ filePath: abs, cwd, sources: defaultRuleSources(cwd) })) {
-      discoveredRules.add(rule.path);
+    for (const rule of findMatchingRules({ filePath: abs, cwd, sources: defaultRuleSources(cwd) }).sort((a, b) => a.path.localeCompare(b.path))) {
+      addApplicable(rule.path, "path-scoped rule match", true);
+    }
+
+    const blocking = blockingPaths(state, applicable.map((file) => file.path), piContextPaths);
+    const newlyQueued = new Set(queue(state, applicable.map((file) => file.path)));
+    const newBlocks = applicable.filter((file) => newlyQueued.has(file.path));
+    if (newBlocks.length > 0) {
+      injectionMessages++;
+      injectedFiles.push(...newBlocks.map((file) => file.file));
+      const paths = newBlocks.map((file) => file.path);
+      pi.sendMessage(
+        {
+          customType: CONTEXT_KIT_CUSTOM_TYPE,
+          content: buildDiscoveryMessage(newBlocks.map((block) => ({ heading: block.path, content: block.content }))),
+          display: false,
+          details: { paths },
+        },
+        { deliverAs: "steer" },
+      );
+    }
+
+    if (newBlocks.length > 0 || newIgnoresThisTurn > 0) {
+      saveUsageRecord(usageDir, {
+        sessionId: ctx.sessionManager.getSessionId(),
+        cwd,
+        mtime: Date.now(),
+        injectionMessages,
+        injected: injectedFiles,
+        ignored: [...ignoredFiles.values()],
+      });
+      newIgnoresThisTurn = 0;
+    }
+
+    if (isMutation && blocking.length > 0) {
+      return { block: true, reason: blockReason(abs, blocking) };
+    }
+  }));
+
+  pi.on("context", traceHook<ContextEvent, { messages?: ContextEvent["messages"] }>(pi, "context-kit.context", async (event) => {
+    for (const message of event.messages) {
+      if (message.role !== "custom" || message.customType !== CONTEXT_KIT_CUSTOM_TYPE) continue;
+      const paths = (message.details as { paths?: unknown } | undefined)?.paths;
+      if (Array.isArray(paths)) confirmDelivered(state, paths.filter((path): path is string => typeof path === "string"));
     }
   }));
 
   pi.on("before_agent_start", traceHook<BeforeAgentStartEvent, BeforeAgentStartEventResult>(pi, "context-kit.before_agent_start", async (event, ctx) => {
+    clearPending(state);
     newIgnoresThisTurn = 0;
     const cwd = resolve(event.systemPromptOptions.cwd);
 
     // Loaders are called every turn so edits to the ignore files take effect
     // without /reload. All three return null if their file is absent.
     const agentsIgnore = loadAgentsIgnore(cwd);
-    const ruleIgnore = loadRuleIgnore(cwd);
     const skillIgnore = loadSkillIgnore(cwd);
 
     const piContextFiles = event.systemPromptOptions.contextFiles ?? [];
@@ -203,7 +254,7 @@ export default function (pi: ExtensionAPI) {
         survivingPi.push(cf);
       }
     }
-    const piContextPaths = new Set(survivingPi.map((f) => f.path));
+    piContextPaths = new Set(survivingPi.map((f) => f.path));
 
     // 2. Skill filtering — excise `<skill>…</skill>` blocks for skills matching
     //    `.pi/skillignore`. Also prunes the section header if all skills are gone.
@@ -214,29 +265,21 @@ export default function (pi: ExtensionAPI) {
 
     const systemPromptChanged = prompt !== event.systemPrompt;
 
-    // ── Message injections (inject-once; new discoveries only) ────────────────
-    //
-    // Each block is emitted as a hidden message the FIRST time it is discovered.
-    // On subsequent turns the message is already in the conversation history and
-    // gets served from Anthropic's prefix cache — no re-injection needed, and no
-    // system-prompt modification that would bust the cache for prior turns.
-
+    // ── Message injections ────────────────────────────────────────────────────
     const newBlocks: Array<{ heading: string; content: string; file: InjectedContextFile }> = [];
     const addBlock = (path: string, content: string, discovery: ContextKitDiscovery) => {
+      if (queue(state, [path]).length === 0) return;
       newBlocks.push({
         heading: path,
         content,
         file: { path, kind: contextKind(path), discovery, bytes: Buffer.byteLength(content, "utf8") },
       });
-      injectedAsMessages.add(path);
     };
 
-    // 3. AGENTS.local.md siblings of surviving Pi-loaded files. These are always
-    //    relevant from session start, so they typically land on turn 1.
+    // Local siblings of Pi-loaded files apply from session start.
     for (const cf of survivingPi) {
       const local = findLocalSibling(cf.path);
-      if (!local) continue;
-      if (piContextPaths.has(local) || injectedAsMessages.has(local)) continue;
+      if (!local || piContextPaths.has(local) || state.loaded.has(local)) continue;
       if (isIgnored(agentsIgnore, local, cwd)) {
         recordIgnored(local, "Pi-loaded local sibling", ".pi/agentsignore");
         continue;
@@ -244,40 +287,6 @@ export default function (pi: ExtensionAPI) {
       const content = readContent(local);
       if (content === null) continue;
       addBlock(local, content, "Pi-loaded local sibling");
-    }
-
-    // 4. Subdir AGENTS.md files discovered this session (walk-up from touched
-    //    files), plus their own AGENTS.local.md siblings. Sorted for deterministic
-    //    ordering within the injection batch.
-    for (const agentsPath of [...discoveredAgents].sort()) {
-      if (piContextPaths.has(agentsPath) || injectedAsMessages.has(agentsPath)) continue;
-      if (isIgnored(agentsIgnore, agentsPath, cwd)) {
-        recordIgnored(agentsPath, "nested instruction discovery", ".pi/agentsignore");
-        continue;
-      }
-      const content = readContent(agentsPath);
-      if (content !== null) addBlock(agentsPath, content, "nested instruction discovery");
-      const local = findLocalSibling(agentsPath);
-      if (!local || piContextPaths.has(local) || injectedAsMessages.has(local)) continue;
-      if (isIgnored(agentsIgnore, local, cwd)) {
-        recordIgnored(local, "nested instruction discovery", ".pi/agentsignore");
-        continue;
-      }
-      const localContent = readContent(local);
-      if (localContent === null) continue;
-      addBlock(local, localContent, "nested instruction discovery");
-    }
-
-    // 5. Rule files whose frontmatter glob/paths matched a touched file.
-    for (const rulePath of [...discoveredRules].sort()) {
-      if (piContextPaths.has(rulePath) || injectedAsMessages.has(rulePath)) continue;
-      if (isIgnored(ruleIgnore, rulePath, cwd)) {
-        recordIgnored(rulePath, "path-scoped rule match", ".pi/ruleignore");
-        continue;
-      }
-      const content = readContent(rulePath);
-      if (content === null) continue;
-      addBlock(rulePath, content, "path-scoped rule match");
     }
 
     if (newBlocks.length > 0) {
@@ -314,6 +323,7 @@ export default function (pi: ExtensionAPI) {
               customType: CONTEXT_KIT_CUSTOM_TYPE,
               content: buildDiscoveryMessage(newBlocks),
               display: false,
+              details: { paths: newBlocks.map((block) => block.file.path) },
             },
           }
         : {}),
@@ -329,6 +339,14 @@ export default function (pi: ExtensionAPI) {
  * same `## <path>` heading format Pi uses for Pi-loaded context files,
  * so the model's existing priors about that format apply.
  */
+function blockReason(targetPath: string, blocking: readonly string[]): string {
+  return [
+    `context-kit: context files apply to ${targetPath} but their contents have not been delivered to you yet:`,
+    ...blocking.map((path) => `- ${path}`),
+    "They are being delivered to you now. Retry the same call after you have received them.",
+  ].join("\n");
+}
+
 function buildDiscoveryMessage(blocks: { heading: string; content: string }[]): string {
   const header =
     "[Project-specific context discovered for files being worked on in this session. " +

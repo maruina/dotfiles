@@ -19,6 +19,17 @@
 | `codebase-research` | `skill-loader` | Unfamiliar code in two repositories | Mapped both extensions, the pi 0.80.6 type surface, the stub-`pi` test pattern, the `traceHook` dependencies, and the coupling to the usage backfill parser. |
 | `feature-worktree` | `prompt-required` | A durable plan is written and committed | Created `maruina/context-kit-same-run-delivery` from `origin/main` under `~/src/.worktrees/dotfiles/`. |
 
+### Execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `resolve-worktree` | `prompt-required` | Resolve the plan path and switch to its owner | Confirmed the plan is in `maruina/context-kit-same-run-delivery`; all repository work uses that root. |
+| `feature-worktree` | `prompt-required` | Continue implementation in the plan's feature worktree | Verified this is the intended non-main worktree. |
+| `skill-loader` | `prompt-required` | Select stage-specific guidance before implementation | Identified chezmoi, unfamiliar-code, and prose guidance; no language skill applies to these TypeScript files. |
+| `chezmoi` | `skill-loader` | The extension lives in the chezmoi source | Keep edits in source paths, use the worktree as `--source`, and run the required validation workflow. |
+| `codebase-research` | `skill-loader` | Delivery changes span unfamiliar extension event behavior | Mapped discovery, state, test, and nested-context patterns before implementation. |
+| `write` | `skill-loader` | Update the plan progress ledger | Keep execution notes concise and preserve the plan's scope. |
+| `reviewable-pr-workflow` | `skill-loader` | Prepare the completed slice for a reviewable PR | Applied the stack-split check; the changes form one coherent task and do not need a stack split. |
+
 ## Advisory learnings
 - Source: Obsidian `Datadog/Learnings.md`, read with `learn-evidence.mjs learning-sections`.
 - Result: no matched section applies to pi extension delivery or prompt caching. The plan uses no learning.
@@ -212,18 +223,19 @@ The system SHALL persist delivery state per branch, rebuild it on `session_start
 Delivers the smallest user-feedback slice: blocked first edit, same-turn visible injection with size limits, successful retry.
 
 ### Task 1: Delivery state and same-run blocking
+**Execution status:** Complete.
 **Delivers:** Steer injection at `tool_call` and blocking of `edit`/`write` until a `context` event confirms delivery, for nested files, local siblings, and rules.
 **Blocked by:** None
 **Traces to:** Requirements "Same-run delivery" and "Mutation blocking"
 **Files:** `dot_pi/agent/exact_extensions/context-kit/_delivery.ts` (new), `dot_pi/agent/exact_extensions/context-kit/_delivery.test.ts` (new), `dot_pi/agent/exact_extensions/context-kit/_lifecycle.test.ts` (new), `dot_pi/agent/exact_extensions/context-kit/index.ts` (the existing `test:context-kit` glob `context-kit/*.test.ts` already picks up the new test files)
 
-- [ ] Run `cd dot_pi/agent && npm ci --ignore-scripts`, then `npm run test:context-kit`; expect all 61 existing tests to pass.
-- [ ] Write `_lifecycle.test.ts` with a stub-`pi` harness and fixture trees, plus the scenarios for these two requirements. Write `_delivery.test.ts` for queue, confirm, `blockingPaths`, and `clearPending`.
-- [ ] Run `npm run test:context-kit`; expect the new tests to fail because no message is sent and nothing is blocked.
-- [ ] Implement `_delivery.ts`: `createState`, `queue(paths) → newly queued`, `confirmDelivered(paths)`, `blockingPaths(applicable, inPrompt)`, `clearPending`. In `index.ts`: compute the applicable set in `tool_call` (walk-up files, their local siblings, matching rules, minus Pi-loaded paths and ignore matches), queue and send new files with `deliverAs: "steer"` and `display: false`, block mutations with `blockReason(targetPath, blocking)` (using the agreed format), confirm in a `context` handler from `details.paths`, clear pending in `before_agent_start`, check `!state.loaded.has(local)` before adding startup siblings to the `before_agent_start` message with `details.paths`, and update `injectedFiles`, increment `injectionMessages`, and call `saveUsageRecord` when injections occur in `tool_call`. Remove `injectedAsMessages` and the per-run discovered sets that this replaces.
-- [ ] Run `npm run test:context-kit`; expect all tests to pass.
-- [ ] Refactor only after green, then rerun.
-- [ ] Commit with `feat(pi): deliver context-kit files in the same run and block unguided edits`.
+- [x] Run `cd dot_pi/agent && npm ci --ignore-scripts`, then `npm run test:context-kit`; all 61 existing tests passed. `npm ci` reported five existing audit findings (1 low, 2 moderate, 2 high); dependency changes are out of scope.
+- [x] Write `_lifecycle.test.ts` with a stub-`pi` harness and fixture trees, plus the scenarios for these two requirements. Write `_delivery.test.ts` for queue, confirm, `blockingPaths`, and `clearPending`.
+- [x] Run `npm run test:context-kit`; the new tests failed before implementation (no delivery-state module, no same-run message or mutation block, and no startup message paths).
+- [x] Implement `_delivery.ts`: `createState`, `queue(paths) → newly queued`, `confirmDelivered(paths)`, `blockingPaths(applicable, inPrompt)`, `clearPending`. In `index.ts`: compute the applicable set in `tool_call` (walk-up files, their local siblings, matching rules, minus Pi-loaded paths and ignore matches), queue and send new files with `deliverAs: "steer"` and `display: false`, block mutations with `blockReason(targetPath, blocking)` (using the agreed format), confirm in a `context` handler from `details.paths`, clear pending in `before_agent_start`, check `!state.loaded.has(local)` before adding startup siblings to the `before_agent_start` message with `details.paths`, and update `injectedFiles`, increment `injectionMessages`, and call `saveUsageRecord` when injections occur in `tool_call`. Remove `injectedAsMessages` and the per-run discovered sets that this replaces.
+- [x] Run `npm run test:context-kit`; all 68 tests passed. `git diff --check` passed.
+- [x] Review after green; no refactor was needed. Re-ran the focused suite after the final test and type corrections; all 68 tests passed.
+- [x] Commit with `feat(pi): deliver context-kit files in the same run and block unguided edits` (`a5c6437`).
 
 ### Task 2: Size limits and fail-open handling
 **Delivers:** Bounded batches, and no edit blocked by an internal error or an unreadable file.

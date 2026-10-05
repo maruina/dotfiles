@@ -297,18 +297,19 @@ Delivers: no re-injection after session restore or `/tree`, and a path-only remi
 
 ### Final: Documentation and verification
 ### Task 6: Documentation, future-agent guidance, and live check
+**Execution status:** Complete.
 **Delivers:** Docs that match the new behavior, and evidence that the delivery works in a real pi session.
 **Blocked by:** 2, 3, 4, 5
 **Traces to:** Goal; feature-level acceptance
 **Files:** `dot_pi/agent/exact_extensions/context-kit/README.md`, `dot_pi/agent/exact_extensions/context-kit/index.ts` (header comment), `dot_pi/agent/AGENTS.md` (check only)
 
-- [ ] README: replace "Discovered context is injected on the next user turn, not mid-turn" and the design choice "Keep one-turn lag" with the same-run delivery model, the reason (mutation safety) and why caching is unaffected. Document blocking, direct interactions, size limits, fail-open rules, compaction and branch state, the UI tree, and the warning not to run `packages/nested-context` at the same time. Record the unused `.pi/*ignore` support as a cleanup candidate.
-- [ ] `index.ts` header: update the prompt-caching table and remove the V1 session-restore gap note.
-- [ ] `dot_pi/agent/AGENTS.md`: has no context-kit guidance today. Add nothing unless a durable trap was found during execution. Record the decision in the PR.
-- [ ] Run `cd dot_pi/agent && npm test`; expect all suites to pass.
-- [ ] Live check: run `chezmoi --source "$PWD" apply ~/.pi/agent/extensions/context-kit` from the worktree root. Start a new pi session in `~/dd/dd-source`. Ask for a one-line comment edit in a Go file under a directory with a nested `AGENTS.md`. Expect: a blocked `edit` with the reason, a `✓ context-kit loaded:` tree that includes `.claude/rules/go.md`, and a successful retried `edit` in the same run. Run `/context-kit status`; expect `Blocked mutations: 1`. Run `/reload`, then another edit in the same directory; expect no new injection. Discard the dd-source change with `git -C ~/dd/dd-source checkout -- <file>`. Automation is impractical because the check needs a real model loop.
-- [ ] If the live check fails, restore the target with `chezmoi apply ~/.pi/agent/extensions/context-kit` from the base checkout on `main`, and stop.
-- [ ] Commit with `docs(pi): document context-kit same-run delivery`.
+- [x] README: replace "Discovered context is injected on the next user turn, not mid-turn" and the design choice "Keep one-turn lag" with the same-run delivery model, the reason (mutation safety) and why caching is unaffected. Document blocking, direct interactions, size limits, fail-open rules, compaction and branch state, the UI tree, and the warning not to run `packages/nested-context` at the same time. Record the unused `.pi/*ignore` support as a cleanup candidate.
+- [x] `index.ts` header: update the prompt-caching table. The V1 session-restore gap note was already absent, so no removal was needed.
+- [x] `dot_pi/agent/AGENTS.md`: confirmed there is no context-kit guidance; no addition was needed. Record the decision in the PR.
+- [x] Run `cd dot_pi/agent && npm test`; all 224 unit tests and 53 prompt tests passed; skill and Pi dependency validation passed.
+- [x] Live check: applied the extension from this worktree and ran the check in a real Pi session in `~/dd/dd-source`. The first edit was blocked, the same-run tree included `.claude/rules/go.md`, the retry succeeded, `/context-kit status` reported `Blocked mutations: 1`, and the post-`/reload` edit did not trigger another delivery. Restored the test file; `dd-source` is clean.
+- [x] Live check passed; restoring the target from the base checkout was not needed.
+- [x] Commit with `docs(pi): document context-kit same-run delivery`.
 
 **Final verification:** the live check above proves the feature-level criteria that only the complete feature can satisfy: same-run delivery on pi 1.0.0, the visible UI, and no re-injection after `/reload`.
 

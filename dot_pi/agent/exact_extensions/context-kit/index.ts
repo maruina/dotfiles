@@ -50,21 +50,25 @@ import {
  * ├─────────────────────────────────────────────────────────────────────┤
  * │  System prompt   │ Excise block    │ agentsignore matches a Pi-     │
  * │  (rare, stable)  │                 │ loaded AGENTS.md — rare, only  │
- * │                  │                 │ when .pi/agentsignore exists    │
- * │                  │ Filter skills   │ skillignore matches a skill —  │
- * │                  │                 │ rare, only when .pi/skillignore │
- * │                  │                 │ exists                          │
+ * │                  │                 │ when .pi/agentsignore exists   │
+ * │                  │ Filter skills   │ When .pi/skillignore matches   │
+ * │                  │                 │ the skill path                 │
  * ├─────────────────────────────────────────────────────────────────────┤
- * │  Messages        │ Inject once     │ First time a file is discovered │
- * │  (inject-once)   │                 │ (AGENTS.local.md siblings,      │
- * │                  │                 │ subdir AGENTS.md, rules)        │
+ * │  Messages        │ Steer delivery  │ First applicable access;       │
+ * │  (cached prefix) │                 │ confirm before mutation retry  │
+ * ├──────────────────┼─────────────────┼────────────────────────────────┤
+ * │  Delivery state  │ Branch snapshot │ Restore/tree; reset loaded     │
+ * │                  │                 │ paths after compaction         │
  * └─────────────────────────────────────────────────────────────────────┘
  *
  * Message injection details
  * ─────────────────────────
- * Newly applicable files are sent as steer messages when a tool call discovers
- * them. The delivery state keeps pending files from being sent twice and blocks
- * mutations until a `context` event confirms that the message reached the model.
+ * Newly applicable files are sent as steer messages during the tool call that
+ * discovers them. Startup siblings are sent before the first model call. The
+ * delivery state prevents duplicate messages and blocks mutations until a
+ * `context` event confirms that the model received the files. Delivery uses
+ * conversation messages, so it does not change the cached system-prompt prefix.
+ * The TUI renders a compact tree of paths and kinds, never file contents.
  *
  * Consolidates four formerly-separate extensions:
  *

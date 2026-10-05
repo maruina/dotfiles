@@ -1,11 +1,11 @@
-import type { BeforeAgentStartEvent, BeforeAgentStartEventResult, ContextEvent, ExtensionAPI, ExtensionContext, Skill, ToolCallEvent, ToolCallEventResult, ToolResultEvent } from "@earendil-works/pi-coding-agent";
+import type { BeforeAgentStartEvent, BeforeAgentStartEventResult, ContextEvent, ExtensionAPI, ExtensionContext, SessionCompactEvent, SessionStartEvent, SessionTreeEvent, Skill, ToolCallEvent, ToolCallEventResult, ToolResultEvent } from "@earendil-works/pi-coding-agent";
 import { getAgentDir, isToolCallEventType } from "@earendil-works/pi-coding-agent";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { Text } from "@earendil-works/pi-tui";
 import { findLocalSibling, walkUpForAgents } from "./_agents.ts";
-import { blockingPaths, clearPending, confirmDelivered, confirmDirectDelivery, createState, discover, queue, recordDirectPending } from "./_delivery.ts";
+import { blockingPaths, clearPending, compactionReset, confirmDelivered, confirmDirectDelivery, createState, discover, queue, rebuildFromBranch, recordDirectPending, snapshotState, STATE_ENTRY_TYPE } from "./_delivery.ts";
 import {
   isIgnored,
   loadAgentsIgnore,
@@ -26,6 +26,7 @@ import {
 } from "./_status.ts";
 import {
   loadAllUsageRecords,
+  loadUsageRecord,
   saveUsageRecord,
   usageRecordPath,
 } from "./_usage.ts";
@@ -101,10 +102,10 @@ export default function (pi: ExtensionAPI) {
     return new Text(`${theme.fg("success", "✓")} ${theme.fg("muted", text)}`, 0, 0);
   });
 
-  const state = createState();
+  let state = createState();
   let piContextPaths = new Set<string>();
   const startupSiblingPaths = new Set<string>();
-  const injectedFiles: InjectedContextFile[] = [];
+  let injectedFiles: InjectedContextFile[] = [];
   const ignoredFiles = new Map<string, IgnoredContextFile>();
   let injectionMessages = 0;
   let blockedMutations = 0;
@@ -119,6 +120,21 @@ export default function (pi: ExtensionAPI) {
   // Historical sessions are backfilled once via the `backfill-context-kit-usage`
   // script; the extension itself only persists live records and reads them back.
   const usageDir = process.env.PI_CONTEXT_KIT_USAGE_DIR ?? join(getAgentDir(), "context-kit-usage");
+
+  const persistState = () => pi.appendEntry(STATE_ENTRY_TYPE, snapshotState(state));
+  const rebuildState = (ctx: ExtensionContext) => {
+    try {
+      state = rebuildFromBranch(ctx.sessionManager.getBranch());
+    } catch {
+      state = createState();
+    }
+  };
+  const restoreUsage = (ctx: ExtensionContext) => {
+    const usage = loadUsageRecord(usageDir, ctx.sessionManager.getSessionId());
+    injectedFiles = usage?.injected ?? [];
+    injectionMessages = usage?.injectionMessages ?? 0;
+    blockedMutations = 0;
+  };
 
   const recordIgnored = (
     path: string,
@@ -152,6 +168,28 @@ export default function (pi: ExtensionAPI) {
       ctx.ui.notify(report, "info");
     },
   });
+
+  pi.on("session_start", traceHook<SessionStartEvent>(pi, "context-kit.session_start", async (_event, ctx) => {
+    rebuildState(ctx);
+    restoreUsage(ctx);
+  }));
+
+  pi.on("session_tree", traceHook<SessionTreeEvent>(pi, "context-kit.session_tree", async (_event, ctx) => {
+    rebuildState(ctx);
+  }));
+
+  pi.on("session_compact", traceHook<SessionCompactEvent>(pi, "context-kit.session_compact", async (_event) => {
+    const hadLoadedPaths = state.loaded.size > 0;
+    const paths = compactionReset(state);
+    if (hadLoadedPaths) persistState();
+    if (paths.length === 0) return;
+    pi.sendMessage({
+      customType: "context-kit-compaction",
+      content: `Context was compacted. These context-kit files were discovered earlier and their contents may no longer be in context. Read them again if they still apply:\n${paths.map((path) => `- ${path}`).join("\n")}`,
+      display: true,
+      details: { paths },
+    });
+  }));
 
   pi.on("tool_call", traceHook<ToolCallEvent, ToolCallEventResult>(pi, "context-kit.tool_call", async (event, ctx) => {
     let filePath: string | undefined;
@@ -224,7 +262,7 @@ export default function (pi: ExtensionAPI) {
     for (const ignored of ignoredMatches) recordIgnored(ignored.path, ignored.discovery, ignored.reason);
     if (unreadablePaths.length > 0) warn(ctx, `context-kit: could not read ${unreadablePaths.join(", ")}`);
 
-    discover(state, discoveredPaths);
+    if (discover(state, discoveredPaths)) persistState();
     const blocking = blockingPaths(state, applicable.map((file) => file.path), piContextPaths);
     const directPendingPaths = new Set(state.directPending.values());
     const candidates = applicable
@@ -271,16 +309,20 @@ export default function (pi: ExtensionAPI) {
   }));
 
   pi.on("context", traceHook<ContextEvent, { messages?: ContextEvent["messages"] }>(pi, "context-kit.context", async (event) => {
+    let stateChanged = false;
     const resultIds: string[] = [];
     for (const message of event.messages) {
       if (message.role === "toolResult" && !message.isError) resultIds.push(message.toolCallId);
     }
-    confirmDirectDelivery(state, resultIds);
+    stateChanged = confirmDirectDelivery(state, resultIds).length > 0;
     for (const message of event.messages) {
       if (message.role !== "custom" || message.customType !== CONTEXT_KIT_CUSTOM_TYPE) continue;
       const paths = (message.details as { paths?: unknown } | undefined)?.paths;
-      if (Array.isArray(paths)) confirmDelivered(state, paths.filter((path): path is string => typeof path === "string"));
+      if (Array.isArray(paths)) {
+        stateChanged = confirmDelivered(state, paths.filter((path): path is string => typeof path === "string")) || stateChanged;
+      }
     }
+    if (stateChanged) persistState();
   }));
 
   pi.on("tool_result", traceHook<ToolResultEvent, ToolResultEventResult>(pi, "context-kit.tool_result", async (event, ctx) => {
@@ -294,7 +336,9 @@ export default function (pi: ExtensionAPI) {
       const relFromCwd = relative(cwd, abs);
       if (relFromCwd === "" || relFromCwd.startsWith("..") || isAbsolute(relFromCwd)) return;
       if (!isContextKitFile(abs) || piContextPaths.has(abs)) return;
+      const newlyDiscovered = !state.discovered.has(abs);
       recordDirectPending(state, event.toolCallId, abs);
+      if (newlyDiscovered) persistState();
     } catch {
       // A failed direct-interaction record can only cause a later re-injection.
     }
@@ -340,6 +384,7 @@ export default function (pi: ExtensionAPI) {
     const systemPromptChanged = prompt !== event.systemPrompt;
 
     // ── Message injections ────────────────────────────────────────────────────
+    let startupStateChanged = false;
     const startupBlocks: Array<{ heading: string; content: string; file: InjectedContextFile }> = [];
 
     // Local siblings of Pi-loaded files apply from session start.
@@ -351,7 +396,7 @@ export default function (pi: ExtensionAPI) {
         continue;
       }
       startupSiblingPaths.add(local);
-      discover(state, [local]);
+      if (discover(state, [local])) startupStateChanged = true;
       if (state.loaded.has(local)) continue;
       const content = readContent(local);
       if (content === null) {
@@ -368,6 +413,7 @@ export default function (pi: ExtensionAPI) {
     const batch = prepareDiscoveryBatch(startupBlocks);
     const newBlocks = batch.blocks;
     queue(state, newBlocks.map((block) => block.file.path));
+    if (startupStateChanged) persistState();
     if (newBlocks.length > 0) {
       injectionMessages++;
       injectedFiles.push(...newBlocks.map((block) => block.file));

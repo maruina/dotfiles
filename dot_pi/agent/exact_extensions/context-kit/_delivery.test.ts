@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { blockingPaths, clearPending, confirmDelivered, confirmDirectDelivery, createState, discover, queue, recordDirectPending } from "./_delivery.ts";
+import { blockingPaths, clearPending, confirmDelivered, confirmDirectDelivery, createState, discover, queue, recordDirectPending, rebuildFromBranch, snapshotState, compactionReset } from "./_delivery.ts";
 
 const P1 = "/repo/sub/AGENTS.md";
 const P2 = "/repo/.claude/rules/go.md";
@@ -68,4 +68,30 @@ test("clearPending drops unconfirmed direct results", () => {
   clearPending(state);
 
   assert.deepEqual(queue(state, [P1]), [P1]);
+});
+
+test("snapshots restore the last branch state and ignore malformed data", () => {
+  const restored = rebuildFromBranch([
+    { type: "custom", customType: "context-kit-state", data: { version: 1, discovered: [P1], loaded: [P1] } },
+    { type: "custom", customType: "unrelated", data: {} },
+    { type: "custom", customType: "context-kit-state", data: { version: 1, discovered: [P2], loaded: [P2] } },
+  ]);
+
+  assert.deepEqual(snapshotState(restored), { version: 1, discovered: [P2], loaded: [P2] });
+  assert.deepEqual(snapshotState(rebuildFromBranch([
+    { type: "custom", customType: "context-kit-state", data: { version: 1, discovered: [P1], loaded: [P1] } },
+    { type: "custom", customType: "context-kit-state", data: { version: 99 } },
+  ])), { version: 1, discovered: [], loaded: [] });
+});
+
+test("compaction clears loaded and pending paths but keeps discovered paths", () => {
+  const state = createState();
+  discover(state, [P1, P2]);
+  queue(state, [P1]);
+  confirmDelivered(state, [P2]);
+  recordDirectPending(state, "read-1", P2);
+
+  assert.deepEqual(compactionReset(state), [P1, P2]);
+  assert.deepEqual(snapshotState(state), { version: 1, discovered: [P1, P2], loaded: [] });
+  assert.deepEqual(queue(state, [P1, P2]), [P1, P2]);
 });

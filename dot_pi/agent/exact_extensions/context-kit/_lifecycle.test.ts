@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
 import register from "./index.ts";
+import { loadUsageRecord, saveUsageRecord } from "./_usage.ts";
 
 const usageDir = mkdtempSync(join(tmpdir(), "context-kit-lifecycle-usage-"));
 const previousUsageDir = process.env.PI_CONTEXT_KIT_USAGE_DIR;
@@ -30,7 +31,11 @@ type Harness = {
   warnings: string[];
   notifications: Array<{ message: string; level: string }>;
   root: string;
+  sessionId: string;
+  branchEntries: AnyRecord[];
 };
+
+let nextSessionId = 0;
 
 function createHarness(root: string): Harness {
   const harness: Harness = {
@@ -43,6 +48,8 @@ function createHarness(root: string): Harness {
     warnings: [],
     notifications: [],
     root,
+    sessionId: `lifecycle-test-${++nextSessionId}`,
+    branchEntries: [],
   };
   register({
     on: (name: string, handler: Handler) => harness.handlers.set(name, handler),
@@ -52,7 +59,10 @@ function createHarness(root: string): Harness {
       harness.sent.push(message);
       harness.sentOptions.push(options);
     },
-    appendEntry: (customType: string, data: unknown) => harness.appended.push({ customType, data }),
+    appendEntry: (customType: string, data: unknown) => {
+      harness.appended.push({ customType, data });
+      harness.branchEntries.push({ type: "custom", customType, data });
+    },
     events: { emit() {} },
   } as never);
   return harness;
@@ -66,7 +76,10 @@ function ctx(h: Harness, hasUI = false): AnyRecord {
       h.notifications.push({ message, level });
       if (level === "warning") h.warnings.push(message);
     } },
-    sessionManager: { getSessionId: () => "lifecycle-test" },
+    sessionManager: {
+      getSessionId: () => h.sessionId,
+      getBranch: () => h.branchEntries,
+    },
   };
 }
 
@@ -93,6 +106,18 @@ async function start(h: Harness, contextFiles: string[] = []): Promise<AnyRecord
     },
     ctx(h),
   )) as AnyRecord | undefined;
+}
+
+async function sessionStart(h: Harness): Promise<void> {
+  await getHandler(h, "session_start")({ type: "session_start", reason: "resume" }, ctx(h));
+}
+
+async function sessionTree(h: Harness): Promise<void> {
+  await getHandler(h, "session_tree")({ type: "session_tree", newLeafId: null, oldLeafId: null }, ctx(h));
+}
+
+async function compact(h: Harness): Promise<void> {
+  await getHandler(h, "session_compact")({ type: "session_compact", compactionEntry: {}, fromExtension: false, reason: "manual", willRetry: false }, ctx(h));
 }
 
 async function deliver(h: Harness, message: AnyRecord): Promise<void> {
@@ -163,6 +188,7 @@ test("read discovers nested files and matching rules in the same run", async () 
     await deliver(h, message);
     assert.equal(await toolCall(h, "read", "sub/another.go"), undefined);
     assert.equal(h.sent.length, 1, "confirmed files must not be injected again");
+    assert.equal(h.appended.length, 2, "state snapshots are written only when discovered or loaded paths change");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -424,6 +450,118 @@ test("startup local sibling is delivered and does not block later mutations", as
     assert.equal(await toolCall(h, "edit", "example.go"), undefined);
     assert.equal(await start(h, [agents]), undefined);
     assert.equal(h.sent.length, 0);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("session restore rebuilds loaded files from the active branch", async () => {
+  const root = mkdtempSync(join(tmpdir(), "context-kit-restore-"));
+  try {
+    const sub = join(root, "sub");
+    mkdirSync(sub);
+    const agents = join(sub, "AGENTS.md");
+    writeFileSync(agents, "sub instructions");
+    const h = createHarness(root);
+    h.branchEntries.push({
+      type: "custom",
+      customType: "context-kit-state",
+      data: { version: 1, discovered: [agents], loaded: [agents] },
+    });
+
+    await sessionStart(h);
+    await start(h);
+
+    assert.equal(await toolCall(h, "edit", "sub/example.go"), undefined);
+    assert.equal(h.sent.length, 0);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("tree navigation rebuilds state from the selected branch", async () => {
+  const root = mkdtempSync(join(tmpdir(), "context-kit-tree-"));
+  try {
+    const sub = join(root, "sub");
+    mkdirSync(sub);
+    const agents = join(sub, "AGENTS.md");
+    writeFileSync(agents, "sub instructions");
+    const h = createHarness(root);
+    h.branchEntries.push({
+      type: "custom",
+      customType: "context-kit-state",
+      data: { version: 1, discovered: [agents], loaded: [agents] },
+    });
+
+    await sessionStart(h);
+    h.branchEntries = [];
+    await sessionTree(h);
+
+    const result = await toolCall(h, "edit", "sub/example.go") as { block: boolean };
+    assert.equal(result.block, true);
+    assert.deepEqual((h.sent[0] as { details: { paths: string[] } }).details.paths, [agents]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("compaction reminds with paths and makes discovered files eligible for delivery again", async () => {
+  const root = mkdtempSync(join(tmpdir(), "context-kit-compact-"));
+  try {
+    const sub = join(root, "sub");
+    mkdirSync(sub);
+    const agents = join(sub, "AGENTS.md");
+    writeFileSync(agents, "private instruction contents");
+    const h = createHarness(root);
+    await start(h);
+
+    const blocked = await toolCall(h, "edit", "sub/example.go") as { block: boolean };
+    assert.equal(blocked.block, true);
+    const delivered = h.sent[0] as AnyRecord;
+    await deliver(h, delivered);
+    await compact(h);
+
+    const reminder = h.sent[1] as { customType: string; content: string; details: { paths: string[] } };
+    assert.equal(reminder.customType, "context-kit-compaction");
+    assert.deepEqual(reminder.details.paths, [agents]);
+    assert.ok(reminder.content.includes(agents));
+    assert.ok(!reminder.content.includes("private instruction contents"));
+    assert.deepEqual((h.appended.at(-1)?.data as { loaded: string[] }).loaded, []);
+
+    const retry = await toolCall(h, "edit", "sub/example.go") as { block: boolean };
+    assert.equal(retry.block, true);
+    assert.equal(h.sent.length, 3);
+    assert.equal((h.sent[2] as AnyRecord).customType, "context-kit-discovery");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("usage record survives restore and adds later injections", async () => {
+  const root = mkdtempSync(join(tmpdir(), "context-kit-usage-restore-"));
+  try {
+    const sub = join(root, "sub");
+    mkdirSync(sub);
+    const agents = join(sub, "AGENTS.md");
+    writeFileSync(agents, "new instructions");
+    const h = createHarness(root);
+    const previous = {
+      sessionId: h.sessionId,
+      cwd: root,
+      mtime: 1,
+      injectionMessages: 4,
+      injected: [{ path: join(root, "old", "AGENTS.md"), kind: "AGENTS.md" as const, discovery: "nested instruction discovery" as const, bytes: 12 }],
+      ignored: [],
+    };
+    saveUsageRecord(usageDir, previous);
+
+    await sessionStart(h);
+    await start(h);
+    await toolCall(h, "read", "sub/example.go");
+
+    const saved = loadUsageRecord(usageDir, h.sessionId);
+    assert.equal(saved?.injectionMessages, 5);
+    assert.deepEqual(saved?.injected.map((file) => file.path), [previous.injected[0]?.path, agents]);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

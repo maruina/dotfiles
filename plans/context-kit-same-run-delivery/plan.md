@@ -283,16 +283,17 @@ Delivers: reading an instruction or rule file directly counts as delivery and un
 Delivers: no re-injection after session restore or `/tree`, and a path-only reminder after compaction. This closes the V1 gap in the `index.ts` header comment.
 
 ### Task 5: Persist, rebuild, and reset state
+**Execution status:** Complete.
 **Delivers:** Delivery state survives restore per branch, and compaction resets it safely.
 **Blocked by:** 1
 **Traces to:** Requirement "Branch-persisted state and compaction"
 **Files:** `dot_pi/agent/exact_extensions/context-kit/_delivery.ts`, `dot_pi/agent/exact_extensions/context-kit/_delivery.test.ts`, `dot_pi/agent/exact_extensions/context-kit/index.ts`, `dot_pi/agent/exact_extensions/context-kit/_lifecycle.test.ts`
 
-- [ ] Add failing scenarios: session restore, tree navigation, compaction, and usage record survives restore.
-- [ ] Run `npm run test:context-kit`; expect those tests to fail.
-- [ ] Add `snapshotState`, `rebuildFromBranch(entries)` (last `context-kit-state` custom entry on the branch; malformed data → empty state), and `compactionReset() → discovered paths`. Persist with `pi.appendEntry("context-kit-state", snapshot)` only on state change. Rebuild on `session_start` and `session_tree`. On `session_compact`, reset loaded state and send one `context-kit-compaction` message that lists paths only. On `session_start`, seed `injectedFiles` and `injectionMessages` from `loadUsageRecord(usageDir, sessionId)` when present.
-- [ ] Run `npm run test:context-kit`; expect all tests to pass.
-- [ ] Commit with `feat(pi): persist context-kit delivery state per branch and reset on compaction`.
+- [x] Add failing scenarios: session restore, tree navigation, compaction, and usage record survives restore.
+- [x] Run `npm run test:context-kit`; the new tests failed before implementation because the delivery-state APIs and session event handlers were missing.
+- [x] Add `snapshotState`, `rebuildFromBranch(entries)` (last `context-kit-state` custom entry on the branch; malformed data → empty state), and `compactionReset() → discovered paths`. Persist with `pi.appendEntry("context-kit-state", snapshot)` only on state change. Rebuild on `session_start` and `session_tree`. On `session_compact`, reset loaded state and send one `context-kit-compaction` message that lists paths only. On `session_start`, seed `injectedFiles` and `injectionMessages` from `loadUsageRecord(usageDir, sessionId)` when present. The pi `SessionStartEvent` has no branch-entry field, so rebuild uses `ctx.sessionManager.getBranch()`, matching the nested-context extension.
+- [x] Run `npm run test:context-kit`; all 87 tests passed. `git diff --check` passed; LSP reported no diagnostics for changed TypeScript files.
+- [x] Commit with `feat(pi): persist context-kit delivery state per branch and reset on compaction`.
 
 ### Final: Documentation and verification
 ### Task 6: Documentation, future-agent guidance, and live check

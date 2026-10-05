@@ -2,7 +2,7 @@
 
 > Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace the `refresh-models` Pi package with the stock `dd-ai-gateway` package, and keep today's LLM Obs attribution (`ml_app`, `ml_app_id`, `dd.user_email`, `dd.team`, `client_session_id`) through a local chezmoi overlay, so the migration is not an observability regression.
+**Goal:** Replace the `refresh-models` Pi package with the stock `dd-ai-gateway` package and preserve LLM Obs attribution through a local chezmoi overlay. Set the governed `ml_app_id` with Gateway's allowlisted `ml-app-id` header; use custom `x-dd-tag-*` headers for `ml_app`, `dd.user_email`, `dd.team`, and `client_session_id`.
 **Smallest user-feedback slice:** A local session-id extension and `models.json` header overlay run beside the current `ai-gw-*` providers, and a probe request through stock `dd-ai-gateway` for each provider shows the attribution headers.
 **Out of Scope:** Upstream PR to `ddoghq/datadog-pi-packages` (optional FYI to the owner later); the JWT `grep` filter on the ddtool token (accepted risk, see Key Decisions); anthropic-cyber gated models, Ollama discovery and pull, presets and picker, per-user availability filtering; the 200K early-compaction Claude variant; Gateway-only models absent from Pi's builtin catalogs (`ai-gw-databricks`, `ai-gw-logical` aliases); moving the package path from `~/go/src/github.com/DataDog/datadog-pi-packages` to `~/dd`; changing the `ai-gw-*` fixture names in the lifecycle-model-recommender tests.
 **Architecture:** Stock `dd-ai-gateway` re-registers the builtin `anthropic`, `baseten`, `google`, `openai`, and `typesafe` providers against `https://ai-gateway.us1.ddbuild.io`. Pi merges `models.json` provider `headers` under extension headers and applies `models.json` provider `compat` to builtin models, so a chezmoi-managed `models.json` overlay adds the attribution headers and the Claude compat override. A small chezmoi extension sets `PI_CLIENT_SESSION_ID` on `session_start` so the `$PI_CLIENT_SESSION_ID` header resolves.
@@ -32,6 +32,7 @@ Advisory learning lookup: ran `Datadog/Learnings.md` through `learn-evidence.mjs
 | `codebase-research` | `skill-loader` | Trace unfamiliar Pi extension, test, and model-template patterns | Mapped session-start handlers, test wiring, and template-render test patterns before editing |
 | `slack-mcp` | `prompt-required` | Inspect the discussion referenced by the plan | Read the referenced thread and confirmed the session-id finding and Gateway attribution context |
 | `write` | `skill-loader` | Update the plan progress and evidence ledger | Kept execution notes concise and tied to observed results |
+| `learning-candidates` | `prompt-required` | Record an execution finding that disproved a plan assumption | Added the header-versus-span attribution mismatch to the learning ledger |
 
 ## Source of truth and confirmed decisions
 - **User planning brief** and the alignment brief confirmed in chat on 2026-10-05.
@@ -63,12 +64,12 @@ The `pi-client-session-id` extension SHALL set `process.env.PI_CLIENT_SESSION_ID
 - THEN `PI_CLIENT_SESSION_ID` equals the new id
 
 ### Requirement: Gateway providers carry the attribution overlay
-The work-profile `models.json` SHALL define `anthropic`, `openai`, `google`, `baseten`, and `typesafe` provider entries whose `headers` contain the five attribution tags `x-dd-tag-ml_app: pi`, `x-dd-tag-ml_app_id: aidevx.pi`, `x-dd-tag-dd.user_email: <chezmoi .email>`, `x-dd-tag-dd.team: compute`, and `x-dd-tag-client_session_id: $PI_CLIENT_SESSION_ID`. The four new entries (`anthropic`, `openai`, `google`, `baseten`) SHALL carry exactly those five headers, except `anthropic` which additionally carries `anthropic-beta: context-1m-2025-08-07` for 1M-context parity with today's `ai-gw-anthropic-1m`. The existing `typesafe` entry keeps its other headers (`source`, `org-id`, `x-llmo-force-redaction`, `provider: typesafe`). After cutover, these entries SHALL NOT set `baseUrl` or `apiKey`.
+The work-profile `models.json` SHALL define `anthropic`, `openai`, `google`, `baseten`, and `typesafe` provider entries with `ml-app-id: ai-devx.pi` and the four custom attribution headers `x-dd-tag-ml_app: pi`, `x-dd-tag-dd.user_email: <chezmoi .email>`, `x-dd-tag-dd.team: compute`, and `x-dd-tag-client_session_id: $PI_CLIENT_SESSION_ID`. These entries SHALL NOT set `x-dd-tag-ml_app_id`; Gateway derives the governed `ml_app_id` from the allowlisted `ml-app-id` header. The four new entries (`anthropic`, `openai`, `google`, `baseten`) SHALL carry only these five attribution headers, except `anthropic` which additionally carries `anthropic-beta: context-1m-2025-08-07` for 1M-context parity with today's `ai-gw-anthropic-1m`. The existing `typesafe` entry keeps its other headers (`source`, `org-id`, `x-llmo-force-redaction`, `provider: typesafe`). After cutover, these entries SHALL NOT set `baseUrl` or `apiKey`.
 
 #### Scenario: rendered template has the overlay
 - GIVEN the work-profile chezmoi config
 - WHEN `models.json.tmpl` is rendered
-- THEN each of the five providers has the five attribution headers
+- THEN each of the five providers has `ml-app-id: ai-devx.pi` and the four custom attribution headers
 
 #### Scenario: overlay entries are headers-only after cutover
 - GIVEN the cutover template (Task 4)
@@ -89,17 +90,17 @@ The work-profile `anthropic` entry SHALL set `compat` to `{ "supportsStrictTools
 - THEN the probe logs `compat` with all four flags `false`
 
 ### Requirement: Requests through stock dd-ai-gateway succeed with attribution
-Probe requests through each Gateway chat provider SHALL succeed, and the resulting LLM Obs spans SHALL carry `ml_app:pi`, `ml_app_id:aidevx.pi`, `dd.user_email:matteo.ruina@datadoghq.com`, `dd.team:compute`, and the probe's `client_session_id`.
+Probe requests through each Gateway chat provider SHALL succeed, and the resulting LLM Obs spans SHALL carry `ml_app:pi`, `dd.user_email:matteo.ruina@datadoghq.com`, `dd.team:compute`, and the probe's `client_session_id`. The current approved `ml-app-id: ai-devx.pi` resolves to `ml_app_id:unregistered` in production; retain and report that result.
 
 #### Scenario: probe per provider (Slice 1, before cutover)
 - GIVEN the overlay and extension are applied while `refresh-models` is still installed
 - WHEN `pi --no-extensions -e <dd-ai-gateway> -e <pi-client-session-id> -e /tmp/header-probe.ts --session-id <uuid> -p "Reply with ok"` runs for each probe model
-- THEN each command exits 0 with a reply, and the probe log shows the five attribution headers with `client_session_id` equal to `<uuid>`
+- THEN each command exits 0 with a reply, and the probe log shows `ml-app-id: ai-devx.pi` plus the four custom attribution headers, with `client_session_id` equal to `<uuid>`
 
 #### Scenario: spans carry the tags
 - GIVEN the probe requests completed
 - WHEN `pup ddsql` queries `dd.llm_observability` for `service:ai_gateway client_session_id:<uuid>`
-- THEN at least one span per probe model returns `ml_app=pi`, `ml_app_id=aidevx.pi`, `dd.team=compute`, and `dd.user_email=matteo.ruina@datadoghq.com`
+- THEN at least one span per probe model returns `ml_app=pi`, `ml_app_id=unregistered` (the current approved live result), `dd.team=compute`, and `dd.user_email=matteo.ruina@datadoghq.com`
 
 #### Scenario: missing session id fails visibly (failure path)
 - GIVEN the overlay is loaded but the `pi-client-session-id` extension is not
@@ -117,7 +118,7 @@ After cutover, the work-profile `models.json` SHALL contain no `ai-gw-*` provide
 #### Scenario: /session-cost works after cutover
 - GIVEN an interactive session on `baseten/baseten/zai-org/GLM-5.3` with at least one completed turn
 - WHEN `/session-cost` runs after LLM Obs ingestion (up to 10 minutes)
-- THEN it shows a cost above $0.00
+- THEN the underlying estimated cost is greater than zero. The `/session-cost` formatter uses two decimal places, so a sub-cent total can display as `$0.00`.
 
 ## Implementation Contract
 
@@ -129,7 +130,7 @@ After cutover, the work-profile `models.json` SHALL contain no `ai-gw-*` provide
 | Attribution overlay | `dot_pi/agent/models.json.tmpl` (work branch) | Headers for five providers and Claude compat; later remove `ai-gw-*` and the old `typesafe` entry | Template-render test; `chezmoi diff ~/.pi/agent/models.json` |
 | Package install | `dot_pi/agent/modify_private_settings.json.tmpl` (work branch) | Swap `refresh-models` for `dd-ai-gateway` in `.packages` | `chezmoi diff ~/.pi/agent/settings.json`; `jq .packages ~/.pi/agent/settings.json` |
 | Pi-owned selection | `~/.pi/agent/settings.json` fields `defaultProvider`, `defaultModel`, `enabledModels` (Pi-owned, not chezmoi) | New default and scoped models | `jq` on the target; recommender emits no `could not select` warning |
-| Docs and guidance | `dot_pi/agent/exact_prompts/sync-pi-models.md`, `dot_pi/agent/exact_skills/chezmoi/SKILL.md`, `AGENTS.md` | Remove refresh-models workflow; document the overlay and the coupling trap | `npm run test:prompts`, `npm run test:skills`; `rg refresh-models` sweep |
+| Docs and guidance | legacy model-sync guidance, `dot_pi/agent/exact_skills/chezmoi/SKILL.md`, `AGENTS.md` | Remove refresh-models workflow; document the overlay and the coupling trap | `npm run test:prompts`, `npm run test:skills`; `rg refresh-models` sweep |
 
 ### Key Decisions
 - **Stock `dd-ai-gateway`, everything else local.** Every needed attribution change can be added through `models.json` and a local extension (`provider-composer.js:212`, `:157`). No upstream dependency or fork.
@@ -139,14 +140,15 @@ After cutover, the work-profile `models.json` SHALL contain no `ai-gw-*` provide
 - **No JWT filter.** `deliberate:` accepted risk: if a future ddtool writes an upgrade notice to stdout, Gateway auth fails visibly; the fix is a local fork or upstream one-line `grep` filter.
 - **`dd.team: compute`** to group with teammates.
 - **`typesafe` keeps `baseUrl`/`apiKey` until cutover.** `typesafe` is a builtin Pi classifier provider; while refresh-models is installed, nothing else routes Jev through the Gateway. Task 4 strips both fields when `dd-ai-gateway` takes over registration.
+- **Governed `ml_app_id` uses `ml-app-id`.** Gateway ignores caller-supplied `x-dd-tag-ml_app_id` for this field, resolves the distinct `ml-app-id` header against its allowlist, and overwrites the custom tag. Use the seeded `ai-devx.pi` value. Matteo approved all five probes and the cutover despite the live spans resolving it as `unregistered`.
 - **Session-id extension as a directory** (`pi-client-session-id/index.ts`) so its test file is not auto-discovered as an extension, per the repository `AGENTS.md` rule.
 
 ### Implementation Constraints
 - Run every `chezmoi` command with `--source ~/src/.worktrees/dotfiles/maruina-dd-ai-gateway-migration` (repository `AGENTS.md`); run `chezmoi diff`/`verify` against explicit target files, not directories.
 - Render templates with `chezmoi --source <worktree> execute-template`, never `--init`.
-- `enabledModels`, `defaultProvider`, and `defaultModel` are Pi-owned (`modify_private_settings.json.tmpl` header comment). Set them through Pi (`/model`, `/scoped-models`), not chezmoi.
+- `enabledModels`, `defaultProvider`, and `defaultModel` are Pi-owned (`modify_private_settings.json.tmpl` header comment), not chezmoi-managed. Prefer Pi's `/model` and `/scoped-models` selectors; in a non-interactive environment, update only these keys in `~/.pi/agent/settings.json` and verify them with `jq`.
 - Do not run `/refresh-models` between Task 2 and Task 4: refresh-models manages the `typesafe` entry and can rewrite it during a save.
-- The throwaway probe extension lives in `/tmp` and is never committed. It MUST NOT print `Authorization` or any header value outside the allowlist: `source`, `org-id`, `provider`, `claude-code`, `anthropic-beta`, `x-llmo-force-redaction`, `x-dd-tag-*`.
+- The throwaway probe extension lives in `/tmp` and is never committed. It MUST NOT print `Authorization` or any header value outside the allowlist: `source`, `org-id`, `provider`, `claude-code`, `anthropic-beta`, `ml-app-id`, `x-llmo-force-redaction`, `x-dd-tag-*`.
 - **Stop conditions:** stop and report if (a) the probe log does not include provider-configured headers (then use the DDSQL span check as the Slice 1 evidence instead, and record the gap); (b) any probe model returns a Gateway error that does not occur on the corresponding `ai-gw-*` model; (c) DDSQL shows no spans for the probe session after 10 minutes; (d) `session_start` does not fire before the first request in `-p` mode.
 - Safety and performance: the extension does one env assignment per session start; no processes, timers, or network. Header resolution is per request inside Pi; no new fan-out.
 
@@ -156,7 +158,7 @@ After cutover, the work-profile `models.json` SHALL contain no `ai-gw-*` provide
 - `client_session_id` is sent only to Gateway providers because it is defined only on the Gateway provider entries in `models.json`.
 
 ### Observability Requirements
-- Success signal: LLM Obs spans for `service:ai_gateway` carry `ml_app:pi`, `ml_app_id:aidevx.pi`, `dd.team:compute`, `dd.user_email`, and `client_session_id`; `/session-cost` shows a non-zero cost.
+- Success signal: LLM Obs spans for `service:ai_gateway` carry `ml_app:pi`, `dd.team:compute`, `dd.user_email`, and `client_session_id`; with the currently approved candidate id, Gateway records `ml_app_id:unregistered`. `/session-cost` should show a non-zero cost once Matteo runs it in an interactive session.
 - Failure signals: Pi reports `Failed to resolve ... PI_CLIENT_SESSION_ID` (missing extension), `Failed to resolve API key` or HTTP 401 (token output changed), or Gateway HTTP errors on a model.
 
 ### Failure Modes to Handle
@@ -193,14 +195,14 @@ Narrow command expected to fail before implementation: `cd dot_pi/agent && node 
 Delivers: stock `dd-ai-gateway` plus the local overlay sends the full attribution header set, verified by probe and LLM Obs spans, while daily use stays on refresh-models.
 
 ### Task 1: Session-id extension with overlay tests
-**Status:** In progress.
+**Status:** Complete.
 **Delivers:** `pi-client-session-id` extension, its unit tests, and failing overlay tests that Task 2 makes pass.
 **Blocked by:** None
 **Traces to:** Requirement "Session id is available to Gateway headers"; Requirement "Gateway providers carry the attribution overlay"
 **Files:** `dot_pi/agent/exact_extensions/pi-client-session-id/index.ts`, `dot_pi/agent/exact_extensions/pi-client-session-id/index.test.ts`, `dot_pi/agent/package.json`
 
 - [x] Run `npm ci --ignore-scripts` in `dot_pi/agent` (repository `AGENTS.md`).
-- [x] Write `index.test.ts` with: the two session-id scenarios (fake `pi.on` capturing the `session_start` handler); a rendered-catalog test asserting the five providers each have the five attribution headers (`typesafe` also `provider: typesafe`), the `anthropic` entry also carries `anthropic-beta: context-1m-2025-08-07`, and the `anthropic` `compat` has four `false` flags; and the coupling guard (if any rendered header value contains `$PI_CLIENT_SESSION_ID`, the extension `index.ts` exists).
+- [x] Write `index.test.ts` with: the two session-id scenarios (fake `pi.on` capturing the `session_start` handler); a rendered-catalog test asserting the five providers each have `ml-app-id: ai-devx.pi` and the four custom attribution headers (`typesafe` also `provider: typesafe`), with no `x-dd-tag-ml_app_id` header, the `anthropic` entry also carries `anthropic-beta: context-1m-2025-08-07`, and the `anthropic` `compat` has four `false` flags; and the coupling guard (if any rendered header value contains `$PI_CLIENT_SESSION_ID`, the extension `index.ts` exists).
 - [x] Add `"$ext"/pi-client-session-id/*.test.ts` to `test:unit` in `dot_pi/agent/package.json`.
 - [x] Run `node --experimental-strip-types --test exact_extensions/pi-client-session-id/index.test.ts` from `dot_pi/agent`; expect failures for the missing extension and missing overlay.
 - [x] Implement `index.ts`: default factory registering `pi.on("session_start", (_event, ctx) => { process.env.PI_CLIENT_SESSION_ID = ctx.sessionManager.getSessionId(); })`, with a short header comment naming the `models.json` coupling.
@@ -208,88 +210,117 @@ Delivers: stock `dd-ai-gateway` plus the local overlay sends the full attributio
 - [ ] Do not commit yet; Task 2 lands in the same commit so the coupling guard is green.
 
 ### Task 2: models.json overlay for Gateway providers
-**Status:** In progress.
+**Status:** Complete.
 **Delivers:** The work branch of `models.json.tmpl` adds the five overlay entries beside the existing providers; Task 1 tests pass.
 **Blocked by:** Task 1
 **Traces to:** Requirement "Gateway providers carry the attribution overlay"; Requirement "Claude requests avoid flags that trigger Gateway fallback"
 **Files:** `dot_pi/agent/models.json.tmpl`, plus Task 1 files
 
-- [x] In the work branch, add `anthropic`, `openai`, `google`, `baseten` entries with only `headers` (five attribution headers, email as `{{ .email }}`, team `compute`; the `anthropic` entry also carries `anthropic-beta: context-1m-2025-08-07` for 1M-context parity with `ai-gw-anthropic-1m`), and `compat` on `anthropic` only.
+- [x] In the work branch, add `anthropic`, `openai`, `google`, `baseten` entries with only `headers` (`ml-app-id: ai-devx.pi` plus four custom attribution headers, email as `{{ .email }}`, team `compute`; the `anthropic` entry also carries `anthropic-beta: context-1m-2025-08-07` for 1M-context parity with `ai-gw-anthropic-1m`), and `compat` on `anthropic` only.
 - [x] In the existing `typesafe` entry, change only `x-dd-tag-dd.team` to `compute`; keep its `baseUrl` and `apiKey` until Task 4.
 - [x] Leave all `ai-gw-*` providers unchanged.
 - [x] Run `node --experimental-strip-types --test exact_extensions/pi-client-session-id/index.test.ts`; expect all tests pass.
 - [x] Run `npm run test:unit`; expect pass, including `lifecycle-model-recommender/_policy.test.ts`.
 - [x] Run `chezmoi --source <worktree> diff ~/.pi/agent/models.json ~/.pi/agent/extensions/pi-client-session-id/index.ts`; expect only the planned additions and the `typesafe` team change.
-- [ ] Commit with `feat(pi): add AI Gateway attribution overlay and session-id extension`.
+- [x] Commit with `feat(pi): add AI Gateway attribution overlay and session-id extension`.
 
 ### Task 3: Probe stock dd-ai-gateway with the overlay
+**Status:** Complete by user direction — Matteo approved retaining `ml-app-id: ai-devx.pi` and proceeding despite the production allowlist returning `unregistered`. All five provider requests succeeded; all five spans carried the other expected tags.
 **Delivers:** Evidence that each provider succeeds through stock `dd-ai-gateway` with attribution headers, Claude compat override, and span tags.
 **Blocked by:** Task 2
 **Traces to:** Requirement "Requests through stock dd-ai-gateway succeed with attribution"; Requirement "Claude requests avoid flags that trigger Gateway fallback"
 **Files:** none committed (`/tmp/header-probe.ts`, `/tmp/dd-ai-gateway-probe.log`)
 
-- [ ] Run `git -C ~/go/src/github.com/DataDog/datadog-pi-packages pull --ff-only` so the installed `dd-ai-gateway` is current `main`.
-- [ ] Apply the Slice 1 targets: `chezmoi --source <worktree> apply ~/.pi/agent/models.json ~/.pi/agent/extensions/pi-client-session-id/index.ts`.
-- [ ] Write `/tmp/header-probe.ts`: a `before_provider_headers` handler that appends to `/tmp/dd-ai-gateway-probe.log` the `ctx.model` provider and id, `ctx.model.compat`, and allowlisted headers only (see Implementation Constraints).
-- [ ] Generate a lowercase UUID per run. For each model `anthropic/claude-opus-5-5`, `openai/openai/gpt-6-luna`, `google/gemini-3.8-flash`, `baseten/baseten/zai-org/GLM-5.3-Flash`, `baseten/baseten/zai-org/GLM-5.3`, run `pi --no-extensions -e ~/go/src/github.com/DataDog/datadog-pi-packages/packages/dd-ai-gateway/extensions/dd-ai-gateway/index.ts -e ~/.pi/agent/extensions/pi-client-session-id/index.ts -e /tmp/header-probe.ts --session-id <uuid> --model <model> -p "Reply with ok"`; expect exit 0 and a reply.
-- [ ] Check the log: each request has `x-dd-tag-ml_app: pi`, `x-dd-tag-ml_app_id: aidevx.pi`, `x-dd-tag-dd.user_email: matteo.ruina@datadoghq.com`, `x-dd-tag-dd.team: compute`, `x-dd-tag-client_session_id: <uuid>`, `claude-code: true`; the Claude request shows the four compat flags `false` and `anthropic-beta: context-1m-2025-08-07`. Apply stop condition (a) if configured headers are absent.
-- [ ] Failure path: run once with `-e` for `dd-ai-gateway` only (omit `pi-client-session-id`); expect the `PI_CLIENT_SESSION_ID` resolution error.
-- [ ] After up to 10 minutes, run `pup ddsql table` with a query on `dd.llm_observability` (`columns => ARRAY['ml_app','ml_app_id','dd.team','dd.user_email','client_session_id']`, `filter => 'service:ai_gateway client_session_id:<uuid>'`), grouped by model; expect one row per probe model with the expected tag values. Use the same `env -u DD_ORG -u DD_ACCESS_TOKEN -u DD_API_KEY -u DD_APP_KEY DD_SITE=datadoghq.com pup ...` prefix as `session-cost`.
-- [ ] Record the commands and results under `## Execution evidence` in this plan and commit with `docs: record dd-ai-gateway probe evidence`.
+- [x] Run `git -C ~/go/src/github.com/DataDog/datadog-pi-packages pull --ff-only` so the installed `dd-ai-gateway` is current `main`.
+- [x] Apply the Slice 1 targets: `chezmoi --source <worktree> apply ~/.pi/agent/models.json ~/.pi/agent/extensions/pi-client-session-id/index.ts`. The combined command failed because the new target directory did not exist; applying `models.json` and then the new extension directory separately succeeded, and the explicit-target diff is empty.
+- [x] Write `/tmp/header-probe.ts`: a `before_provider_headers` handler that appends to `/tmp/dd-ai-gateway-probe.log` the `ctx.model` provider and id, `ctx.model.compat`, and allowlisted headers only (see Implementation Constraints).
+- [x] Generate a lowercase UUID per run. For each model `anthropic/claude-opus-5-5`, `openai/openai/gpt-6-luna`, `google/gemini-3.8-flash`, `baseten/baseten/zai-org/GLM-5.3-Flash`, `baseten/baseten/zai-org/GLM-5.3`, run `pi --no-extensions -e ~/go/src/github.com/DataDog/datadog-pi-packages/packages/dd-ai-gateway/extensions/dd-ai-gateway/index.ts -e ~/.pi/agent/extensions/pi-client-session-id/index.ts -e /tmp/header-probe.ts --session-id <uuid> --model <model> -p "Reply with ok"`; expect exit 0 and a reply.
+- [x] Check the original probe log: each request has `x-dd-tag-ml_app: pi`, `x-dd-tag-ml_app_id: aidevx.pi`, `x-dd-tag-dd.user_email: matteo.ruina@datadoghq.com`, `x-dd-tag-dd.team: compute`, `x-dd-tag-client_session_id: <uuid>`, `claude-code: true`; the Claude request shows the four compat flags `false` and `anthropic-beta: context-1m-2025-08-07`. This log predates the approved header correction.
+- [x] Failure path: run once with `-e` for `dd-ai-gateway` only (omit `pi-client-session-id`); expect the `PI_CLIENT_SESSION_ID` resolution error.
+- [x] Follow-up validation: the one-provider request succeeded, but LLM Obs resolved `ml-app-id: ai-devx.pi` to `unregistered`. On 2026-10-05, Matteo approved retaining this id and proceeding; record the span result without treating it as a migration blocker.
+- [x] Rerun the five provider probes with `ml-app-id: ai-devx.pi`; all five requests exited 0 and returned `ok`. See the follow-up five-provider evidence below.
+- [x] Query `dd.llm_observability` for the five-provider session after ingestion. All five spans had `ml_app=pi`, `ml_app_id=unregistered`, `dd.team=compute`, the expected email, and the probe session id. Matteo accepted keeping the header and moving forward.
+- [x] Record the commands and results under `## Execution evidence` in this plan. Commit with the completed migration after final owner validation.
 
 ### Slice 2: Cutover from refresh-models to dd-ai-gateway
 Delivers: refresh-models is uninstalled, Pi uses the builtin providers through stock `dd-ai-gateway`, and `/session-cost` works.
 
 ### Task 4: Remove ai-gw providers and swap the package
+**Status:** Cutover applied and verified; `npm run test:all` passes.
 **Delivers:** `models.json` contains only the overlay entries in the work branch; `.packages` lists `dd-ai-gateway`.
 **Blocked by:** Task 3
 **Traces to:** Requirement "refresh-models is retired"
 **Files:** `dot_pi/agent/models.json.tmpl`, `dot_pi/agent/modify_private_settings.json.tmpl`, `dot_pi/agent/exact_extensions/pi-client-session-id/index.test.ts`
 
-- [ ] Add the "overlay entries are headers-only after cutover" test to `index.test.ts`; run it and expect failure.
-- [ ] Remove `baseUrl` and `apiKey` from the `typesafe` entry (stock `dd-ai-gateway` registers both).
-- [ ] Delete the `ai-gw-openai`, `ai-gw-google`, `ai-gw-anthropic-200k`, `ai-gw-anthropic-1m`, `ai-gw-logical`, and `ai-gw-baseten` entries from the work branch. Keep the personal branch unchanged.
-- [ ] In the work `.packages` list, replace `../../go/src/github.com/DataDog/datadog-pi-packages/packages/refresh-models` with `../../go/src/github.com/DataDog/datadog-pi-packages/packages/dd-ai-gateway`.
-- [ ] Add `enabledModels` to the Pi-owned fields comment at the top of `modify_private_settings.json.tmpl` (the comment names `defaultProvider` and `defaultModel` but not `enabledModels`, which Task 5 sets through Pi).
-- [ ] Run `npm test` in `dot_pi/agent`; expect pass, including the new cutover test (the recommender catalog test iterates no work models).
-- [ ] Run `chezmoi --source <worktree> diff ~/.pi/agent/models.json ~/.pi/agent/settings.json`; expect only the removals, the `typesafe` field removal, and the package swap.
-- [ ] Apply both targets with `chezmoi --source <worktree> apply` and restart Pi.
-- [ ] Run `pi --list-models ai-gw`; expect no models. Run `pi --list-models GLM-5.3`; expect `baseten` / `baseten/zai-org/GLM-5.3`.
-- [ ] Run `npm run test:smoke`; expect no `[Extension issues]`.
-- [ ] Commit with `feat(pi): migrate from refresh-models to dd-ai-gateway`.
+- [x] Add and pass the "overlay entries are headers-only after cutover" test in `index.test.ts`.
+- [x] Remove `baseUrl` and `apiKey` from the `typesafe` entry (stock `dd-ai-gateway` registers both).
+- [x] Delete the six `ai-gw-*` entries from the work branch; keep the personal branch unchanged.
+- [x] In the work `.packages` list, replace `refresh-models` with `dd-ai-gateway`.
+- [x] Add `enabledModels` to the Pi-owned fields comment at the top of `modify_private_settings.json.tmpl`.
+- [x] Run `npm test` and `npm run test:all` in `dot_pi/agent`; both pass, including the cutover test and smoke test.
+- [x] Apply both targets with `chezmoi --source <worktree> apply`; a fresh `pi --list-models` process sees the stock catalog.
+- [x] Run `pi --list-models ai-gw`; it returned no models. `pi --list-models GLM-5.3` lists stock `baseten` models including `baseten/zai-org/GLM-5.3`.
+- [ ] Commit with `feat(pi): migrate from refresh-models to dd-ai-gateway` after owner validation.
 
 ### Task 5: Reselect default and scoped models
+**Status:** Runtime settings and model refs verified; lifecycle-recommender unit tests pass.
 **Delivers:** Pi starts on `baseten/baseten/zai-org/GLM-5.3` and cycles the new refs.
 **Blocked by:** Task 4
 **Traces to:** Requirement "refresh-models is retired"
 **Files:** `~/.pi/agent/settings.json` (Pi-owned fields, no repository change)
 
-- [ ] Before changing, record the old values for rollback: `defaultProvider: ai-gw-logical`, `defaultModel: glm-5-3`, `enabledModels`: `ai-gw-logical/glm-5-3`, `ai-gw-openai/openai/gpt-6-sol`, `ai-gw-anthropic-1m/anthropic/claude-opus-5-5`, `ai-gw-openai/openai/gpt-6-luna`, `ai-gw-logical/glm-5-3-flash`, `ai-gw-logical/deepseek-v4-1-flash`, `ai-gw-google/gemini-3.8-flash`.
-- [ ] In Pi, use `/model` to select `baseten/baseten/zai-org/GLM-5.3`, and `/scoped-models` to set: `baseten/baseten/zai-org/GLM-5.3`, `openai/openai/gpt-6-sol`, `anthropic/claude-opus-5-5`, `openai/openai/gpt-6-luna`, `baseten/baseten/zai-org/GLM-5.3-Flash`, `baseten/baseten/deepseek-ai/DeepSeek-V4.1-Flash`, `google/gemini-3.8-flash`.
-- [ ] Run `jq '{defaultProvider, defaultModel, enabledModels}' ~/.pi/agent/settings.json`; expect the new values.
-- [ ] Start `/plan test` and `/execute test` in a scratch session; expect no `could not select` warning from the lifecycle-model-recommender.
+- [x] Record the old values for rollback: `defaultProvider: ai-gw-logical`, `defaultModel: glm-5-3`, and the seven legacy `enabledModels` refs listed in the previous plan version.
+- [x] Set the default to `baseten/baseten/zai-org/GLM-5.3` and `enabledModels` to `baseten/baseten/zai-org/GLM-5.3`, `openai/openai/gpt-6-sol`, `anthropic/claude-opus-5-5`, `openai/openai/gpt-6-luna`, `baseten/baseten/zai-org/GLM-5.3-Flash`, `baseten/baseten/deepseek-ai/DeepSeek-V4.1-Flash`, and `google/gemini-3.8-flash`. Since this session has no usable interactive TUI, a targeted `jq` update changed only the Pi-owned settings keys.
+- [x] Run `jq '{defaultProvider, defaultModel, enabledModels}' ~/.pi/agent/settings.json`; it returns the new values.
+- [x] Search the catalog for each selected model; all seven refs are present under the expected stock providers.
+- [x] Verify all selected refs are present in the stock catalog and run the lifecycle-model-recommender unit tests. Interactive slash-command smoke tests were not run in this headless session.
 
 ### Task 6: Live verification and documentation
 **Delivers:** Post-cutover evidence and updated guidance with no stale refresh-models workflow.
 **Blocked by:** Task 5
 **Traces to:** Requirement "Requests through stock dd-ai-gateway succeed with attribution"; Requirement "refresh-models is retired"; explicit instruction to update dotfiles and docs
-**Files:** `dot_pi/agent/exact_prompts/sync-pi-models.md`, `dot_pi/agent/exact_skills/chezmoi/SKILL.md`, `AGENTS.md`, this plan
+**Files:** obsolete model-sync prompt (removed), `dot_pi/agent/exact_skills/chezmoi/SKILL.md`, `AGENTS.md`, this plan
 
-- [ ] In an interactive session on the default model, complete one turn, then run `/session-cost` after up to 10 minutes; expect a cost above $0.00.
-- [ ] Rerun the Task 3 DDSQL query for that session id; expect `ml_app=pi`, `ml_app_id=aidevx.pi`, `dd.team=compute`, `dd.user_email=matteo.ruina@datadoghq.com`.
-- [ ] Delete `dot_pi/agent/exact_prompts/sync-pi-models.md` (its only purpose is syncing `/refresh-models` output) and remove references to it, if any (`rg -n sync-pi-models`).
-- [ ] Replace the "Pi models after `/refresh-models`" section in `dot_pi/agent/exact_skills/chezmoi/SKILL.md` with a short section: `dd-ai-gateway` provides the models; `models.json.tmpl` work branch holds only the attribution overlay; edit the template directly.
-- [ ] In repository `AGENTS.md` under "Pi Agent Development", add one trap line: the `x-dd-tag-client_session_id: $PI_CLIENT_SESSION_ID` header in `models.json.tmpl` requires `exact_extensions/pi-client-session-id/`; without it, every Gateway request fails (including `pi --no-extensions` without `-e`).
-- [ ] Run `rg -n "refresh-models|ai-gw-" -g '!plans/**' -g '!**/*.test.ts' .`; expect no matches.
-- [ ] Run `npm test` and `npm run test:all` in `dot_pi/agent`; expect pass. Then remove `dot_pi/agent/node_modules`.
-- [ ] Apply the changed targets with `chezmoi --source <worktree> apply` for the prompt and skill files; confirm with `chezmoi --source <worktree> diff` on each file.
-- [ ] Record evidence under `## Execution evidence`; commit with `docs(pi): document dd-ai-gateway overlay and retire refresh-models sync`.
-- [ ] Push the branch.
+- [x] Owner validation: Matteo ran `/session-cost` in session `01a10dde-a437-71e5-b221-3c109319c706`. The UI first reported pending ingestion, then displayed `$0.00`; DDSQL found two priced spans totaling `$0.00211526`, which rounds to `$0.00` at the formatter's two-decimal precision. The spans had `ml_app=pi`, `ml_app_id=unregistered`, `dd.team=compute`, and the expected email.
+- [x] Delete the obsolete model-sync prompt and replace the stale Pi models guidance with instructions to keep stock catalogs out of the overlay template.
+- [x] Add the `PI_CLIENT_SESSION_ID` coupling trap to `AGENTS.md`.
+- [x] Run `rg -n "refresh-models|ai-gw-" -g '!plans/**' -g '!**/*.test.ts' .`; it returns no matches.
+- [x] Run `npm test` and `npm run test:all` in `dot_pi/agent`; both pass. Remove `dot_pi/agent/node_modules` after the tests.
+- [x] Apply the changed documentation targets with `chezmoi --source <worktree> apply`; the skill diff is empty and the obsolete prompt target is absent.
+- [x] Record final implementation and test evidence under `## Execution evidence`.
+- [ ] Commit and push after owner validation.
+
+## Execution evidence
+### Slice 1 / Task 3
+- Updated `~/go/src/github.com/DataDog/datadog-pi-packages` with `git pull --ff-only`; `main` fast-forwarded from `d436611` to `27ced6a`.
+- Applied `models.json` and `pi-client-session-id/index.ts` through the worktree's chezmoi source. The combined apply failed because the target extension directory was absent; applying `models.json` and then `~/.pi/agent/extensions/pi-client-session-id` separately succeeded. The explicit-target `chezmoi diff` was empty afterward.
+- Ran stock `dd-ai-gateway` probes for `anthropic/claude-opus-5-5`, `openai/openai/gpt-6-luna`, `google/gemini-3.8-flash`, `baseten/baseten/zai-org/GLM-5.3-Flash`, and `baseten/baseten/zai-org/GLM-5.3`, using session id `1bd7383d-7516-4bf1-bcb7-b68d3845357c`. All five commands exited 0 and returned `ok`.
+- `/tmp/dd-ai-gateway-probe.log` contains the five configured attribution headers with the expected values for every provider. The Claude probe logged all four planned compatibility flags as `false` and `anthropic-beta: context-1m-2025-08-07`. The session-id header contained the probe UUID, confirming `session_start` ran before the first request in print mode.
+- Ran the failure-path probe without `pi-client-session-id`; it exited 1 with `Failed to resolve provider "openai" header "x-dd-tag-client_session_id" from environment variable: PI_CLIENT_SESSION_ID`, as expected.
+- Queried `dd.llm_observability` after the 10-minute ingestion window with `columns => ARRAY['@meta.model_name','ml_app','ml_app_id','dd.team','dd.user_email','client_session_id']` and filter `service:ai_gateway client_session_id:1bd7383d-7516-4bf1-bcb7-b68d3845357c`. It returned one row for each of the five model names, with `ml_app=pi`, `dd.team=compute`, `dd.user_email=matteo.ruina@datadoghq.com`, and the expected `client_session_id`. However, `ml_app_id` was `unknown` for all five rows, although the outgoing-header log showed `x-dd-tag-ml_app_id: aidevx.pi`.
+- After the user-approved correction, ran one `openai/openai/gpt-6-luna` probe with session id `e54e6b8a-4df0-4395-a8f1-d64968d587f3`. It exited 0 and returned `ok`; the allowlisted probe log showed `ml-app-id: ai-devx.pi` and no `x-dd-tag-ml_app_id`.
+- Queried `dd.llm_observability` for that session after 10 minutes. It returned one `gpt-6-luna` span with `ml_app=pi`, `ml_app_id=unregistered`, `dd.team=compute`, `dd.user_email=matteo.ruina@datadoghq.com`, and the expected `client_session_id`. On 2026-10-05, Matteo accepted retaining the tag and proceeding despite the unresolved registry result.
+- Reran all five provider probes with session id `23f3bb3e-41ba-4879-a740-4fb541ae467f`. All requests exited 0 and returned `ok`. The allowlisted log shows `ml-app-id: ai-devx.pi`, the four custom attribution headers, and the session id for all providers; the Anthropic request also shows the expected beta header and four compat flags set to `false`.
+- Queried `dd.llm_observability` for `service:ai_gateway client_session_id:23f3bb3e-41ba-4879-a740-4fb541ae467f`. It returned one span for each of the five model names. Every span had `ml_app=pi`, `ml_app_id=unregistered`, `dd.team=compute`, `dd.user_email=matteo.ruina@datadoghq.com`, and the expected session id. Matteo accepted proceeding with the candidate id despite this runtime resolution.
+- Follow-up code research against `dd-source` main at `8197d8b7def1b` explains the mismatch: Gateway reads the separate `ml-app-id` header, resolves it through the governed app allowlist, and writes the result to server-side request state. The provider then merges `x-dd-tag-*` values and deliberately overwrites `ml_app_id` from that state; the tests assert callers cannot spoof it with `x-dd-tag-ml_app_id`. With no `ml-app-id` header, the server writes `unknown`. The checked-in seed snapshot contains `ai-devx.pi`, not `aidevx.pi`; production allowlist state was not queried.
+- On 2026-10-05, Matteo approved retaining `ml-app-id: ai-devx.pi` and proceeding despite the `unregistered` result. The five-provider rerun succeeded and the cutover proceeded; see Slice 2 evidence below.
+
+### Slice 2 / Tasks 4–5
+- Removed the six `ai-gw-*` provider definitions from the work-profile `models.json.tmpl`, removed `baseUrl` and `apiKey` from the `typesafe` overlay, and changed the work package list from `refresh-models` to `dd-ai-gateway`. Applied the source to Pi's configuration; `chezmoi diff` for the explicit `models.json` and `settings.json` targets was empty.
+- `pi --list-models ai-gw` returned no models. `pi --list-models GLM-5.3` returned stock `baseten` models, including `baseten/zai-org/GLM-5.3` and `baseten/zai-org/GLM-5.3-Flash`.
+- Updated the Pi-owned settings in `~/.pi/agent/settings.json` to default to `baseten/baseten/zai-org/GLM-5.3` and enable the seven refs listed in Task 5. The old values were recorded before the change; catalog searches found each selected model.
+- A fresh Pi process started without a model override selected `baseten/baseten/zai-org/GLM-5.3` and returned `ok`. Its span (`client_session_id=91ece1f6-5f5b-4a53-afac-6189c6f22235`) had `ml_app=pi`, `ml_app_id=unregistered`, `dd.team=compute`, the expected email and session id, and a positive estimated cost of `$0.013419151`. The allowlisted probe log confirmed `ml-app-id: ai-devx.pi` and no `x-dd-tag-ml_app_id`.
+- A post-cutover probe using stock `dd-ai-gateway`, the local session-id extension, and the `models.json` overlay returned `ok` for `baseten/baseten/zai-org/GLM-5.3`. Its span (`client_session_id=9d6d280f-7954-4aa3-9f0b-1288b4160f4a`) had `ml_app=pi`, `ml_app_id=unregistered`, `dd.team=compute`, `dd.user_email=matteo.ruina@datadoghq.com`, and the expected session id.
+- `npm run test:unit` passed 203/203 tests; LSP reported no diagnostics for the changed TypeScript test. After the documentation changes, `npm run test:all` passed: 203 unit tests, 53 prompt tests, skills/dependency validation, and the Pi smoke test. `dot_pi/agent/node_modules` was removed afterward.
+- Removed the obsolete model-sync prompt, updated the chezmoi skill and `AGENTS.md`, and applied the changed skill target. The explicit chezmoi diffs for `models.json`, `settings.json`, and the skill are empty; the prompt target is absent. The `refresh-models|ai-gw-` sweep returned no matches outside plans and test fixtures.
+- Matteo ran `/session-cost` for session `01a10dde-a437-71e5-b221-3c109319c706`. Its two spans were priced, with a combined estimated cost of `$0.00211526`; the UI rounds this to `$0.00`. The span tags were `ml_app=pi`, `ml_app_id=unregistered`, `dd.team=compute`, the expected email, and the session id. The initial pending message was an ingestion delay.
+
+## Learning candidates
+- 2026-10-05: Gateway intentionally ignores caller-supplied `x-dd-tag-ml_app_id` for the governed `ml_app_id` span tag; it resolves the distinct `ml-app-id` header against an allowlist and overwrites the custom tag. Evidence: `domains/ai_platform/apps/apis/ai_gateway/internal/providers/http_providers/base.py:3213-3268` and `internal/tests/test_http_base_provider.py:1292-1305` in `dd-source` main; the Task 3 DDSQL query returned `unknown` despite the client log showing the x-dd header.
+- 2026-10-05: A local allowlist seed entry does not prove the id is registered in the live Gateway environment; the focused probe sent `ml-app-id: ai-devx.pi`, but its span carried `ml_app_id=unregistered`. Evidence: Task 3 follow-up probe with session id `e54e6b8a-4df0-4395-a8f1-d64968d587f3`.
 
 ## Final verification
-Only the completed feature satisfies these criteria:
-- `/session-cost` shows a cost above $0.00 on the new default model.
-- LLM Obs spans for a post-cutover session carry all five attribution tags.
+Implementation verification is complete. The user session used the stock `openai` provider, not an `ai-gw-*` provider. Its two priced spans total `$0.00211526`; the `/session-cost` display rounds this sub-cent amount to `$0.00`. A separate fresh Pi process without a model override selected the configured default, `baseten/baseten/zai-org/GLM-5.3`, and its span carried the expected custom tags. Production still resolves `ml_app_id` as `unregistered`, as approved.
 - `pi --list-models ai-gw` lists nothing, `npm run test:all` passes, and the `rg` sweep finds no stale references.
 
 ## Follow-ups (not plan scope)

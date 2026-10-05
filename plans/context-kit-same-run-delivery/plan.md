@@ -238,18 +238,20 @@ Delivers the smallest user-feedback slice: blocked first edit, same-turn visible
 - [x] Commit with `feat(pi): deliver context-kit files in the same run and block unguided edits` (`a5c6437`).
 
 ### Task 2: Size limits and fail-open handling
+**Execution status:** Complete.
 **Delivers:** Bounded batches, and no edit blocked by an internal error or an unreadable file.
 **Blocked by:** 1
 **Traces to:** Requirements "Size limits" and "Fail-open discovery"
 **Files:** `dot_pi/agent/exact_extensions/context-kit/index.ts`, `dot_pi/agent/exact_extensions/context-kit/_lifecycle.test.ts`, `dot_pi/agent/exact_extensions/context-kit/_usage.test.ts` (one test that `parseDiscoveryMessage` still parses a message with truncation and omitted-files text)
 
-- [ ] Add failing scenarios for a 30 KiB file, batch overflow, an unreadable file, and a discovery exception.
-- [ ] Run `npm run test:context-kit`; expect those tests to fail.
-- [ ] Implement the limits in the message builder (`MAX_FILE_BYTES = 24 * 1024`, `MAX_BATCH_BYTES = 96 * 1024`), the pre-block omitted list, the removal of unreadable files from the blocking set with a warning, and a `try`/`catch` around discovery in `tool_call` that warns and returns `undefined`.
-- [ ] Run `npm run test:context-kit`; expect all tests to pass.
-- [ ] Commit with `feat(pi): bound context-kit injection size and fail open on discovery errors`.
+- [x] Add failing scenarios for a 30 KiB file, batch overflow, an unreadable file, and a discovery exception.
+- [x] Run `npm run test:context-kit`; the new size, unreadable-file warning, and fail-open scenarios failed as expected; the parser compatibility test passed.
+- [x] Implement the limits in the message builder (`MAX_FILE_BYTES = 24 * 1024`, `MAX_BATCH_BYTES = 96 * 1024`), the pre-block omitted list, the removal of unreadable files from the blocking set with a warning, and a `try`/`catch` around discovery in `tool_call` that warns and returns `undefined`.
+- [x] Run `npm run test:context-kit`; all 74 tests passed. `git diff --check` passed; LSP reported no diagnostics for the changed TypeScript files.
+- [x] Commit with `feat(pi): bound context-kit injection size and fail open on discovery errors` (`47918cd`).
 
 ### Task 3: Visible tree and blocked-mutation count
+**Execution status:** In progress.
 **Delivers:** The UI shows what loaded and why an edit was blocked; status reports blocked mutations.
 **Blocked by:** 1
 **Traces to:** Requirements "Visible compact tree" and "Blocked-mutation observability"

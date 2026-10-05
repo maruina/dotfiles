@@ -1,10 +1,10 @@
-import type { BeforeAgentStartEvent, BeforeAgentStartEventResult, ContextEvent, ExtensionAPI, Skill, ToolCallEvent, ToolCallEventResult } from "@earendil-works/pi-coding-agent";
+import type { BeforeAgentStartEvent, BeforeAgentStartEventResult, ContextEvent, ExtensionAPI, ExtensionContext, Skill, ToolCallEvent, ToolCallEventResult } from "@earendil-works/pi-coding-agent";
 import { getAgentDir, isToolCallEventType } from "@earendil-works/pi-coding-agent";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { findLocalSibling, walkUpForAgents } from "./_agents.ts";
-import { blockingPaths, clearPending, confirmDelivered, createState, queue } from "./_delivery.ts";
+import { blockingPaths, clearPending, confirmDelivered, createState, discover, queue } from "./_delivery.ts";
 import {
   isIgnored,
   loadAgentsIgnore,
@@ -82,10 +82,14 @@ import {
  */
 
 const CONTEXT_KIT_CUSTOM_TYPE = "context-kit-discovery";
+const MAX_FILE_BYTES = 24 * 1024;
+const MAX_BATCH_BYTES = 96 * 1024;
+const TRUNCATION_MARKER = "[truncated: file exceeds the per-file size limit]";
 
 export default function (pi: ExtensionAPI) {
   const state = createState();
   let piContextPaths = new Set<string>();
+  const startupSiblingPaths = new Set<string>();
   const injectedFiles: InjectedContextFile[] = [];
   const ignoredFiles = new Map<string, IgnoredContextFile>();
   let injectionMessages = 0;
@@ -147,62 +151,91 @@ export default function (pi: ExtensionAPI) {
     }
     if (!filePath) return;
 
-    const cwd = resolve(ctx.cwd);
-    // resolve (not join) so `../escape/foo` segments collapse and the
-    // containment check below catches them.
-    const abs = resolve(cwd, filePath);
-    const relFromCwd = relative(cwd, abs);
-    // Empty rel = touched file IS cwd (a directory? unusual but bail).
-    // `..`-prefixed rel = path escapes cwd, no business injecting context.
-    if (relFromCwd === "" || relFromCwd.startsWith("..")) return;
-
-    const agentsIgnore = loadAgentsIgnore(cwd);
-    const ruleIgnore = loadRuleIgnore(cwd);
+    let cwd: string;
+    let abs: string;
     const applicable: Array<{ path: string; content: string; file: InjectedContextFile }> = [];
-    const addApplicable = (path: string, source: ContextKitDiscovery, ignoreRules: boolean) => {
-      if (piContextPaths.has(path)) return;
-      const matcher = ignoreRules ? ruleIgnore : agentsIgnore;
-      if (isIgnored(matcher, path, cwd)) {
-        recordIgnored(path, source, ignoreRules ? ".pi/ruleignore" : ".pi/agentsignore");
+    const discoveredPaths: string[] = [];
+    const ignoredMatches: Array<{ path: string; discovery: ContextKitDiscovery; reason: IgnoredContextFile["reason"] }> = [];
+    const unreadablePaths: string[] = [];
+    try {
+      cwd = resolve(ctx.cwd);
+      // resolve (not join) so `../escape/foo` segments collapse and the
+      // containment check below catches them.
+      abs = resolve(cwd, filePath);
+      const relFromCwd = relative(cwd, abs);
+      // Empty rel = touched file IS cwd (a directory? unusual but bail).
+      // `..`-prefixed rel = path escapes cwd, no business injecting context.
+      if (relFromCwd === "" || relFromCwd.startsWith("..")) return;
+
+      const agentsIgnore = loadAgentsIgnore(cwd);
+      const ruleIgnore = loadRuleIgnore(cwd);
+      const seen = new Set<string>();
+      const addApplicable = (path: string, source: ContextKitDiscovery, ignoreRules: boolean) => {
+        if (piContextPaths.has(path) || seen.has(path)) return;
+        seen.add(path);
+        const matcher = ignoreRules ? ruleIgnore : agentsIgnore;
+        if (isIgnored(matcher, path, cwd)) {
+          ignoredMatches.push({ path, discovery: source, reason: ignoreRules ? ".pi/ruleignore" : ".pi/agentsignore" });
+          return;
+        }
+        discoveredPaths.push(path);
+        const content = readContent(path);
+        if (content === null) {
+          unreadablePaths.push(path);
+          return;
+        }
+        applicable.push({
+          path,
+          content,
+          file: { path, kind: contextKind(path), discovery: source, bytes: Buffer.byteLength(content, "utf8") },
+        });
+      };
+
+      for (const agentsPath of walkUpForAgents(dirname(abs), cwd)) {
+        addApplicable(agentsPath, "nested instruction discovery", false);
+        const local = findLocalSibling(agentsPath);
+        if (local) addApplicable(local, "nested instruction discovery", false);
+      }
+      for (const local of startupSiblingPaths) addApplicable(local, "Pi-loaded local sibling", false);
+      for (const rule of findMatchingRules({ filePath: abs, cwd, sources: defaultRuleSources(cwd) }).sort((a, b) => a.path.localeCompare(b.path))) {
+        addApplicable(rule.path, "path-scoped rule match", true);
+      }
+    } catch (error) {
+      warn(ctx, `context-kit: discovery skipped (${error instanceof Error ? error.message : String(error)})`);
+      return;
+    }
+
+    for (const ignored of ignoredMatches) recordIgnored(ignored.path, ignored.discovery, ignored.reason);
+    if (unreadablePaths.length > 0) warn(ctx, `context-kit: could not read ${unreadablePaths.join(", ")}`);
+
+    discover(state, discoveredPaths);
+    const blocking = blockingPaths(state, applicable.map((file) => file.path), piContextPaths);
+    const candidates = applicable
+      .filter((file) => !state.loaded.has(file.path) && !state.pending.has(file.path))
+      .map((file) => ({ ...file, heading: file.path }));
+    const batch = prepareDiscoveryBatch(candidates);
+    if (batch.blocks.length > 0) {
+      const paths = batch.blocks.map((block) => block.file.path);
+      try {
+        pi.sendMessage(
+          {
+            customType: CONTEXT_KIT_CUSTOM_TYPE,
+            content: batch.content,
+            display: false,
+            details: { paths },
+          },
+          { deliverAs: "steer" },
+        );
+      } catch (error) {
+        warn(ctx, `context-kit: delivery failed (${error instanceof Error ? error.message : String(error)})`);
         return;
       }
-      const content = readContent(path);
-      if (content === null) return;
-      applicable.push({
-        path,
-        content,
-        file: { path, kind: contextKind(path), discovery: source, bytes: Buffer.byteLength(content, "utf8") },
-      });
-    };
-
-    for (const agentsPath of walkUpForAgents(dirname(abs), cwd)) {
-      addApplicable(agentsPath, "nested instruction discovery", false);
-      const local = findLocalSibling(agentsPath);
-      if (local) addApplicable(local, "nested instruction discovery", false);
-    }
-    for (const rule of findMatchingRules({ filePath: abs, cwd, sources: defaultRuleSources(cwd) }).sort((a, b) => a.path.localeCompare(b.path))) {
-      addApplicable(rule.path, "path-scoped rule match", true);
-    }
-
-    const blocking = blockingPaths(state, applicable.map((file) => file.path), piContextPaths);
-    const newlyQueued = new Set(queue(state, applicable.map((file) => file.path)));
-    const newBlocks = applicable.filter((file) => newlyQueued.has(file.path));
-    if (newBlocks.length > 0) {
+      queue(state, paths);
       injectionMessages++;
-      injectedFiles.push(...newBlocks.map((file) => file.file));
-      const paths = newBlocks.map((file) => file.path);
-      pi.sendMessage(
-        {
-          customType: CONTEXT_KIT_CUSTOM_TYPE,
-          content: buildDiscoveryMessage(newBlocks.map((block) => ({ heading: block.path, content: block.content }))),
-          display: false,
-          details: { paths },
-        },
-        { deliverAs: "steer" },
-      );
+      injectedFiles.push(...batch.blocks.map((block) => block.file));
     }
 
-    if (newBlocks.length > 0 || newIgnoresThisTurn > 0) {
+    if (batch.blocks.length > 0 || newIgnoresThisTurn > 0) {
       saveUsageRecord(usageDir, {
         sessionId: ctx.sessionManager.getSessionId(),
         cwd,
@@ -229,6 +262,7 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("before_agent_start", traceHook<BeforeAgentStartEvent, BeforeAgentStartEventResult>(pi, "context-kit.before_agent_start", async (event, ctx) => {
     clearPending(state);
+    startupSiblingPaths.clear();
     newIgnoresThisTurn = 0;
     const cwd = resolve(event.systemPromptOptions.cwd);
 
@@ -266,29 +300,34 @@ export default function (pi: ExtensionAPI) {
     const systemPromptChanged = prompt !== event.systemPrompt;
 
     // ── Message injections ────────────────────────────────────────────────────
-    const newBlocks: Array<{ heading: string; content: string; file: InjectedContextFile }> = [];
-    const addBlock = (path: string, content: string, discovery: ContextKitDiscovery) => {
-      if (queue(state, [path]).length === 0) return;
-      newBlocks.push({
-        heading: path,
-        content,
-        file: { path, kind: contextKind(path), discovery, bytes: Buffer.byteLength(content, "utf8") },
-      });
-    };
+    const startupBlocks: Array<{ heading: string; content: string; file: InjectedContextFile }> = [];
 
     // Local siblings of Pi-loaded files apply from session start.
     for (const cf of survivingPi) {
       const local = findLocalSibling(cf.path);
-      if (!local || piContextPaths.has(local) || state.loaded.has(local)) continue;
+      if (!local || piContextPaths.has(local)) continue;
       if (isIgnored(agentsIgnore, local, cwd)) {
         recordIgnored(local, "Pi-loaded local sibling", ".pi/agentsignore");
         continue;
       }
+      startupSiblingPaths.add(local);
+      discover(state, [local]);
+      if (state.loaded.has(local)) continue;
       const content = readContent(local);
-      if (content === null) continue;
-      addBlock(local, content, "Pi-loaded local sibling");
+      if (content === null) {
+        warn(ctx, `context-kit: could not read ${local}`);
+        continue;
+      }
+      startupBlocks.push({
+        heading: local,
+        content,
+        file: { path: local, kind: contextKind(local), discovery: "Pi-loaded local sibling", bytes: Buffer.byteLength(content, "utf8") },
+      });
     }
 
+    const batch = prepareDiscoveryBatch(startupBlocks);
+    const newBlocks = batch.blocks;
+    queue(state, newBlocks.map((block) => block.file.path));
     if (newBlocks.length > 0) {
       injectionMessages++;
       injectedFiles.push(...newBlocks.map((block) => block.file));
@@ -321,7 +360,7 @@ export default function (pi: ExtensionAPI) {
         ? {
             message: {
               customType: CONTEXT_KIT_CUSTOM_TYPE,
-              content: buildDiscoveryMessage(newBlocks),
+              content: batch.content,
               display: false,
               details: { paths: newBlocks.map((block) => block.file.path) },
             },
@@ -339,6 +378,10 @@ export default function (pi: ExtensionAPI) {
  * same `## <path>` heading format Pi uses for Pi-loaded context files,
  * so the model's existing priors about that format apply.
  */
+function warn(ctx: ExtensionContext, message: string): void {
+  if (ctx.hasUI) ctx.ui.notify(message, "warning");
+}
+
 function blockReason(targetPath: string, blocking: readonly string[]): string {
   return [
     `context-kit: context files apply to ${targetPath} but their contents have not been delivered to you yet:`,
@@ -347,12 +390,44 @@ function blockReason(targetPath: string, blocking: readonly string[]): string {
   ].join("\n");
 }
 
-function buildDiscoveryMessage(blocks: { heading: string; content: string }[]): string {
+type DiscoveryBlock = { heading: string; content: string; file: InjectedContextFile };
+
+function prepareDiscoveryBatch(blocks: readonly DiscoveryBlock[]): { blocks: DiscoveryBlock[]; content: string } {
+  const included: DiscoveryBlock[] = [];
+  const omitted: string[] = [];
+  let batchBytes = 0;
+  for (const block of blocks) {
+    const content = truncateContent(block.content);
+    const bytes = Buffer.byteLength(content, "utf8");
+    if (batchBytes + bytes > MAX_BATCH_BYTES) {
+      omitted.push(block.file.path);
+      continue;
+    }
+    batchBytes += bytes;
+    included.push({ ...block, content, file: { ...block.file, bytes } });
+  }
+  return { blocks: included, content: buildDiscoveryMessage(included, omitted) };
+}
+
+function truncateContent(content: string): string {
+  const contentBytes = Buffer.from(content, "utf8");
+  if (contentBytes.byteLength <= MAX_FILE_BYTES) return content;
+
+  const marker = `\n${TRUNCATION_MARKER}`;
+  let end = MAX_FILE_BYTES - Buffer.byteLength(marker, "utf8");
+  while (end > 0 && (contentBytes[end]! & 0xc0) === 0x80) end--;
+  return contentBytes.toString("utf8", 0, end) + marker;
+}
+
+function buildDiscoveryMessage(blocks: readonly DiscoveryBlock[], omitted: readonly string[] = []): string {
   const header =
     "[Project-specific context discovered for files being worked on in this session. " +
     "Apply these guidelines; do not acknowledge this message or its delivery mechanism.]\n";
-  const body = blocks.map((b) => `\n## ${b.heading}\n\n${b.content.trimEnd()}\n`).join("\n");
-  return header + body;
+  const omittedText = omitted.length > 0
+    ? `Not inlined because the batch size limit was reached; read these if they apply:\n${omitted.map((path) => `- ${path}`).join("\n")}\n\n`
+    : "";
+  const body = blocks.map((block) => `\n## ${block.heading}\n\n${block.content.trimEnd()}\n`).join("\n");
+  return header + omittedText + body;
 }
 
 function readContent(path: string): string | null {

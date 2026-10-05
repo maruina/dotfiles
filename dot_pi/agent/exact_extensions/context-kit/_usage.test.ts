@@ -52,6 +52,17 @@ describe("parseDiscoveryMessage", () => {
     assert.equal(files[0]?.path, "/repo/AGENTS.md");
   });
 
+  it("ignores truncation markers and omitted-file text before blocks", () => {
+    const path = "/repo/AGENTS.md";
+    const content = `[header]\nNot inlined because of the batch size limit:\n- /repo/omitted/AGENTS.md\n\n## ${path}\n\nshort content\n[truncated: file exceeds the per-file size limit]\n`;
+    const files = parseDiscoveryMessage(content);
+
+    assert.deepEqual(files, [{
+      path,
+      bytes: Buffer.byteLength("short content\n[truncated: file exceeds the per-file size limit]", "utf8"),
+    }]);
+  });
+
   it("returns nothing for a message with no blocks", () => {
     assert.deepEqual(parseDiscoveryMessage("[header only]\n"), []);
   });

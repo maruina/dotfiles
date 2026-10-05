@@ -1,14 +1,16 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
 import register from "./index.ts";
 
 const usageDir = mkdtempSync(join(tmpdir(), "context-kit-lifecycle-usage-"));
+const previousUsageDir = process.env.PI_CONTEXT_KIT_USAGE_DIR;
 process.env.PI_CONTEXT_KIT_USAGE_DIR = usageDir;
 after(() => {
-  delete process.env.PI_CONTEXT_KIT_USAGE_DIR;
+  if (previousUsageDir === undefined) delete process.env.PI_CONTEXT_KIT_USAGE_DIR;
+  else process.env.PI_CONTEXT_KIT_USAGE_DIR = previousUsageDir;
   rmSync(usageDir, { recursive: true, force: true });
 });
 
@@ -19,6 +21,7 @@ type Harness = {
   sent: AnyRecord[];
   sentOptions: (AnyRecord | undefined)[];
   appended: AnyRecord[];
+  warnings: string[];
   root: string;
 };
 
@@ -28,6 +31,7 @@ function createHarness(root: string): Harness {
     sent: [],
     sentOptions: [],
     appended: [],
+    warnings: [],
     root,
   };
   register({
@@ -43,11 +47,11 @@ function createHarness(root: string): Harness {
   return harness;
 }
 
-function ctx(h: Harness): AnyRecord {
+function ctx(h: Harness, hasUI = false): AnyRecord {
   return {
     cwd: h.root,
-    hasUI: false,
-    ui: { notify() {} },
+    hasUI,
+    ui: { notify: (message: string, level: string) => { if (level === "warning") h.warnings.push(message); } },
     sessionManager: { getSessionId: () => "lifecycle-test" },
   };
 }
@@ -58,10 +62,10 @@ function getHandler(h: Harness, name: string): Handler {
   return handler;
 }
 
-async function toolCall(h: Harness, toolName: string, path: string): Promise<unknown> {
+async function toolCall(h: Harness, toolName: string, path: string, context: AnyRecord = ctx(h)): Promise<unknown> {
   return getHandler(h, "tool_call")(
     { type: "tool_call", toolCallId: `${toolName}-${path}`, toolName, input: { path, content: "x" } },
-    ctx(h),
+    context,
   );
 }
 
@@ -162,6 +166,105 @@ test("a new run re-announces a steer message that was not delivered", async () =
     await toolCall(h, "read", "sub/example.go");
 
     assert.equal(h.sent.length, 2);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("large context files are truncated on a UTF-8 boundary", async () => {
+  const root = mkdtempSync(join(tmpdir(), "context-kit-large-"));
+  try {
+    const sub = join(root, "sub");
+    mkdirSync(sub);
+    const agents = join(sub, "AGENTS.md");
+    writeFileSync(agents, `${"a".repeat(24 * 1024 - 2)}🌍${"z".repeat(6 * 1024)}`);
+    const h = createHarness(root);
+    await start(h);
+
+    const blocked = await toolCall(h, "edit", "sub/example.go") as { block: boolean };
+    assert.equal(blocked.block, true);
+    const message = h.sent[0] as { content: string; details: { paths: string[] } };
+    assert.deepEqual(message.details.paths, [agents]);
+    const block = message.content.split(`## ${agents}\n\n`)[1]?.trimEnd() ?? "";
+    assert.ok(block.endsWith("[truncated: file exceeds the per-file size limit]"));
+    assert.ok(Buffer.byteLength(block, "utf8") <= 24 * 1024);
+    assert.ok(!block.includes("\uFFFD"), "truncation must not split a UTF-8 character");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("batch overflow lists skipped paths and keeps them blocking", async () => {
+  const root = mkdtempSync(join(tmpdir(), "context-kit-batch-"));
+  try {
+    const directories = ["one", "two", "three", "four", "five", "six"];
+    const sizes = [24, 24, 24, 20, 8, 2];
+    let target = root;
+    const agents: string[] = [];
+    for (const [index, directory] of directories.entries()) {
+      target = join(target, directory);
+      mkdirSync(target);
+      const path = join(target, "AGENTS.md");
+      writeFileSync(path, "x".repeat((sizes[index] ?? 0) * 1024));
+      agents.push(path);
+    }
+    const h = createHarness(root);
+    await start(h);
+
+    const blocked = await toolCall(h, "edit", `${directories.join("/")}/example.go`) as { block: boolean; reason: string };
+    assert.equal(blocked.block, true);
+    const firstMessage = h.sent[0] as { content: string; details: { paths: string[] } };
+    assert.deepEqual(firstMessage.details.paths, [...agents.slice(0, 4), agents[5]]);
+    assert.ok(firstMessage.content.includes(agents[4] ?? ""));
+    assert.ok(firstMessage.content.indexOf(agents[4] ?? "") < firstMessage.content.indexOf(`## ${agents[0]}`));
+    assert.ok(blocked.reason.includes(agents[4] ?? ""));
+
+    await deliver(h, firstMessage);
+    const retry = await toolCall(h, "edit", `${directories.join("/")}/example.go`) as { block: boolean };
+    assert.equal(retry.block, true);
+    assert.equal(h.sent.length, 2);
+    assert.deepEqual((h.sent[1] as { details: { paths: string[] } }).details.paths, [agents[4]]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("unreadable applicable files warn and do not block mutations", async () => {
+  const root = mkdtempSync(join(tmpdir(), "context-kit-unreadable-"));
+  try {
+    const sub = join(root, "sub");
+    mkdirSync(sub);
+    mkdirSync(join(root, ".pi"));
+    const agents = join(sub, "AGENTS.md");
+    const local = join(sub, "AGENTS.local.md");
+    writeFileSync(agents, "shared instructions");
+    writeFileSync(local, "personal instructions");
+    writeFileSync(join(root, ".pi", "agentsignore"), "sub/AGENTS.md\n");
+    chmodSync(local, 0);
+    const h = createHarness(root);
+    await start(h);
+
+    const result = await toolCall(h, "edit", "sub/example.go", ctx(h, true));
+    assert.equal(result, undefined);
+    assert.equal(h.sent.length, 0);
+    assert.ok(h.warnings.some((warning) => warning.includes(local)));
+  } finally {
+    chmodSync(join(root, "sub", "AGENTS.local.md"), 0o600);
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("discovery exceptions warn and fail open", async () => {
+  const root = makeFixture();
+  try {
+    const h = createHarness(root);
+    await start(h);
+    const brokenContext = ctx(h, true);
+    Object.defineProperty(brokenContext, "cwd", { get: () => { throw new Error("injected discovery fault"); } });
+
+    assert.equal(await toolCall(h, "edit", "sub/example.go", brokenContext), undefined);
+    assert.equal(h.sent.length, 0);
+    assert.ok(h.warnings.some((warning) => warning.includes("injected discovery fault")));
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

@@ -9,10 +9,14 @@ export function createState(): DeliveryState {
 }
 
 /** Queue paths for injection and return only paths not already loaded or pending. */
+export function discover(state: DeliveryState, paths: readonly string[]): void {
+  for (const path of paths) state.discovered.add(path);
+}
+
 export function queue(state: DeliveryState, paths: readonly string[]): string[] {
   const queued: string[] = [];
+  discover(state, paths);
   for (const path of paths) {
-    state.discovered.add(path);
     if (state.loaded.has(path) || state.pending.has(path)) continue;
     state.pending.add(path);
     queued.push(path);

@@ -1,9 +1,18 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { blockingPaths, clearPending, confirmDelivered, createState, queue } from "./_delivery.ts";
+import { blockingPaths, clearPending, confirmDelivered, createState, discover, queue } from "./_delivery.ts";
 
 const P1 = "/repo/sub/AGENTS.md";
 const P2 = "/repo/.claude/rules/go.md";
+
+test("discovered paths can remain unqueued", () => {
+  const state = createState();
+
+  discover(state, [P1]);
+
+  assert.deepEqual([...state.discovered], [P1]);
+  assert.deepEqual([...state.pending], []);
+});
 
 test("queue discovers and queues each path once", () => {
   const state = createState();

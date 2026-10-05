@@ -239,4 +239,6 @@ Command text that does not run is not blocked. Heredoc bodies are data: their li
 | Pattern | Reason |
 |---|---|
 | `rm -r` / `rm -rf` | recursive filesystem delete |
+
+Exception: the exact command `rm -rf dot_pi/agent/node_modules` is allowed, because `/verify` in this repository removes that path. Any other spelling, wrapper, or extra argument is still blocked.
 {{- end }}

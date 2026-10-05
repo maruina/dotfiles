@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { blockingPaths, clearPending, confirmDelivered, createState, discover, queue } from "./_delivery.ts";
+import { blockingPaths, clearPending, confirmDelivered, confirmDirectDelivery, createState, discover, queue, recordDirectPending } from "./_delivery.ts";
 
 const P1 = "/repo/sub/AGENTS.md";
 const P2 = "/repo/.claude/rules/go.md";
@@ -37,6 +37,34 @@ test("confirmed paths stop blocking applicable mutations", () => {
 test("clearPending allows an undelivered path to be queued again", () => {
   const state = createState();
   queue(state, [P1]);
+  clearPending(state);
+
+  assert.deepEqual(queue(state, [P1]), [P1]);
+});
+
+test("direct results suppress injection and load only after matching confirmation", () => {
+  const state = createState();
+  recordDirectPending(state, "read-1", P1);
+
+  assert.deepEqual(queue(state, [P1]), []);
+  assert.deepEqual(blockingPaths(state, [P1], new Set()), [P1]);
+  assert.deepEqual(confirmDirectDelivery(state, ["other-id"]), []);
+  assert.deepEqual(confirmDirectDelivery(state, ["read-1"]), [P1]);
+  assert.deepEqual(blockingPaths(state, [P1], new Set()), []);
+});
+
+test("direct confirmations ignore failed or unknown tool calls", () => {
+  const state = createState();
+  recordDirectPending(state, "read-1", P1);
+
+  assert.deepEqual(confirmDirectDelivery(state, []), []);
+  assert.deepEqual(confirmDirectDelivery(state, ["read-2"]), []);
+  assert.deepEqual(blockingPaths(state, [P1], new Set()), [P1]);
+});
+
+test("clearPending drops unconfirmed direct results", () => {
+  const state = createState();
+  recordDirectPending(state, "read-1", P1);
   clearPending(state);
 
   assert.deepEqual(queue(state, [P1]), [P1]);

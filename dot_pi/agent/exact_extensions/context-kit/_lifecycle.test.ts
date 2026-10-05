@@ -76,9 +76,9 @@ function getHandler(h: Harness, name: string): Handler {
   return handler;
 }
 
-async function toolCall(h: Harness, toolName: string, path: string, context: AnyRecord = ctx(h)): Promise<unknown> {
+async function toolCall(h: Harness, toolName: string, path: string, context: AnyRecord = ctx(h), toolCallId = `${toolName}-${path}`): Promise<unknown> {
   return getHandler(h, "tool_call")(
-    { type: "tool_call", toolCallId: `${toolName}-${path}`, toolName, input: { path, content: "x" } },
+    { type: "tool_call", toolCallId, toolName, input: { path, content: "x" } },
     context,
   );
 }
@@ -98,6 +98,20 @@ async function start(h: Harness, contextFiles: string[] = []): Promise<AnyRecord
 async function deliver(h: Harness, message: AnyRecord): Promise<void> {
   await getHandler(h, "context")(
     { type: "context", messages: [{ role: "custom", ...message }] },
+    ctx(h),
+  );
+}
+
+async function toolResult(h: Harness, toolName: string, path: string, toolCallId: string, isError = false): Promise<void> {
+  await getHandler(h, "tool_result")(
+    { type: "tool_result", toolName, toolCallId, input: { path }, content: [], isError },
+    ctx(h),
+  );
+}
+
+async function deliverToolResult(h: Harness, toolCallId: string, isError = false): Promise<void> {
+  await getHandler(h, "context")(
+    { type: "context", messages: [{ role: "toolResult", toolName: "read", toolCallId, content: [], isError }] },
     ctx(h),
   );
 }
@@ -296,6 +310,96 @@ test("discovery exceptions warn and fail open", async () => {
     assert.equal(await toolCall(h, "edit", "sub/example.go", brokenContext), undefined);
     assert.equal(h.sent.length, 0);
     assert.ok(h.warnings.some((warning) => warning.includes("injected discovery fault")));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("directly read rules count as delivered after their result reaches context", async () => {
+  const root = makeFixture();
+  const rule = join(root, ".claude", "rules", "go.md");
+  try {
+    const h = createHarness(root);
+    await start(h);
+
+    const callId = "direct-rule-read";
+    assert.equal(await toolCall(h, "read", ".claude/rules/go.md", ctx(h), callId), undefined);
+    await toolResult(h, "read", rule, callId);
+    await deliverToolResult(h, callId);
+
+    const result = await toolCall(h, "edit", "sub/example.go") as { block: boolean; reason: string };
+    assert.equal(result.block, true, "other applicable files can still block the mutation");
+    assert.ok(!result.reason.includes(rule), "the directly read rule must not block the mutation");
+    assert.ok(!h.sent.some((message) => (message.details as { paths: string[] }).paths.includes(rule)));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("direct results suppress reinjection but keep mutations blocked until context confirmation", async () => {
+  const root = makeFixture();
+  const rule = join(root, ".claude", "rules", "go.md");
+  try {
+    const h = createHarness(root);
+    await start(h);
+
+    await toolCall(h, "read", ".claude/rules/go.md", ctx(h), "unconfirmed-rule-read");
+    await toolResult(h, "read", rule, "unconfirmed-rule-read");
+    const result = await toolCall(h, "edit", "sub/example.go") as { block: boolean; reason: string };
+
+    assert.equal(result.block, true);
+    assert.ok(result.reason.includes(rule), "the in-flight direct result must keep its path blocking");
+    assert.ok(!h.sent.some((message) => (message.details as { paths: string[] }).paths.includes(rule)));
+
+    await deliverToolResult(h, "unconfirmed-rule-read");
+    const confirmed = await toolCall(h, "edit", "sub/example.go") as { block: boolean; reason: string };
+    assert.equal(confirmed.block, true);
+    assert.ok(!confirmed.reason.includes(rule));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("failed direct reads leave context files eligible for injection", async () => {
+  const root = makeFixture();
+  const rule = join(root, ".claude", "rules", "go.md");
+  try {
+    const h = createHarness(root);
+    await start(h);
+
+    await toolCall(h, "read", ".claude/rules/go.md", ctx(h), "failed-rule-read");
+    await toolResult(h, "read", rule, "failed-rule-read", true);
+    await deliverToolResult(h, "failed-rule-read", true);
+
+    await toolCall(h, "edit", "sub/example.go");
+    assert.ok(h.sent.some((message) => (message.details as { paths: string[] }).paths.includes(rule)));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("direct reads, edits, and writes of nested instruction files count as delivery", async () => {
+  const root = mkdtempSync(join(tmpdir(), "context-kit-direct-"));
+  try {
+    const h = createHarness(root);
+    await start(h);
+
+    for (const toolName of ["read", "edit", "write"]) {
+      const directory = join(root, toolName);
+      mkdirSync(directory);
+      const agents = join(directory, "AGENTS.md");
+      writeFileSync(agents, `${toolName} instructions`);
+      const relativeAgents = `${toolName}/AGENTS.md`;
+      const callId = `direct-${toolName}`;
+
+      assert.equal(await toolCall(h, toolName, relativeAgents, ctx(h), callId), undefined);
+      assert.ok(!h.sent.some((message) => (message.details as { paths: string[] }).paths.includes(agents)));
+      await toolResult(h, toolName, agents, callId);
+      await deliverToolResult(h, callId);
+
+      assert.equal(await toolCall(h, "edit", `${toolName}/example.go`), undefined);
+      assert.ok(!h.sent.some((message) => (message.details as { paths: string[] }).paths.includes(agents)));
+    }
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

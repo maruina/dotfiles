@@ -1,11 +1,11 @@
-import type { BeforeAgentStartEvent, BeforeAgentStartEventResult, ContextEvent, ExtensionAPI, ExtensionContext, Skill, ToolCallEvent, ToolCallEventResult } from "@earendil-works/pi-coding-agent";
+import type { BeforeAgentStartEvent, BeforeAgentStartEventResult, ContextEvent, ExtensionAPI, ExtensionContext, Skill, ToolCallEvent, ToolCallEventResult, ToolResultEvent } from "@earendil-works/pi-coding-agent";
 import { getAgentDir, isToolCallEventType } from "@earendil-works/pi-coding-agent";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { Text } from "@earendil-works/pi-tui";
 import { findLocalSibling, walkUpForAgents } from "./_agents.ts";
-import { blockingPaths, clearPending, confirmDelivered, createState, discover, queue } from "./_delivery.ts";
+import { blockingPaths, clearPending, confirmDelivered, confirmDirectDelivery, createState, discover, queue, recordDirectPending } from "./_delivery.ts";
 import {
   isIgnored,
   loadAgentsIgnore,
@@ -81,6 +81,8 @@ import {
  *
  * See `AGENTS.md` (top of repo) for the full design rationale.
  */
+
+type ToolResultEventResult = { content?: never; details?: never; isError?: never };
 
 const CONTEXT_KIT_CUSTOM_TYPE = "context-kit-discovery";
 const MAX_FILE_BYTES = 24 * 1024;
@@ -185,7 +187,7 @@ export default function (pi: ExtensionAPI) {
       const ruleIgnore = loadRuleIgnore(cwd);
       const seen = new Set<string>();
       const addApplicable = (path: string, source: ContextKitDiscovery, ignoreRules: boolean) => {
-        if (piContextPaths.has(path) || seen.has(path)) return;
+        if ((path === abs && isContextKitFile(path)) || piContextPaths.has(path) || seen.has(path)) return;
         seen.add(path);
         const matcher = ignoreRules ? ruleIgnore : agentsIgnore;
         if (isIgnored(matcher, path, cwd)) {
@@ -224,8 +226,9 @@ export default function (pi: ExtensionAPI) {
 
     discover(state, discoveredPaths);
     const blocking = blockingPaths(state, applicable.map((file) => file.path), piContextPaths);
+    const directPendingPaths = new Set(state.directPending.values());
     const candidates = applicable
-      .filter((file) => !state.loaded.has(file.path) && !state.pending.has(file.path))
+      .filter((file) => !state.loaded.has(file.path) && !state.pending.has(file.path) && !directPendingPaths.has(file.path))
       .map((file) => ({ ...file, heading: file.path }));
     const batch = prepareDiscoveryBatch(candidates);
     if (batch.blocks.length > 0) {
@@ -268,10 +271,32 @@ export default function (pi: ExtensionAPI) {
   }));
 
   pi.on("context", traceHook<ContextEvent, { messages?: ContextEvent["messages"] }>(pi, "context-kit.context", async (event) => {
+    const resultIds: string[] = [];
+    for (const message of event.messages) {
+      if (message.role === "toolResult" && !message.isError) resultIds.push(message.toolCallId);
+    }
+    confirmDirectDelivery(state, resultIds);
     for (const message of event.messages) {
       if (message.role !== "custom" || message.customType !== CONTEXT_KIT_CUSTOM_TYPE) continue;
       const paths = (message.details as { paths?: unknown } | undefined)?.paths;
       if (Array.isArray(paths)) confirmDelivered(state, paths.filter((path): path is string => typeof path === "string"));
+    }
+  }));
+
+  pi.on("tool_result", traceHook<ToolResultEvent, ToolResultEventResult>(pi, "context-kit.tool_result", async (event, ctx) => {
+    if (event.isError || (event.toolName !== "read" && event.toolName !== "edit" && event.toolName !== "write")) return;
+    const filePath = event.input.path;
+    if (typeof filePath !== "string") return;
+
+    try {
+      const cwd = resolve(ctx.cwd);
+      const abs = resolve(cwd, filePath);
+      const relFromCwd = relative(cwd, abs);
+      if (relFromCwd === "" || relFromCwd.startsWith("..") || isAbsolute(relFromCwd)) return;
+      if (!isContextKitFile(abs) || piContextPaths.has(abs)) return;
+      recordDirectPending(state, event.toolCallId, abs);
+    } catch {
+      // A failed direct-interaction record can only cause a later re-injection.
     }
   }));
 
@@ -393,6 +418,12 @@ export default function (pi: ExtensionAPI) {
  * same `## <path>` heading format Pi uses for Pi-loaded context files,
  * so the model's existing priors about that format apply.
  */
+function isContextKitFile(path: string): boolean {
+  const name = basename(path);
+  if (name === "AGENTS.md" || name === "CLAUDE.md" || name === "AGENTS.local.md" || name === "CLAUDE.local.md") return true;
+  return path.includes(`${sep}.claude${sep}rules${sep}`) || path.includes(`${sep}.cursor${sep}rules${sep}`);
+}
+
 function warn(ctx: ExtensionContext, message: string): void {
   if (ctx.hasUI) ctx.ui.notify(message, "warning");
 }

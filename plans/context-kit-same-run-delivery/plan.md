@@ -267,16 +267,17 @@ Delivers the smallest user-feedback slice: blocked first edit, same-turn visible
 Delivers: reading an instruction or rule file directly counts as delivery and unblocks edits once confirmed.
 
 ### Task 4: Direct-interaction confirmation
+**Execution status:** Complete.
 **Delivers:** No redundant injection after a direct read, edit, or write of a context-kit file, and safe blocking until its result is in context.
 **Blocked by:** 1
 **Traces to:** Requirement "Direct interactions count"
 **Files:** `dot_pi/agent/exact_extensions/context-kit/_delivery.ts`, `dot_pi/agent/exact_extensions/context-kit/_delivery.test.ts`, `dot_pi/agent/exact_extensions/context-kit/index.ts`, `dot_pi/agent/exact_extensions/context-kit/_lifecycle.test.ts`
 
-- [ ] Add failing scenarios: direct read of a rule, before confirmation, failed read, and direct read of a nested `AGENTS.md`.
-- [ ] Run `npm run test:context-kit`; expect those tests to fail.
-- [ ] Add `recordDirectPending(toolCallId, path)` and `confirmDirectDelivery(resultIds)` to `_delivery.ts`. Direct-pending paths are not re-queued but still block. Add an `isContextKitFile(path)` predicate (basename `AGENTS.md`, `CLAUDE.md`, `AGENTS.local.md`, or `CLAUDE.local.md`, or a file under `/.claude/rules/` or `/.cursor/rules/`). Add a `tool_result` handler for successful `read`/`edit`/`write`. Confirm non-error tool result ids in `context`. Exclude the target itself from its own applicable set in `tool_call`, and never block a direct `read`. Clear direct pending in `before_agent_start`.
-- [ ] Run `npm run test:context-kit`; expect all tests to pass.
-- [ ] Commit with `feat(pi): count direct reads of context-kit files as delivery`.
+- [x] Add failing scenarios: direct read of a rule, before confirmation, failed read, and direct read of a nested `AGENTS.md`.
+- [x] Run `npm run test:context-kit`; the direct-delivery state tests failed because the state API was missing, lifecycle tests failed because `tool_result` was not registered, and direct `AGENTS.md` reads injected their target.
+- [x] Add `recordDirectPending(toolCallId, path)` and `confirmDirectDelivery(resultIds)` to `_delivery.ts`. Direct-pending paths are not re-queued but still block. Add an `isContextKitFile(path)` predicate (basename `AGENTS.md`, `CLAUDE.md`, `AGENTS.local.md`, or `CLAUDE.local.md`, or a file under `/.claude/rules/` or `/.cursor/rules/`). Add a `tool_result` handler for successful `read`/`edit`/`write`. Confirm non-error tool result ids in `context`. Exclude the target itself from its own applicable set in `tool_call`, and never block a direct `read`. Clear direct pending in `before_agent_start`.
+- [x] Run `npm run test:context-kit`; all 81 tests passed. `git diff --check` passed; LSP reported no diagnostics for the changed TypeScript files.
+- [x] Commit with `feat(pi): count direct reads of context-kit files as delivery`.
 
 ### Slice 3: Branch-persisted state and compaction
 Delivers: no re-injection after session restore or `/tree`, and a path-only reminder after compaction. This closes the V1 gap in the `index.ts` header comment.

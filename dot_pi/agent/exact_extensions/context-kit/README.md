@@ -28,16 +28,23 @@ A minimal `~/.pi/agent/package.json` was created and set to ESM:
 This is needed for local tests and for the extension's TypeScript/ESM style.
 
 ## What it does
-
 On every Pi turn, `context-kit` applies local context policy:
 
 1. Removes ignored Pi-loaded context files from the system prompt using `.pi/agentsignore`.
 2. Removes ignored skills from the system prompt using `.pi/skillignore`.
-3. Injects local personal siblings such as `AGENTS.local.md` and `CLAUDE.local.md` as hidden messages.
-4. Discovers nested instruction files when the agent touches files below the current working directory and injects them as hidden messages.
-5. Injects matching Claude/Cursor rule files based on frontmatter globs as hidden messages.
+3. Delivers local personal siblings such as `AGENTS.local.md` and `CLAUDE.local.md` before the first model call.
+4. Discovers nested instruction files when the agent touches files below the current working directory and delivers them during that tool call.
+5. Delivers matching Claude/Cursor rule files based on frontmatter globs during the same tool call.
 
-Nested context discovery happens when tools touch files through `read`, `write`, or `edit`. Discovered context is injected on the next user turn, not mid-turn.
+For a `read`, `edit`, or `write` call, `context-kit` sends newly applicable nested files and rules as a steer message in the same run. The UI shows a compact tree of file kinds and paths; it does not show file contents. The model receives the full contents.
+
+Before an `edit` or `write`, `context-kit` blocks the call if any applicable file has not been confirmed in a `context` event. The reason lists the missing paths and asks the model to retry after receiving them. A successful direct `read`, `edit`, or `write` of a context-kit file counts as delivery only after its tool result appears in context. Until then, context-kit does not inject that file again, but it still blocks edits that depend on it.
+
+Context-kit truncates a file above 24 KiB and limits each delivery batch to 96 KiB. It lists files skipped by the batch limit, and keeps them eligible for later delivery. Discovery errors fail open: context-kit warns and lets the tool call continue. An unreadable context file also produces a warning and does not block a mutation.
+
+Delivery state is stored on the active Pi session branch and rebuilt after session restore or tree navigation. After compaction, context-kit clears its loaded paths and sends a reminder with paths only. The next applicable tool call delivers the files again. `/context-kit status` reports blocked mutation counts.
+
+Do not run `packages/nested-context` at the same time as context-kit. Both extensions discover and inject nested instruction files.
 
 ## CLAUDE.md support added during adoption
 
@@ -74,7 +81,7 @@ repo/
       AGENTS.md
 ```
 
-If the agent touches `service/foo/main.go`, then on the next turn `context-kit` can inject:
+When the agent touches `service/foo/main.go`, context-kit delivers these files during that tool call:
 
 ```text
 service/CLAUDE.md
@@ -227,22 +234,9 @@ A Pi-native source could be added:
 
 This would let personal/global Pi rules avoid pretending to be Claude rules.
 
-### Add token budget safeguards
+### Make delivery limits configurable
 
-Large repos can accumulate too much context. A future limit could be controlled with:
-
-```bash
-PI_CONTEXT_KIT_MAX_BYTES=50000
-```
-
-Suggested priority order if context must be skipped:
-
-1. Pi-loaded ancestor context already present.
-2. Closest nested `AGENTS.md` / `CLAUDE.md`.
-3. Closest `.local.md` sibling.
-4. Repo-local path-scoped rules.
-5. User-global path-scoped rules.
-6. Skill filtering still runs because it reduces prompt size.
+Context-kit truncates files above 24 KiB and caps each delivery batch at 96 KiB. A future change could make these limits configurable for large repositories. Keep a bounded default so one tool access cannot add an unbounded amount of context.
 
 ### Consider relative headings for injected files
 
@@ -267,10 +261,14 @@ If future changes are made, add tests for:
 - token-budget priority and skipped files.
 
 ## Design choices to keep
-
 Do not change these casually:
 
-- Keep one-turn lag for newly discovered nested context.
+- Deliver newly applicable files in the same run. Block `edit` and `write` until a `context` event confirms delivery; this prevents an edit from running before the model has the applicable instructions.
+- Keep delivery in custom messages instead of changing the system prompt. This preserves the prompt-cache prefix; steer timing does not alter cache behavior.
 - Keep rule matching scoped to explicit `paths:` / `globs:`.
 - Keep `.local.md` overlays separate from `.pi/*ignore` suppression.
 - Keep skill filtering surgical by exact skill path.
+- Do not run `packages/nested-context` alongside this extension.
+
+### Cleanup candidate
+Current usage data reports no use of `.pi/agentsignore`, `.pi/skillignore`, or `.pi/ruleignore`. Consider removing this support in a separate change after checking for local configurations that still depend on it.

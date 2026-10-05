@@ -14,6 +14,7 @@ describe("formatContextKitStatus", () => {
     const status = formatContextKitStatus({
       cwd: "/repo",
       injectionMessages: 2,
+      blockedMutations: 1,
       injected: [
         {
           path: "/repo/service/AGENTS.md",
@@ -39,6 +40,7 @@ describe("formatContextKitStatus", () => {
     });
 
     assert.match(status, /Injected: 2 message\(s\), 2 file\(s\), 2\.0 KiB/);
+    assert.match(status, /Blocked mutations: 1/);
     assert.match(status, /\[AGENTS\.md\] nested instruction discovery — service\/AGENTS\.md \(1\.5 KiB\)/);
     assert.match(status, /\[Claude rule\] path-scoped rule match — \.claude\/rules\/api\.md \(512 B\)/);
     assert.match(status, /Ignored by configuration:/);
@@ -49,11 +51,13 @@ describe("formatContextKitStatus", () => {
     const status = formatContextKitStatus({
       cwd: "/repo",
       injectionMessages: 0,
+      blockedMutations: 0,
       injected: [],
       ignored: [],
     });
 
     assert.match(status, /Injected: 0 message\(s\), 0 file\(s\), 0 B/);
+    assert.match(status, /Blocked mutations: 0/);
     assert.match(status, /Injected files:\n- none/);
     assert.match(status, /Ignored by configuration:\n- none/);
   });

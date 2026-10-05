@@ -21,6 +21,7 @@ test("registers /context-kit status and reports empty session + empty aggregate"
   const commands = new Map<string, { handler: (args: string, ctx: unknown) => Promise<void> }>();
   register({
     on() {},
+    registerMessageRenderer() {},
     registerCommand(name: string, command: { handler: (args: string, ctx: unknown) => Promise<void> }) {
       commands.set(name, command);
     },
@@ -47,6 +48,7 @@ test("rejects unsupported /context-kit actions", async () => {
   const commands = new Map<string, { handler: (args: string, ctx: unknown) => Promise<void> }>();
   register({
     on() {},
+    registerMessageRenderer() {},
     registerCommand(name: string, command: { handler: (args: string, ctx: unknown) => Promise<void> }) {
       commands.set(name, command);
     },

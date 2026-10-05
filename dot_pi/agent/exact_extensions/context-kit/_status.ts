@@ -45,6 +45,7 @@ export function contextKind(path: string): ContextKitSourceKind {
 export function formatContextKitStatus(status: {
   cwd: string;
   injectionMessages: number;
+  blockedMutations: number;
   injected: InjectedContextFile[];
   ignored: IgnoredContextFile[];
 }): string {
@@ -52,6 +53,7 @@ export function formatContextKitStatus(status: {
   const lines = [
     "Context-kit status (current session)",
     `Injected: ${status.injectionMessages} message(s), ${status.injected.length} file(s), ${formatBytes(bytes)}`,
+    `Blocked mutations: ${status.blockedMutations}`,
     "",
     "Injected files:",
     ...(status.injected.length > 0

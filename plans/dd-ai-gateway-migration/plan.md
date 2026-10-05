@@ -260,7 +260,7 @@ Delivers: refresh-models is uninstalled, Pi uses the builtin providers through s
 - [x] Run `npm test` and `npm run test:all` in `dot_pi/agent`; both pass, including the cutover test and smoke test.
 - [x] Apply both targets with `chezmoi --source <worktree> apply`; a fresh `pi --list-models` process sees the stock catalog.
 - [x] Run `pi --list-models ai-gw`; it returned no models. `pi --list-models GLM-5.3` lists stock `baseten` models including `baseten/zai-org/GLM-5.3`.
-- [ ] Commit with `feat(pi): migrate from refresh-models to dd-ai-gateway` after owner validation.
+- [x] Commit cutover as `e1177d0` (`feat(pi): migrate to stock dd-ai-gateway`) after owner validation.
 
 ### Task 5: Reselect default and scoped models
 **Status:** Runtime settings and model refs verified; lifecycle-recommender unit tests pass.
@@ -288,7 +288,7 @@ Delivers: refresh-models is uninstalled, Pi uses the builtin providers through s
 - [x] Run `npm test` and `npm run test:all` in `dot_pi/agent`; both pass. Remove `dot_pi/agent/node_modules` after the tests.
 - [x] Apply the changed documentation targets with `chezmoi --source <worktree> apply`; the skill diff is empty and the obsolete prompt target is absent.
 - [x] Record final implementation and test evidence under `## Execution evidence`.
-- [ ] Commit and push after owner validation.
+- [x] Commit documentation as `b47983d` and push the migration branch after owner validation.
 
 ## Execution evidence
 ### Slice 1 / Task 3
@@ -314,6 +314,8 @@ Delivers: refresh-models is uninstalled, Pi uses the builtin providers through s
 - `npm run test:unit` passed 203/203 tests; LSP reported no diagnostics for the changed TypeScript test. After the documentation changes, `npm run test:all` passed: 203 unit tests, 53 prompt tests, skills/dependency validation, and the Pi smoke test. `dot_pi/agent/node_modules` was removed afterward.
 - Removed the obsolete model-sync prompt, updated the chezmoi skill and `AGENTS.md`, and applied the changed skill target. The explicit chezmoi diffs for `models.json`, `settings.json`, and the skill are empty; the prompt target is absent. The `refresh-models|ai-gw-` sweep returned no matches outside plans and test fixtures.
 - Matteo ran `/session-cost` for session `01a10dde-a437-71e5-b221-3c109319c706`. Its two spans were priced, with a combined estimated cost of `$0.00211526`; the UI rounds this to `$0.00`. The span tags were `ml_app=pi`, `ml_app_id=unregistered`, `dd.team=compute`, the expected email, and the session id. The initial pending message was an ingestion delay.
+
+- Pushed branch `maruina/dd-ai-gateway-migration` to `origin` with the cutover and documentation commits.
 
 ## Learning candidates
 - 2026-10-05: Gateway intentionally ignores caller-supplied `x-dd-tag-ml_app_id` for the governed `ml_app_id` span tag; it resolves the distinct `ml-app-id` header against an allowlist and overwrites the custom tag. Evidence: `domains/ai_platform/apps/apis/ai_gateway/internal/providers/http_providers/base.py:3213-3268` and `internal/tests/test_http_base_provider.py:1292-1305` in `dd-source` main; the Task 3 DDSQL query returned `unknown` despite the client log showing the x-dd header.

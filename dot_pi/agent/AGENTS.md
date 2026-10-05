@@ -62,6 +62,7 @@ A hidden `user-context` extension injects current repository, branch, pull reque
 - Vault: `~/Documents/main`.
 - Weekly snippets: `Datadog/Snippets/Week of <YYYY-MM-DD>.md`, using the Monday date.
 - Use `obsidian-cli`.
+- Do not pipe `obsidian` output to `head` — Node ignores SIGPIPE, so the CLI hangs after the pipe closes and burns the tool timeout; redirect to a file (`obsidian read path=... > /tmp/out.txt`) or use `--copy`, then read the file.
 - Preserve wikilinks, embeds, Excalidraw references, `.base`, and `.canvas` files.
 - Create new notes in the vault root unless a subdirectory is clearly better.
 - Do not modify `.obsidian/` unless asked.

@@ -22,6 +22,17 @@
 
 Advisory learning lookup: ran `Datadog/Learnings.md` through `learn-evidence.mjs learning-sections` with terms `models.json`, `refresh-models`, `provider`, `chezmoi`, `AI Gateway`, `pi package`. Two sections matched; one applies (chezmoi `execute-template` without `--init`). The other (platform-injected env vars) does not apply.
 
+### Execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `resolve-worktree` | `prompt-required` | Resolve the plan path across worktrees | Located this plan in the dedicated migration worktree and switched all repository commands there |
+| `feature-worktree` | `prompt-required` | Execute plan changes in the owning feature worktree | Confirmed the existing migration worktree is the target |
+| `skill-loader` | `prompt-required` | Select execution skills before editing | Loaded the chezmoi, codebase research, Slack, and writing guidance needed for this slice |
+| `chezmoi` | `skill-loader` | Edit chezmoi-managed source and verify targets | Followed source-only editing, explicit target checks, and `--source` commands |
+| `codebase-research` | `skill-loader` | Trace unfamiliar Pi extension, test, and model-template patterns | Mapped session-start handlers, test wiring, and template-render test patterns before editing |
+| `slack-mcp` | `prompt-required` | Inspect the discussion referenced by the plan | Read the referenced thread and confirmed the session-id finding and Gateway attribution context |
+| `write` | `skill-loader` | Update the plan progress and evidence ledger | Kept execution notes concise and tied to observed results |
+
 ## Source of truth and confirmed decisions
 - **User planning brief** and the alignment brief confirmed in chat on 2026-10-05.
 - **`/session-cost` dependency:** `packages/session-cost/extensions/session-cost/query.ts:55` filters `service:ai_gateway ml_app:pi client_session_id:<id>`. Without `client_session_id`, `/session-cost` reports $0.
@@ -182,31 +193,33 @@ Narrow command expected to fail before implementation: `cd dot_pi/agent && node 
 Delivers: stock `dd-ai-gateway` plus the local overlay sends the full attribution header set, verified by probe and LLM Obs spans, while daily use stays on refresh-models.
 
 ### Task 1: Session-id extension with overlay tests
+**Status:** In progress.
 **Delivers:** `pi-client-session-id` extension, its unit tests, and failing overlay tests that Task 2 makes pass.
 **Blocked by:** None
 **Traces to:** Requirement "Session id is available to Gateway headers"; Requirement "Gateway providers carry the attribution overlay"
 **Files:** `dot_pi/agent/exact_extensions/pi-client-session-id/index.ts`, `dot_pi/agent/exact_extensions/pi-client-session-id/index.test.ts`, `dot_pi/agent/package.json`
 
-- [ ] Run `npm ci --ignore-scripts` in `dot_pi/agent` (repository `AGENTS.md`).
-- [ ] Write `index.test.ts` with: the two session-id scenarios (fake `pi.on` capturing the `session_start` handler); a rendered-catalog test asserting the five providers each have the five attribution headers (`typesafe` also `provider: typesafe`), the `anthropic` entry also carries `anthropic-beta: context-1m-2025-08-07`, and the `anthropic` `compat` has four `false` flags; and the coupling guard (if any rendered header value contains `$PI_CLIENT_SESSION_ID`, the extension `index.ts` exists).
-- [ ] Add `"$ext"/pi-client-session-id/*.test.ts` to `test:unit` in `dot_pi/agent/package.json`.
-- [ ] Run `node --experimental-strip-types --test exact_extensions/pi-client-session-id/index.test.ts` from `dot_pi/agent`; expect failures for the missing extension and missing overlay.
-- [ ] Implement `index.ts`: default factory registering `pi.on("session_start", (_event, ctx) => { process.env.PI_CLIENT_SESSION_ID = ctx.sessionManager.getSessionId(); })`, with a short header comment naming the `models.json` coupling.
-- [ ] Rerun the test; expect the session-id tests to pass and the overlay tests to still fail (fixed in Task 2).
+- [x] Run `npm ci --ignore-scripts` in `dot_pi/agent` (repository `AGENTS.md`).
+- [x] Write `index.test.ts` with: the two session-id scenarios (fake `pi.on` capturing the `session_start` handler); a rendered-catalog test asserting the five providers each have the five attribution headers (`typesafe` also `provider: typesafe`), the `anthropic` entry also carries `anthropic-beta: context-1m-2025-08-07`, and the `anthropic` `compat` has four `false` flags; and the coupling guard (if any rendered header value contains `$PI_CLIENT_SESSION_ID`, the extension `index.ts` exists).
+- [x] Add `"$ext"/pi-client-session-id/*.test.ts` to `test:unit` in `dot_pi/agent/package.json`.
+- [x] Run `node --experimental-strip-types --test exact_extensions/pi-client-session-id/index.test.ts` from `dot_pi/agent`; expect failures for the missing extension and missing overlay.
+- [x] Implement `index.ts`: default factory registering `pi.on("session_start", (_event, ctx) => { process.env.PI_CLIENT_SESSION_ID = ctx.sessionManager.getSessionId(); })`, with a short header comment naming the `models.json` coupling.
+- [x] Rerun the test; expect the session-id tests to pass and the overlay tests to still fail (fixed in Task 2).
 - [ ] Do not commit yet; Task 2 lands in the same commit so the coupling guard is green.
 
 ### Task 2: models.json overlay for Gateway providers
+**Status:** In progress.
 **Delivers:** The work branch of `models.json.tmpl` adds the five overlay entries beside the existing providers; Task 1 tests pass.
 **Blocked by:** Task 1
 **Traces to:** Requirement "Gateway providers carry the attribution overlay"; Requirement "Claude requests avoid flags that trigger Gateway fallback"
 **Files:** `dot_pi/agent/models.json.tmpl`, plus Task 1 files
 
-- [ ] In the work branch, add `anthropic`, `openai`, `google`, `baseten` entries with only `headers` (five attribution headers, email as `{{ .email }}`, team `compute`; the `anthropic` entry also carries `anthropic-beta: context-1m-2025-08-07` for 1M-context parity with `ai-gw-anthropic-1m`), and `compat` on `anthropic` only.
-- [ ] In the existing `typesafe` entry, change only `x-dd-tag-dd.team` to `compute`; keep its `baseUrl` and `apiKey` until Task 4.
-- [ ] Leave all `ai-gw-*` providers unchanged.
-- [ ] Run `node --experimental-strip-types --test exact_extensions/pi-client-session-id/index.test.ts`; expect all tests pass.
-- [ ] Run `npm run test:unit`; expect pass, including `lifecycle-model-recommender/_policy.test.ts`.
-- [ ] Run `chezmoi --source <worktree> diff ~/.pi/agent/models.json ~/.pi/agent/extensions/pi-client-session-id/index.ts`; expect only the planned additions and the `typesafe` team change.
+- [x] In the work branch, add `anthropic`, `openai`, `google`, `baseten` entries with only `headers` (five attribution headers, email as `{{ .email }}`, team `compute`; the `anthropic` entry also carries `anthropic-beta: context-1m-2025-08-07` for 1M-context parity with `ai-gw-anthropic-1m`), and `compat` on `anthropic` only.
+- [x] In the existing `typesafe` entry, change only `x-dd-tag-dd.team` to `compute`; keep its `baseUrl` and `apiKey` until Task 4.
+- [x] Leave all `ai-gw-*` providers unchanged.
+- [x] Run `node --experimental-strip-types --test exact_extensions/pi-client-session-id/index.test.ts`; expect all tests pass.
+- [x] Run `npm run test:unit`; expect pass, including `lifecycle-model-recommender/_policy.test.ts`.
+- [x] Run `chezmoi --source <worktree> diff ~/.pi/agent/models.json ~/.pi/agent/extensions/pi-client-session-id/index.ts`; expect only the planned additions and the `typesafe` team change.
 - [ ] Commit with `feat(pi): add AI Gateway attribution overlay and session-id extension`.
 
 ### Task 3: Probe stock dd-ai-gateway with the overlay

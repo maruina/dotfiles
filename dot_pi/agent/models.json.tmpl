@@ -1,6 +1,49 @@
 {{- if eq .profile "work" -}}
 {
   "providers": {
+    "anthropic": {
+      "headers": {
+        "x-dd-tag-ml_app": "pi",
+        "x-dd-tag-ml_app_id": "aidevx.pi",
+        "x-dd-tag-dd.user_email": "{{ .email }}",
+        "x-dd-tag-dd.team": "compute",
+        "x-dd-tag-client_session_id": "$PI_CLIENT_SESSION_ID",
+        "anthropic-beta": "context-1m-2025-08-07"
+      },
+      "compat": {
+        "supportsStrictTools": false,
+        "supportsMidConvoSystemMessages": false,
+        "supportsMidConvoToolChanges": false,
+        "supportsMidConvoEffort": false
+      }
+    },
+    "openai": {
+      "headers": {
+        "x-dd-tag-ml_app": "pi",
+        "x-dd-tag-ml_app_id": "aidevx.pi",
+        "x-dd-tag-dd.user_email": "{{ .email }}",
+        "x-dd-tag-dd.team": "compute",
+        "x-dd-tag-client_session_id": "$PI_CLIENT_SESSION_ID"
+      }
+    },
+    "google": {
+      "headers": {
+        "x-dd-tag-ml_app": "pi",
+        "x-dd-tag-ml_app_id": "aidevx.pi",
+        "x-dd-tag-dd.user_email": "{{ .email }}",
+        "x-dd-tag-dd.team": "compute",
+        "x-dd-tag-client_session_id": "$PI_CLIENT_SESSION_ID"
+      }
+    },
+    "baseten": {
+      "headers": {
+        "x-dd-tag-ml_app": "pi",
+        "x-dd-tag-ml_app_id": "aidevx.pi",
+        "x-dd-tag-dd.user_email": "{{ .email }}",
+        "x-dd-tag-dd.team": "compute",
+        "x-dd-tag-client_session_id": "$PI_CLIENT_SESSION_ID"
+      }
+    },
     "ai-gw-openai": {
       "baseUrl": "https://ai-gateway.us1.ddbuild.io/v1",
       "api": "openai-responses",
@@ -441,7 +484,7 @@
         "x-dd-tag-ml_app_id": "aidevx.pi",
         "x-dd-tag-client_session_id": "$PI_CLIENT_SESSION_ID",
         "x-dd-tag-dd.user_email": "matteo.ruina@datadoghq.com",
-        "x-dd-tag-dd.team": "unknown",
+        "x-dd-tag-dd.team": "compute",
         "provider": "typesafe"
       }
     }

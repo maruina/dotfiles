@@ -12,9 +12,9 @@ export function registerJiraLinkTool(pi: ExtensionAPI, jiraRequest: JiraLinkRequ
     name: "jira_link",
     label: "Jira Link",
     description:
-      'Create one Jira "Blocks" relationship between two existing issues. "blocks" means the primary issue blocks the linked issue; "is blocked by" means the primary issue is blocked by the linked issue.',
+      'Create one Jira issue link between two existing issues. "blocks" and "is blocked by" use the Blocks type; "duplicates" and "is duplicated by" use the Duplicate type.',
     promptGuidelines: [
-      'Use jira_link only when the user explicitly asks to link Jira issues. Choose the relationship from the primary issue\'s perspective: "blocks" means the primary issue blocks the linked issue; "is blocked by" means the linked issue blocks the primary issue.',
+      'Use jira_link only when the user explicitly asks to link Jira issues. Choose from the primary issue\'s perspective: "duplicates" means the primary issue duplicates the linked issue; "is duplicated by" means the linked issue duplicates the primary issue. The tool also supports "blocks" and "is blocked by".',
     ],
     parameters: Type.Object({
       key: Type.String({
@@ -23,7 +23,12 @@ export function registerJiraLinkTool(pi: ExtensionAPI, jiraRequest: JiraLinkRequ
       linkedIssueKey: Type.String({
         description: 'Issue key to link to the primary issue, e.g. "PLAT-456".',
       }),
-      linkType: Type.Union([Type.Literal("blocks"), Type.Literal("is blocked by")], {
+      linkType: Type.Union([
+        Type.Literal("blocks"),
+        Type.Literal("is blocked by"),
+        Type.Literal("duplicates"),
+        Type.Literal("is duplicated by"),
+      ], {
         description: 'Relationship from the primary issue\'s perspective.',
       }),
     }),

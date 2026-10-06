@@ -39,11 +39,25 @@ function registerLinkTool(request: (options: JiraRequestOptions) => Promise<unkn
 const linkCases = [
   {
     linkType: "blocks",
+    typeName: "Blocks",
     inwardIssue: { key: "PLAT-456" },
     outwardIssue: { key: "PLAT-123" },
   },
   {
     linkType: "is blocked by",
+    typeName: "Blocks",
+    inwardIssue: { key: "PLAT-123" },
+    outwardIssue: { key: "PLAT-456" },
+  },
+  {
+    linkType: "duplicates",
+    typeName: "Duplicate",
+    inwardIssue: { key: "PLAT-456" },
+    outwardIssue: { key: "PLAT-123" },
+  },
+  {
+    linkType: "is duplicated by",
+    typeName: "Duplicate",
     inwardIssue: { key: "PLAT-123" },
     outwardIssue: { key: "PLAT-456" },
   },
@@ -55,14 +69,17 @@ test("jira_link registers only the supported directions and gives usage guidance
   assert.equal(tool.name, "jira_link");
   assert.deepEqual(
     tool.parameters.properties.linkType.anyOf.map((option) => option.const),
-    ["blocks", "is blocked by"],
+    ["blocks", "is blocked by", "duplicates", "is duplicated by"],
   );
   assert.match(tool.description, /Blocks/);
+  assert.match(tool.description, /Duplicate/);
   assert.ok(tool.promptGuidelines.some((guideline) => guideline.includes("jira_link")));
+  assert.match(tool.promptGuidelines.join(" "), /duplicates/);
+  assert.match(tool.promptGuidelines.join(" "), /is duplicated by/);
 });
 
 for (const linkCase of linkCases) {
-  test(`jira_link maps ${linkCase.linkType} to the Jira Blocks direction`, async () => {
+  test(`jira_link maps ${linkCase.linkType} to the Jira ${linkCase.typeName} direction`, async () => {
     const requests: JiraRequestOptions[] = [];
     const tool = registerLinkTool(async (options) => {
       requests.push(options);
@@ -81,7 +98,7 @@ for (const linkCase of linkCases) {
         method: "POST",
         path: "/rest/api/2/issueLink",
         body: {
-          type: { name: "Blocks" },
+          type: { name: linkCase.typeName },
           inwardIssue: linkCase.inwardIssue,
           outwardIssue: linkCase.outwardIssue,
         },

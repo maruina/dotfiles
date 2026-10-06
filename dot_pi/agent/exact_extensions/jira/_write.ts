@@ -43,7 +43,7 @@ export interface RawUser {
 // Issue links
 // ---------------------------------------------------------------------------
 
-export type IssueLinkType = "blocks" | "is blocked by";
+export type IssueLinkType = "blocks" | "is blocked by" | "duplicates" | "is duplicated by";
 
 export interface IssueLinkInput {
   key: string;
@@ -53,13 +53,14 @@ export interface IssueLinkInput {
 
 /** Build the POST /rest/api/2/issueLink body for the selected direction. */
 export function buildIssueLinkBody(input: IssueLinkInput): {
-  type: { name: "Blocks" };
+  type: { name: "Blocks" | "Duplicate" };
   inwardIssue: { key: string };
   outwardIssue: { key: string };
 } {
-  const primaryIsOutward = input.linkType === "blocks";
+  const isDuplicate = input.linkType === "duplicates" || input.linkType === "is duplicated by";
+  const primaryIsOutward = input.linkType === "blocks" || input.linkType === "duplicates";
   return {
-    type: { name: "Blocks" },
+    type: { name: isDuplicate ? "Duplicate" : "Blocks" },
     inwardIssue: { key: primaryIsOutward ? input.linkedIssueKey : input.key },
     outwardIssue: { key: primaryIsOutward ? input.key : input.linkedIssueKey },
   };

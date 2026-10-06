@@ -1,5 +1,5 @@
 /**
- * Jira extension — jira_issue, jira_search, jira_create, jira_update tools.
+ * Jira extension — jira_issue, jira_search, jira_create, jira_update, jira_link tools.
  *
  * Registers lean tools the LLM can call directly instead of going
  * through the Atlassian MCP:
@@ -9,6 +9,7 @@
  *   jira_search — run a JQL query and return a trimmed list of results.
  *   jira_create — create an issue in one call.
  *   jira_update — update fields, transition status, or comment on an issue.
+ *   jira_link   — create a Blocks relationship between two issues.
  *
  * Uses Jira REST API v2 for issue GETs and writes (descriptions and
  * comments are plain wiki-markup, not ADF), and the new v3 POST
@@ -23,6 +24,7 @@ import { Type } from "@sinclair/typebox";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 import { jiraRequest, JIRA_DOMAIN } from "./_client.ts";
+import { registerJiraLinkTool } from "./_link.ts";
 import { trimIssue, trimSearchResults } from "./_trim.ts";
 import type { RawJiraIssue, RawSearchResponse } from "./_trim.ts";
 import {
@@ -372,4 +374,6 @@ export default function jiraExtension(pi: ExtensionAPI): void {
       };
     },
   });
+
+  registerJiraLinkTool(pi, jiraRequest);
 }

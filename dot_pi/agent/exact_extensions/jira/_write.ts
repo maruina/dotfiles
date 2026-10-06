@@ -1,5 +1,5 @@
 /**
- * Pure request-body and response helpers for jira_create and jira_update.
+ * Pure request-body and response helpers for Jira write tools.
  *
  * Uses REST v2 so descriptions and comments stay wiki-markup strings —
  * the LLM never has to produce ADF (Atlassian Document Format).
@@ -37,6 +37,32 @@ export interface RawUser {
   accountId?: string;
   emailAddress?: string;
   displayName?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Issue links
+// ---------------------------------------------------------------------------
+
+export type IssueLinkType = "blocks" | "is blocked by";
+
+export interface IssueLinkInput {
+  key: string;
+  linkedIssueKey: string;
+  linkType: IssueLinkType;
+}
+
+/** Build the POST /rest/api/2/issueLink body for the selected direction. */
+export function buildIssueLinkBody(input: IssueLinkInput): {
+  type: { name: "Blocks" };
+  inwardIssue: { key: string };
+  outwardIssue: { key: string };
+} {
+  const primaryIsOutward = input.linkType === "blocks";
+  return {
+    type: { name: "Blocks" },
+    inwardIssue: { key: primaryIsOutward ? input.linkedIssueKey : input.key },
+    outwardIssue: { key: primaryIsOutward ? input.key : input.linkedIssueKey },
+  };
 }
 
 // ---------------------------------------------------------------------------

@@ -18,6 +18,17 @@
 | `write` | `skill-loader` | The durable plan is human-readable documentation | Applied concise, direct prose guidance. |
 | `feature-worktree` | `prompt-required` | Durable plans must be written in a feature worktree | Created a clean feature worktree from the latest `origin/main`; left the base checkout and its unrelated untracked content unchanged. |
 
+### Execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `resolve-worktree` | `prompt-required` | The execution prompt requires resolving the plan path | Resolved the plan to this worktree and confirmed its root and branch. |
+| `feature-worktree` | `prompt-required` | The execution prompt requires a feature worktree before edits | Confirmed this is the correct feature worktree; no switch or creation was needed. |
+| `skill-loader` | `prompt-required` | The execution prompt requires execution-stage skill discovery | Selected the applicable codebase, chezmoi, and writing guidance before editing. |
+| `codebase-research` | `skill-loader` | The Jira extension is unfamiliar behavior-bearing code | Mapped the Jira entry point, request client, write helpers, tests, and current registration pattern. |
+| `chezmoi` | `skill-loader` | The implementation changes chezmoi source files | Confirmed source-only edits, npm verification, and apply requirements. |
+| `write` | `skill-loader` | The plan and any prompt guidance are durable prose | Applied concise, direct wording guidance. |
+| `reviewable-pr-workflow` | `prompt-required` | The execution prompt requires a stack-split check before PR creation | Confirmed the change is one Jira extension feature and does not need a stack. |
+
 ## Source of truth and confirmed decisions
 - Matteo confirmed a standalone `jira_link` tool rather than adding link fields to `jira_create`.
 - The tool accepts one link per call with `key` (primary issue), `linkedIssueKey`, and `linkType` (`blocks` or `is blocked by`). The relationship is from the primary issue’s perspective.
@@ -117,29 +128,33 @@ The system SHALL propagate Jira request failures and SHALL NOT report a successf
 ### Slice 1: Create Jira issue links
 Delivers a standalone tool that links two existing issues in either requested direction and gives the caller an observable result.
 #### Task 1: Add `jira_link` with deterministic request tests
+**Execution status:** Complete; focused and full-suite tests passed.
 **Delivers:** The extension registers a tested `jira_link` tool for the two supported directions.
 **Blocked by:** None
 **Traces to:** Goal; Requirements: Create a Jira link in either supported direction, Reject invalid link requests before mutation, Surface Jira request failures.
 **Files:** `dot_pi/agent/exact_extensions/jira/index.ts`; `dot_pi/agent/exact_extensions/jira/_link.ts`; `dot_pi/agent/exact_extensions/jira/_write.ts`; `dot_pi/agent/exact_extensions/jira/_link.test.ts`
-- [ ] Run `cd dot_pi/agent && npm ci --ignore-scripts` to install the test dependencies.
-- [ ] Add focused failing tests for registration/schema, both direction mappings, self-link rejection, successful empty response, API failure, and signal propagation.
-- [ ] Run `cd dot_pi/agent && node --experimental-strip-types --test exact_extensions/jira/_link.test.ts`; expect the new behavior assertions to fail before implementation.
-- [ ] Add the internal registrar, TypeBox tool contract, request-body mapping, and compact success result. Keep `jiraExtension(pi)` unchanged and wire the default Jira request function from `index.ts`.
-- [ ] Add tool descriptions and prompt guidance that identify when to use `jira_link` and explain the two directions.
-- [ ] Rerun `cd dot_pi/agent && node --experimental-strip-types --test exact_extensions/jira/_link.test.ts`; expect all focused tests to pass.
-- [ ] Refactor only after green; rerun the focused test.
-- [ ] Commit with `feat(pi): add Jira issue link tool` when implementation is approved.
+- [x] Run `cd dot_pi/agent && npm ci --ignore-scripts` to install the test dependencies.
+- [x] Add focused failing tests for registration/schema, both direction mappings, self-link rejection, successful empty response, API failure, and signal propagation.
+- [x] Run `cd dot_pi/agent && node --experimental-strip-types --test exact_extensions/jira/_link.test.ts`; expect the new behavior assertions to fail before implementation.
+- [x] Add the internal registrar, TypeBox tool contract, request-body mapping, and compact success result. Keep `jiraExtension(pi)` unchanged and wire the default Jira request function from `index.ts`.
+- [x] Add tool descriptions and prompt guidance that identify when to use `jira_link` and explain the two directions.
+- [x] Rerun `cd dot_pi/agent && node --experimental-strip-types --test exact_extensions/jira/_link.test.ts`; expect all focused tests to pass.
+- [x] Refactor only after green; rerun the focused test. No refactor was needed; the passing focused test is the final check.
+- [x] Commit with `feat(pi): add Jira issue link tool` when implementation is approved.
+
+**Execution notes:** LSP diagnostics found an existing error at `index.ts` in `jira_create` (`unknown` passed to `trimCreateResult`); the unchanged code is present in the committed baseline. No diagnostic was reported for the new registrar, request-body helper, or tests. `chezmoi diff` shows only the planned Jira extension files; no target files were applied because the rollout plan requires review first.
 #### Task 2: Review documentation and future-agent guidance
 **Delivers:** User-facing tool guidance is complete, and repository guidance reflects any durable new command or workflow.
 **Blocked by:** Task 1
 **Traces to:** Explicit planning requirement to review documentation and relevant `AGENTS.md` guidance.
 **Files:** `dot_pi/agent/AGENTS.md`
-- [ ] Review whether the new tool adds a durable command, setup step, source-of-truth rule, testing trap, or rollout procedure that belongs in `AGENTS.md`.
-- [ ] Update `dot_pi/agent/AGENTS.md` only if such durable guidance is required; otherwise record that the tool’s schema and prompt guidance are sufficient and no agent-guidance change is needed.
-- [ ] Confirm no docs or guidance outside the Jira extension require updates; the repository has no Jira-extension README.
-- [ ] Run `cd dot_pi/agent && npm test` and `cd dot_pi/agent && npm run test:all`; expect both suites to pass.
-- [ ] Remove `dot_pi/agent/node_modules` after both suites pass, as required by `dot_pi/agent/AGENTS.md`.
-- [ ] Commit any required documentation change with a Conventional Commit message; do not create an empty commit.
+- [x] Review whether the new tool adds a durable command, setup step, source-of-truth rule, testing trap, or rollout procedure that belongs in `AGENTS.md`.
+- [x] Update `dot_pi/agent/AGENTS.md` only if such durable guidance is required; otherwise record that the tool’s schema and prompt guidance are sufficient and no agent-guidance change is needed. The registered tool description and prompt guidance are sufficient; no AGENTS.md change is needed.
+- [x] Confirm no docs or guidance outside the Jira extension require updates; the repository has no Jira-extension README.
+- [x] Run `cd dot_pi/agent && npm test` and `cd dot_pi/agent && npm run test:all`; both suites passed.
+- [x] Remove `dot_pi/agent/node_modules` after both suites pass, as required by `dot_pi/agent/AGENTS.md`. Dependencies were removed after the suites passed, then reinstalled for `/verify` preparation.
+- [x] Commit any required documentation change with a Conventional Commit message; do not create an empty commit. No separate guidance change was required.
 ### Final verification
-- [ ] Before `/verify`, run `cd dot_pi/agent && npm ci --ignore-scripts`; during `/verify`, run `cd dot_pi/agent && npm test` and `cd dot_pi/agent && npm run test:all`, then remove dependencies after both pass.
-- [ ] Confirm all acceptance scenarios pass through the registered tool with the fake Jira boundary; do not perform live Jira writes.
+- [x] Before `/verify`, run `cd dot_pi/agent && npm ci --ignore-scripts`; dependencies are installed and must remain until verification completes.
+- [ ] During `/verify`, run `cd dot_pi/agent && npm test` and `cd dot_pi/agent && npm run test:all`, then remove dependencies after both pass.
+- [x] Confirm all acceptance scenarios pass through the registered tool with the fake Jira boundary; no live Jira writes were performed.

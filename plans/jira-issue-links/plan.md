@@ -157,20 +157,20 @@ Delivers a standalone tool that links two existing issues in either requested di
 - [x] Refactor only after green; rerun the focused test. No refactor was needed; the passing focused test is the final check.
 - [x] Commit with `feat(pi): add Jira issue link tool` when implementation is approved.
 
-**Execution notes:** LSP diagnostics found an existing error at `index.ts` in `jira_create` (`unknown` passed to `trimCreateResult`); the unchanged code is present in the committed baseline. No diagnostic was reported for the new registrar, request-body helper, or tests. `chezmoi diff` shows only the planned Jira extension files; no target files were applied because the rollout plan requires review first.
+**Execution notes:** LSP diagnostics found an existing error at `index.ts` in `jira_create` (`unknown` passed to `trimCreateResult`); the unchanged code is present in the committed baseline. After dependencies were reinstalled, LSP also reported package-resolution errors in both unchanged and changed Jira files; the project-local TypeScript compiler resolved dependencies and reported only the same baseline error. `chezmoi diff` shows only the planned Jira extension files; no target files were applied because the rollout plan requires review first.
 #### Task 3: Support duplicate issue links
-**Execution status:** In progress.
+**Execution status:** Complete.
 **Delivers:** `jira_link` creates Jira `Duplicate` links in either direction while preserving the existing `Blocks` behavior.
 **Blocked by:** Task 1
 **Traces to:** Requirement: Create a duplicate relationship in either direction; Requirements: Reject invalid link requests before mutation, Surface Jira request failures.
 **Files:** `dot_pi/agent/exact_extensions/jira/_link.ts`; `dot_pi/agent/exact_extensions/jira/_write.ts`; `dot_pi/agent/exact_extensions/jira/_link.test.ts`; `plans/jira-issue-links/plan.md`
-- [ ] Add failing tests for the four-value schema and both `Duplicate` directions, including type name, inward/outward keys, returned fields, and signal propagation.
-- [ ] Run `cd dot_pi/agent && node --experimental-strip-types --test exact_extensions/jira/_link.test.ts`; expect the new duplicate assertions to fail.
-- [ ] Extend the relationship mapping and tool description/prompt guidance to support `duplicates` and `is duplicated by`, mapping them to Jira type name `Duplicate`; keep the existing `Blocks` mappings unchanged.
-- [ ] Rerun `cd dot_pi/agent && node --experimental-strip-types --test exact_extensions/jira/_link.test.ts`; expect all tests to pass.
-- [ ] Run `cd dot_pi/agent && npm test` and `cd dot_pi/agent && npm run test:all`.
-- [ ] Update the open PR body to describe `Duplicate` support and refresh review links; do not post another `@codex review` trigger.
-- [ ] Commit with `feat(pi): support duplicate Jira links`.
+- [x] Add failing tests for the four-value schema and both `Duplicate` directions, including type name, inward/outward keys, returned fields, and signal propagation.
+- [x] Run `cd dot_pi/agent && node --experimental-strip-types --test exact_extensions/jira/_link.test.ts`; the new schema and duplicate-direction assertions failed before implementation.
+- [x] Extend the relationship mapping and tool description/prompt guidance to support `duplicates` and `is duplicated by`, mapping them to Jira type name `Duplicate`; keep the existing `Blocks` mappings unchanged.
+- [x] Rerun `cd dot_pi/agent && node --experimental-strip-types --test exact_extensions/jira/_link.test.ts`; all seven tests passed.
+- [x] Run `cd dot_pi/agent && npm test` and `cd dot_pi/agent && npm run test:all`; both suites passed.
+- [x] Update the open PR body to describe `Duplicate` support and refresh review links; do not post another `@codex review` trigger. Updated PR #99; retained the single existing review trigger.
+- [x] Commit with `feat(pi): support duplicate Jira links`.
 
 #### Task 2: Review documentation and future-agent guidance
 **Delivers:** User-facing tool guidance is complete, and repository guidance reflects any durable new command or workflow.
@@ -186,4 +186,4 @@ Delivers a standalone tool that links two existing issues in either requested di
 ### Final verification
 - [x] Before `/verify`, run `cd dot_pi/agent && npm ci --ignore-scripts`; dependencies are installed and must remain until verification completes.
 - [ ] During `/verify`, run `cd dot_pi/agent && npm test` and `cd dot_pi/agent && npm run test:all`, then remove dependencies after both pass.
-- [ ] Confirm all acceptance scenarios, including both `Duplicate` directions, pass through the registered tool with the fake Jira boundary; do not perform live Jira writes.
+- [x] Confirm all acceptance scenarios, including both `Duplicate` directions, pass through the registered tool with the fake Jira boundary; no live Jira writes were performed.

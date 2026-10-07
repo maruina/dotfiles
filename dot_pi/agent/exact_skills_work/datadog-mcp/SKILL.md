@@ -6,8 +6,8 @@ description: Uses native pi MCP servers for Datadog to query Datadog metrics, lo
 Use the native pi MCP servers `datadog-prod` and `datadog-staging` to access Datadog.
 
 Config:
-- Servers live in `~/.pi/agent/mcp.json`; pi connects to them natively.
-- pi injects authentication at connect time by running the `dd-auth` header commands from the server config; no per-call `dd-auth` wrapper is needed.
+- `datadog-prod` and `datadog-staging` are registered by the work-only `exact_extensions/datadog-mcp-auth/` extension, not in `~/.pi/agent/mcp.json`.
+- The extension fetches keys in the background after pi starts. The servers appear in `/mcp` when authentication and connection complete; use it to check their status. No per-call `dd-auth` wrapper is needed.
 - MCP URL: `https://mcp.datadoghq.com/api/unstable/mcp-server/mcp`
 - Prod server: `datadog-prod`
 - Staging server: `datadog-staging`
@@ -15,7 +15,7 @@ Config:
 Auth and routing:
 - Prod org 2: keys from `dd-auth --domain app.datadoghq.com`.
 - Staging org 197728 ddstaging: keys from `dd-auth --domain ddstaging.datadoghq.com`.
-- The MCP URL is the same for prod and staging; the header commands select the Datadog org.
+- The MCP URL is the same for prod and staging; the extension fetches credentials for each Datadog domain.
 
 Choose prod vs staging from the cluster/datacenter name:
 - Use staging for cluster/datacenter names containing staging indicators, especially:

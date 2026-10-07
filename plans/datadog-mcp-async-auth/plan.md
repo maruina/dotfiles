@@ -37,6 +37,14 @@
 | `chezmoi` | `skill-loader` | The extension source under the chezmoi repo is changing | Kept all edits in source files and used the existing package/test workflow. |
 | `reviewable-pr-workflow` | `skill-loader` | Update the open draft PR after this slice | Confirmed no human review started, found no stack split, and updated PR #101 for Slices 1 and 2. |
 | `write` | `skill-loader` | Update the plan ledger and PR description | Followed concise, evidence-based prose guidance. |
+| `resolve-worktree` | `prompt-required` | Resolve the plan path for this execution | Confirmed the existing feature worktree owns the plan. |
+| `feature-worktree` | `prompt-required` | Continue in the plan's worktree | Confirmed the feature branch is active and the base checkout remains on `main`. |
+| `skill-loader` | `prompt-required` | Required at the start of this `/execute` stage | Selected skills for source documentation, chezmoi application, and PR updates. |
+| `codebase-research` | `skill-loader` | Update guidance about the new auth path | Searched for stale `dd-auth` and `mcp.json` instructions before editing. |
+| `chezmoi` | `skill-loader` | Apply verified source changes to managed targets | Previewed explicit targets; applied only the extension, package, skill, and MCP script, leaving unrelated target drift unchanged. |
+| `write` | `skill-loader` | Edit agent guidance and the Datadog MCP skill | Used direct wording to explain background auth and `/mcp` discovery. |
+| `mermaid-best-practices` | `reviewable-pr-workflow` | Add a flow diagram to the PR body | Used a short sequence diagram to show prompt availability during background authentication. |
+| `reviewable-pr-workflow` | `skill-loader` | Complete the existing draft PR | Updated reviewer evidence in PR #101 and confirmed it remains draft with no human feedback. |
 
 ## Source of truth and confirmed decisions
 - Evidence from pi 1.0.4: `dist/core/resolve-config-value.js` runs `!command` values with blocking `execSync`, a 10s timeout, and stderr ignored. `dist/extensions/mcp/runtime.js` `createDefaultTransport` resolves headers each time it creates a transport. `docs/extensions.md` says `registerMcpServer` replaces an earlier registration with the same name, and a same-name `mcp.json` server takes precedence.
@@ -229,11 +237,13 @@ The work profile SHALL NOT register `datadog-prod` or `datadog-staging` through 
 **Traces to:** Goal; documentation requirement for Medium plans
 **Files:** `AGENTS.md`, `dot_pi/agent/exact_skills_work/datadog-mcp/SKILL.md`
 
-- [ ] Update the `AGENTS.md` "Pi MCP" section: the `datadog-*` servers come from `exact_extensions/datadog-mcp-auth/`, not `mcp.json`, so `pi mcp list` does not show them; use `/mcp` in a session.
-- [ ] Update `datadog-mcp/SKILL.md` lines about `dd-auth` header commands to say the extension fetches keys in the background and the tools appear a few seconds after startup.
-- [ ] Run `npm test` and `npm run test:all` in `dot_pi/agent`; expect success and no `[Extension issues]`. Then remove `dot_pi/agent/node_modules`.
-- [ ] Manual check after `chezmoi apply`: `jq 'keys' ~/.pi/agent/mcp.json` shows no `datadog-*` entries. Start `pi`; expect the prompt to accept input at once and no MCP warning. After about 10s, `/mcp` shows both servers connected, and `tool_search` for "datadog metrics" returns `mcp__datadog_prod` tools. Automation is impractical because it needs real SSO credentials and the pi TUI.
-- [ ] Commit with `docs(pi): describe async Datadog MCP auth`.
+- [x] Update the `AGENTS.md` "Pi MCP" section: the `datadog-*` servers come from `exact_extensions/datadog-mcp-auth/`, not `mcp.json`, so `pi mcp list` does not show them; use `/mcp` in a session.
+- [x] Update `datadog-mcp/SKILL.md` lines about `dd-auth` header commands to say the extension fetches keys in the background and use `/mcp` to check server status after authentication and connection complete.
+- [x] Run `npm test` and `npm run test:all` in `dot_pi/agent`; expect success and no `[Extension issues]`. Then remove `dot_pi/agent/node_modules`.
+- [x] Manual check after `chezmoi apply`: `jq '.mcpServers | keys' ~/.pi/agent/mcp.json` shows no `datadog-*` entries. Start `pi`; confirm the prompt accepts input at once and no MCP warning. After about 10s, `/mcp` shows both servers connected, and `tool_search` for "datadog metrics" returns `mcp__datadog_prod` tools.
+- [x] Commit with `docs(pi): describe async Datadog MCP auth`.
+
+**Execution note:** `npm test` and `npm run test:all` both exited 0; the offline smoke test emitted model-catalog warnings but no `[Extension issues]`. Removed `dot_pi/agent/node_modules` after both suites passed. Applied only the extension, package, skill, and MCP script; left the unrelated target drift in `scripts/lifecycle-prompts.test.mjs` and the plan target untouched. On Pi 1.0.4, the prompt was ready while authentication ran. `/mcp` showed `datadog-prod` connected first and `datadog-staging` connecting, then both connected (35 tools each); `tool_search` for "Datadog metrics" returned production metric tools. No credentials were printed.
 
 ## Final verification
 - Feature-level: pi startup does not block, both servers connect in the background, and keys refresh during a long session. Tasks 1–3 cover these with unit tests, and Task 4 confirms them on a real pi start.

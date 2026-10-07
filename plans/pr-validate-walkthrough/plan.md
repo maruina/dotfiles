@@ -25,7 +25,8 @@
 | `skill-loader` | `prompt-required` | Required at the start of execution | Selected the chezmoi and prose-writing skills for the affected prompt and test files |
 | `feature-worktree` | `prompt-required` | Required before writing files | Confirmed this is the plan's feature worktree and the branch is safe |
 | `chezmoi` | `skill-loader` | The affected files are chezmoi source files | Kept edits in the source tree and used source-aware validation guidance |
-| `write` | `skill-loader` | The prompt includes user-facing report instructions | Used concise prose and explicit section instructions for the Walkthrough |
+| `write` | `skill-loader` | The prompt and draft PR body contain user-facing prose | Applied concise wording to the Walkthrough and PR body |
+| `reviewable-pr-workflow` | `skill-loader` | Slice completion requires the stack-split check and draft PR | Applied the stack-split signals and PR body/reviewer-guide rules |
 
 ## Advisory learnings
 `Datadog/Learnings.md` returned no matching sections for the terms above. No learning guidance applies.
@@ -191,10 +192,12 @@ The prompt set SHALL NOT contain `pr-review.md`, and no prompt SHALL name `/pr-r
 **Traces to:** Smallest user-feedback slice
 **Files:** None in the repository; the report goes to `~/.pi/agent/pr-validate-reports/`
 
-- [ ] Run `npm ci --ignore-scripts`, `npm test`, and `npm run test:all` in `dot_pi/agent`; expect all to pass. Remove `dot_pi/agent/node_modules`.
-- [ ] Run `chezmoi --source "$PWD" diff ~/.pi/agent/prompts/pr-validate.md` and `chezmoi --source "$PWD" apply ~/.pi/agent/prompts/pr-validate.md` from the worktree, with the user's approval.
-- [ ] Ask the user to run `/pr-validate` on a real PR. Recommend `dd-source#116539` or `#103728`, so the user can compare with the earlier reports. Copy the earlier report first so it is not overwritten, for example to `dd-source-116539-rev2.html`.
-- [ ] Expect the report to show PR summary and Review gates up front, the Walkthrough second, six-slot items with working links to Walkthrough steps, and links from Fail and Open rows to items. Record the user's verdict on readability. Stop if the user does not accept the run; revise Slice 1 before Slice 2.
+- [x] Run `npm ci --ignore-scripts`, `npm test`, and `npm run test:all` in `dot_pi/agent`; expect all to pass. Remove `dot_pi/agent/node_modules`.
+- [x] Run `chezmoi --source "$PWD" diff ~/.pi/agent/prompts/pr-validate.md` and `chezmoi --source "$PWD" apply ~/.pi/agent/prompts/pr-validate.md` from the worktree, with the user's approval.
+  - Execution note: applied the prompt after the user's approval; the explicit target-file comparison passed.
+- [x] Ask the user to run `/pr-validate` on a real PR. Recommend `dd-source#116539` or `#103728`, so the user can compare with the earlier reports. Copy the earlier report first so it is not overwritten, for example to `dd-source-116539-rev2.html`.
+  - Execution note: the user ran the report and accepted it as readable.
+- [x] Expect the report to show PR summary and Review gates up front, the Walkthrough second, six-slot items with working links to Walkthrough steps, and links from Fail and Open rows to items. Record the user's verdict on readability. Stop if the user does not accept the run; revise Slice 1 before Slice 2.
 
 ### Slice 2: Retire `/pr-review`
 ### Task 5: Remove `/pr-review` and its references

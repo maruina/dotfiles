@@ -171,9 +171,9 @@ The prompt set SHALL NOT contain `pr-review.md`, and no prompt SHALL name `/pr-r
 **Traces to:** Requirement: PR summary and review gates up front
 **Files:** `dot_pi/agent/exact_prompts/pr-validate.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`
 
-- [ ] Add a test "PR validation report includes PR summary and review gates" with these markers: `\*\*PR summary\.\*\*`, `What it does`, `Why`, `Files by class`, `\*\*Review gates\.\*\*`, `Gate \| Status \| Evidence`, `Pass`, `Fail`, `Open`, a marker that Fail and Open rows link to their item, and a marker that the tables are not inside `<details>`. Assert that the prompt no longer says `confirmed, refuted, or open`. Run the narrow command; expect failure.
-- [ ] In `pr-validate.md`, change "Mark each criterion confirmed, refuted, or open" to Pass, Fail, or Open. Change the "Confirmed when" column header to "Passes when". Change the verdict rules to say every gate passes, a gate is open, or a gate fails, with the same outcomes as before. Leave the separate defect wording ("a confirmed defect") alone, because it describes claims, not gates.
-- [ ] In Output, structure the page layout so PR summary and Review gates appear immediately after Hero and before Chip navigation and Walkthrough:
+- [x] Add a test "PR validation report includes PR summary and review gates" with these markers: `\*\*PR summary\.\*\*`, `What it does`, `Why`, `Files by class`, `\*\*Review gates\.\*\*`, `Gate \| Status \| Evidence`, `Pass`, `Fail`, `Open`, a marker that Fail and Open rows link to their item, and a marker that the tables are not inside `<details>`. Assert that the prompt no longer says `confirmed, refuted, or open`. Run the narrow command; expect failure.
+- [x] In `pr-validate.md`, change "Mark each criterion confirmed, refuted, or open" to Pass, Fail, or Open. Change the "Confirmed when" column header to "Passes when". Change the verdict rules to say every gate passes, a gate is open, or a gate fails, with the same outcomes as before. Leave the separate defect wording ("a confirmed defect") alone, because it describes claims, not gates.
+- [x] In Output, structure the page layout so PR summary and Review gates appear immediately after Hero and before Chip navigation and Walkthrough:
   1. **Hero.**
   2. **PR summary & Review gates.** PR summary lists What it does, Why, PR, Head, Size, Files by class, Verdict, and Gates (counts). Review gates table has one row per criterion (`Gate | Status | Evidence`). A Fail or Open row links to its item, or to Coverage when no item exists.
   3. **Chip navigation.** Chips for Review gates, Walkthrough, each item chapter, and Reference.
@@ -182,8 +182,8 @@ The prompt set SHALL NOT contain `pr-review.md`, and no prompt SHALL name `/pr-r
   6. **Your question.**
   7. **Reference.** Holds Coverage and Skills loaded and used.
   Remove "The ten criteria as chip rows" from **Reference.**. Remove the sentence about the "three revision-2 criteria" only if it now contradicts the table. State that both tables appear for every verdict, including Approve.
-- [ ] Run the narrow command; expect all tests to pass.
-- [ ] Commit with `feat(pi): add PR summary and review gates to /pr-validate reports`.
+- [x] Run the narrow command; expect all tests to pass.
+- [x] Commit with `feat(pi): add PR summary and review gates to /pr-validate reports`.
 
 ### Task 4: Validate Slice 1 on a real PR
 **Delivers:** User feedback on the new report.

@@ -101,9 +101,9 @@ No cluster writes are allowed, and do not refresh credentials. `compute-guardrai
 Compare the change with neighboring code, repository guidance, and the loaded skills. Check that each claim agrees with the implementation and the tests.
 
 ## Verdict criteria
-Mark each criterion confirmed, refuted, or open, with a one-line evidence summary.
+Mark each criterion Pass, Fail, or Open, with a one-line evidence summary.
 
-| Criterion | Confirmed when |
+| Criterion | Passes when |
 |---|---|
 | Correctness | Every claim is confirmed, and each port parity row holds or has a stated reason. |
 | Meaningful tests | Tests cover changed behavior and would fail if it broke. |
@@ -119,12 +119,12 @@ Mark each criterion confirmed, refuted, or open, with a one-line evidence summar
 The three revision-2 criteria are rows in the criteria table. They become items only when they find a gap, so a clean PR does not grow.
 
 ## Verdict rules
-- **Approve** only when every criterion is confirmed.
-- **Ask** when at least one criterion is open and no defect is confirmed. Each Ask item gives the exact author question, why the answer matters, what you checked and did not find, and inline evidence.
-- **Request changes** when at least one defect is confirmed. Each item states the problem, `file:line`, a short code excerpt, the concrete failure, and the evidence that confirms it.
+- **Approve** only when every gate passes.
+- **Ask** when at least one gate is Open and no defect is confirmed. Each Ask item gives the exact author question, why the answer matters, what you checked and did not find, and inline evidence.
+- **Request changes** when at least one gate fails. Each item states the problem, `file:line`, a short code excerpt, the concrete failure, and the evidence that confirms it.
 - For each Ask or Request changes item, identify the specific changed line or smallest changed line range where the reviewer can leave an inline PR comment. If the relevant code is unchanged, use the nearest relevant changed line and explain the placement. If no relevant changed line exists, say that an inline comment is unavailable and link to the evidence instead.
-- If both confirmed defects and open questions exist, use Request changes and include the relevant Ask items.
-- Do not turn uncertainty into a defect. Do not approve when a criterion is open.
+- If any gate fails and another gate is Open, use Request changes and include the relevant Ask items.
+- Do not turn uncertainty into a defect. Do not approve when any gate is Open.
 
 A confirmed code defect alone does not decide severity. Check **exposure** (does the defect affect real executions, data, or clusters?) and estimate **fix cost**. Exposure evidence at review time is a snapshot: the PR deploys later, so "none now" shows likelihood, not absence. Use read-only commands such as `atlas workflow list` and `inspect` for Temporal and Atlas workflows; never run commands that signal, cancel, terminate, or start a workflow, and never refresh credentials. Avoid dumping raw workflow history payloads; use `inspect` or `stack-trace` to verify failure states. When building or testing Bazel targets, batch all targets into a single `bzl` invocation.
 
@@ -165,11 +165,12 @@ Write one single-file HTML report to `~/.pi/agent/pr-validate-reports/REPO-PR_NU
 
 Follow the `explain` story page shape (light theme, hero, sticky chip navigation, chapters, cards, chips, and small tables):
 1. **Hero.** The verdict, count chips, a one-sentence lead, the PR link, the head SHA, and the model and thinking level.
-2. **Chip navigation.** Include chips for Review gates, Walkthrough, each item chapter, and Reference.
-3. **Walkthrough.** Render the Pass 1 model before any item chapters, for every verdict including Approve. Follow the Walkthrough subsection below.
-4. **Item chapters.** Request changes, then Ask, then attention items, each in the six-slot item story. For each Ask and Request changes item, put the inline-comment link and copy box together after the six slots, so the explanation remains easy to read.
-5. **Your question.** Only when the context asks one. Answer it directly. For thread questions, use one row per thread claim. A state diagram is allowed here when it clarifies thread states.
-6. **Reference.** Coverage and Skills loaded and used. Detail stays in `<details>` blocks. The claims ledger is not a top-level section.
+2. **PR summary and Review gates.** Place both visible tables immediately after the Hero and before chip navigation. Add a **PR summary.** table with `Field | Details` columns and these rows in order: **What it does**, **Why**, **PR**, **Head**, **Size**, **Files by class**, **Verdict**, and **Gates** (Pass, Fail, and Open counts). Keep **What it does** and **Why** to one or two plain-language sentences each. The **Review gates.** table has `Gate | Status | Evidence` columns and one row for each criterion. Each status is Pass, Fail, or Open. A Pass row gives one line of evidence. A Fail or Open row links to its item, or to Coverage when no item exists. Keep both tables visible at the top of the page, outside `<details>`. Both tables appear for every verdict, including Approve.
+3. **Chip navigation.** Include chips for Review gates, Walkthrough, each item chapter, and Reference.
+4. **Walkthrough.** Render the Pass 1 model before any item chapters, for every verdict including Approve. Follow the Walkthrough subsection below.
+5. **Item chapters.** Request changes, then Ask, then attention items, each in the six-slot item story. For each Ask and Request changes item, put the inline-comment link and copy box together after the six slots, so the explanation remains easy to read.
+6. **Your question.** Only when the context asks one. Answer it directly. For thread questions, use one row per thread claim. A state diagram is allowed here when it clarifies thread states.
+7. **Reference.** Coverage and Skills loaded and used. Detail stays in `<details>` blocks. The claims ledger is not a top-level section.
 
 ### Walkthrough
 Assume the reader is a staff engineer who is new to the subsystem. Use these parts in order:

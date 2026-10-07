@@ -508,6 +508,26 @@ test("PR validation report opens with a walkthrough", () => {
   ]);
 });
 
+test("PR validation report includes PR summary and review gates", () => {
+  const text = prompt("pr-validate.md");
+
+  requireMarkers(text, [
+    /\*\*PR summary\.\*\*/,
+    /What it does/,
+    /Why/,
+    /Files by class/,
+    /\*\*Review gates\.\*\*/,
+    /Gate \| Status \| Evidence/,
+    /Pass/,
+    /Fail/,
+    /Open/,
+    /Fail or Open row links to its item, or to Coverage when no item exists/i,
+    /both tables.*outside `<details>`/is,
+  ]);
+
+  assert.doesNotMatch(text, /confirmed, refuted, or open/i);
+});
+
 test("PR validation marketplace discovery is bounded, local, and read-only", () => {
   const text = prompt("pr-validate.md");
 

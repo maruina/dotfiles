@@ -1,0 +1,171 @@
+{
+  "schemaVersion": 1,
+  "repo": "example-org/example-service",
+  "number": 42,
+  "title": "Add a monitor gate before certificate rotation",
+  "author": "octocat",
+  "baseRef": "main",
+  "headRef": "octocat/rotation-gate",
+  "headSha": "0123456789abcdef0123456789abcdef01234567",
+  "model": "openai/gpt-6-luna",
+  "thinking": "medium",
+  "verdict": "Request changes",
+  "lead": "The gate blocks the certificate repair it protects, and the new workflow call breaks replay for running workflows.",
+  "summary": {
+    "whatItDoes": "Adds a monitor check before `RotateCA` deploys new certificates. Operators can skip the check with a flag.",
+    "why": "The author says rotation must wait until all nodes trust the new root. Otherwise nodes lose API access.",
+    "size": { "files": 6, "additions": 210, "deletions": 35 },
+    "filesByClass": { "behavior": 3, "test": 2, "build": 1 }
+  },
+  "gates": [
+    { "gate": "Correctness", "status": "Fail", "evidence": "The gate runs before the deploy that clears its alert.", "link": "gate-blocks-repair" },
+    { "gate": "Meaningful tests", "status": "Fail", "evidence": "No replay test covers the changed child workflow call.", "link": "replay-break" },
+    { "gate": "Human validation provided", "status": "Pass", "evidence": "The PR body lists one staging rotation with a link to its run." },
+    { "gate": "Why recorded", "status": "Pass", "evidence": "The PR body explains the node trust problem." },
+    { "gate": "Fixable", "status": "Pass", "evidence": "Each finding points to one call site." },
+    { "gate": "Best practices", "status": "Fail", "evidence": "History changes need a version gate.", "link": "replay-break" },
+    { "gate": "Necessity", "status": "Pass", "evidence": "Two incidents show rotations that started too early." },
+    { "gate": "Observability", "status": "Open", "evidence": "No log or metric shows when an operator skips the gate.", "link": "skip-visibility" },
+    { "gate": "Dependencies", "status": "Pass", "evidence": "The Datadog monitor API is named, and the gate retries on errors." },
+    { "gate": "Docs", "status": "Pass", "evidence": "The runbook now describes the skip flag." }
+  ],
+  "walkthrough": {
+    "problem": "A root CA rotation can start before every node trusts the new root. Nodes then lose API access.",
+    "systemToday": [
+      "An operator runs `ctl rotate-ca` for one cluster.",
+      "The CLI signals the `ClusterLifecycle` workflow.",
+      "`ClusterLifecycle` starts the `RotateCA` child workflow.",
+      "`RotateCA` deploys the `ca_certs` chart set.",
+      "`RotateCA` then marks the new root as active."
+    ],
+    "coreIntuition": "The gate is a wait loop in front of the deploy. It is safe only if the deploy cannot be what clears the alert.",
+    "solutionMap": [
+      { "component": "`WaitForMonitorGate` workflow", "solves": "Waits until the trust monitor is OK." },
+      { "component": "`CheckMonitor` activity", "solves": "Reads the monitor state for one cluster." },
+      { "component": "`--skip-gate` flag", "solves": "Lets an operator bypass a stuck gate." }
+    ],
+    "flowchart": "flowchart LR\n  CLI[ctl rotate-ca] --> L[ClusterLifecycle]\n  L --> R[RotateCA]:::rc\n  R --> G[Monitor gate]:::ask\n  G --> D[Deploy ca_certs]",
+    "steps": [
+      {
+        "id": "step-entry",
+        "title": "Operator starts a rotation",
+        "today": "The CLI signals `ClusterLifecycle` with the target cluster.",
+        "changed": "Nothing changed here.",
+        "effect": "Every rotation still enters through `ClusterLifecycle`."
+      },
+      {
+        "id": "step-rotate",
+        "title": "RotateCA calls the gate",
+        "today": "`RotateCA` deploys certificates right away.",
+        "changed": "It now waits on the monitor gate first, unless the skip flag is set.",
+        "effect": "A rotation can wait up to 48 hours before the deploy."
+      }
+    ]
+  },
+  "items": [
+    {
+      "id": "gate-blocks-repair",
+      "kind": "request",
+      "title": "The gate blocks the certificate repair",
+      "step": "step-rotate",
+      "whereThisFits": "`RotateCA` runs after `ClusterLifecycle` selects a rotation. It now calls the gate before the `ca_certs` deploy.",
+      "whyItMatters": "The monitor alerts when nodes trust different roots. The deploy is what fixes that state.",
+      "code": {
+        "path": "worker/rotate_ca.go",
+        "start": 38,
+        "end": 44,
+        "excerpt": "if !req.GetSkipGate() {\n    waitForMonitorGate(ctx, cluster)\n}\ndeployChartSet(ctx, CA_CERTS)"
+      },
+      "whyBad": "While the monitor alerts, the gate retries for 48 hours. The deploy that would clear the alert never runs.",
+      "diagram": "sequenceDiagram\n  participant R as RotateCA\n  participant G as Monitor gate\n  participant D as ca_certs deploy\n  R->>G: Check cluster\n  G-->>R: Alert\n  R->>G: Retry for 48h\n  Note over R,D: Deploy never starts",
+      "real": {
+        "exposure": "real",
+        "detail": "3 clusters alert",
+        "fixCost": "small",
+        "evidence": "[Monitor 123](https://app.datadoghq.com/monitors/123) shows 3 clusters in Alert."
+      },
+      "fix": "Deploy `ca_certs` first. Check the monitor before the new root becomes active.",
+      "comment": {
+        "path": "worker/rotate_ca.go",
+        "side": "R",
+        "start": 38,
+        "end": 44,
+        "text": "Can the gate run after the ca_certs deploy and before the new root becomes active? Right now the monitor can stay in Alert because the deploy that fixes it never runs. Monitor 123 shows 3 clusters in Alert: https://app.datadoghq.com/monitors/123"
+      }
+    },
+    {
+      "id": "replay-break",
+      "kind": "request",
+      "title": "Running workflows fail after deploy",
+      "step": "step-rotate",
+      "whereThisFits": "The new gate call adds a child workflow command to `RotateCA` histories.",
+      "whyItMatters": "Temporal replays each workflow against its recorded commands. A new command breaks running workflows.",
+      "code": {
+        "path": "worker/rotate_ca.go",
+        "start": 38,
+        "end": 40,
+        "excerpt": "if !req.GetSkipGate() {\n    waitForMonitorGate(ctx, cluster)\n}"
+      },
+      "whyBad": "A running `RotateCA` replays on the new worker, meets an unexpected child workflow command, and its workflow task fails.",
+      "real": {
+        "exposure": "none now",
+        "detail": "0 running",
+        "fixCost": "small",
+        "evidence": "`atlas workflow list` shows no running `RotateCA` executions today."
+      },
+      "fix": "Wrap the call in `workflow.GetVersion` and add a replay test.",
+      "comment": {
+        "path": "worker/rotate_ca.go",
+        "side": "R",
+        "start": 38,
+        "end": 40,
+        "text": "This adds a child workflow command without workflow.GetVersion. A RotateCA that is running at deploy time will fail replay. Please add a version gate and a replay test."
+      }
+    },
+    {
+      "id": "skip-visibility",
+      "kind": "ask",
+      "title": "Operators cannot see a skipped gate",
+      "step": "step-rotate",
+      "whereThisFits": "The skip flag bypasses the gate inside `RotateCA`.",
+      "whyItMatters": "A skipped gate removes the only safety check. On-call needs to see that it happened.",
+      "code": {
+        "path": "worker/rotate_ca.go",
+        "start": 38,
+        "end": 38,
+        "excerpt": "if !req.GetSkipGate() {"
+      },
+      "whyBad": "No log, metric, or event records the skip. I found no telemetry for it in the diff.",
+      "real": {
+        "exposure": "unknown",
+        "fixCost": "small",
+        "evidence": "Query that settles it: search logs for `skip_gate` after a staging run."
+      },
+      "fix": "The author confirms where a skip is recorded.",
+      "comment": {
+        "path": "worker/rotate_ca.go",
+        "side": "R",
+        "start": 38,
+        "end": 38,
+        "text": "When an operator sets the skip flag, where can on-call see it? I did not find a log, metric, or event for the skip in this PR."
+      }
+    }
+  ],
+  "coverage": {
+    "checked": [
+      "PR diff, review threads, and CI checks at the head SHA.",
+      "Live `RotateCA` executions in staging and prod with `atlas workflow list`."
+    ],
+    "gaps": [
+      "Skip telemetry: no staging run with the flag. Query: search logs for `skip_gate`."
+    ]
+  },
+  "claims": [
+    { "claim": "Rotation waits for node trust.", "source": "PR body", "result": "Confirmed in `rotate_ca.go:38`." }
+  ],
+  "skills": [
+    { "skill": "atlas-best-practices", "source": "skill-loader", "why": "The PR changes a Temporal workflow.", "how": "Checked version gates and replay coverage." },
+    { "skill": "write", "source": "prompt-required", "why": "The report has prose.", "how": "Kept sentences short and concrete." },
+    { "skill": "humanizer", "source": "prompt-required", "why": "The report has prose.", "how": "Removed filler and AI tells." }
+  ]
+}

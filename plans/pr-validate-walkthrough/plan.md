@@ -199,6 +199,23 @@ The prompt set SHALL NOT contain `pr-review.md`, and no prompt SHALL name `/pr-r
   - Execution note: the user ran the report and accepted it as readable.
 - [x] Expect the report to show PR summary and Review gates up front, the Walkthrough second, six-slot items with working links to Walkthrough steps, and links from Fail and Open rows to items. Record the user's verdict on readability. Stop if the user does not accept the run; revise Slice 1 before Slice 2.
 
+### Task 4a: Render reports from a standard template
+**Delivers:** Every report has the same layout, short text, and no horizontal scroll, and a review uses less context and time.
+**Blocked by:** Task 4 (user feedback on the real run)
+**Traces to:** User feedback on `dd-source-116539.html` and session `01a11725`
+**Files:** `dot_pi/agent/exact_scripts/pr-validate-report/` (`render.mjs`, `template.html`, `example.json`, `render.test.mjs`), `dot_pi/agent/exact_prompts/pr-validate.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`, `dot_pi/agent/package.json`
+
+Evidence from session `01a11725` (GPT-6 Luna, 14m33s, 251k of 272k context tokens):
+- The model generated for 86% of the wall time. Writing the HTML and fixing it took about 5 minutes and 33k output tokens.
+- With `openai-responses`, reasoning and tool-call arguments stay in context: about 85k tokens. The report was in context three times (write, edits, and read-back): about 24k tokens.
+- Five `rg` or `git diff` results hit the 16 KB bash cap. `atlas --help`, `tool_search`, and a Datadog SDK schema dump added about 13k tokens.
+- User feedback: the lead and "System today" were walls of text, the two top tables scrolled sideways, and the PR summary belonged in the Hero box.
+
+- [x] Add `render.mjs`. It validates the report JSON (word limits, gate order and links, verdict agreement with the gates, item and step references) and renders the template. It escapes all text and builds permalinks, Files changed anchors, and copy buttons.
+- [x] Take `template.html` from the `dd-source-116539.html` CSS. Put the PR summary in the Hero, stack the tables at full width, and remove the fixed `min-width` values that caused sideways scrolling.
+- [x] Add a synthetic `example.json` (the repository is public) and `render.test.mjs`. Wire `test:pr-validate-report` into `npm test`.
+- [x] Change `pr-validate.md`: write JSON and run the renderer, read `write` and `humanizer` before writing text, never read or edit the HTML, keep tool output small, and use the Atlas command forms directly.
+
 ### Slice 2: Retire `/pr-review`
 ### Task 5: Remove `/pr-review` and its references
 **Delivers:** `/pr-review` no longer exists, and no prompt points at it.

@@ -1,4 +1,5 @@
 {{- if eq .profile "personal" }}
+.pi/agent/extensions/datadog-mcp-auth
 .pi/agent/skills_work
 {{- end }}
 {{- if eq .profile "work" }}

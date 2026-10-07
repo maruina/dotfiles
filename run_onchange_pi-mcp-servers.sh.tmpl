@@ -6,21 +6,9 @@ set -eufo pipefail
 # IT-managed trajectory server. Removals keep the other profile's servers
 # out of mcp.json after a profile switch.
 {{ if eq .profile "work" }}
-readonly DD_MCP_URL="https://mcp.datadoghq.com/api/unstable/mcp-server/mcp"
-
 pi mcp remove ha-mcp >/dev/null 2>&1 || true
-
-pi mcp add datadog-prod --url "$DD_MCP_URL" \
-  --header 'DD-API-KEY=!dd-auth --domain app.datadoghq.com -- printenv DD_API_KEY' \
-  --header 'DD-APPLICATION-KEY=!dd-auth --domain app.datadoghq.com -- printenv DD_APP_KEY' \
-  --exposure deferred \
-  --description 'Query Datadog production org 2 (app.datadoghq.com): metrics, logs, traces, monitors, dashboards, incidents, notebooks.'
-
-pi mcp add datadog-staging --url "$DD_MCP_URL" \
-  --header 'DD-API-KEY=!dd-auth --domain ddstaging.datadoghq.com -- printenv DD_API_KEY' \
-  --header 'DD-APPLICATION-KEY=!dd-auth --domain ddstaging.datadoghq.com -- printenv DD_APP_KEY' \
-  --exposure deferred \
-  --description 'Query Datadog staging org 197728 (ddstaging.datadoghq.com) for staging clusters and datacenters.'
+pi mcp remove datadog-prod >/dev/null 2>&1 || true
+pi mcp remove datadog-staging >/dev/null 2>&1 || true
 
 pi mcp add ddci-mcp-prod --url "https://ddci-mcp.mcp.us1.ddbuild.io/internal/mcp" \
   --exposure deferred \

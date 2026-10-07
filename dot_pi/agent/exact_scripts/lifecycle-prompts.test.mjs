@@ -441,7 +441,7 @@ test("PR validation prompt defines a safe delegated review contract", () => {
     /FETCH_HEAD.*headRefOid/is,
     /~\/dd\/\.worktrees\/REPO\/pr-PR_NUMBER-review/,
     /~\/\.pi\/agent\/pr-validate-reports\/REPO-PR_NUMBER\.html/,
-    /only permitted write is the HTML report/i,
+    /only permitted writes are the report data.*the HTML report.*scratch files/is,
     /Do not repeat report prose in the chat/,
     /cannot inject markup or scripts/i,
   ]);
@@ -456,11 +456,13 @@ test("PR validation revision 2 report shape, severity, and provenance", () => {
     // Report page section list (revision 2)
     /\*\*Hero\.\*\*/,
     /\*\*Chip navigation\.\*\*/,
-    /\*\*Map\.\*\*/,
+    /\*\*Walkthrough\.\*\*/,
     /\*\*Item chapters\.\*\*/,
     /\*\*Your question\.\*\*/,
     /\*\*Reference\.\*\*/,
-    // Five-slot item story
+    // Six-slot item story
+    /\*\*Where this fits\.\*\*/,
+    /link to the related Walkthrough step/i,
     /\*\*Why it matters\.\*\*/,
     /\*\*What the code does now\.\*\*/,
     /\*\*Why that is bad\.\*\*/,
@@ -488,6 +490,65 @@ test("PR validation revision 2 report shape, severity, and provenance", () => {
   ]);
 
   assert.doesNotMatch(text, /feedback for improving `skill-loader`/i);
+});
+
+test("PR validation report opens with a walkthrough", () => {
+  const text = prompt("pr-validate.md");
+
+  requireMarkers(text, [
+    /Problem/,
+    /System today/,
+    /Core intuition/,
+    /Solution map/,
+    /entry-point order/i,
+    /How it works today/,
+    /What changed and why/,
+    /Downstream effect/,
+    /PR content and context.*(?:walkthrough|Walkthrough).*escape/i,
+  ]);
+});
+
+test("PR validation report includes PR summary and review gates", () => {
+  const text = prompt("pr-validate.md");
+
+  requireMarkers(text, [
+    /\*\*PR summary\.\*\*/,
+    /What it does/,
+    /Why/,
+    /Files by class/,
+    /\*\*Review gates\.\*\*/,
+    /Gate \| Status \| Evidence/,
+    /Pass/,
+    /Fail/,
+    /Open/,
+    /Fail or Open row links to its item, or to Coverage when no item exists/i,
+    /both tables.*outside `<details>`/is,
+  ]);
+
+  assert.doesNotMatch(text, /confirmed, refuted, or open/i);
+});
+
+test("PR validation report is rendered from bounded JSON data", () => {
+  const text = prompt("pr-validate.md");
+
+  requireMarkers(text, [
+    /~\/\.pi\/agent\/pr-validate-reports\/REPO-PR_NUMBER\.json/,
+    /scripts\/pr-validate-report\/render\.mjs/,
+    /Read `example\.json`/,
+    /Read the `write` and `humanizer` skills before you write any report text/,
+    /rejects text that is longer than its word limits/i,
+    /Do not read, write, or edit the HTML file/,
+    /Hero box also holds the \*\*PR summary\.\*\* table/,
+    /`lead` of 25 words or fewer/,
+    /at most seven steps of 20 words or fewer/,
+    /Never write a paragraph here/,
+    /`rg -l` or `rg --max-count`/,
+    /`git diff --stat` first/,
+    /atlas workflow list --context <ctx> --query/,
+  ]);
+
+  assert.doesNotMatch(text, /`explain` story page shape/);
+  assert.doesNotMatch(text, /highlight\.js/);
 });
 
 test("PR validation marketplace discovery is bounded, local, and read-only", () => {

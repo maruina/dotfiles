@@ -27,7 +27,9 @@
 | `skill-loader` | `prompt-required` | Required at the start of `/execute` | Selected execution skills based on the affected TS, chezmoi, and shell files. |
 | `codebase-research` | `skill-loader` | MCP registration and async auth are behavior-bearing and unfamiliar | Checked existing extension/test patterns and verified the Pi 1.0.4 MCP registration API and replacement behavior. |
 | `chezmoi` | `skill-loader` | Source files in the chezmoi repository are changing | Followed source-only editing and profile/template validation guidance. |
-| `script-best-practices` | `skill-loader` | The MCP registration run script will change in this slice | Matched the existing Bash script style and will validate rendered syntax. |
+| `script-best-practices` | `skill-loader` | The MCP registration run script will change in this slice | Matched the existing Bash script style and validated rendered syntax. |
+| `reviewable-pr-workflow` | `skill-loader` | Prepare this completed slice for review | Applied the stack-split check and kept the coupled extension/configuration work in one PR. |
+| `write` | `skill-loader` | Draft the PR description | Wrote concise change, rationale, reviewer focus, and verification sections. |
 
 ## Source of truth and confirmed decisions
 - Evidence from pi 1.0.4: `dist/core/resolve-config-value.js` runs `!command` values with blocking `execSync`, a 10s timeout, and stderr ignored. `dist/extensions/mcp/runtime.js` `createDefaultTransport` resolves headers each time it creates a transport. `docs/extensions.md` says `registerMcpServer` replaces an earlier registration with the same name, and a same-name `mcp.json` server takes precedence.
@@ -182,7 +184,7 @@ The work profile SHALL NOT register `datadog-prod` or `datadog-staging` through 
 - [x] Run the focused test (`cd dot_pi/agent && node --experimental-strip-types --test exact_extensions/datadog-mcp-auth/_core.test.ts`); expect all scenarios to pass. Run `lsp_diagnostics` on the new files.
 - [x] Commit with `feat(pi): register Datadog MCP servers with async dd-auth`.
 
-**Execution note:** The worktree's Pi devDependency is 0.80.6 and does not type `registerMcpServer`; the installed runtime is 1.0.4 and its API types confirm registration and same-name replacement. The extension uses a narrow type assertion rather than changing the planned devDependency.
+**Execution note:** The worktree's Pi devDependency is 0.80.6 and does not type `registerMcpServer`; the installed runtime is 1.0.4 and its API types confirm registration and same-name replacement. The extension uses a narrow type assertion rather than changing the planned devDependency. One initial focused test run exposed a fixture that returned malformed output for both domains; the fixture now fails only production and confirms staging still registers.
 
 #### Task 2: Remove the blocking `mcp.json` entries and gate the extension
 **Delivers:** No `!dd-auth` header commands remain in `mcp.json`, and personal machines do not get the extension.
@@ -190,12 +192,14 @@ The work profile SHALL NOT register `datadog-prod` or `datadog-staging` through 
 **Traces to:** Requirement "The `mcp.json` entries no longer override the extension"
 **Files:** `run_onchange_pi-mcp-servers.sh.tmpl`, `.chezmoiignore`
 
-- [ ] In the work branch of the script, replace the two `pi mcp add datadog-*` commands with `pi mcp remove datadog-prod >/dev/null 2>&1 || true` and the same for staging. Remove the now-unused `DD_MCP_URL` constant.
-- [ ] Add `.pi/agent/extensions/datadog-mcp-auth` to the personal block of `.chezmoiignore`.
-- [ ] Run `chezmoi --source "$PWD" execute-template < run_onchange_pi-mcp-servers.sh.tmpl` and the same with `--override-data '{"profile":"personal"}'`; expect `pi mcp remove datadog-prod` and `pi mcp remove datadog-staging` in both outputs and no `dd-auth`.
-- [ ] Run `chezmoi --source "$PWD" --override-data '{"profile":"personal"}' execute-template < .chezmoiignore`; expect `.pi/agent/extensions/datadog-mcp-auth`. Run it without the override; expect the path to be absent.
-- [ ] Run `bash -n` on the rendered work script; expect no syntax errors.
-- [ ] Commit with `feat(pi): drop dd-auth header commands from Datadog MCP entries`.
+- [x] In the work branch of the script, replace the two `pi mcp add datadog-*` commands with `pi mcp remove datadog-prod >/dev/null 2>&1 || true` and the same for staging. Remove the now-unused `DD_MCP_URL` constant.
+- [x] Add `.pi/agent/extensions/datadog-mcp-auth` to the personal block of `.chezmoiignore`.
+- [x] Run `chezmoi --source "$PWD" execute-template < run_onchange_pi-mcp-servers.sh.tmpl` and the same with `--override-data '{"profile":"personal"}'`; expect `pi mcp remove datadog-prod` and `pi mcp remove datadog-staging` in both outputs and no `dd-auth`.
+- [x] Run `chezmoi --source "$PWD" --override-data '{"profile":"personal"}' execute-template < .chezmoiignore`; expect `.pi/agent/extensions/datadog-mcp-auth`. Run it without the override; expect the path to be absent.
+- [x] Run `bash -n` on the rendered work script; expect no syntax errors.
+- [x] Commit with `feat(pi): drop dd-auth header commands from Datadog MCP entries`.
+
+**Execution note:** `origin/main` advanced by one non-overlapping commit during implementation. The feature branch was rebased onto the updated `origin/main` before review preparation.
 
 ### Slice 2: Long sessions keep valid keys
 #### Task 3: Interval refresh with change detection and shutdown cleanup

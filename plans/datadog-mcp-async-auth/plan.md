@@ -39,7 +39,7 @@
 ### Key Decisions
 - **Literal headers through `registerMcpServer`:** pi still runs header values through template resolution, so the extension accepts only keys that match `^[A-Za-z0-9_-]+$`. A key with `$` or a leading `!` would otherwise be interpolated or run as a command.
 - **One `dd-auth` call per domain, run in sequence:** `printenv DD_API_KEY DD_APP_KEY` returns both keys in one call. Sequential calls avoid the observed parallel hang and halve the startup cost.
-- **`execFile` without a shell, 60s timeout, `stdin` ignored:** no shell quoting, and a hung login or network stall ends with an observable failure.
+- **`execFile` without a shell, 60s timeout, `stdin` ignored, `DD_EXPERIMENTS_NOOP=true`:** no shell quoting, and a hung login or network stall ends with an observable failure. Subprocess environment sets `DD_EXPERIMENTS_NOOP=true` to skip feature flag evaluation and shave ~30% off each `dd-auth` call without polluting the user's shell.
 - **Poll every 5 minutes, re-register only on change:** the `dd-auth` Keychain cache makes a poll cheap (about 2.3s of async work per domain), and change detection avoids a reconnect on every poll. The worst-case window with an expired key is about 5 minutes.
 - **Fire-and-forget from `session_start`:** the handler must not await the fetch, so pi never waits for `dd-auth`.
 - **Inject the runner and scheduler at the core boundary:** `_core.ts` takes a `runDdAuth(domain) => Promise<string>` function and uses `setInterval`/`clearInterval`, so tests mock the child process and use `node:test` mock timers. This matches the `jira/` pattern of injecting the request function at the registrar boundary.
@@ -48,7 +48,7 @@
 - Match the server config from the current script exactly: URL `https://mcp.datadoghq.com/api/unstable/mcp-server/mcp`, `exposure: "deferred"`, and the two existing descriptions.
 - Never log, notify, or persist key values. Error messages name the domain and the failure kind (exit code, timeout, invalid output) only.
 - Allow at most one fetch cycle at a time. If a cycle is still running when the interval fires, skip that tick.
-- `unref()` the interval so it never keeps the process alive. Clear it in an idempotent `session_shutdown` handler.
+- `unref()` the interval so it never keeps the process alive. Clear it in an idempotent `session_shutdown` handler. Mark the runner inactive on shutdown so any in-flight fetch cycle that settles after shutdown discards its result and skips registration.
 - Stop and ask if `registerMcpServer` does not exist at runtime in pi 1.0.4, or if re-registering the same name does not replace the earlier server.
 
 ### Security Requirements
@@ -79,7 +79,7 @@
 
 ### Test Strategy
 - Test through the exported core API with a fake `ExtensionAPI` (records `registerMcpServer` calls and handlers), a fake `runDdAuth`, a fake `ctx.ui.notify`, and `node:test` mock timers. Mock only the child-process boundary.
-- The first failing command: `node --experimental-strip-types --test dot_pi/agent/exact_extensions/datadog-mcp-auth/_core.test.ts`, which fails before `_core.ts` exists.
+- The first failing command: `cd dot_pi/agent && node --experimental-strip-types --test exact_extensions/datadog-mcp-auth/_core.test.ts`, which fails before `_core.ts` exists.
 - The real `dd-auth`, the network, and the pi MCP runtime are covered by the manual check in Task 4.
 
 ## Acceptance criteria
@@ -144,6 +144,11 @@ The extension SHALL clear the interval on `session_shutdown`, and a second shutd
 - WHEN `session_shutdown` runs twice and mock time advances 10 minutes
 - THEN `runDdAuth` is not called again
 
+#### Scenario: In-flight fetch during shutdown
+- GIVEN an in-flight fetch cycle
+- WHEN `session_shutdown` runs before the fetch settles
+- THEN `registerMcpServer` is not called when the fetch completes
+
 ### Requirement: The `mcp.json` entries no longer override the extension
 The work profile SHALL NOT register `datadog-prod` or `datadog-staging` through `pi mcp add`, and the extension SHALL exist only in the work profile.
 
@@ -161,10 +166,10 @@ The work profile SHALL NOT register `datadog-prod` or `datadog-staging` through 
 **Files:** `dot_pi/agent/exact_extensions/datadog-mcp-auth/_core.ts`, `dot_pi/agent/exact_extensions/datadog-mcp-auth/_core.test.ts`, `dot_pi/agent/exact_extensions/datadog-mcp-auth/index.ts`, `dot_pi/agent/package.json`
 
 - [ ] Run `npm ci --ignore-scripts` in `dot_pi/agent`.
-- [ ] Write `_core.test.ts` for the startup, happy path, partial failure, invalid output, and fail-fail-recover scenarios; run `node --experimental-strip-types --test dot_pi/agent/exact_extensions/datadog-mcp-auth/_core.test.ts`; expect failure because `_core.ts` is missing.
-- [ ] Implement `_core.ts` and `index.ts`. `index.ts` runs `execFile("dd-auth", ["--domain", domain, "--", "printenv", "DD_API_KEY", "DD_APP_KEY"], { timeout: 60_000 })` with `stdin` ignored.
+- [ ] Write `_core.test.ts` for the startup, happy path, partial failure, invalid output, and fail-fail-recover scenarios; run `cd dot_pi/agent && node --experimental-strip-types --test exact_extensions/datadog-mcp-auth/_core.test.ts`; expect failure because `_core.ts` is missing.
+- [ ] Implement `_core.ts` and `index.ts`. `index.ts` runs `execFile("dd-auth", ["--domain", domain, "--", "printenv", "DD_API_KEY", "DD_APP_KEY"], { timeout: 60_000, env: { ...process.env, DD_EXPERIMENTS_NOOP: "true" } })` with `stdin` ignored.
 - [ ] Add `"$ext"/datadog-mcp-auth/*.test.ts` to `test:unit` in `dot_pi/agent/package.json`.
-- [ ] Run the focused test; expect all scenarios to pass. Run `lsp_diagnostics` on the new files.
+- [ ] Run the focused test (`cd dot_pi/agent && node --experimental-strip-types --test exact_extensions/datadog-mcp-auth/_core.test.ts`); expect all scenarios to pass. Run `lsp_diagnostics` on the new files.
 - [ ] Commit with `feat(pi): register Datadog MCP servers with async dd-auth`.
 
 #### Task 2: Remove the blocking `mcp.json` entries and gate the extension
@@ -187,9 +192,9 @@ The work profile SHALL NOT register `datadog-prod` or `datadog-staging` through 
 **Traces to:** Requirements "Keys refresh without needless reconnects", "Shutdown stops refresh"
 **Files:** `dot_pi/agent/exact_extensions/datadog-mcp-auth/_core.ts`, `dot_pi/agent/exact_extensions/datadog-mcp-auth/_core.test.ts`, `dot_pi/agent/exact_extensions/datadog-mcp-auth/index.ts`
 
-- [ ] Add tests for unchanged keys, changed keys, overlapping tick, and double shutdown with `node:test` mock timers; run the focused test; expect the new tests to fail.
-- [ ] Implement the `unref`'d 5-minute interval, the single-cycle guard, change detection, and the idempotent `session_shutdown` handler.
-- [ ] Run the focused test; expect all scenarios to pass.
+- [ ] Add tests for unchanged keys, changed keys, overlapping tick, double shutdown, and in-flight fetch discarded on shutdown with `node:test` mock timers; run the focused test (`cd dot_pi/agent && node --experimental-strip-types --test exact_extensions/datadog-mcp-auth/_core.test.ts`); expect the new tests to fail.
+- [ ] Implement the `unref`'d 5-minute interval, the single-cycle guard, change detection, in-flight shutdown guard, and the idempotent `session_shutdown` handler.
+- [ ] Run the focused test (`cd dot_pi/agent && node --experimental-strip-types --test exact_extensions/datadog-mcp-auth/_core.test.ts`); expect all scenarios to pass.
 - [ ] Commit with `feat(pi): refresh Datadog MCP keys in the background`.
 
 ### Slice 3: Guidance

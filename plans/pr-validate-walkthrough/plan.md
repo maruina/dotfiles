@@ -1,10 +1,10 @@
 # `/pr-validate` Walkthrough and Review Gates Implementation Plan
 > Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make the `/pr-validate` report explain the PR before it judges it, give each item its system context, and end with a visible PR summary and review-gates table; then retire the unused `/pr-review` command.
-**Smallest user-feedback slice:** The updated `pr-validate.md` passes its marker tests, and one real run on a PR produces a report with a Walkthrough, items with "Where this fits", and the two end tables.
+**Goal:** Make the `/pr-validate` report answer its dual purpose: first answer "should I approve or not?" with a visible PR summary and review-gates table up front; then explain the PR at a bigger-picture level with a Walkthrough before deep-diving into individual issues; give each item its system context with "Where this fits"; then retire the unused `/pr-review` command.
+**Smallest user-feedback slice:** The updated `pr-validate.md` passes its marker tests, and one real run on a PR produces a report with PR summary and review gates up front, a Walkthrough of the bigger picture, items with "Where this fits", and six-slot defect stories.
 **Out of Scope:** CI, merge-state, and approval gates (the user checks them on GitHub); a familiarity-level argument, glossary, and comprehension questions from `/pr-review`; changes to `/to-html`, the `explain` skill, and the verdict and severity logic.
-**Architecture:** Prompt-only change. `dot_pi/agent/exact_prompts/pr-validate.md` gets a Walkthrough chapter adapted from `pr-review.md` Phase 6, a sixth item slot, renamed criterion states, and two end tables. Slice 2 deletes `pr-review.md` and points the remaining prompts at `/pr-validate`. Marker tests in `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs` pin the contract.
+**Architecture:** Prompt-only change. `dot_pi/agent/exact_prompts/pr-validate.md` gets PR summary and review-gates tables up front (answering "should I approve or not?"), a Walkthrough chapter adapted from `pr-review.md` Phase 6 (answering "what is the bigger picture?"), a sixth item slot ("Where this fits"), and renamed criterion states (Pass/Fail/Open). Slice 2 deletes `pr-review.md` and points the remaining prompts at `/pr-validate`. Marker tests in `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs` pin the contract.
 **Tech Stack:** Markdown pi prompts, `node:test` marker tests, chezmoi.
 
 ---
@@ -33,19 +33,22 @@
 ### Components Affected
 | Component | Files | Responsibility | Verification |
 |---|---|---|---|
-| `/pr-validate` prompt | `dot_pi/agent/exact_prompts/pr-validate.md` | Walkthrough, item context, gate states, end tables | `npm run test:prompts`; manual real run |
+| `/pr-validate` prompt | `dot_pi/agent/exact_prompts/pr-validate.md` | PR summary & review gates up front, Walkthrough, item context, gate states | `npm run test:prompts`; manual real run |
 | Prompt marker tests | `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs` | Pin the report contract and the `/pr-review` removal | `npm run test:prompts` |
 | `/pr-review` prompt (Slice 2) | `dot_pi/agent/exact_prompts/pr-review.md` | Deleted | Test asserts the file is absent |
 | Referencing prompts (Slice 2) | `dot_pi/agent/exact_prompts/pr-cleanup.md`, `pr-address-feedback.md`, `verify.md`, `systematic-review.md` | Point at `/pr-validate` | Test asserts no prompt names `/pr-review` |
 | Design record | `plans/pr-validate/design.md` | Record revision 3 and drop the guided `/pr-review` alternative | Read-through |
 
 ### Key Decisions
+- Dual-goal structure:
+  1. **Should I approve or not?** Answered immediately by **Hero**, **PR summary**, and **Review gates** tables right at the top.
+  2. **If not, what is the problem at a bigger-picture level before deep-diving into the actual issue?** Answered by the **Walkthrough** (Problem, System today, Core intuition, Solution map, Map flowchart, entry-point order steps) before any item chapters, and each item starts with **Where this fits** linking back to the walkthrough step.
 - Gates are the ten review criteria only. CI and merge state stay on GitHub, at the user's request.
 - Criterion states become **Pass**, **Fail**, and **Open** everywhere in the prompt. The verdict logic is unchanged: Approve only when every gate passes, Ask when a gate is open and none fails, Request changes when a gate fails.
-- The PR summary table lists **What it does** and **Why** first, each in one or two plain-language sentences. Then PR, Head, Size, Files by class, Verdict, and gate counts. The user confirmed this shape from a fake-PR example.
-- The Review gates table has the columns `Gate | Status | Evidence`. A Fail or Open row links to the item that explains it. A Pass row gives one line of evidence.
-- Both end tables are visible, not in `<details>`. Coverage, Skills loaded and used, and the claims ledger stay in `<details>`.
-- The Walkthrough comes right after chip navigation. It contains the Map flowchart; the Map is no longer a separate section.
+- The PR summary table lists **What it does** and **Why** first, each in one or two plain-language sentences. Then PR, Head, Size, Files by class, Verdict, and gate counts. Both the PR summary and Review gates tables are visible up front, right after Hero and before Chip navigation and Walkthrough, not hidden in `<details>` or buried at the end.
+- The Review gates table has the columns `Gate | Status | Evidence`. A Fail or Open row links to the item that explains it. A Pass row gives one line of evidence. Both tables appear for every verdict, including Approve.
+- Chip navigation includes sticky chips for Review gates, Walkthrough, each item chapter, and Reference.
+- The Walkthrough comes right after chip navigation and before any item chapters. It contains the Map flowchart; the Map is no longer a separate section.
 - Each item gets a first slot, **Where this fits**: two or three sentences about the component's role and its caller or data path, with a link to the related Walkthrough step. Items then have six slots. Attention items use the same slot.
 - No familiarity argument. The Walkthrough targets a staff engineer who is new to the subsystem, which matches the `/pr-review` default.
 - `/pr-review` is retired in Slice 2, after the user accepts a real Slice 1 run.
@@ -67,7 +70,7 @@ Not applicable. The change is a prompt with no runtime component. The report its
 | Failure | Expected behavior | Verification |
 |---|---|---|
 | A gate cannot be evaluated | Status is Open with the missing evidence named, and the row links to an Ask or Coverage | Marker test on Open semantics; real run |
-| A PR has no items (Approve) | Walkthrough and both end tables still render; all gates Pass | Marker test that the end tables apply to every verdict |
+| A PR has no items (Approve) | Walkthrough and both summary/gates tables still render; all gates Pass | Marker test that the summary and gates tables apply to every verdict |
 | A Walkthrough step has no item | Step renders without a link; items link to steps, not the reverse | Real run read-through |
 | A stale reference to `/pr-review` after Slice 2 | Test fails | `npm run test:prompts` |
 
@@ -81,7 +84,7 @@ Not applicable. The change is a prompt with no runtime component. The report its
 |---|---|---|
 | Walkthrough section and parts | Prompt text through `npm run test:prompts` | Existing `requireMarkers` in `lifecycle-prompts.test.mjs` |
 | Where this fits slot | Same | Existing |
-| Pass/Fail/Open gate states and end tables | Same | Existing |
+| Pass/Fail/Open gate states and summary/gates tables | Same | Existing |
 | Report readability | Manual `/pr-validate` run on a real PR | None; output comes from a model, so automation cannot judge it |
 | `/pr-review` removed with no stale references | `npm run test:prompts` | Existing `promptsDir` listing |
 
@@ -109,12 +112,12 @@ Every Ask, Request changes, and attention item SHALL start with a **Where this f
 - WHEN the report renders the item
 - THEN slot 1 is Where this fits, with a link to a Walkthrough step, followed by the five existing slots.
 
-### Requirement: PR summary and review gates at the end
-The report SHALL end with a visible PR summary table whose first rows are What it does and Why, followed by a Review gates table with one row per criterion and a Pass, Fail, or Open status.
+### Requirement: PR summary and review gates up front
+The report SHALL feature visible PR summary and Review gates tables right after Hero and before Walkthrough, answering "should I approve or not?" immediately, followed by the Review gates table with one row per criterion and a Pass, Fail, or Open status.
 
 #### Scenario: Mixed gates
 - GIVEN a PR where Correctness fails and Observability is open
-- WHEN the report renders the end tables
+- WHEN the report renders the summary and gates tables
 - THEN the Correctness row says Fail and links to its Request changes item, the Observability row says Open and links to its Ask item, the remaining rows say Pass with one line of evidence, and the summary shows the gate counts.
 
 #### Scenario: Unchanged verdict logic
@@ -137,10 +140,10 @@ The prompt set SHALL NOT contain `pr-review.md`, and no prompt SHALL name `/pr-r
 **Traces to:** Requirement: Walkthrough before judgment
 **Files:** `dot_pi/agent/exact_prompts/pr-validate.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`
 
-- [ ] In the "PR validation revision 2 report shape" test, replace the `\*\*Map\.\*\*` marker with a `\*\*Walkthrough\.\*\*` marker. Add a new test "PR validation report opens with a walkthrough" that requires markers for `Problem`, `System today`, `Core intuition`, `Solution map`, `entry-point order`, `How it works today`, `What changed and why`, `Downstream effect`, and that the Walkthrough is subject to the escaping rule (for example `/Walkthrough[\s\S]*escape|escape[\s\S]*Walkthrough/`). Run the narrow command; expect the new test to fail.
-- [ ] In `pr-validate.md` Output, replace page item 3 (**Map.**) with **Walkthrough.**: it renders the Pass 1 model before any item and contains the Map flowchart with red and amber item nodes. Define the parts and step format in a short subsection adapted from `pr-review.md` Phase 6. Exclude familiarity levels, glossary, and comprehension checks. Extend Pass 1 so it records the entry-point order and the per-step parts that the Walkthrough needs. State that the Walkthrough appears for every verdict, including Approve, and update the Approve-page paragraph to match.
+- [ ] In the "PR validation revision 2 report shape" test, replace the `\*\*Map\.\*\*` marker with a `\*\*Walkthrough\.\*\*` marker. Add a new test "PR validation report opens with a walkthrough" that requires markers for `Problem`, `System today`, `Core intuition`, `Solution map`, `entry-point order`, `How it works today`, `What changed and why`, `Downstream effect`, and that PR content in the Walkthrough is explicitly subject to the escaping rule (requiring `/PR content and context.*(?:walkthrough|Walkthrough).*escape/i`). Run the narrow command; expect the new test to fail.
+- [ ] In `pr-validate.md` Output, replace page item 3 (**Map.**) with **Walkthrough.**: it renders the Pass 1 model before any item chapters and contains the Map flowchart with red and amber item nodes. Define the parts and step format in a short subsection adapted from `pr-review.md` Phase 6. Exclude familiarity levels, glossary, and comprehension checks. Extend Pass 1 so it records the entry-point order and the per-step parts that the Walkthrough needs. Update Chip navigation to include chips for Review gates, Walkthrough, each item chapter, and Reference. State that the Walkthrough appears for every verdict, including Approve, and update the Approve-page paragraph to match.
 - [ ] Run `cd dot_pi/agent && node --test exact_scripts/lifecycle-prompts.test.mjs`; expect all tests to pass.
-- [ ] Commit with `feat(pi): open /pr-validate reports with a walkthrough`.
+- [ ] Commit with `feat(pi): add walkthrough chapter to /pr-validate reports`.
 
 ### Task 2: Add the Where this fits item slot
 **Delivers:** Every item starts with its system context and a link to its Walkthrough step.
@@ -153,17 +156,25 @@ The prompt set SHALL NOT contain `pr-review.md`, and no prompt SHALL name `/pr-r
 - [ ] Run the narrow command; expect all tests to pass.
 - [ ] Commit with `feat(pi): give /pr-validate items their system context`.
 
-### Task 3: Rename gate states and add the end tables
-**Delivers:** The report ends with a visible PR summary and a Review gates table with Pass, Fail, or Open per criterion.
+### Task 3: Rename gate states and add PR summary and review gates tables
+**Delivers:** The report opens with an immediate "should I approve or not?" assessment via visible PR summary and Review gates tables up front, with Pass, Fail, or Open per criterion.
 **Blocked by:** None (runs after Task 2 only to keep edits to the Output list sequential)
-**Traces to:** Requirement: PR summary and review gates at the end
+**Traces to:** Requirement: PR summary and review gates up front
 **Files:** `dot_pi/agent/exact_prompts/pr-validate.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`
 
-- [ ] Add a test "PR validation report ends with a PR summary and review gates" with these markers: `\*\*PR summary\.\*\*`, `What it does`, `Why`, `Files by class`, `\*\*Review gates\.\*\*`, `Gate \| Status \| Evidence`, `Pass`, `Fail`, `Open`, a marker that Fail and Open rows link to their item, and a marker that the tables are not inside `<details>`. Assert that the prompt no longer says `confirmed, refuted, or open`. Run the narrow command; expect failure.
+- [ ] Add a test "PR validation report includes PR summary and review gates" with these markers: `\*\*PR summary\.\*\*`, `What it does`, `Why`, `Files by class`, `\*\*Review gates\.\*\*`, `Gate \| Status \| Evidence`, `Pass`, `Fail`, `Open`, a marker that Fail and Open rows link to their item, and a marker that the tables are not inside `<details>`. Assert that the prompt no longer says `confirmed, refuted, or open`. Run the narrow command; expect failure.
 - [ ] In `pr-validate.md`, change "Mark each criterion confirmed, refuted, or open" to Pass, Fail, or Open. Change the "Confirmed when" column header to "Passes when". Change the verdict rules to say every gate passes, a gate is open, or a gate fails, with the same outcomes as before. Leave the separate defect wording ("a confirmed defect") alone, because it describes claims, not gates.
-- [ ] In Output, add page item **PR summary.** and **Review gates.** after **Your question.** and before **Reference.**. The summary rows are What it does, Why, PR, Head, Size, Files by class, Verdict, and Gates (counts), in that order. The gates table has one row per criterion. A Fail or Open row links to its item, or to Coverage when no item exists. Remove "The ten criteria as chip rows" from **Reference.** so it holds Coverage and Skills loaded and used. Remove the sentence about the "three revision-2 criteria" only if it now contradicts the table. State that both tables appear for every verdict.
+- [ ] In Output, structure the page layout so PR summary and Review gates appear immediately after Hero and before Chip navigation and Walkthrough:
+  1. **Hero.**
+  2. **PR summary & Review gates.** PR summary lists What it does, Why, PR, Head, Size, Files by class, Verdict, and Gates (counts). Review gates table has one row per criterion (`Gate | Status | Evidence`). A Fail or Open row links to its item, or to Coverage when no item exists.
+  3. **Chip navigation.** Chips for Review gates, Walkthrough, each item chapter, and Reference.
+  4. **Walkthrough.**
+  5. **Item chapters.**
+  6. **Your question.**
+  7. **Reference.** Holds Coverage and Skills loaded and used.
+  Remove "The ten criteria as chip rows" from **Reference.**. Remove the sentence about the "three revision-2 criteria" only if it now contradicts the table. State that both tables appear for every verdict, including Approve.
 - [ ] Run the narrow command; expect all tests to pass.
-- [ ] Commit with `feat(pi): end /pr-validate reports with a summary and review gates`.
+- [ ] Commit with `feat(pi): add PR summary and review gates to /pr-validate reports`.
 
 ### Task 4: Validate Slice 1 on a real PR
 **Delivers:** User feedback on the new report.
@@ -174,7 +185,7 @@ The prompt set SHALL NOT contain `pr-review.md`, and no prompt SHALL name `/pr-r
 - [ ] Run `npm ci --ignore-scripts`, `npm test`, and `npm run test:all` in `dot_pi/agent`; expect all to pass. Remove `dot_pi/agent/node_modules`.
 - [ ] Run `chezmoi --source "$PWD" diff ~/.pi/agent/prompts/pr-validate.md` and `chezmoi --source "$PWD" apply ~/.pi/agent/prompts/pr-validate.md` from the worktree, with the user's approval.
 - [ ] Ask the user to run `/pr-validate` on a real PR. Recommend `dd-source#116539` or `#103728`, so the user can compare with the earlier reports. Copy the earlier report first so it is not overwritten, for example to `dd-source-116539-rev2.html`.
-- [ ] Expect the report to show the Walkthrough first, six-slot items with working links to Walkthrough steps, and both end tables with links from Fail and Open rows. Record the user's verdict on readability. Stop if the user does not accept the run; revise Slice 1 before Slice 2.
+- [ ] Expect the report to show PR summary and Review gates up front, the Walkthrough second, six-slot items with working links to Walkthrough steps, and links from Fail and Open rows to items. Record the user's verdict on readability. Stop if the user does not accept the run; revise Slice 1 before Slice 2.
 
 ### Slice 2: Retire `/pr-review`
 ### Task 5: Remove `/pr-review` and its references
@@ -188,9 +199,9 @@ The prompt set SHALL NOT contain `pr-review.md`, and no prompt SHALL name `/pr-r
   - remove it from `provenancePrompts`;
   - drop it from the "simplify and PR review report skill provenance" loop and remove the `domain rules are \`prompt-required\`` assertion;
   - remove it from the shared-worktree-path test list;
-  - remove the `review` assertions in "PR commands have distinct roles and aligned review artifacts";
+  - remove `const review = prompt("pr-review.md");` and all `review` assertions in "PR commands have distinct roles and aligned review artifacts";
   - remove it from the `feature-worktree` prompt list;
-  - change the `addressFeedback` marker to the new wording.
+  - change the `addressFeedback` marker to `/Build a \*\*targeted model\*\*, not a full `\/pr-validate` walkthrough/`.
 - [ ] Delete `pr-review.md`. In `pr-cleanup.md` line 8, say that `/pr-validate` creates the worktree. In `verify.md` and `systematic-review.md` line 12, point at `/pr-validate` to assess someone else's GitHub PR. In `pr-address-feedback.md`:
   - on line 10, say `/pr-validate` reviews the PR as a whole;
   - on line 48, keep the evidence-hierarchy list and remove the "same as `/pr-review`" reference;
@@ -208,7 +219,6 @@ The prompt set SHALL NOT contain `pr-review.md`, and no prompt SHALL name `/pr-r
 - [ ] Check these files and record that they need no change, because none of them names `/pr-review` or the report shape:
   - `AGENTS.md`
   - `dot_pi/agent/AGENTS.md`
-  - `CLAUDE.md`
   - the `skill-loader`, `explain`, and `feature-worktree` skills
 
   Confirm with `rg -n 'pr-review\b' --glob '!plans/**' .`, which must show only `pr-PR_NUMBER-review` path matches.
@@ -217,7 +227,7 @@ The prompt set SHALL NOT contain `pr-review.md`, and no prompt SHALL name `/pr-r
 - [ ] Commit with `docs: record /pr-validate revision 3 and /pr-review retirement`.
 
 ## Final verification
-- The feature-level criteria hold together: a real report opens with the Walkthrough, every item starts with Where this fits, the report ends with the PR summary and Review gates tables, and `/pr-review` is not available in pi.
+- The feature-level criteria hold together: a real report opens with the PR summary and Review gates up front, followed by the Walkthrough of the bigger picture, every item starts with Where this fits, and `/pr-review` is not available in pi.
 - `npm test` and `npm run test:all` pass in `dot_pi/agent`.
 
 ## Documentation impact

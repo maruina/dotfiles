@@ -460,7 +460,9 @@ test("PR validation revision 2 report shape, severity, and provenance", () => {
     /\*\*Item chapters\.\*\*/,
     /\*\*Your question\.\*\*/,
     /\*\*Reference\.\*\*/,
-    // Five-slot item story
+    // Six-slot item story
+    /\*\*Where this fits\.\*\*/,
+    /link to the related Walkthrough step/i,
     /\*\*Why it matters\.\*\*/,
     /\*\*What the code does now\.\*\*/,
     /\*\*Why that is bad\.\*\*/,

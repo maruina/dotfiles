@@ -154,7 +154,7 @@ An accept-the-risk item always states the condition that must hold at deploy tim
 ## Attention items
 List only decisions that belong to the reviewer, such as policy, ownership, accepted technical debt, or a tradeoff with no clearly correct answer. Do not use an attention item for a fact the author can provide or for a confirmed defect.
 
-Attention items use the same five-slot item story: slot 1 is **Why it needs your judgment**, slots 2 and 3 hold **Where** and **Context**, and slot 5 holds **Options** with a recommendation. The consequence of each choice goes with the judgment, and the exact decision ends the item.
+Attention items use the same six-slot item story: slot 2 is **Why it needs your judgment**, slots 3 and 4 hold **Where** and **Context**, and slot 6 holds **Options** with a recommendation. The consequence of each choice goes with the judgment, and the exact decision ends the item.
 
 List one to five items, highest impact first. Say when no decision needs the reviewer's judgment. Include the attention-item count in the verdict line. Attention items do not change the verdict. `deliberate:` The five-item limit keeps the review focused. If more than five decisions need attention, recommend splitting the PR and name the overflow.
 
@@ -167,7 +167,7 @@ Follow the `explain` story page shape (light theme, hero, sticky chip navigation
 1. **Hero.** The verdict, count chips, a one-sentence lead, the PR link, the head SHA, and the model and thinking level.
 2. **Chip navigation.** Include chips for Review gates, Walkthrough, each item chapter, and Reference.
 3. **Walkthrough.** Render the Pass 1 model before any item chapters, for every verdict including Approve. Follow the Walkthrough subsection below.
-4. **Item chapters.** Request changes, then Ask, then attention items, each in the five-slot item story. For each Ask and Request changes item, put the inline-comment link and copy box together after the five slots, so the explanation remains easy to read.
+4. **Item chapters.** Request changes, then Ask, then attention items, each in the six-slot item story. For each Ask and Request changes item, put the inline-comment link and copy box together after the six slots, so the explanation remains easy to read.
 5. **Your question.** Only when the context asks one. Answer it directly. For thread questions, use one row per thread claim. A state diagram is allowed here when it clarifies thread states.
 6. **Reference.** Coverage and Skills loaded and used. Detail stays in `<details>` blocks. The claims ledger is not a top-level section.
 
@@ -180,16 +180,17 @@ Assume the reader is a staff engineer who is new to the subsystem. Use these par
 5. **Map flowchart.** One diagram of the changed flow. Color nodes with Request changes items red and Ask or attention items amber.
 6. **Walkthrough steps.** Explain logical steps in entry-point order, not diff order. Each step has three short parts: **How it works today**, **What changed and why**, and **Downstream effect**. A step without an item still appears without a link.
 
-Every Ask item, Request changes item, and attention item uses the same five slots, in this order:
-1. **Why it matters.** In plain language, for someone who has not read the code.
-2. **What the code does now.** A short excerpt with a permalink to the PR head SHA.
-3. **Why that is bad.** The concrete failure. When a mechanism exists, a sequence diagram shows it, for example "deploy → replay → history mismatch → workflow task fails".
-4. **Is it real?** Chips such as `Exposure: real · 3 running`, `Exposure: none now · 14 started in 7 days`, or `Exposure: unknown`, and `Fix cost: small` or `Fix cost: large`. Link directly to the supporting evidence: provide clickable URLs (such as the Atlas workflow execution UI `https://atlas.ddbuild.io/namespaces/default/workflows/<url-encoded-workflow-id>/<run-id>`, Datadog monitor `https://app.datadoghq.com/monitors/<id>`, Datadog logs/events, or GitHub checks). Never cite a running execution, failure, or monitor alert without linking directly to it. State the deploy-time condition when the item accepts risk. Give the exact query when evidence is missing.
-5. **Fix shape.** A short sketch of the recommended change, or a one-line statement when the author must supply the answer. For attention items, **Options** with a recommendation replace this slot.
+Every Ask item, Request changes item, and attention item uses the same six slots, in this order:
+1. **Where this fits.** In two or three sentences, name the component's role and its caller or data path. Link to the related Walkthrough step.
+2. **Why it matters.** In plain language, for someone who has not read the code. For attention items, use **Why it needs your judgment** here.
+3. **What the code does now.** A short excerpt with a permalink to the PR head SHA. For attention items, use **Where** here.
+4. **Why that is bad.** The concrete failure. When a mechanism exists, a sequence diagram shows it, for example "deploy → replay → history mismatch → workflow task fails". For attention items, use **Context** here.
+5. **Is it real?** Chips such as `Exposure: real · 3 running`, `Exposure: none now · 14 started in 7 days`, or `Exposure: unknown`, and `Fix cost: small` or `Fix cost: large`. Link directly to the supporting evidence: provide clickable URLs (such as the Atlas workflow execution UI `https://atlas.ddbuild.io/namespaces/default/workflows/<url-encoded-workflow-id>/<run-id>`, Datadog monitor `https://app.datadoghq.com/monitors/<id>`, Datadog logs/events, or GitHub checks). Never cite a running execution, failure, or monitor alert without linking directly to it. State the deploy-time condition when the item accepts risk. Give the exact query when evidence is missing.
+6. **Fix shape.** A short sketch of the recommended change, or a one-line statement when the author must supply the answer. For attention items, **Options** with a recommendation replace this slot.
 
-For every Ask and Request changes item, add a **Leave this comment** box immediately after the five slots:
+For every Ask and Request changes item, add a **Leave this comment** box immediately after the six slots:
 - Show a clickable link directly to the target line in the PR's **Files changed** view (`https://github.com/ORG/REPO/pull/PR_NUMBER/files#diff-<sha256(filepath)>R<start>-R<end>`). Compute the SHA-256 of the relative file path (e.g. `echo -n "path/to/file" | sha256sum`) and append `R<start>-R<end>` for added/modified lines or `L<start>-L<end>` for deleted lines. If the line is unchanged or outside the diff, link to the nearest changed line in that file and explain the placement.
-- Put only the ready-to-post GitHub inline review comment in a readonly text box, with a nearby **Copy comment** button. Ask items ask the exact unanswered question and briefly state why the answer matters; Request changes items name the defect, its effect, and the requested change. Always include direct links to supporting evidence (such as the active Atlas workflow URL, Mosaic deployment runs, or Datadog monitor links) and include the chronological failure timeline when an active failure is confirmed, so the author has complete proof. Include only enough context for the author to act. Do not copy the five-slot explanation, code excerpt, HTML, or a source-code patch into this box.
+- Put only the ready-to-post GitHub inline review comment in a readonly text box, with a nearby **Copy comment** button. Ask items ask the exact unanswered question and briefly state why the answer matters; Request changes items name the defect, its effect, and the requested change. Always include direct links to supporting evidence (such as the active Atlas workflow URL, Mosaic deployment runs, or Datadog monitor links) and include the chronological failure timeline when an active failure is confirmed, so the author has complete proof. Include only enough context for the author to act. Do not copy the six-slot explanation, code excerpt, HTML, or a source-code patch into this box.
 - Make the button copy exactly the text visible in its own box. Use a small inline script in the single-file report; handle clipboard failures with a selectable-text fallback and show whether copying succeeded. Keep PR-supplied content inert: escape HTML and do not interpolate it into executable script. No external clipboard library is needed.
 - This is preparation for a manual review, not permission to post a comment or submit a review on GitHub.
 

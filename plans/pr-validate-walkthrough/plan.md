@@ -160,10 +160,10 @@ The prompt set SHALL NOT contain `pr-review.md`, and no prompt SHALL name `/pr-r
 **Traces to:** Requirement: Items carry system context
 **Files:** `dot_pi/agent/exact_prompts/pr-validate.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`
 
-- [ ] Add `\*\*Where this fits\.\*\*` and a marker for a link to the Walkthrough step to the revision 2 report-shape test. Run the narrow command; expect failure.
-- [ ] In `pr-validate.md`, change "five slots" to "six slots" in the item-story paragraph, the attention-items paragraph, and the Leave this comment box paragraph. Add slot 1 **Where this fits.** (component role, caller or data path, link to the Walkthrough step) and renumber the existing slots. Update the attention-item slot mapping so slot 2 is **Why it needs your judgment**, slots 3 and 4 hold **Where** and **Context**, and slot 6 holds **Options**.
-- [ ] Run the narrow command; expect all tests to pass.
-- [ ] Commit with `feat(pi): give /pr-validate items their system context`.
+- [x] Add `\*\*Where this fits\.\*\*` and a marker for a link to the Walkthrough step to the revision 2 report-shape test. Run the narrow command; expect failure.
+- [x] In `pr-validate.md`, change "five slots" to "six slots" in the item-story paragraph, the attention-items paragraph, and the Leave this comment box paragraph. Add slot 1 **Where this fits.** (component role, caller or data path, link to the Walkthrough step) and renumber the existing slots. Update the attention-item slot mapping so slot 2 is **Why it needs your judgment**, slots 3 and 4 hold **Where** and **Context**, and slot 6 holds **Options**.
+- [x] Run the narrow command; expect all tests to pass.
+- [x] Commit with `feat(pi): give /pr-validate items their system context`.
 
 ### Task 3: Rename gate states and add PR summary and review gates tables
 **Delivers:** The report opens with an immediate "should I approve or not?" assessment via visible PR summary and Review gates tables up front, with Pass, Fail, or Open per criterion.

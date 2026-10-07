@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { mock } from "node:test";
 
 import { registerDatadogMcpAuth } from "./_core.ts";
 import type { AuthExtensionAPI } from "./_core.ts";
@@ -12,6 +12,7 @@ type ServerConfig = {
 };
 
 type SessionStartHandler = (event: { type: "session_start" }, ctx: TestContext) => unknown;
+type SessionShutdownHandler = (event: { type: "session_shutdown" }, ctx: TestContext) => unknown;
 type TestContext = {
   ui: { notify: (message: string, level: "warning" | "info") => void };
 };
@@ -34,9 +35,11 @@ function createExtension(runDdAuth: (domain: string) => Promise<string>) {
   const registrations: Array<{ name: string; config: ServerConfig }> = [];
   const notifications: Array<{ message: string; level: "warning" | "info" }> = [];
   let sessionStart: SessionStartHandler | undefined;
+  let sessionShutdown: SessionShutdownHandler | undefined;
   const pi = {
-    on(event: string, handler: SessionStartHandler) {
-      if (event === "session_start") sessionStart = handler;
+    on(event: string, handler: SessionStartHandler | SessionShutdownHandler) {
+      if (event === "session_start") sessionStart = handler as SessionStartHandler;
+      if (event === "session_shutdown") sessionShutdown = handler as SessionShutdownHandler;
     },
     registerMcpServer(name: string, config: ServerConfig) {
       registrations.push({ name, config });
@@ -52,7 +55,7 @@ function createExtension(runDdAuth: (domain: string) => Promise<string>) {
 
   registerDatadogMcpAuth(pi as unknown as AuthExtensionAPI, runDdAuth);
   assert.ok(sessionStart, "extension did not register a session_start handler");
-  return { sessionStart, ctx, registrations, notifications };
+  return { sessionStart, sessionShutdown, ctx, registrations, notifications };
 }
 
 function flushMicrotasks(): Promise<void> {
@@ -150,29 +153,166 @@ test("rejects malformed keys without exposing auth output", async (t) => {
   }
 });
 
-test("warns once for repeated failures and announces recovery", async () => {
+test("warns once for repeated failures, keeps the last registration, and announces recovery", async () => {
   const prodResults: Array<() => Promise<string>> = [
-    async () => {
-      throw new Error("exit code 1");
-    },
-    async () => {
-      throw new Error("exit code 1");
-    },
     async () => "api1\napp1\n",
+    async () => {
+      throw new Error("exit code 1");
+    },
+    async () => {
+      throw new Error("exit code 1");
+    },
+    async () => "api2\napp2\n",
   ];
   const extension = createExtension(async (domain) => {
     if (domain === "app.datadoghq.com") return prodResults.shift()!();
     return "stage-api\nstage-app\n";
   });
-
-  for (let cycle = 0; cycle < 3; cycle++) {
+  mock.timers.enable({ apis: ["setInterval"] });
+  try {
     extension.sessionStart({ type: "session_start" }, extension.ctx);
     await flushMicrotasks();
-  }
+    assert.equal(extension.registrations.length, 2);
 
-  assert.deepEqual(extension.notifications, [
-    { message: "Datadog auth failed for app.datadoghq.com (exit code 1).", level: "warning" },
-    { message: "Datadog auth recovered for app.datadoghq.com.", level: "info" },
-  ]);
-  assert.ok(extension.registrations.some(({ name }) => name === "datadog-prod"));
+    mock.timers.tick(5 * 60 * 1000);
+    await flushMicrotasks();
+    assert.equal(extension.registrations.length, 2);
+    mock.timers.tick(5 * 60 * 1000);
+    await flushMicrotasks();
+    assert.equal(extension.registrations.length, 2);
+    mock.timers.tick(5 * 60 * 1000);
+    await flushMicrotasks();
+
+    assert.deepEqual(extension.notifications, [
+      { message: "Datadog auth failed for app.datadoghq.com (exit code 1).", level: "warning" },
+      { message: "Datadog auth recovered for app.datadoghq.com.", level: "info" },
+    ]);
+    assert.equal(extension.registrations.length, 3);
+    assert.deepEqual(extension.registrations[2]?.config.headers, {
+      "DD-API-KEY": "api2",
+      "DD-APPLICATION-KEY": "app2",
+    });
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test("does not re-register servers when keys are unchanged", async () => {
+  const calls: string[] = [];
+  const extension = createExtension(async (domain) => {
+    calls.push(domain);
+    return domain === "app.datadoghq.com" ? "api1\napp1\n" : "stage-api\nstage-app\n";
+  });
+  mock.timers.enable({ apis: ["setInterval"] });
+  try {
+    extension.sessionStart({ type: "session_start" }, extension.ctx);
+    await flushMicrotasks();
+    mock.timers.tick(5 * 60 * 1000);
+    await flushMicrotasks();
+
+    assert.deepEqual(calls, [
+      "app.datadoghq.com",
+      "ddstaging.datadoghq.com",
+      "app.datadoghq.com",
+      "ddstaging.datadoghq.com",
+    ]);
+    assert.equal(extension.registrations.length, 2);
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test("re-registers a server when its keys change", async () => {
+  const calls = new Map<string, number>();
+  const extension = createExtension(async (domain) => {
+    const call = (calls.get(domain) ?? 0) + 1;
+    calls.set(domain, call);
+    const prefix = domain === "app.datadoghq.com" ? "api" : "stage-api";
+    const appKey = domain === "app.datadoghq.com" ? "app" : "stage-app";
+    return `${prefix}${call}\n${appKey}${call}\n`;
+  });
+  mock.timers.enable({ apis: ["setInterval"] });
+  try {
+    extension.sessionStart({ type: "session_start" }, extension.ctx);
+    await flushMicrotasks();
+    mock.timers.tick(5 * 60 * 1000);
+    await flushMicrotasks();
+
+    assert.equal(extension.registrations.length, 4);
+    assert.deepEqual(extension.registrations.slice(2).map(({ config }) => config.headers), [
+      { "DD-API-KEY": "api2", "DD-APPLICATION-KEY": "app2" },
+      { "DD-API-KEY": "stage-api2", "DD-APPLICATION-KEY": "stage-app2" },
+    ]);
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test("skips an interval tick while a fetch cycle is still running", async () => {
+  const pendingProd = deferred<string>();
+  const calls: string[] = [];
+  const extension = createExtension((domain) => {
+    calls.push(domain);
+    return domain === "app.datadoghq.com" ? pendingProd.promise : Promise.resolve("stage-api\nstage-app\n");
+  });
+  mock.timers.enable({ apis: ["setInterval"] });
+  try {
+    extension.sessionStart({ type: "session_start" }, extension.ctx);
+    mock.timers.tick(5 * 60 * 1000);
+    await flushMicrotasks();
+    assert.deepEqual(calls, ["app.datadoghq.com"]);
+
+    pendingProd.resolve("api1\napp1\n");
+    await flushMicrotasks();
+    assert.deepEqual(calls, ["app.datadoghq.com", "ddstaging.datadoghq.com"]);
+
+    mock.timers.tick(5 * 60 * 1000);
+    await flushMicrotasks();
+    assert.deepEqual(calls, [
+      "app.datadoghq.com",
+      "ddstaging.datadoghq.com",
+      "app.datadoghq.com",
+      "ddstaging.datadoghq.com",
+    ]);
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test("shutdown is idempotent and prevents later interval fetches", async () => {
+  const calls: string[] = [];
+  const extension = createExtension(async (domain) => {
+    calls.push(domain);
+    return "api1\napp1\n";
+  });
+  mock.timers.enable({ apis: ["setInterval"] });
+  try {
+    extension.sessionStart({ type: "session_start" }, extension.ctx);
+    await flushMicrotasks();
+    extension.sessionShutdown!({ type: "session_shutdown" }, extension.ctx);
+    extension.sessionShutdown!({ type: "session_shutdown" }, extension.ctx);
+    mock.timers.tick(10 * 60 * 1000);
+    await flushMicrotasks();
+
+    assert.deepEqual(calls, ["app.datadoghq.com", "ddstaging.datadoghq.com"]);
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test("discards an in-flight fetch result after shutdown", async () => {
+  const pendingProd = deferred<string>();
+  const calls: string[] = [];
+  const extension = createExtension((domain) => {
+    calls.push(domain);
+    return pendingProd.promise;
+  });
+
+  extension.sessionStart({ type: "session_start" }, extension.ctx);
+  extension.sessionShutdown!({ type: "session_shutdown" }, extension.ctx);
+  pendingProd.resolve("api1\napp1\n");
+  await flushMicrotasks();
+
+  assert.deepEqual(calls, ["app.datadoghq.com"]);
+  assert.deepEqual(extension.registrations, []);
 });

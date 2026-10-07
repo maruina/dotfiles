@@ -30,6 +30,13 @@
 | `script-best-practices` | `skill-loader` | The MCP registration run script will change in this slice | Matched the existing Bash script style and validated rendered syntax. |
 | `reviewable-pr-workflow` | `skill-loader` | Prepare this completed slice for review | Applied the stack-split check and kept the coupled extension/configuration work in one PR. |
 | `write` | `skill-loader` | Draft the PR description | Wrote concise change, rationale, reviewer focus, and verification sections. |
+| `resolve-worktree` | `prompt-required` | Resolve the plan path in this session | Confirmed the existing feature worktree owns the plan. |
+| `feature-worktree` | `prompt-required` | Continue the plan in its feature worktree | Confirmed the active feature branch and kept the base checkout on `main`. |
+| `skill-loader` | `prompt-required` | Required at the start of this `/execute` stage | Selected skills for the async refresh behavior and existing draft PR. |
+| `codebase-research` | `skill-loader` | Modify auth refresh and timer lifecycle behavior | Traced the existing auth cycle and timer/test boundaries before changing them. |
+| `chezmoi` | `skill-loader` | The extension source under the chezmoi repo is changing | Kept all edits in source files and used the existing package/test workflow. |
+| `reviewable-pr-workflow` | `skill-loader` | Update the open draft PR after this slice | Confirmed no human review started, found no stack split, and updated PR #101 for Slices 1 and 2. |
+| `write` | `skill-loader` | Update the plan ledger and PR description | Followed concise, evidence-based prose guidance. |
 
 ## Source of truth and confirmed decisions
 - Evidence from pi 1.0.4: `dist/core/resolve-config-value.js` runs `!command` values with blocking `execSync`, a 10s timeout, and stderr ignored. `dist/extensions/mcp/runtime.js` `createDefaultTransport` resolves headers each time it creates a transport. `docs/extensions.md` says `registerMcpServer` replaces an earlier registration with the same name, and a same-name `mcp.json` server takes precedence.
@@ -208,10 +215,12 @@ The work profile SHALL NOT register `datadog-prod` or `datadog-staging` through 
 **Traces to:** Requirements "Keys refresh without needless reconnects", "Shutdown stops refresh"
 **Files:** `dot_pi/agent/exact_extensions/datadog-mcp-auth/_core.ts`, `dot_pi/agent/exact_extensions/datadog-mcp-auth/_core.test.ts`, `dot_pi/agent/exact_extensions/datadog-mcp-auth/index.ts`
 
-- [ ] Add tests for unchanged keys, changed keys, overlapping tick, double shutdown, and in-flight fetch discarded on shutdown with `node:test` mock timers; run the focused test (`cd dot_pi/agent && node --experimental-strip-types --test exact_extensions/datadog-mcp-auth/_core.test.ts`); expect the new tests to fail.
-- [ ] Implement the `unref`'d 5-minute interval, the single-cycle guard, change detection, in-flight shutdown guard, and the idempotent `session_shutdown` handler.
-- [ ] Run the focused test (`cd dot_pi/agent && node --experimental-strip-types --test exact_extensions/datadog-mcp-auth/_core.test.ts`); expect all scenarios to pass.
-- [ ] Commit with `feat(pi): refresh Datadog MCP keys in the background`.
+- [x] Add tests for unchanged keys, changed keys, overlapping tick, double shutdown, and in-flight fetch discarded on shutdown with `node:test` mock timers; run the focused test (`cd dot_pi/agent && node --experimental-strip-types --test exact_extensions/datadog-mcp-auth/_core.test.ts`); expect the new tests to fail.
+- [x] Implement the `unref`'d 5-minute interval, the single-cycle guard, change detection, in-flight shutdown guard, and the idempotent `session_shutdown` handler.
+- [x] Run the focused test (`cd dot_pi/agent && node --experimental-strip-types --test exact_extensions/datadog-mcp-auth/_core.test.ts`); expect all scenarios to pass.
+- [x] Commit with `feat(pi): refresh Datadog MCP keys in the background`.
+
+**Execution note:** Tests also verify that repeated failures keep the last successful registration and that recovery re-registers only when keys changed. Continued in open draft PR #101 because no human review had started and Slice 2 extends the same async-auth behavior.
 
 ### Slice 3: Guidance
 #### Task 4: Documentation and end-to-end check

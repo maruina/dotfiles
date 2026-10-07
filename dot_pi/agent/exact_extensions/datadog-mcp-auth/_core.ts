@@ -1,6 +1,7 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 const MCP_URL = "https://mcp.datadoghq.com/api/unstable/mcp-server/mcp";
+const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 const KEY_PATTERN = /^[A-Za-z0-9_-]+$/;
 
 const SERVERS = [
@@ -48,6 +49,10 @@ function failureKind(error: unknown): string {
 
 export function registerDatadogMcpAuth(pi: AuthExtensionAPI, runDdAuth: DdAuthRunner): void {
   const failedDomains = new Set<string>();
+  const registeredKeys = new Map<string, { apiKey: string; appKey: string }>();
+  let active = true;
+  let cycleRunning = false;
+  let refreshInterval: ReturnType<typeof setInterval> | undefined;
 
   const fail = (ctx: ExtensionContext, domain: string, kind: string): void => {
     if (failedDomains.has(domain)) return;
@@ -56,37 +61,67 @@ export function registerDatadogMcpAuth(pi: AuthExtensionAPI, runDdAuth: DdAuthRu
   };
 
   const registerServers = async (ctx: ExtensionContext): Promise<void> => {
-    for (const server of SERVERS) {
-      let keys: { apiKey: string; appKey: string };
-      try {
-        keys = parseKeys(await runDdAuth(server.domain));
-      } catch (error) {
-        fail(ctx, server.domain, failureKind(error));
-        continue;
-      }
+    if (!active || cycleRunning) return;
+    cycleRunning = true;
+    try {
+      for (const server of SERVERS) {
+        if (!active) return;
 
-      try {
-        pi.registerMcpServer(server.name, {
-          url: MCP_URL,
-          exposure: "deferred",
-          description: server.description,
-          headers: {
-            "DD-API-KEY": keys.apiKey,
-            "DD-APPLICATION-KEY": keys.appKey,
-          },
-        });
-      } catch {
-        fail(ctx, server.domain, "registration failed");
-        continue;
-      }
+        let keys: { apiKey: string; appKey: string };
+        try {
+          keys = parseKeys(await runDdAuth(server.domain));
+        } catch (error) {
+          if (!active) return;
+          fail(ctx, server.domain, failureKind(error));
+          continue;
+        }
+        if (!active) return;
 
-      if (failedDomains.delete(server.domain)) {
-        ctx.ui.notify(`Datadog auth recovered for ${server.domain}.`, "info");
+        const previousKeys = registeredKeys.get(server.name);
+        if (!previousKeys || previousKeys.apiKey !== keys.apiKey || previousKeys.appKey !== keys.appKey) {
+          try {
+            pi.registerMcpServer(server.name, {
+              url: MCP_URL,
+              exposure: "deferred",
+              description: server.description,
+              headers: {
+                "DD-API-KEY": keys.apiKey,
+                "DD-APPLICATION-KEY": keys.appKey,
+              },
+            });
+          } catch {
+            fail(ctx, server.domain, "registration failed");
+            continue;
+          }
+          registeredKeys.set(server.name, keys);
+        }
+
+        if (failedDomains.delete(server.domain)) {
+          ctx.ui.notify(`Datadog auth recovered for ${server.domain}.`, "info");
+        }
       }
+    } finally {
+      cycleRunning = false;
     }
   };
 
   pi.on("session_start", (_event, ctx) => {
+    if (!active) return;
+    if (refreshInterval === undefined) {
+      refreshInterval = setInterval(() => {
+        void registerServers(ctx);
+      }, REFRESH_INTERVAL_MS);
+      refreshInterval.unref();
+    }
     void registerServers(ctx);
+  });
+
+  pi.on("session_shutdown", () => {
+    if (!active) return;
+    active = false;
+    if (refreshInterval !== undefined) {
+      clearInterval(refreshInterval);
+      refreshInterval = undefined;
+    }
   });
 }

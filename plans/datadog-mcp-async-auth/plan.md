@@ -19,6 +19,16 @@
 | `script-best-practices` | `skill-loader` | `run_onchange_pi-mcp-servers.sh.tmpl` changes | Keep the existing script style; change only the two `datadog-*` registrations. |
 | `feature-worktree` | `prompt-required` | Durable plans need a feature worktree | Created `maruina/datadog-mcp-async-auth` from `origin/main` under `~/src/.worktrees/dotfiles/`. |
 
+### Execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `resolve-worktree` | `prompt-required` | Resolve the supplied plan path to its owning worktree | Resolved the plan under `~/src/.worktrees/dotfiles/` and used that worktree throughout. |
+| `feature-worktree` | `prompt-required` | Continue implementation in the feature worktree | Confirmed the plan's branch and continued in the existing worktree. |
+| `skill-loader` | `prompt-required` | Required at the start of `/execute` | Selected execution skills based on the affected TS, chezmoi, and shell files. |
+| `codebase-research` | `skill-loader` | MCP registration and async auth are behavior-bearing and unfamiliar | Checked existing extension/test patterns and verified the Pi 1.0.4 MCP registration API and replacement behavior. |
+| `chezmoi` | `skill-loader` | Source files in the chezmoi repository are changing | Followed source-only editing and profile/template validation guidance. |
+| `script-best-practices` | `skill-loader` | The MCP registration run script will change in this slice | Matched the existing Bash script style and will validate rendered syntax. |
+
 ## Source of truth and confirmed decisions
 - Evidence from pi 1.0.4: `dist/core/resolve-config-value.js` runs `!command` values with blocking `execSync`, a 10s timeout, and stderr ignored. `dist/extensions/mcp/runtime.js` `createDefaultTransport` resolves headers each time it creates a transport. `docs/extensions.md` says `registerMcpServer` replaces an earlier registration with the same name, and a same-name `mcp.json` server takes precedence.
 - Evidence from `dd-auth` v1.5.1: a cache hit spends about 2.3s before its first log line (feature-flag startup). PATs are cached in the Keychain for about 8 hours. `dd-auth --domain <d> -- printenv DD_API_KEY DD_APP_KEY` prints two lines that match `^[A-Za-z0-9_-]+$`. Four parallel `dd-auth` calls hung for more than 120s.
@@ -165,12 +175,14 @@ The work profile SHALL NOT register `datadog-prod` or `datadog-staging` through 
 **Traces to:** Requirements "Startup does not wait", "Both servers register", "Failures are visible once"
 **Files:** `dot_pi/agent/exact_extensions/datadog-mcp-auth/_core.ts`, `dot_pi/agent/exact_extensions/datadog-mcp-auth/_core.test.ts`, `dot_pi/agent/exact_extensions/datadog-mcp-auth/index.ts`, `dot_pi/agent/package.json`
 
-- [ ] Run `npm ci --ignore-scripts` in `dot_pi/agent`.
-- [ ] Write `_core.test.ts` for the startup, happy path, partial failure, invalid output, and fail-fail-recover scenarios; run `cd dot_pi/agent && node --experimental-strip-types --test exact_extensions/datadog-mcp-auth/_core.test.ts`; expect failure because `_core.ts` is missing.
-- [ ] Implement `_core.ts` and `index.ts`. `index.ts` runs `execFile("dd-auth", ["--domain", domain, "--", "printenv", "DD_API_KEY", "DD_APP_KEY"], { timeout: 60_000, env: { ...process.env, DD_EXPERIMENTS_NOOP: "true" } })` with `stdin` ignored.
-- [ ] Add `"$ext"/datadog-mcp-auth/*.test.ts` to `test:unit` in `dot_pi/agent/package.json`.
-- [ ] Run the focused test (`cd dot_pi/agent && node --experimental-strip-types --test exact_extensions/datadog-mcp-auth/_core.test.ts`); expect all scenarios to pass. Run `lsp_diagnostics` on the new files.
-- [ ] Commit with `feat(pi): register Datadog MCP servers with async dd-auth`.
+- [x] Run `npm ci --ignore-scripts` in `dot_pi/agent`.
+- [x] Write `_core.test.ts` for the startup, happy path, partial failure, invalid output, and fail-fail-recover scenarios; run `cd dot_pi/agent && node --experimental-strip-types --test exact_extensions/datadog-mcp-auth/_core.test.ts`; expect failure because `_core.ts` is missing.
+- [x] Implement `_core.ts` and `index.ts`. `index.ts` runs `execFile("dd-auth", ["--domain", domain, "--", "printenv", "DD_API_KEY", "DD_APP_KEY"], { timeout: 60_000, env: { ...process.env, DD_EXPERIMENTS_NOOP: "true" } })` with `stdin` ignored.
+- [x] Add `"$ext"/datadog-mcp-auth/*.test.ts` to `test:unit` in `dot_pi/agent/package.json`.
+- [x] Run the focused test (`cd dot_pi/agent && node --experimental-strip-types --test exact_extensions/datadog-mcp-auth/_core.test.ts`); expect all scenarios to pass. Run `lsp_diagnostics` on the new files.
+- [x] Commit with `feat(pi): register Datadog MCP servers with async dd-auth`.
+
+**Execution note:** The worktree's Pi devDependency is 0.80.6 and does not type `registerMcpServer`; the installed runtime is 1.0.4 and its API types confirm registration and same-name replacement. The extension uses a narrow type assertion rather than changing the planned devDependency.
 
 #### Task 2: Remove the blocking `mcp.json` entries and gate the extension
 **Delivers:** No `!dd-auth` header commands remain in `mcp.json`, and personal machines do not get the extension.

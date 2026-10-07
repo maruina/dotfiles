@@ -365,6 +365,26 @@ test("pipeline prompts close with a wired lifecycle handoff", () => {
   }
 });
 
+test("handoff prompt is read-only and emits a neutral brief", () => {
+  const text = prompt("handoff.md");
+
+  requireMarkers(text, [
+    /^---\ndescription: Write a self-contained handoff brief so a fresh agent session knows where to start\nargument-hint: \[next issue or focus\]\n---/,
+    /<HARD-GATE>[\s\S]*?Do not change files, commit, push, or run state-changing commands\.[\s\S]*?<\/HARD-GATE>/i,
+    /`## Goal and context`/,
+    /`## Current state`/,
+    /`## Done so far`/,
+    /`## Decisions`/,
+    /`## Pitfalls`/,
+    /`## Open questions and blockers`/,
+    /`## Next steps`/,
+    /`## Suggested starting point`/,
+    /`## User preferences`/,
+    /leave out secrets, tokens, credentials, and raw logs/i,
+    /plain prompt.*argument to any lifecycle prompt/is,
+  ]);
+});
+
 test("weekly summary has no obsolete session-note command reference", () => {
   assert.equal(existsSync(path.join(promptsDir, "session-note.md")), false);
   assert.doesNotMatch(prompt("weekly-summary.md"), /\/prompt:session-note|\/session-note/);

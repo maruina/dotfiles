@@ -456,7 +456,7 @@ test("PR validation revision 2 report shape, severity, and provenance", () => {
     // Report page section list (revision 2)
     /\*\*Hero\.\*\*/,
     /\*\*Chip navigation\.\*\*/,
-    /\*\*Map\.\*\*/,
+    /\*\*Walkthrough\.\*\*/,
     /\*\*Item chapters\.\*\*/,
     /\*\*Your question\.\*\*/,
     /\*\*Reference\.\*\*/,
@@ -488,6 +488,22 @@ test("PR validation revision 2 report shape, severity, and provenance", () => {
   ]);
 
   assert.doesNotMatch(text, /feedback for improving `skill-loader`/i);
+});
+
+test("PR validation report opens with a walkthrough", () => {
+  const text = prompt("pr-validate.md");
+
+  requireMarkers(text, [
+    /Problem/,
+    /System today/,
+    /Core intuition/,
+    /Solution map/,
+    /entry-point order/i,
+    /How it works today/,
+    /What changed and why/,
+    /Downstream effect/,
+    /PR content and context.*(?:walkthrough|Walkthrough).*escape/i,
+  ]);
 });
 
 test("PR validation marketplace discovery is bounded, local, and read-only", () => {

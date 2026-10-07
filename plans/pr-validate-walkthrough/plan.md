@@ -18,6 +18,15 @@
 | `write` | `skill-loader` | Prompt and plan prose | Plain-language wording rules for the Walkthrough, slot, and table instructions |
 | `feature-worktree` | `prompt-required` | Durable plan needs a feature worktree | Created `maruina/pr-validate-walkthrough` from `origin/main` |
 
+### Execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `resolve-worktree` | `prompt-required` | Resolve the supplied plan path and switch context | Located the plan in its owning feature worktree before reading repository files |
+| `skill-loader` | `prompt-required` | Required at the start of execution | Selected the chezmoi and prose-writing skills for the affected prompt and test files |
+| `feature-worktree` | `prompt-required` | Required before writing files | Confirmed this is the plan's feature worktree and the branch is safe |
+| `chezmoi` | `skill-loader` | The affected files are chezmoi source files | Kept edits in the source tree and used source-aware validation guidance |
+| `write` | `skill-loader` | The prompt includes user-facing report instructions | Used concise prose and explicit section instructions for the Walkthrough |
+
 ## Advisory learnings
 `Datadog/Learnings.md` returned no matching sections for the terms above. No learning guidance applies.
 
@@ -140,10 +149,10 @@ The prompt set SHALL NOT contain `pr-review.md`, and no prompt SHALL name `/pr-r
 **Traces to:** Requirement: Walkthrough before judgment
 **Files:** `dot_pi/agent/exact_prompts/pr-validate.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`
 
-- [ ] In the "PR validation revision 2 report shape" test, replace the `\*\*Map\.\*\*` marker with a `\*\*Walkthrough\.\*\*` marker. Add a new test "PR validation report opens with a walkthrough" that requires markers for `Problem`, `System today`, `Core intuition`, `Solution map`, `entry-point order`, `How it works today`, `What changed and why`, `Downstream effect`, and that PR content in the Walkthrough is explicitly subject to the escaping rule (requiring `/PR content and context.*(?:walkthrough|Walkthrough).*escape/i`). Run the narrow command; expect the new test to fail.
-- [ ] In `pr-validate.md` Output, replace page item 3 (**Map.**) with **Walkthrough.**: it renders the Pass 1 model before any item chapters and contains the Map flowchart with red and amber item nodes. Define the parts and step format in a short subsection adapted from `pr-review.md` Phase 6. Exclude familiarity levels, glossary, and comprehension checks. Extend Pass 1 so it records the entry-point order and the per-step parts that the Walkthrough needs. Update Chip navigation to include chips for Review gates, Walkthrough, each item chapter, and Reference. State that the Walkthrough appears for every verdict, including Approve, and update the Approve-page paragraph to match.
-- [ ] Run `cd dot_pi/agent && node --test exact_scripts/lifecycle-prompts.test.mjs`; expect all tests to pass.
-- [ ] Commit with `feat(pi): add walkthrough chapter to /pr-validate reports`.
+- [x] In the "PR validation revision 2 report shape" test, replace the `\*\*Map\.\*\*` marker with a `\*\*Walkthrough\.\*\*` marker. Add a new test "PR validation report opens with a walkthrough" that requires markers for `Problem`, `System today`, `Core intuition`, `Solution map`, `entry-point order`, `How it works today`, `What changed and why`, `Downstream effect`, and that PR content in the Walkthrough is explicitly subject to the escaping rule (requiring `/PR content and context.*(?:walkthrough|Walkthrough).*escape/i`). Run the narrow command; expect the new test to fail.
+- [x] In `pr-validate.md` Output, replace page item 3 (**Map.**) with **Walkthrough.**: it renders the Pass 1 model before any item chapters and contains the Map flowchart with red and amber item nodes. Define the parts and step format in a short subsection adapted from `pr-review.md` Phase 6. Exclude familiarity levels, glossary, and comprehension checks. Extend Pass 1 so it records the entry-point order and the per-step parts that the Walkthrough needs. Update Chip navigation to include chips for Review gates, Walkthrough, each item chapter, and Reference. State that the Walkthrough appears for every verdict, including Approve, and update the Approve-page paragraph to match.
+- [x] Run `cd dot_pi/agent && node --test exact_scripts/lifecycle-prompts.test.mjs`; expect all tests to pass.
+- [x] Commit with `feat(pi): add walkthrough chapter to /pr-validate reports`.
 
 ### Task 2: Add the Where this fits item slot
 **Delivers:** Every item starts with its system context and a link to its Walkthrough step.

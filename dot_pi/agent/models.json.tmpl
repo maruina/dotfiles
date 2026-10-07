@@ -63,10 +63,13 @@
 {{- if eq .profile "personal" -}}
 {
   "providers": {
+    "typesafe": {
+      "apiKey": "!op read --no-newline 'op://Private/Typesafe/api-key-bonehunters'"
+    },
     "opencode-zen-free": {
       "baseUrl": "https://opencode.ai/zen/v1",
       "api": "openai-completions",
-      "apiKey": "$OPENCODE_API_KEY",
+      "apiKey": "!op read --no-newline 'op://Private/Opencode/api-key'",
       "authHeader": true,
       "models": [
         {

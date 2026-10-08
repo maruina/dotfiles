@@ -115,6 +115,14 @@ test("prior comment URLs must belong to the report PR and use supported fragment
     url: "https://github.com/example-org/example-service/pull/42#discussion_rnope",
   }];
   assert.ok(validate(badFragment).some((error) => error.startsWith("items[0].priorComments[0].url:")));
+
+  const reviewBody = example();
+  reviewBody.items[0].priorComments = [{
+    author: "reviewer",
+    kind: "human",
+    url: "https://github.com/example-org/example-service/pull/42#pullrequestreview-3",
+  }];
+  assert.deepEqual(validate(reviewBody), []);
 });
 
 test("prior comment kind and escaped repository matching are validated", () => {
@@ -131,8 +139,11 @@ test("prior comment kind and escaped repository matching are validated", () => {
   dottedRepo.items[0].priorComments = [{
     author: "review-bot",
     kind: "bot",
-    url: "https://github.com/exampleXorg/example-service/pull/42#discussion_r1",
+    url: "https://github.com/example.org/example-service/pull/42#discussion_r1",
   }];
+  dottedRepo.items[1].priorComments = [];
+  assert.deepEqual(validate(dottedRepo), []);
+  dottedRepo.items[0].priorComments[0].url = "https://github.com/exampleXorg/example-service/pull/42#discussion_r1";
   assert.ok(validate(dottedRepo).some((error) => error.startsWith("items[0].priorComments[0].url:")));
 });
 

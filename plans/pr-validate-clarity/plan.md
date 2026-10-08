@@ -43,6 +43,17 @@
 | `humanizer` | `skill-loader` | Prompt instructions are human-readable prose | Kept the added guidance direct and specific. |
 | `reviewable-pr-workflow` | `prompt-required` | The open draft PR will receive this slice | Checked the full diff for stack-split signals, preserved branch history, and refreshed the reviewer guide and PR body. |
 
+#### Slice 3 execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `feature-worktree` | `prompt-required` | Continue the plan on its existing PR branch | Verified the owning worktree, branch, and clean starting state. |
+| `skill-loader` | `prompt-required` | `/execute` requires execution-stage skill selection and provenance | Selected prompt, test, and PR-update skills. |
+| `codebase-research` | `skill-loader` | The wasted-turn fixes span evidence collection, report generation, and tests | Traced the current prompt, renderer field contract, and prompt-test patterns. |
+| `chezmoi` | `skill-loader` | Changed files are chezmoi source files | Kept edits in source paths; previewed and applied the two explicit targets, then confirmed no target drift. |
+| `write` | `skill-loader` | Prompt instructions are user-facing prose | Wrote direct evidence-collection and rendering rules. |
+| `humanizer` | `skill-loader` | Prompt instructions are prose | Kept the added guidance specific and concise. |
+| `reviewable-pr-workflow` | `prompt-required` | The existing PR will receive this slice | Checked the PR for new feedback before editing; preserved branch history and refreshed the PR body after the push. |
+
 ## Evidence
 Source of truth: the user request, `~/.pi/agent/pr-validate-reports/dd-source-116539.{json,html}`, PR [ddoghq/dd-source#116539](https://github.com/ddoghq/dd-source/pull/116539) threads, and session `01a11acc-1f93-7224-ab02-71cb27d9cfb5`.
 
@@ -221,14 +232,16 @@ Delivers the user feedback "the review spends fewer turns on known waste".
 **Traces to:** Requirement "The review avoids known wasted turns"; user point 1
 **Files:** `dot_pi/agent/exact_prompts/pr-validate.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`
 
-- [ ] Add markers for the six fixes and `doesNotMatch` checks for "In the source repository" and "schema/API". Run `npm run test:prompts`; expect failures.
-- [ ] In Phase 2, add: load every deferred MCP tool the review can need (Datadog monitors, DDCI CI status) in one `tool_search` before large reads, because each `tool_search` invalidates the prompt cache.
-- [ ] In Phase 2, add: write all review data to one compact file in the scratch directory once, and read slices of that file; do not query threads or comments again.
-- [ ] In "Render the report", replace the source-repository sentence with the rendered path only, and state that `example.json` is in the same directory as the renderer.
-- [ ] In Pass 1, replace the file-class list with the renderer keys `generated`, `build`, `behavior`, `test`, `docs`, `schema`.
-- [ ] In "Render the report", add: set `marketplace` to text that records the commit and date, or omit it when discovery was skipped; fix every renderer error in one `edit` call before rerunning.
-- [ ] Run `npm run test:prompts`; expect green. Run `npm test` and `npm run test:all` in `dot_pi/agent`; expect green; then remove `dot_pi/agent/node_modules`.
-- [ ] Commit with `perf(pi): remove wasted turns from /pr-validate`.
+- [x] Add markers for the six fixes and `doesNotMatch` checks for "In the source repository" and "schema/API". The focused test failed before the prompt edits and passes now.
+- [x] In Phase 2, add: load every deferred MCP tool the review can need (Datadog monitors, DDCI CI status) in one `tool_search` before large reads, because each `tool_search` invalidates the prompt cache.
+- [x] In Phase 2, add: write all review data to one compact file in the scratch directory once, and read slices of that file; do not query threads or comments again.
+- [x] In "Render the report", replace the source-repository sentence with the rendered path only, and state that `example.json` is in the same directory as the renderer.
+- [x] In Pass 1, replace the file-class list with the renderer keys `generated`, `build`, `behavior`, `test`, `docs`, `schema`.
+- [x] In "Render the report", add: set `marketplace` to text that records the commit and date, or omit it when discovery was skipped; fix every renderer error in one `edit` call before rerunning.
+- [x] Run `npm run test:prompts`; 61 tests pass. `npm test` and `npm run test:all` also pass; removed `dot_pi/agent/node_modules` afterward.
+- [x] Commit with `perf(pi): remove wasted turns from /pr-validate`.
+Execution note: The prompt marker test failed before the prompt edits and passes now. `npm test` and `npm run test:all` passed; `npm ci --ignore-scripts` reported 7 audit advisories (3 low, 2 moderate, 2 high), and I made no dependency changes. I removed `dot_pi/agent/node_modules` after testing. The two explicit chezmoi targets were applied and have no drift. PR #105 had no human feedback when checked; the branch history was preserved, no split was indicated, and the reviewer guide was refreshed after the push.
+Execution note: `npm ci --ignore-scripts` installed test dependencies; npm reported 7 audit advisories (3 low, 2 moderate, 2 high). No dependency changes were made.
 
 ### Task 4: Documentation and future-agent guidance
 **Delivers:** Guidance files agree with the new contract.

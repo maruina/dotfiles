@@ -575,6 +575,26 @@ test("PR validation report is rendered from bounded JSON data", () => {
   assert.doesNotMatch(text, /highlight\.js/);
 });
 
+test("PR validation avoids known wasted turns", () => {
+  const text = prompt("pr-validate.md");
+
+  requireMarkers(text, [
+    /one `tool_search` call before large reads/is,
+    /Datadog monitor.*DDCI CI.*status/is,
+    /each call invalidates the prompt cache/is,
+    /one compact `evidence\.json` file/is,
+    /read slices of that file/is,
+    /do not query.*(?:threads|comments).*again/is,
+    /Read `example\.json` next to the renderer/i,
+    /classify every changed file as generated, build, behavior, test, docs, or schema/i,
+    /Set `marketplace`.*commit and date.*omit.*when discovery (?:was )?skipped/is,
+    /renderer reports errors.*fix every named JSON field in one `edit` call.*run it again/is,
+  ]);
+
+  assert.doesNotMatch(text, /In the source repository/i);
+  assert.doesNotMatch(text, /schema\/API/i);
+});
+
 test("PR validation marketplace discovery is bounded, local, and read-only", () => {
   const text = prompt("pr-validate.md");
 

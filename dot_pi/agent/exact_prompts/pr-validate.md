@@ -40,6 +40,8 @@ Parse the PR URL and optional context from `$ARGUMENTS`.
 7. Read PR source files only from the verified worktree. Store its path as `WORKTREE`.
 
 ## Phase 2: Collect PR evidence
+Use one `tool_search` call before large reads to load every deferred MCP tool this review may need, including Datadog monitor tools and DDCI CI-status tools. Do not call `tool_search` again; each call invalidates the prompt cache.
+
 Use the PR URL for GitHub queries. Collect:
 - Metadata: title, body, author, state, base and head refs, `headRefOid`, labels, additions, deletions, and changed files.
 - The full PR diff.
@@ -50,11 +52,13 @@ Use the PR URL for GitHub queries. Collect:
 - CI results from `gh pr checks`.
 
 Use `codemode` with `Promise.allSettled` to execute independent read-only checks concurrently rather than across sequential turns:
-- Batch GitHub queries (diff, metadata, review threads, checks).
+- Batch GitHub queries (diff, metadata, inline and top-level comments, review bodies and threads, checks).
 - Concurrently dispatch read-only external queries when cited in PR context (such as Datadog monitor context via MCP or `atlas workflow list` across relevant environments).
 
+After collection, write one compact `evidence.json` file under the scratch directory. Include PR metadata, the full diff, CI results, and compact records for inline comments, top-level comments, review bodies, and review threads, including the fields listed above. Add external results when queried. Read slices of that file during review; do not query comments or review threads again. Do not create separate diff, comment, or thread files.
+
 Keep each tool result small, because every result stays in context for the rest of the review:
-- Save the full diff, review threads, and other large JSON to files in the scratch directory. Then read only the slices you need.
+- Read only the slices needed from `evidence.json`.
 - Run `git diff --stat` first. Then diff one file or one directory at a time.
 - Use `rg -l` or `rg --max-count` to find files before you print full matches. Narrow a search that would print more than 200 lines.
 - Do not print tool help or API schemas when this prompt or a loaded skill already gives the command.
@@ -66,7 +70,7 @@ Build a compact model of the system before judging the PR.
 - Describe the touched components, their roles, and the data and control flow.
 - Identify the entry point and order the logical steps outward from it. For each step, record how it works today, what changed and why, and the downstream effect.
 - Summarize the change and the author's stated reasons.
-- Classify every changed file as generated, build wiring, behavior, test, docs or guidance, or schema/API. Skip generated code, check build wiring briefly for dependency edges, and read behavior, tests, and changed repository guidance in depth.
+- Classify every changed file as generated, build, behavior, test, docs, or schema. Use these exact keys for `summary.filesByClass`. Skip generated code, check build wiring briefly for dependency edges, and read behavior, tests, and changed repository guidance in depth.
 - Create a claims ledger for author claims from the PR, commits, and context; parity rows for ports; and review-thread claims. Include the PR's testing and validation claims, such as listed test targets and commands and their stated results. Include unresolved threads and all threads by the user running this command. Treat author replies such as "fixed" as claims to verify. Merge duplicate findings, list every source thread, and record whether GitHub marks each thread outdated. Outdated does not mean Fixed.
 #### Marketplace discovery
 Work-profile only. When reviewing a PR, discover applicable marketplace skills before judging the change:
@@ -182,12 +186,14 @@ Read the `write` and `humanizer` skills before you write any report text, and ap
 The renderer rejects text that is longer than its word limits. Shorten the text; do not split it across fields or move it into another field.
 
 ### Render the report
-The renderer is `${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/scripts/pr-validate-report/render.mjs`. In the source repository, it is in `dot_pi/agent/exact_scripts/pr-validate-report/`.
+The renderer is `${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/scripts/pr-validate-report/render.mjs`.
 1. Read `example.json` next to the renderer for the field shape. Run `render.mjs --help` only when you need the word limits.
 2. Write the report data to `~/.pi/agent/pr-validate-reports/REPO-PR_NUMBER.json`. Create the directory if needed, and overwrite an existing file for the same PR.
 3. Run `node <renderer> ~/.pi/agent/pr-validate-reports/REPO-PR_NUMBER.json`. It writes `~/.pi/agent/pr-validate-reports/REPO-PR_NUMBER.html`, the artifact of record.
-4. If the renderer reports errors, fix the named JSON fields with `edit` and run it again. Do not read, write, or edit the HTML file.
+4. If the renderer reports errors, fix every named JSON field in one `edit` call, then run it again. Do not read, write, or edit the HTML file.
 5. Open the HTML report with `open`.
+
+Set `marketplace` to text that records the marketplace commit and date when discovery ran; omit it when discovery was skipped.
 
 The renderer escapes all text, builds permalinks and **Files changed** links from paths and line numbers, adds the copy buttons, and runs Mermaid with `securityLevel: "strict"`. Text fields support only `` `code` `` spans and `[label](https://...)` or `[label](#id)` links. Never put HTML in a field.
 

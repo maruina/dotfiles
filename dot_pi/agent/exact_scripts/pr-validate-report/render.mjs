@@ -52,6 +52,7 @@ export const LIMITS = {
   stepPart: 30,
   itemTitle: 12,
   slot: 60,
+  whyBad: 90,
   exposureDetail: 8,
   comment: 120,
   excerptLines: 12,
@@ -136,6 +137,7 @@ export function validate(r) {
     if (!Number.isInteger(v.start) || v.start < 1) fail(`${where}.start`, "must be a positive line number");
     if (!Number.isInteger(v.end) || v.end < v.start) fail(`${where}.end`, "must be a line number >= start");
   };
+  const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
   if (!r || typeof r !== "object") return ["report: must be a JSON object"];
   if (r.schemaVersion !== 1) fail("schemaVersion", "must be 1");
@@ -143,6 +145,9 @@ export function validate(r) {
   if (!Number.isInteger(r.number) || r.number < 1) fail("number", "must be the PR number");
   for (const key of ["title", "author", "baseRef", "headRef", "model", "thinking"]) text(r[key], key);
   if (typeof r.headSha !== "string" || !/^[0-9a-f]{40}$/.test(r.headSha)) fail("headSha", "must be the 40-character head SHA");
+  const priorCommentUrl = typeof r.repo === "string" && Number.isInteger(r.number)
+    ? new RegExp(`^https://github\\.com/${escapeRegExp(r.repo)}/pull/${r.number}#(discussion_r|issuecomment-|pullrequestreview-)\\d+$`)
+    : null;
   oneOf(r.verdict, VERDICTS, "verdict");
   text(r.lead, "lead", LIMITS.lead);
 
@@ -170,8 +175,24 @@ export function validate(r) {
     oneOf(item?.kind, KINDS, `${at}.kind`);
     text(item?.title, `${at}.title`, LIMITS.itemTitle);
     if (!stepIds.has(item?.step)) fail(`${at}.step`, "must name a walkthrough step id");
+    if (!Array.isArray(item?.priorComments)) {
+      fail(`${at}.priorComments`, "required array");
+    } else {
+      item.priorComments.forEach((comment, j) => {
+        const commentAt = `${at}.priorComments[${j}]`;
+        if (!comment || typeof comment !== "object" || Array.isArray(comment)) {
+          fail(commentAt, "required object");
+          return;
+        }
+        text(comment.author, `${commentAt}.author`, LIMITS.short);
+        oneOf(comment.kind, ["bot", "human"], `${commentAt}.kind`);
+        if (typeof comment.url !== "string" || !priorCommentUrl?.test(comment.url)) {
+          fail(`${commentAt}.url`, `must be a comment permalink for ${r.repo}#${r.number}`);
+        }
+      });
+    }
     text(item?.whereThisFits, `${at}.whereThisFits`, LIMITS.slot);
-    text(item?.whyBad, `${at}.whyBad`, LIMITS.slot);
+    text(item?.whyBad, `${at}.whyBad`, LIMITS.whyBad);
     if (item?.kind === "attention") {
       text(item.whyJudgment, `${at}.whyJudgment`, LIMITS.slot);
       if (item.code) range(item.code, `${at}.code`);
@@ -311,7 +332,16 @@ function renderItem(r, item, n, steps) {
   const step = steps.findIndex((st) => st.id === item.step);
   const real = item.real;
   const exposureChip = `<span class="chip ${real.exposure === "real" ? "fail" : real.exposure === "unknown" ? "open" : ""}">Exposure: ${escapeHtml(real.exposure)}${real.detail ? ` · ${escapeHtml(real.detail)}` : ""}</span>`;
+  const priorCommentChips = item.priorComments.length > 0
+    ? item.priorComments.map((comment) => {
+        const label = comment.kind === "bot"
+          ? `Already raised by bot <code>${escapeHtml(comment.author)}</code>`
+          : `Already raised by @${escapeHtml(comment.author)}`;
+        return `<a class="chip" href="${escapeHtml(comment.url)}">${label}</a>`;
+      }).join(" ")
+    : '<span class="chip">Not raised before</span>';
   const parts = [
+    `<div class="prior-comments">${priorCommentChips}</div>`,
     slot("Where this fits", `<p>${inline(item.whereThisFits)} See <a href="#${escapeHtml(item.step)}">Walkthrough step ${step + 1}</a>.</p>`),
     attention
       ? slot("Why it needs your judgment", `<p>${inline(item.whyJudgment)}</p>`)
@@ -463,7 +493,7 @@ Validates /pr-validate report data and renders the standard HTML report.
 The default output path replaces .json with .html. On validation errors,
 prints one "field: problem" line per error to stderr, writes nothing, and exits 1.
 
-Field shape: example.json next to this script.
+Field shape: example.json next to this script. Each item requires a \`priorComments\` array.
 Text fields allow only \`code\` spans and [label](https://...) or [label](#id) links.
 Word limits: ${Object.entries(LIMITS)
   .map(([k, v]) => `${k}=${v}`)

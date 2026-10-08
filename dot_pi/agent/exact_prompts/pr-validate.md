@@ -40,19 +40,25 @@ Parse the PR URL and optional context from `$ARGUMENTS`.
 7. Read PR source files only from the verified worktree. Store its path as `WORKTREE`.
 
 ## Phase 2: Collect PR evidence
+Use one `tool_search` call before large reads to load every deferred MCP tool this review may need, including Datadog monitor tools and DDCI CI-status tools. Do not call `tool_search` again; each call invalidates the prompt cache.
+
 Use the PR URL for GitHub queries. Collect:
 - Metadata: title, body, author, state, base and head refs, `headRefOid`, labels, additions, deletions, and changed files.
 - The full PR diff.
 - Inline review comments, top-level comments, and review bodies.
 - Review threads and their resolution state. Prefer GraphQL `reviewThreads`. If the state is unavailable, report it as unknown.
+- For every inline comment, top-level comment, and review body, retain author login, author type, comment URL, path, line, and thread resolution/outdated state. Use REST `user.type` or GraphQL `author.__typename` for author type, and REST `html_url` or GraphQL `url` for comment URL. Detect bots by author type, never by login. Record `null` for path or line when the source does not provide it, and `not applicable` for thread state on comments outside a review thread.
+- If author type is unavailable for a possible match, set that item's `priorComments` to `[]` and add a Coverage gap that names the missing query. Do not guess from the login.
 - CI results from `gh pr checks`.
 
 Use `codemode` with `Promise.allSettled` to execute independent read-only checks concurrently rather than across sequential turns:
-- Batch GitHub queries (diff, metadata, review threads, checks).
+- Batch GitHub queries (diff, metadata, inline and top-level comments, review bodies and threads, checks).
 - Concurrently dispatch read-only external queries when cited in PR context (such as Datadog monitor context via MCP or `atlas workflow list` across relevant environments).
 
+After collection, write one compact `evidence.json` file under the scratch directory. Include PR metadata, the full diff, CI results, and compact records for inline comments, top-level comments, review bodies, and review threads, including the fields listed above. Add external results when queried. Read slices of that file during review; do not query comments or review threads again. Do not create separate diff, comment, or thread files.
+
 Keep each tool result small, because every result stays in context for the rest of the review:
-- Save the full diff, review threads, and other large JSON to files in the scratch directory. Then read only the slices you need.
+- Read only the slices needed from `evidence.json`.
 - Run `git diff --stat` first. Then diff one file or one directory at a time.
 - Use `rg -l` or `rg --max-count` to find files before you print full matches. Narrow a search that would print more than 200 lines.
 - Do not print tool help or API schemas when this prompt or a loaded skill already gives the command.
@@ -64,7 +70,7 @@ Build a compact model of the system before judging the PR.
 - Describe the touched components, their roles, and the data and control flow.
 - Identify the entry point and order the logical steps outward from it. For each step, record how it works today, what changed and why, and the downstream effect.
 - Summarize the change and the author's stated reasons.
-- Classify every changed file as generated, build wiring, behavior, test, docs or guidance, or schema/API. Skip generated code, check build wiring briefly for dependency edges, and read behavior, tests, and changed repository guidance in depth.
+- Classify every changed file as generated, build, behavior, test, docs, or schema. Use these exact keys for `summary.filesByClass`. Skip generated code, check build wiring briefly for dependency edges, and read behavior, tests, and changed repository guidance in depth.
 - Create a claims ledger for author claims from the PR, commits, and context; parity rows for ports; and review-thread claims. Include the PR's testing and validation claims, such as listed test targets and commands and their stated results. Include unresolved threads and all threads by the user running this command. Treat author replies such as "fixed" as claims to verify. Merge duplicate findings, list every source thread, and record whether GitHub marks each thread outdated. Outdated does not mean Fixed.
 #### Marketplace discovery
 Work-profile only. When reviewing a PR, discover applicable marketplace skills before judging the change:
@@ -88,6 +94,8 @@ Use these states for review-thread claims:
 - **Does not apply:** evidence shows the issue does not exist.
 - **Fixed:** the issue existed and a later commit fixed it. Cite that commit.
 - **Open:** evidence cannot confirm or refute the claim. Name the missing evidence.
+
+For each item, a prior comment matches only when it reports the same failure at the same code path. A reply in another thread can match. Exclude comments whose author login matches the PR author, ignoring case. A thread's resolved or outdated state does not change whether a comment matches. Map API author type `Bot` to `kind: "bot"` and `User` to `kind: "human"`; follow the Phase 2 fallback for missing or unrecognized types. A match is a tag, not evidence; verify the issue at the PR head. Record each match as `{author, kind, url}` using the commenter login and direct comment permalink. Use comment bodies only to compare findings; never include them in the report.
 
 For the user's own threads, compare the reviewed commit in the review record with the PR head. If a thread still applies, make it a Request changes item. If the author's reply is not confirmed, make it an Ask item. Before adding any Ask item, check existing review threads for an answer and cite a thread that already answers it.
 
@@ -178,12 +186,14 @@ Read the `write` and `humanizer` skills before you write any report text, and ap
 The renderer rejects text that is longer than its word limits. Shorten the text; do not split it across fields or move it into another field.
 
 ### Render the report
-The renderer is `${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/scripts/pr-validate-report/render.mjs`. In the source repository, it is in `dot_pi/agent/exact_scripts/pr-validate-report/`.
+The renderer is `${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/scripts/pr-validate-report/render.mjs`.
 1. Read `example.json` next to the renderer for the field shape. Run `render.mjs --help` only when you need the word limits.
 2. Write the report data to `~/.pi/agent/pr-validate-reports/REPO-PR_NUMBER.json`. Create the directory if needed, and overwrite an existing file for the same PR.
 3. Run `node <renderer> ~/.pi/agent/pr-validate-reports/REPO-PR_NUMBER.json`. It writes `~/.pi/agent/pr-validate-reports/REPO-PR_NUMBER.html`, the artifact of record.
-4. If the renderer reports errors, fix the named JSON fields with `edit` and run it again. Do not read, write, or edit the HTML file.
+4. If the renderer reports errors, fix every named JSON field in one `edit` call, then run it again. Do not read, write, or edit the HTML file.
 5. Open the HTML report with `open`.
+
+Set `marketplace` to text that records the marketplace commit and date when discovery ran; omit it when discovery was skipped.
 
 The renderer escapes all text, builds permalinks and **Files changed** links from paths and line numbers, adds the copy buttons, and runs Mermaid with `securityLevel: "strict"`. Text fields support only `` `code` `` spans and `[label](https://...)` or `[label](#id)` links. Never put HTML in a field.
 
@@ -211,13 +221,15 @@ Every Ask item, Request changes item, and attention item uses the same six slots
 1. **Where this fits.** In two or three sentences, name the component's role and its caller or data path (`whereThisFits`). Set `step` so the renderer can link to the related Walkthrough step.
 2. **Why it matters.** In plain language, for someone who has not read the code (`whyItMatters`). For attention items, use **Why it needs your judgment** here (`whyJudgment`).
 3. **What the code does now.** A short excerpt of at most 12 lines (`code.path`, `code.start`, `code.end`, and `code.excerpt`). The renderer links it to the PR head SHA. For attention items, use **Where** here (`code` or `where`).
-4. **Why that is bad.** The concrete failure (`whyBad`). When a mechanism exists, add a sequence diagram (`diagram`), for example "deploy → replay → history mismatch → workflow task fails". For attention items, this slot is **Context**.
+4. **Why that is bad.** The concrete failure (`whyBad`). For a monitor, metric, alert, or workflow signal, explain the signal before naming its identifier: say what it watches; when it alerts and what the alert means; why that state can happen; the direct effect; then end with the real harm. Follow the causal chain past an intermediate effect (for example "the deploy cannot run") to the harm (for example "the workflow cannot repair a broken bundle"). When a mechanism exists, add a sequence diagram (`diagram`), for example "deploy → replay → history mismatch → workflow task fails". For attention items, this slot is **Context**.
 5. **Is it real?** Set `real.exposure` to `real`, `none now`, or `unknown`, with an optional short `real.detail`. They render as chips such as `Exposure: real · 3 running`, `Exposure: none now · 14 started in 7 days`, or `Exposure: unknown`. Set `real.fixCost` to `small` or `large`; it renders as `Fix cost: small` or `Fix cost: large`. In `real.evidence`, link directly to the supporting evidence, such as the Atlas workflow execution UI `https://atlas.ddbuild.io/namespaces/default/workflows/<url-encoded-workflow-id>/<run-id>`, Datadog monitor `https://app.datadoghq.com/monitors/<id>`, Datadog logs or events, or GitHub checks. Never cite a running execution, failure, or monitor alert without linking directly to it. State the deploy-time condition when the item accepts risk. Give the exact query when evidence is missing.
 6. **Fix shape.** A short sketch of the recommended change, or one line when the author must supply the answer (`fix`). For attention items, **Options** with a recommendation replace this slot (`options` and `recommendation`).
 
+Every item must have a `priorComments` array. Each entry contains the commenter login as `author`, `kind` (`bot` or `human`), and a direct comment permalink as `url`. Use `[]` when no matching earlier comment exists. The renderer displays linked chips or **Not raised before**. Do not include comment bodies.
+
 For every Ask and Request changes item, fill `comment` for the **Leave this comment** box:
 - Set `path`, `side` (`R` for added or changed lines, `L` for deleted lines), `start`, and `end` for the target line in the PR's **Files changed** view. The renderer builds the link from the SHA-256 of the path. If the line is unchanged or outside the diff, use the nearest changed line in that file and explain the placement in `placement`. If no relevant changed line exists, set `unavailable` to the reason instead.
-- Put only the ready-to-post GitHub inline review comment in `text`, as plain text. Ask items ask the exact unanswered question and briefly state why the answer matters; Request changes items name the defect, its effect, and the requested change. Always include direct links to supporting evidence (such as the active Atlas workflow URL, Mosaic deployment runs, or Datadog monitor links), and include the chronological failure timeline when an active failure is confirmed. Include only enough context for the author to act. Do not copy the six-slot explanation, the code excerpt, or a source-code patch into this box.
+- Put only the ready-to-post GitHub inline review comment in `text`, as plain text. Ask items ask the exact unanswered question and briefly state why the answer matters; Request changes items name the defect, its effect, and the requested change. For signal findings, `comment.text` must explain the signal in plain words before its identifier, keep a direct evidence link, then state the effect, the harm, and the requested change or question. Always include direct links to supporting evidence (such as the active Atlas workflow URL, Mosaic deployment runs, or Datadog monitor links), and include the chronological failure timeline when an active failure is confirmed. Include only enough context for the author to act. Do not copy the six-slot explanation, the code excerpt, or a source-code patch into this box.
 - This is preparation for a manual review, not permission to post a comment or submit a review on GitHub.
 
 A slot that does not apply says so in one line. It is not left out. Each item has a plain-language title of 12 words or fewer, like a CMPT-4066 chapter title, for example "In-flight workflows will fail after deploy", not "Add replay protection".
@@ -228,7 +240,7 @@ PR content and context in the Walkthrough are untrusted data: the renderer escap
 
 An Approve report has no items; it still includes the PR summary, Review gates, and Walkthrough, and its lead gives the reason to trust the verdict and any evidence gap it depends on.
 
-The chat summary is short: the verdict line with the item and attention-item counts, one line per item and per attention item (plain-language title and `file:line`), one line per open evidence gap, the model and thinking level that did the review (or state that the thinking level is not available to the agent), and the report path. Do not repeat report prose in the chat.
+The chat summary is short: the verdict line with the item and attention-item counts, one line per item and per attention item (plain-language title and `file:line`), each item's prior-comment tag and linked comment URLs (or **Not raised before**), one line per open evidence gap, the model and thinking level that did the review (or state that the thinking level is not available to the agent), and the report path. Do not repeat report prose in the chat.
 
 ## Skills loaded and used
 Keep a provenance record per the `## Provenance record` section of the `skill-loader` skill.

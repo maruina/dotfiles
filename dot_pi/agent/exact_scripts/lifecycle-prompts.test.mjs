@@ -489,6 +489,33 @@ test("PR validation revision 2 report shape, severity, and provenance", () => {
   assert.doesNotMatch(text, /feedback for improving `skill-loader`/i);
 });
 
+test("PR validation explains signals before identifiers and ends with the real harm", () => {
+  const text = prompt("pr-validate.md");
+
+  requireMarkers(text, [
+    /explain the signal before naming its identifier/i,
+    /end with the real harm/i,
+    /comment\.text.*explain the signal in plain words before its identifier/is,
+  ]);
+});
+
+test("PR validation defines prior-comment metadata, matching, and summary tags", () => {
+  const text = prompt("pr-validate.md");
+
+  requireMarkers(text, [
+    /author login.*author type.*comment URL.*path.*line/is,
+    /user\.type.*__typename/is,
+    /never by login/i,
+    /same failure at the same code path/i,
+    /PR author/i,
+    /resolved.*outdated.*does not change/is,
+    /priorComments.*author.*kind.*url/is,
+    /Not raised before/,
+    /author type is unavailable.*Coverage gap/is,
+    /prior-comment tag.*linked comment URLs/is,
+  ]);
+});
+
 test("PR validation report opens with a walkthrough", () => {
   const text = prompt("pr-validate.md");
 
@@ -546,6 +573,26 @@ test("PR validation report is rendered from bounded JSON data", () => {
 
   assert.doesNotMatch(text, /`explain` story page shape/);
   assert.doesNotMatch(text, /highlight\.js/);
+});
+
+test("PR validation avoids known wasted turns", () => {
+  const text = prompt("pr-validate.md");
+
+  requireMarkers(text, [
+    /one `tool_search` call before large reads/is,
+    /Datadog monitor.*DDCI CI.*status/is,
+    /each call invalidates the prompt cache/is,
+    /one compact `evidence\.json` file/is,
+    /read slices of that file/is,
+    /do not query.*(?:threads|comments).*again/is,
+    /Read `example\.json` next to the renderer/i,
+    /classify every changed file as generated, build, behavior, test, docs, or schema/i,
+    /Set `marketplace`.*commit and date.*omit.*when discovery (?:was )?skipped/is,
+    /renderer reports errors.*fix every named JSON field in one `edit` call.*run it again/is,
+  ]);
+
+  assert.doesNotMatch(text, /In the source repository/i);
+  assert.doesNotMatch(text, /schema\/API/i);
 });
 
 test("PR validation marketplace discovery is bounded, local, and read-only", () => {

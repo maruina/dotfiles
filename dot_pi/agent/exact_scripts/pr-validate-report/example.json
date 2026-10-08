@@ -68,6 +68,11 @@
       "kind": "request",
       "title": "The gate blocks the certificate repair",
       "step": "step-rotate",
+      "priorComments": [{
+        "author": "reviewer",
+        "kind": "human",
+        "url": "https://github.com/example-org/example-service/pull/42#discussion_r2"
+      }],
       "whereThisFits": "`RotateCA` runs after `ClusterLifecycle` selects a rotation. It now calls the gate before the `ca_certs` deploy.",
       "whyItMatters": "The monitor alerts when nodes trust different roots. The deploy is what fixes that state.",
       "code": {
@@ -76,7 +81,7 @@
         "end": 44,
         "excerpt": "if !req.GetSkipGate() {\n    waitForMonitorGate(ctx, cluster)\n}\ndeployChartSet(ctx, CA_CERTS)"
       },
-      "whyBad": "While the monitor alerts, the gate retries for 48 hours. The deploy that would clear the alert never runs.",
+      "whyBad": "Monitor 123 checks whether nodes in a cluster use different CA bundles. It alerts when their `vaultd.bundle_fingerprint` values differ, which means the cluster has mixed roots; a partial rotation can cause this. The gate retries while the alert is active, so the certificate deploy never runs. The workflow cannot repair the broken trust state.",
       "diagram": "sequenceDiagram\n  participant R as RotateCA\n  participant G as Monitor gate\n  participant D as ca_certs deploy\n  R->>G: Check cluster\n  G-->>R: Alert\n  R->>G: Retry for 48h\n  Note over R,D: Deploy never starts",
       "real": {
         "exposure": "real",
@@ -90,7 +95,7 @@
         "side": "R",
         "start": 38,
         "end": 44,
-        "text": "Can the gate run after the ca_certs deploy and before the new root becomes active? Right now the monitor can stay in Alert because the deploy that fixes it never runs. Monitor 123 shows 3 clusters in Alert: https://app.datadoghq.com/monitors/123"
+        "text": "Monitor 123 checks whether nodes in a cluster use different CA bundles. It alerts when their `vaultd.bundle_fingerprint` values differ, which means the cluster has mixed roots ([monitor](https://app.datadoghq.com/monitors/123)). A partial rotation can cause this. The gate retries while the alert is active, so the certificate deploy cannot run and the workflow cannot repair the broken trust state. Could the deploy run before the gate?"
       }
     },
     {
@@ -98,6 +103,11 @@
       "kind": "request",
       "title": "Running workflows fail after deploy",
       "step": "step-rotate",
+      "priorComments": [{
+        "author": "review-bot",
+        "kind": "bot",
+        "url": "https://github.com/example-org/example-service/pull/42#discussion_r1"
+      }],
       "whereThisFits": "The new gate call adds a child workflow command to `RotateCA` histories.",
       "whyItMatters": "Temporal replays each workflow against its recorded commands. A new command breaks running workflows.",
       "code": {
@@ -127,6 +137,7 @@
       "kind": "ask",
       "title": "Operators cannot see a skipped gate",
       "step": "step-rotate",
+      "priorComments": [],
       "whereThisFits": "The skip flag bypasses the gate inside `RotateCA`.",
       "whyItMatters": "A skipped gate removes the only safety check. On-call needs to see that it happened.",
       "code": {

@@ -13,8 +13,14 @@ const example = () => JSON.parse(readFileSync(path.join(here, "example.json"), "
 
 test("example report is valid and renders sections in contract order", () => {
   const report = example();
+  const gateItem = report.items.find((item) => item.id === "gate-blocks-repair");
+  assert.match(gateItem.whyBad, /cannot repair the broken trust state\.$/);
+  assert.match(gateItem.comment.text, /https:\/\/app\.datadoghq\.com\/monitors\/123/);
   assert.deepEqual(validate(report), []);
   const html = render(report);
+  assert.match(html, /Already raised by @reviewer/);
+  assert.match(html, /Already raised by bot <code>review-bot<\/code>/);
+  assert.match(html, /Not raised before/);
   const order = ['class="hero', "PR summary.", 'id="review-gates"', 'class="nav"', 'id="walkthrough"', 'id="request-changes"', 'id="asks"', 'id="reference"'];
   const positions = order.map((marker) => html.indexOf(marker));
   positions.forEach((pos, i) => assert.ok(pos >= 0, `missing ${order[i]}`));
@@ -57,6 +63,101 @@ test("word limits reject long text", () => {
   assert.ok(errors.some((e) => e.startsWith("walkthrough.systemToday[0]: 21 words")), errors.join("\n"));
 });
 
+test("prior comments render as escaped bot and human links before item slots", () => {
+  const report = example();
+  report.items[0].priorComments = [{
+    author: "<img src=x>",
+    kind: "bot",
+    url: "https://github.com/example-org/example-service/pull/42#discussion_r1",
+  }];
+  report.items[1].priorComments = [{
+    author: "octocat",
+    kind: "human",
+    url: "https://github.com/example-org/example-service/pull/42#issuecomment-2",
+  }];
+  report.items[2].priorComments = [];
+
+  const html = render(report);
+  assert.match(html, /href="https:\/\/github\.com\/example-org\/example-service\/pull\/42#discussion_r1">Already raised by bot <code>&lt;img src=x&gt;<\/code><\/a>/);
+  assert.match(html, /href="https:\/\/github\.com\/example-org\/example-service\/pull\/42#issuecomment-2">Already raised by @octocat<\/a>/);
+  assert.match(html, /<span class="chip">Not raised before<\/span>/);
+  assert.ok(html.indexOf("Already raised by bot") < html.indexOf("<h4>Where this fits</h4>"));
+  assert.doesNotMatch(html, /<img src=x>/);
+});
+
+test("priorComments is required as an array on every item", () => {
+  const missing = example();
+  missing.items.forEach((item) => delete item.priorComments);
+  const missingErrors = validate(missing);
+  missing.items.forEach((_, i) => {
+    assert.ok(missingErrors.some((error) => error.startsWith(`items[${i}].priorComments: required array`)), missingErrors.join("\n"));
+  });
+
+  const notArray = example();
+  notArray.items[0].priorComments = {};
+  const notArrayErrors = validate(notArray);
+  assert.ok(notArrayErrors.some((error) => error.startsWith("items[0].priorComments: required array")), notArrayErrors.join("\n"));
+});
+
+test("prior comment URLs must belong to the report PR and use supported fragments", () => {
+  const otherPR = example();
+  otherPR.items[0].priorComments = [{
+    author: "review-bot",
+    kind: "bot",
+    url: "https://github.com/example-org/example-service/pull/43#discussion_r1",
+  }];
+  assert.ok(validate(otherPR).some((error) => error.startsWith("items[0].priorComments[0].url:")));
+
+  const badFragment = example();
+  badFragment.items[0].priorComments = [{
+    author: "review-bot",
+    kind: "bot",
+    url: "https://github.com/example-org/example-service/pull/42#discussion_rnope",
+  }];
+  assert.ok(validate(badFragment).some((error) => error.startsWith("items[0].priorComments[0].url:")));
+
+  const reviewBody = example();
+  reviewBody.items[0].priorComments = [{
+    author: "reviewer",
+    kind: "human",
+    url: "https://github.com/example-org/example-service/pull/42#pullrequestreview-3",
+  }];
+  assert.deepEqual(validate(reviewBody), []);
+});
+
+test("prior comment kind and escaped repository matching are validated", () => {
+  const badKind = example();
+  badKind.items[0].priorComments = [{
+    author: "review-bot",
+    kind: "robot",
+    url: "https://github.com/example-org/example-service/pull/42#discussion_r1",
+  }];
+  assert.ok(validate(badKind).some((error) => error.startsWith("items[0].priorComments[0].kind:")));
+
+  const dottedRepo = example();
+  dottedRepo.repo = "example.org/example-service";
+  dottedRepo.items[0].priorComments = [{
+    author: "review-bot",
+    kind: "bot",
+    url: "https://github.com/example.org/example-service/pull/42#discussion_r1",
+  }];
+  dottedRepo.items[1].priorComments = [];
+  assert.deepEqual(validate(dottedRepo), []);
+  dottedRepo.items[0].priorComments[0].url = "https://github.com/exampleXorg/example-service/pull/42#discussion_r1";
+  assert.ok(validate(dottedRepo).some((error) => error.startsWith("items[0].priorComments[0].url:")));
+});
+
+test("whyBad has a 90-word limit", () => {
+  const tooLong = example();
+  tooLong.items[0].whyBad = Array.from({ length: 91 }, () => "word").join(" ");
+  const errors = validate(tooLong);
+  assert.ok(errors.some((e) => e.startsWith("items[0].whyBad: 91 words, limit 90")), errors.join("\n"));
+
+  const withinLimit = example();
+  withinLimit.items[0].whyBad = Array.from({ length: 75 }, () => "word").join(" ");
+  assert.deepEqual(validate(withinLimit), []);
+});
+
 test("gates must be complete, ordered, linked, and agree with the verdict", () => {
   const report = example();
   report.gates[7].link = undefined;
@@ -87,6 +188,13 @@ test("comment links use the sha256 diff anchor", () => {
   assert.equal(commentLink(report, c), `https://github.com/example-org/example-service/pull/42/files#diff-${anchor}R38-R44`);
 });
 
+test("CLI help lists the whyBad limit and priorComments field", () => {
+  const result = spawnSync(process.execPath, [path.join(here, "render.mjs"), "--help"], { encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /whyBad=90/);
+  assert.match(result.stdout, /priorComments/);
+});
+
 test("CLI writes nothing when validation fails", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "prv-"));
   const input = path.join(dir, "repo-1.json");
@@ -96,6 +204,14 @@ test("CLI writes nothing when validation fails", () => {
   const result = spawnSync(process.execPath, [path.join(here, "render.mjs"), input], { encoding: "utf8" });
   assert.equal(result.status, 1);
   assert.match(result.stderr, /lead: required text/);
+  assert.equal(existsSync(path.join(dir, "repo-1.html")), false);
+
+  const missingPriorComments = example();
+  delete missingPriorComments.items[0].priorComments;
+  writeFileSync(input, JSON.stringify(missingPriorComments));
+  const invalidPriorComments = spawnSync(process.execPath, [path.join(here, "render.mjs"), input], { encoding: "utf8" });
+  assert.equal(invalidPriorComments.status, 1);
+  assert.match(invalidPriorComments.stderr, /items\[0\]\.priorComments: required array/);
   assert.equal(existsSync(path.join(dir, "repo-1.html")), false);
 
   writeFileSync(input, JSON.stringify(example()));

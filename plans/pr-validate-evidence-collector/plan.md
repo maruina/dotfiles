@@ -1,7 +1,7 @@
 # `/pr-validate` GitHub Evidence Collector Implementation Plan
 > Steps use checkbox (`- [ ]`) syntax for tracking.
 **Goal:** Collect GitHub PR evidence with one deterministic, read-only Node.js command and make `/pr-validate` use its output.
-**Smallest user-feedback slice:** One review run creates a single `evidence.json` with GitHub metadata, diff, comments, review threads, and checks, without repeating those GitHub queries during analysis.
+**Smallest user-feedback slice:** Running `collect.mjs <URL>` outputs a single versioned, normalized `evidence.json` envelope with GitHub metadata, diff, comments, review threads, and checks, with explicit source statuses.
 **Out of Scope:** Datadog, Atlas, or DDCI-specific MCP queries; marketplace discovery; source-code analysis; verdict selection; report rendering changes; GitHub writes; model or thinking-level changes; per-group monitor queries; replying in existing comment threads; flagging resolved threads whose code did not change.
 **Architecture:** A Node.js ESM collector invokes the `gh` CLI for GitHub-only sources and prints one versioned JSON envelope to stdout. `/pr-validate` redirects that output to its existing scratch `evidence.json`; the prompt continues to gather external evidence and analyze the PR. The collector leaves authentication selection and report generation unchanged.
 **Tech Stack:** Node.js ESM, standard-library `node:child_process`, `node:test`, GitHub CLI (`gh`), chezmoi.
@@ -30,23 +30,23 @@
 | Requirement | Mechanism | Evidence it exists | Validation | If unavailable |
 |---|---|---|---|---|
 | PR metadata and changed files | `gh pr view <URL> --json` with the fields required by Phase 2 | `gh pr view --help` lists `title`, `body`, `author`, `state`, base/head refs and OIDs, labels, additions, deletions, files, and URL | Fake `gh` CLI fixture plus a read-only smoke run on PR #105 | Record the source error in the envelope and continue with other available sources. |
-| Full PR diff | `gh pr diff <URL>` | The existing prompt requires the full diff; `gh pr diff --help` confirms the command accepts PR URLs | Fake `gh` output fixture; smoke output contains the returned diff | Record a source gap; do not mark the diff complete. |
+| Full PR diff | `gh pr diff <URL>` with chunked buffer collection (or explicit 50 MiB `maxBuffer`) | The existing prompt requires the full diff; `gh pr diff --help` confirms the command accepts PR URLs; large diffs exceed Node's default 1 MiB buffer | Fake `gh` output fixture with large diff; smoke output contains the returned diff | Record a source gap; do not mark the diff complete. |
 | Inline comments, top-level comments, review bodies | Paginated read-only REST endpoints through `gh api --paginate` | `gh api --help` documents pagination; the existing prompt names all three categories and their required author, URL, path, line, and thread fields | Fixtures include multiple pages and source records; smoke output records available fields | Record a source gap for the affected collection. |
 | Review thread resolution and outdated state | Paginated `gh api graphql` query for `reviewThreads` and the comment identifiers needed to join thread state to REST records | `gh api --help` documents GraphQL pagination; the prompt requires `reviewThreads` and unknown state when unavailable | Fixtures cover resolved, unresolved, outdated, and unavailable states | Mark thread state unknown and record the failed query; do not infer it. |
-| CI checks | `gh pr checks <URL> --json` | `gh pr checks --help` lists JSON fields and documents exit code 8 for pending checks | Fixtures cover completed checks and exit code 8 with pending JSON output | Preserve pending data; record other source failures without suppressing other evidence. |
+| CI checks | `gh pr checks <URL> --json bucket,completedAt,description,event,link,name,startedAt,state,workflow` | `gh pr checks --help` lists JSON fields and documents exit code 8 for pending checks; `gh` requires explicit field arguments | Fixtures cover completed checks and exit code 8 with pending JSON output | Preserve pending data; record other source failures without suppressing other evidence. |
 | Scratch evidence file | Redirect collector JSON stdout to the existing scratch `evidence.json` under `umask 077` | The prompt allows this file and already reads it in slices | Prompt test pins the scratch path and collector invocation; live smoke inspects the file | Stop before writing outside the permitted scratch directory. |
 ## Implementation Contract
 **Components Affected:**
 | Component | Files | Responsibility | Verification |
 |---|---|---|---|
-| Collector CLI | `dot_pi/agent/exact_scripts/pr-validate-report/collect.mjs` | Parse a GitHub PR URL, run a fixed set of read-only `gh` calls, normalize records, and emit a versioned JSON envelope | `node --test exact_scripts/pr-validate-report/collect.test.mjs` |
+| Collector CLI | `dot_pi/agent/exact_scripts/pr-validate-report/collect.mjs` | Parse a GitHub PR URL, run a fixed set of read-only `gh` calls, normalize records, and emit a versioned JSON envelope | `node --test dot_pi/agent/exact_scripts/pr-validate-report/collect.test.mjs` |
 | Collector tests | `dot_pi/agent/exact_scripts/pr-validate-report/collect.test.mjs` | Exercise the public CLI with a fake `gh` executable and fixtures; test source failures without network access | `npm run test:pr-validate-collector` |
 | Package test wiring | `dot_pi/agent/package.json` | Add the focused collector test to `npm test` | `npm test` |
 | Review prompt and prompt tests | `dot_pi/agent/exact_prompts/pr-validate.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs` | Invoke the collector once and use its evidence file for GitHub sources; keep context-dependent external queries in the prompt | `npm run test:prompts` |
 **Key Decisions:**
 - Collect GitHub sources only. Keep Datadog, Atlas, and DDCI-specific MCP queries in the review flow because they depend on findings and external context.
 - Use the installed `gh` CLI rather than raw HTTP or a new API dependency. Keep calls read-only and noninteractive.
-- The collector prints JSON to stdout. The prompt runs `node "$HOME/.pi/agent/scripts/pr-validate-report/collect.mjs" "$PR_URL"` and redirects stdout to its one scratch `evidence.json` under a restrictive umask. The script itself writes no files.
+- The collector prints JSON to stdout. The prompt runs `node "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/scripts/pr-validate-report/collect.mjs" "$PR_URL"` and redirects stdout to its one scratch `evidence.json` under a restrictive umask. The script itself writes no files.
 - Add `schemaVersion: 1` and source-status fields so the prompt can distinguish complete evidence from unavailable sources. Keep the collector schema separate from the renderer's report input schema.
 - Run a fixed set of independent GitHub queries concurrently. Paginate list endpoints to completion. Do not retry failed requests or silently truncate results.
 - A valid invocation emits an envelope even when individual sources fail; set `collection.status` to `partial` and mark each affected source unavailable. Exit zero when the envelope is produced; the JSON status reports source gaps. Invalid input fails before any `gh` call. The review can then report coverage gaps as the existing prompt requires.
@@ -56,7 +56,7 @@
 - Keep the existing read-only HARD-GATE in `pr-validate.md`. The collector must not call GitHub mutation endpoints, execute PR-supplied text, or inspect a review worktree.
 - Normalize only evidence fields needed by the prompt: PR metadata and diff; comment/review author login and API author type; URL; path and line when present; body for adjudication; and thread resolved/outdated state or `unknown`.
 - Keep comment bodies in the scratch evidence file for review comparison. Do not render them in the report or chat summary.
-- Limit concurrent child processes to the fixed GitHub source set. A single PR's evidence size grows with its diff and comment history; do not add a second cache or silently drop records to reduce size.
+- Limit concurrent child processes to the fixed GitHub source set. Collect child process stdout chunks via `spawn` or configure an explicit 50 MiB `maxBuffer` on `execFile` to avoid stdio buffer exhaustion on large diffs. A single PR's evidence size grows with its diff and comment history; do not add a second cache or silently drop records to reduce size.
 - If tests fail on unchanged `origin/main`, stop and report before implementation. Install test dependencies with `npm ci --ignore-scripts` before verification and remove disposable `node_modules` after the required tests finish.
 **Security Requirements:**
 - Treat the PR URL, title, body, diff, comments, and API error text as untrusted data. Validate the URL before using parsed owner, repository, or number in CLI arguments; pass each argument separately without a shell.
@@ -84,15 +84,15 @@
 - GitHub system boundary → fake the `gh` process, not internal collector functions. Fixtures cover metadata, diff, REST comments/reviews, GraphQL thread state, CI checks, pending status, and command failures.
 - Prompt integration → extend existing `lifecycle-prompts.test.mjs` markers to require one collector invocation before worktree creation, use its `headRefOid` in Phase 1 and its `evidence.json` in review, and remove all duplicate GitHub evidence queries; assert external-query rules remain.
 - Live smoke → use the correctly routed GitHub account for `https://github.com/maruina/dotfiles/pull/105`, capture stdout only in the permitted scratch file, and inspect the envelope. Restore the prior account after the smoke run.
-- Focused pre-implementation command: `node --test exact_scripts/pr-validate-report/collect.test.mjs`; the new tests must fail before `collect.mjs` exists, then pass after implementation. Invalid URL cases exit nonzero; valid partial envelopes exit zero with `collection.status: "partial"`.
-- Focused commands: `npm run test:pr-validate-collector`, `npm run test:prompts`, and `npm run test:pr-validate-report`, all from `dot_pi/agent`.
+- Focused pre-implementation command: `node --test dot_pi/agent/exact_scripts/pr-validate-report/collect.test.mjs`; the new tests must fail before `collect.mjs` exists, then pass after implementation. Invalid URL cases exit nonzero; valid partial envelopes exit zero with `collection.status: "partial"`.
+- Focused commands: `npm run --prefix dot_pi/agent test:pr-validate-collector`, `npm run --prefix dot_pi/agent test:prompts`, and `npm run --prefix dot_pi/agent test:pr-validate-report`.
 - Package verification: `npm ci --ignore-scripts`, `npm test`, and `npm run test:all` from `dot_pi/agent`; remove `dot_pi/agent/node_modules` after both full test commands complete.
 ## Acceptance criteria
 ### Requirement: The collector emits one normalized GitHub evidence envelope
 The collector SHALL accept a valid GitHub PR URL and emit versioned JSON containing the PR metadata, full diff, inline comments, top-level comments, review bodies, review-thread states, and CI checks. It SHALL use only read-only `gh` commands.
 #### Scenario: A PR has available GitHub evidence
 - GIVEN fixture responses for each GitHub source, including multiple pages of comments
-- WHEN `node exact_scripts/pr-validate-report/collect.mjs https://github.com/example-org/example-repo/pull/42` runs
+- WHEN `node dot_pi/agent/exact_scripts/pr-validate-report/collect.mjs https://github.com/example-org/example-repo/pull/42` runs
 - THEN stdout contains one `schemaVersion: 1` JSON envelope with every fixture record and normalized required fields
 - AND the fake `gh` observes only read-only calls
 - **Traces to:** Slice 1, Task 1
@@ -129,10 +129,10 @@ Delivers: A standalone CLI emits one versioned, normalized GitHub evidence envel
 **Blocked by:** None
 **Traces to:** Requirements "The collector emits one normalized GitHub evidence envelope" and "Unavailable GitHub evidence remains explicit".
 **Files:** `dot_pi/agent/exact_scripts/pr-validate-report/collect.mjs`, `dot_pi/agent/exact_scripts/pr-validate-report/collect.test.mjs`, `dot_pi/agent/package.json`.
-- [ ] Add focused fake-`gh` tests for valid input variants, normalized successful sources, pagination, pending checks, one-source failures, all-source failures, and invalid URLs; run `node --test exact_scripts/pr-validate-report/collect.test.mjs` and confirm the tests fail before implementation.
-- [ ] Implement the smallest CLI using standard-library process APIs; emit one JSON envelope to stdout and diagnostics to stderr.
-- [ ] Add `test:pr-validate-collector` and include it in `npm test`.
-- [ ] Run `npm run test:pr-validate-collector`; expect all collector cases to pass.
+- [ ] Add focused fake-`gh` tests for valid input variants, normalized successful sources, pagination, pending checks (exit code 8), one-source failures, all-source failures, large diff buffer handling, CLI `--help`, and invalid URLs; run `node --test dot_pi/agent/exact_scripts/pr-validate-report/collect.test.mjs` and confirm the tests fail before implementation.
+- [ ] Implement the smallest CLI using standard-library process APIs with stream/buffer safety for large outputs; emit one JSON envelope to stdout and diagnostics to stderr.
+- [ ] Add `test:pr-validate-collector` to `dot_pi/agent/package.json` and include it in `npm test`.
+- [ ] Run `npm run --prefix dot_pi/agent test:pr-validate-collector`; expect all collector cases to pass.
 - [ ] Refactor only after green, then rerun the focused collector tests.
 - [ ] Commit with `feat(pi): add deterministic PR evidence collector`.
 ### Slice 2: Use collected evidence in the review
@@ -142,19 +142,18 @@ Delivers: `/pr-validate` reads one GitHub evidence file and keeps external evide
 **Blocked by:** Task 1
 **Traces to:** Requirement "/pr-validate uses the collector for GitHub sources".
 **Files:** `dot_pi/agent/exact_prompts/pr-validate.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`.
-- [ ] Add prompt markers for collector invocation before worktree creation, `headRefOid` reuse, redirected evidence path, absence of duplicate GitHub evidence queries, and retained external-query instructions; run `npm run test:prompts` and confirm the new markers fail.
-- [ ] Update Phase 1 and Phase 2 to run `node "$HOME/.pi/agent/scripts/pr-validate-report/collect.mjs" "$PR_URL"` once after base-repository verification and before worktree creation, use collected `headRefOid`, create/use the permitted scratch directory with mode `0700` and `umask 077`, and read the evidence in slices. Remove separate GitHub evidence queries while preserving account routing and external queries.
-- [ ] Run `npm run test:prompts`; expect all prompt markers to pass.
+- [ ] Add prompt markers for collector invocation before worktree creation, `headRefOid` reuse, handling of missing `headRefOid`, redirected evidence path, absence of duplicate GitHub evidence queries, and retained external-query instructions; run `npm run --prefix dot_pi/agent test:prompts` and confirm the new markers fail.
+- [ ] Update Phase 1 and Phase 2 to run `node "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/scripts/pr-validate-report/collect.mjs" "$PR_URL"` once after base-repository verification and before worktree creation, extract `headRefOid` (halting with a coverage gap if missing), create/use the permitted scratch directory with mode `0700` and `umask 077`, and read the evidence in slices. Remove separate GitHub evidence queries while preserving account routing and external queries.
+- [ ] Run `npm run --prefix dot_pi/agent test:prompts`; expect all prompt markers to pass.
 - [ ] Run a read-only collector smoke test against PR #105 under the `maruina` GitHub account, then restore the previous active account. Inspect metadata, diff, comments, threads, checks, and source statuses in the scratch envelope.
-- [ ] Run `npm run test:pr-validate-collector` and `npm run test:pr-validate-report`; expect both to pass.
+- [ ] Run `npm run --prefix dot_pi/agent test:pr-validate-collector` and `npm run --prefix dot_pi/agent test:pr-validate-report`; expect both to pass.
 - [ ] Commit with `feat(pi): use evidence collector in /pr-validate`.
 #### Task 3: Check documentation and future-agent guidance
-**Delivers:** CLI help, user-facing prompt instructions, and agent guidance describe the collector's current contract.
+**Delivers:** User-facing prompt instructions and agent guidance describe the collector's current contract.
 **Blocked by:** Task 2
 **Traces to:** Medium-plan documentation and future-agent guidance requirement.
-**Files:** `dot_pi/agent/exact_scripts/pr-validate-report/collect.mjs` (`--help`), `dot_pi/agent/exact_prompts/pr-validate.md`, `AGENTS.md` (check only), `dot_pi/agent/AGENTS.md` (check only).
-- [ ] Verify `collect.mjs --help` states the input, output, and read-only behavior.
-- [ ] Check both `AGENTS.md` files for durable collector workflow, auth-routing, or testing guidance. Update only if they contain a relevant durable command or trap; otherwise record why no change is needed.
+**Files:** `dot_pi/agent/exact_prompts/pr-validate.md`, `AGENTS.md` (check only), `dot_pi/agent/AGENTS.md` (check only).
+- [ ] Check both `AGENTS.md` files for durable collector workflow, auth-routing, or testing guidance (a non-code inspection task; automated failing test not practical). Update only if they contain a relevant durable command or trap; otherwise record why no change is needed.
 - [ ] Run `git diff --check`; expect no whitespace errors.
 - [ ] Commit documentation changes only if this task makes a change, using a Conventional Commit message.
 ### Final verification

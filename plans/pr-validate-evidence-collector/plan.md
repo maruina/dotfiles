@@ -30,6 +30,17 @@
 | `write` | `skill-loader` | The execution ledger is a prose artifact. | Kept execution notes and provenance concise and factual. |
 | `humanizer` | `skill-loader` | The execution ledger is prose. | Kept the ledger direct and free of unsupported claims. |
 | `reviewable-pr-workflow` | `prompt-required` | Execution requires a stack-split check before PR creation. | Loaded the stack-split signals and will apply them to the completed slice. |
+#### Slice 2 execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `resolve-worktree` | `prompt-required` | The requested slice belongs to a committed plan in a worktree. | Resolved the plan's owning branch before reading repository files. |
+| `feature-worktree` | `prompt-required` | Changes must stay in the plan's feature worktree. | Confirmed the existing PR worktree is clean and current. |
+| `skill-loader` | `prompt-required` | `/execute` requires provenance for this execution stage. | Selected prompt, test, chezmoi, writing, and PR-update guidance. |
+| `codebase-research` | `skill-loader` | Prompt behavior spans Phase 1, Phase 2, and existing contract tests. | Traced the current evidence flow and test markers before editing. |
+| `chezmoi` | `skill-loader` | Prompt and test files are chezmoi source files. | Kept edits in source paths and will apply only explicit targets. |
+| `write` | `skill-loader` | The prompt and plan ledger are user-facing instructions. | Kept operational steps explicit and concise. |
+| `humanizer` | `skill-loader` | The prompt and plan ledger are prose. | Avoided generic or inflated language. |
+| `reviewable-pr-workflow` | `prompt-required` | Slice 2 updates the existing draft PR. | Checked review state and will preserve history after review starts. |
 ## Source and repository evidence
 - The request authorizes planning the deterministic collector deferred in PR #105.
 - `plans/pr-validate-clarity/plan.md` names `collect.mjs` and records the original deferral trigger: repeat GitHub thread queries or token-cache rewrites above 150k in later benchmark runs.
@@ -155,27 +166,27 @@ Delivers: `/pr-validate` reads one GitHub evidence file and keeps external evide
 **Blocked by:** Task 1
 **Traces to:** Requirement "/pr-validate uses the collector for GitHub sources".
 **Files:** `dot_pi/agent/exact_prompts/pr-validate.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`.
-- [ ] Add prompt markers for collector invocation before worktree creation, `headRefOid` reuse, handling of missing `headRefOid`, redirected evidence path, absence of duplicate GitHub evidence queries, and retained external-query instructions; run `npm run --prefix dot_pi/agent test:prompts` and confirm the new markers fail.
-- [ ] Update Phase 1 and Phase 2 to run `node "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/scripts/pr-validate-report/collect.mjs" "$PR_URL"` once after base-repository verification and before worktree creation, extract `headRefOid` (halting with a coverage gap if missing), create/use the permitted scratch directory with mode `0700` and `umask 077`, and read the evidence in slices. Remove separate GitHub evidence queries while preserving account routing and external queries.
-- [ ] Run `npm run --prefix dot_pi/agent test:prompts`; expect all prompt markers to pass.
-- [ ] Run a read-only collector smoke test against PR #105 under the `maruina` GitHub account, then restore the previous active account. Inspect metadata, diff, comments, threads, checks, and source statuses in the scratch envelope.
-- [ ] Run `npm run --prefix dot_pi/agent test:pr-validate-collector` and `npm run --prefix dot_pi/agent test:pr-validate-report`; expect both to pass.
-- [ ] Commit with `feat(pi): use evidence collector in /pr-validate`.
+- [x] Add prompt markers for collector invocation before worktree creation, `headRefOid` reuse, handling of missing `headRefOid`, redirected evidence path, absence of duplicate GitHub evidence queries, and retained external-query instructions; run `npm run --prefix dot_pi/agent test:prompts`.
+- [x] Update Phase 1 and Phase 2 to run `node "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/scripts/pr-validate-report/collect.mjs" "$PR_URL"` once after base-repository verification and before worktree creation, extract `headRefOid` (halting with a coverage gap if missing), create/use the permitted scratch directory with mode `0700` and `umask 077`, and read the evidence in slices. Remove separate GitHub evidence queries while preserving account routing and external queries.
+- [x] Run `npm run --prefix dot_pi/agent test:prompts`; all 62 prompt tests pass.
+- [x] Run a read-only collector smoke test against PR #105 under the `maruina` GitHub account, then restore the previous active account. Inspect metadata, diff, comments, threads, checks, and source statuses in the scratch envelope. The envelope reports all seven GitHub sources complete; the scratch directory is mode 0700 and the evidence file is mode 0600. The active account remained `maruina`.
+- [x] Run `npm run --prefix dot_pi/agent test:pr-validate-collector` and `npm run --prefix dot_pi/agent test:pr-validate-report`; 10 collector tests and 14 report tests pass.
+- [x] Commit with `feat(pi): use evidence collector in /pr-validate`.
 #### Task 3: Check documentation and future-agent guidance
 **Delivers:** User-facing prompt instructions and agent guidance describe the collector's current contract.
 **Blocked by:** Task 2
 **Traces to:** Medium-plan documentation and future-agent guidance requirement.
 **Files:** `dot_pi/agent/exact_prompts/pr-validate.md`, `AGENTS.md` (check only), `dot_pi/agent/AGENTS.md` (check only).
-- [ ] Check both `AGENTS.md` files for durable collector workflow, auth-routing, or testing guidance (a non-code inspection task; automated failing test not practical). Update only if they contain a relevant durable command or trap; otherwise record why no change is needed.
-- [ ] Run `git diff --check`; expect no whitespace errors.
-- [ ] Commit documentation changes only if this task makes a change, using a Conventional Commit message.
+- [x] Check both `AGENTS.md` files for durable collector workflow, auth-routing, or testing guidance (a non-code inspection task; automated failing test not practical). Update only if they contain a relevant durable command or trap; otherwise record why no change is needed.
+- [x] Run `git diff --check`; no whitespace errors.
+- [x] Commit documentation changes only if this task makes a change, using a Conventional Commit message. No guidance changes were needed; both files already cover source-only edits, prompt ownership, test setup, and GitHub auth routing. No documentation-only commit was needed.
 ### Final verification
-- [ ] Run `npm ci --ignore-scripts` in `dot_pi/agent` before package verification.
-- [ ] Run `npm run test:pr-validate-collector`, `npm run test:prompts`, and `npm run test:pr-validate-report`; expect all focused suites to pass.
-- [ ] Run `npm test` and `npm run test:all`; expect both to pass, then remove disposable `dot_pi/agent/node_modules`.
-- [ ] Run a read-only collector smoke test against PR #105 using the correct GitHub account, inspect the single scratch evidence file, and restore the original account.
-- [ ] Run `git diff --check`; expect no whitespace errors.
-- [ ] Confirm the feature-level criteria: the evidence envelope contains the available required GitHub sources with explicit gaps, and `/pr-validate` uses that file for Phase 1 metadata and later review without repeating GitHub evidence queries.
+- [x] Run `npm ci --ignore-scripts` in `dot_pi/agent` before package verification.
+- [x] Run `npm run test:pr-validate-collector`, `npm run test:prompts`, and `npm run test:pr-validate-report`; all 10 collector, 62 prompt, and 14 report tests pass.
+- [x] Run `npm test` and `npm run test:all`; both pass. `npm run test:all` also passes the offline smoke test. Remove disposable `dot_pi/agent/node_modules` after both commands complete.
+- [x] Run a read-only collector smoke test against PR #105 using the correct GitHub account, inspect the single scratch evidence file, and restore the original account. All seven sources are complete; metadata has `headRefOid`, the diff is 64,036 bytes, comment/review/check counts are visible without printing comment bodies, and auth remains `maruina`.
+- [x] Run `git diff --check`; no whitespace errors.
+- [x] Confirm the feature-level criteria: the evidence envelope contains the available required GitHub sources with explicit gaps, and `/pr-validate` uses that file for Phase 1 metadata and later review without repeating GitHub evidence queries.
 ## Documentation impact
 The prompt and collector `--help` document the workflow and CLI contract. Check `AGENTS.md` and `dot_pi/agent/AGENTS.md` for durable auth-routing, command, or testing guidance; update them only if the collector adds a reusable rule. Do not change renderer documentation.
 ## Learning candidates

@@ -212,6 +212,7 @@ This slice removes duplicate auth and cleans saved MCP state only after Slice 1 
 **Traces to:** Requirement “Legacy auth and saved entries are removed only after plugin validation”
 **Files:** `dot_pi/agent/exact_extensions/datadog-mcp-auth/`, `dot_pi/agent/package.json`, `.chezmoiignore`, `run_onchange_pi-mcp-servers.sh.tmpl`
 
+- Reason a failing test is not practical: Task 2 is pure deletion and configuration cleanup of legacy components. Existing unit tests and configuration pass before deletion; the task verifies that tests continue to pass after deletion and that rendered template scripts pass `bash -n` and output assertions.
 - [ ] Run `npm ci --ignore-scripts` in `dot_pi/agent` so the TypeScript language server can load.
 - [ ] Run `lsp_find_references` for `registerDatadogMcpAuth` in `_core.ts` and the default-exported `datadogMcpAuthExtension` in `index.ts` before deleting the directory. Also text-search the extension path because Pi discovers default factories automatically. Resolve any references not covered by the following files.
 - [ ] Remove `dot_pi/agent/exact_extensions/datadog-mcp-auth/` and its `"$ext"/datadog-mcp-auth/*.test.ts` entry from `dot_pi/agent/package.json`.
@@ -219,7 +220,7 @@ This slice removes duplicate auth and cleans saved MCP state only after Slice 1 
 - [ ] Clarify the legacy Datadog cleanup intent in `run_onchange_pi-mcp-servers.sh.tmpl` so its content change reruns the script. Keep both `pi mcp remove datadog-prod` and `pi mcp remove datadog-staging` commands in both profile branches; do not modify other server registrations.
 - [ ] Render the script for `work` and `personal`; confirm both outputs remove the old Datadog names and preserve their other server commands. Run `bash -n` on each rendered script.
 - [ ] Run `cd dot_pi/agent && npm run test:unit`; expect all remaining unit tests to pass.
-- [ ] Apply the work extension removal and updated script through chezmoi. Restart Pi. Check `/mcp` and only the `.mcpServers` keys in `~/.pi/agent/mcp.json`; confirm no old Datadog server names remain. Do not print the full config because it may contain the Home Assistant URL.
+- [ ] Apply the work extension removal and updated script through chezmoi: run `chezmoi --source "$PWD" apply ~/.pi/agent/extensions` to prune the legacy extension directory via `exact_`, and `chezmoi --source "$PWD" apply --include scripts` to execute the updated cleanup script. Restart Pi. Check `/mcp` and only the `.mcpServers` keys in `~/.pi/agent/mcp.json`; confirm no old Datadog server names remain. Do not print the full config because it may contain the Home Assistant URL.
 - [ ] Commit with `refactor(pi): remove legacy Datadog auth extension`.
 
 ### Task 3: Update guidance and complete feature-level verification
@@ -228,6 +229,7 @@ This slice removes duplicate auth and cleans saved MCP state only after Slice 1 
 **Traces to:** Requirement “Datadog guidance describes the plugin”; all feature-level requirements
 **Files:** `AGENTS.md`, `dot_pi/agent/exact_skills_work/datadog-mcp/SKILL.md`
 
+- Reason a failing test is not practical: Task 3 updates prose documentation and agent skills. Documentation changes are verified through the profile skill validation linter (`npm run test:skills:profiles`), full test suite pass (`npm test && npm run test:all`), and negative search across source for obsolete references.
 - [ ] Update the root `AGENTS.md` Pi MCP section to state that the Datadog plugin is declared in both profile settings; describe `/datadog`, `datadog`, `ddconfig`, and `ddtoolsets`; explain that the agent can switch only among saved orgs; retain Slack, Home Assistant, and trajectory guidance.
 - [ ] Rewrite the work `datadog-mcp` skill for the plugin. Keep the production/`ddstaging` routing rules and read-only requirements. Explain that `ddconfig` selects a saved org, confirm org identity before queries, and use separate Pi sessions when results from different orgs must not share conversation context.
 - [ ] Review `dot_pi/agent/AGENTS.md` and record that no change is needed because it contains no Datadog or MCP guidance.
@@ -235,7 +237,7 @@ This slice removes duplicate auth and cleans saved MCP state only after Slice 1 
 - [ ] Run `cd dot_pi/agent && npm test && npm run test:all`; expect all suites to pass. Remove `dot_pi/agent/node_modules` after the suites pass, per repository guidance.
 - [ ] Render both settings profiles and both cleanup-script branches again. Confirm plugin appears exactly once in each package list, both branches remove old Datadog server names, and neither profile contains the deleted extension path.
 - [ ] Search tracked source outside `plans/` for stale references to `datadog-mcp-auth` and old native tool names. Allow the deliberate `pi mcp remove` cleanup commands and historical plan files.
-- [ ] Review `chezmoi --source "$PWD" diff` for only the intended targets. Apply the changed work skill and root guidance to their explicit targets; do not apply the personal profile on this work machine.
+- [ ] Review `chezmoi --source "$PWD" diff` for only the intended target. Apply the changed work skill to its target with `chezmoi --source "$PWD" apply ~/.pi/agent/skills_work/datadog-mcp/SKILL.md`; root `AGENTS.md` is excluded by `.chezmoiignore` and is tracked as an in-repo source change only. Do not apply the personal profile on this work machine.
 - [ ] Repeat the two-org read-only and agent-switch checks in a fresh work Pi session after removing the wrapper. Verify the production and `ddstaging` identities with the `ddconfig` tool using `action: "check"` before their queries.
 - [ ] Commit with `docs(pi): document Datadog plugin access`.
 

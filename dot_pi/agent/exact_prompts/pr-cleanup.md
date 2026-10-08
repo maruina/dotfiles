@@ -5,7 +5,7 @@ argument-hint: "<GitHub PR URL>"
 # PR Cleanup
 PR URL: `$ARGUMENTS`
 
-Remove only the local review worktree created by `/pr-review` for this PR.
+Remove only the local review worktree created by `/pr-validate` for this PR.
 
 ## Parse and locate worktree
 Require a PR URL in this form:

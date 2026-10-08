@@ -9,7 +9,7 @@ Review input:
 
 Validate a plan or review code, then propose fixes for the findings. Treat the first path in the input as the target (default: repository root / current codebase); treat any remaining text as extra context.
 
-Use `/systematic-review` for a plan document or local code before execution. Use `/verify` for the final read-only closeout gate after execution, and `/pr-review` to understand and assess someone else's GitHub PR.
+Use `/systematic-review` for a plan document or local code before execution. Use `/verify` for the final read-only closeout gate after execution, and `/pr-validate` to understand and assess someone else's GitHub PR.
 
 <HARD-GATE>
 Keep the review itself read-only: report findings before touching anything. After the report, propose fixes under ## Fix findings and apply only the ones the user confirms. Never apply chezmoi state, commit, push, or post GitHub comments.

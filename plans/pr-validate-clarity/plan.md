@@ -41,7 +41,7 @@
 | `chezmoi` | `skill-loader` | Changed files are chezmoi source files | Previewed and applied only the explicit target files, then confirmed no target drift. |
 | `write` | `skill-loader` | Prompt instructions need clear data-collection and matching rules | Stated exact metadata, matching, and fallback behavior. |
 | `humanizer` | `skill-loader` | Prompt instructions are human-readable prose | Kept the added guidance direct and specific. |
-| `reviewable-pr-workflow` | `prompt-required` | The open draft PR will receive this slice | Will apply its stack-split and PR update guidance. |
+| `reviewable-pr-workflow` | `prompt-required` | The open draft PR will receive this slice | Checked the full diff for stack-split signals, preserved branch history, and refreshed the reviewer guide and PR body. |
 
 ## Evidence
 Source of truth: the user request, `~/.pi/agent/pr-validate-reports/dd-source-116539.{json,html}`, PR [ddoghq/dd-source#116539](https://github.com/ddoghq/dd-source/pull/116539) threads, and session `01a11acc-1f93-7224-ab02-71cb27d9cfb5`.
@@ -209,7 +209,8 @@ Delivers the user feedback "each item tells me if a bot or a human already raise
 - [x] In `example.json`, add `priorComments` to each item: one bot entry on `replay-break`, one human entry on `gate-blocks-repair`, and `[]` on `skip-visibility`; the report renders both tags and the empty state.
 - [x] In `pr-validate.md` Phase 2, record for each inline comment, top-level comment, and review body: author login, author type, comment URL, path, line, and thread resolution state. In Pass 2, add the matching rule from the Implementation Constraints. In the Item story, document `priorComments`. In the chat summary, add the prior-comment tag and link to each item line. When author type is unavailable, set `[]` and add a Coverage gap that names the query; prompt markers pass.
 - [x] Run `npm run test:prompts` and `npm run test:pr-validate-report`; both pass (60 prompt tests and 13 renderer tests).
-- [ ] **In progress:** Commit with `feat(pi): tag /pr-validate items with prior bot and human comments`.
+- [x] Commit with `feat(pi): tag /pr-validate items with prior bot and human comments`.
+Execution note: Pushed commit `49239b5` to PR #105, applied the five target files, and confirmed their explicit chezmoi diff is clean. The PR body now covers Slices 1 and 2. The existing branch history was preserved; no stack split was indicated. Slice 3 remains pending.
 
 ### Slice 3: Faster review
 Delivers the user feedback "the review spends fewer turns on known waste".

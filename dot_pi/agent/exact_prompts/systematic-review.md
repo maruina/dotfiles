@@ -12,7 +12,7 @@ Validate a plan or review code, then propose fixes for the findings. Treat the f
 Use `/systematic-review` for a plan document or local code before execution. Use `/verify` for the final read-only closeout gate after execution, and `/pr-validate` to understand and assess someone else's GitHub PR.
 
 <HARD-GATE>
-Keep the review itself read-only: report findings before touching anything. After the report, propose fixes under ## Fix findings and apply only the ones the user confirms. Never apply chezmoi state, commit, push, or post GitHub comments.
+Keep the review itself read-only: report findings before touching anything. After the report, propose fixes under ## Fix findings and apply only the ones the user confirms. For a `plan.md` target, commit confirmed plan-only fixes after validation; do not include pre-existing changes. Never apply chezmoi state, push, or post GitHub comments.
 </HARD-GATE>
 
 If the target is a `plan.md`, use the `resolve-worktree` skill with `$GLOB = **/plans/*/plan.md`, switch to the owning worktree, and review whether the plan is executable, complete, and consistent with the codebase. If the target is another path, resolve it with `resolve-worktree` without `$GLOB`. If no target is given, use the current repository root.
@@ -111,7 +111,7 @@ After the report, propose fixes instead of leaving them entirely to the user:
 2. Ask the user which findings to apply. Do not edit before an explicit confirmation.
 3. For each confirmed fix, stay in the resolved target worktree, use the `skill-loader` skill for touched files, make the smallest change that satisfies the finding, and run the narrow relevant tests or checks.
 4. Stop and ask when a fix is ambiguous, changes behavior beyond the finding, needs a design decision, or would touch unrelated code.
-5. Leave confirmed changes uncommitted for review, then summarize what was fixed, what was skipped, and why.
+5. For a `plan.md` target, check that the worktree was clean before editing. If it was not clean, stop before editing and ask. After applying confirmed fixes, rerun the plan review checklist against the updated plan, then commit only the plan file with a Conventional Commit message such as `docs: update <feature> implementation plan`. Do not include pre-existing changes or unconfirmed fixes. For other targets, leave confirmed changes uncommitted. Summarize what was fixed, committed, skipped, and why.
 
 ## Handoff
 Close with the recommended next step:
@@ -119,6 +119,7 @@ Close with the recommended next step:
 - For a `plan.md` target with no blocking findings, say exactly:
   Review complete. Run /execute <absolute-path-to-plan.md> to implement it.
 - For a `plan.md` target with blocking findings, say exactly:
-  Review complete. I can fix the findings above on request; otherwise address them, then re-run /systematic-review <absolute-path-to-plan.md>, or return to /plan to revise.
+  Review complete. Address the blocking findings above, then re-run /systematic-review <absolute-path-to-plan.md>, or return to /plan to revise.
+- After applying confirmed fixes to a `plan.md`, commit those fixes as described in ## Fix findings. If blocking findings remain, use the blocking-findings handoff above. Otherwise, use the no-blocking-findings handoff above.
 - For a code-only target with no plan, say exactly:
   Review complete. Recommended next step: <highest-priority action>. I can apply the proposed fixes on request.

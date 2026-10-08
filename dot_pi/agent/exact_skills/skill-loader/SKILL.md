@@ -27,6 +27,9 @@ Load when any `.tf`, `.tfvars`, or Terraform/Terragrunt `.hcl` file is created o
 ### CLI commands — `cli-best-practices`
 Load when implementing or modifying a CLI command, its flags, output format, error messages, or interactive prompts.
 
+### AI-powered software — `typesafe-ai`
+Load when designing, planning, reviewing, or implementing software that uses TypeSafe, including System One or Jev judgments, semantic classification, ranking, extraction, or other AI-backed decisions.
+
 ## Domain skills
 
 ### Atlas Go workflows — `atlas-best-practices`
@@ -49,11 +52,17 @@ Load when opening a new PR, amending commits before review, or responding to rev
 ### PR review comments — `pr-comment-triage`
 Load when the user provides a GitHub PR or review-discussion URL and asks to assess, address, or decide whether comments apply. Also load `reviewable-pr-workflow` when the result changes commits or PR structure.
 
-### ddoc-managed documentation — `ddoc`
-Load when creating or modifying Markdown with `ddoc:` frontmatter or `<!-- ddoc:... -->` directives, syncing code-adjacent docs to Confluence, or invoking the `ddoc` CLI. Also load `write` for prose changes.
+### Documentation — `diataxis`
+Load when creating, organizing, or reviewing user documentation, including tutorials, how-to guides, reference pages, and explanations. Also load `write` and `humanizer` for prose.
 
-### Prose and documentation — `write`
-Load when drafting PR descriptions, design docs, runbooks, commit messages, or any freeform user-facing text that will be read by humans.
+### ddoc-managed documentation — `ddoc`
+Load when creating or modifying Markdown with `ddoc:` frontmatter or `<!-- ddoc:... -->` directives, syncing code-adjacent docs to Confluence, or invoking the `ddoc` CLI.
+
+### Prose — `humanizer` and `write`
+Load both when drafting, editing, or reviewing human-readable prose, including documentation, PR descriptions, design docs, runbooks, commit messages, and other user-facing text. Use `write` for clarity and precision; use `humanizer` to remove AI-sounding patterns without changing the meaning.
+
+### Presenterm slides — `presenterm`
+Load when creating or editing Markdown presentations for presenterm.
 
 ### Mermaid diagrams — `mermaid-best-practices`
 Load when creating or editing any Mermaid diagram (`.mmd` files or ` ```mermaid ` blocks), or when adding diagrams to runbooks, design docs, or Confluence pages.

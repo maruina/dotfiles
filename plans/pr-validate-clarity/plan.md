@@ -18,6 +18,18 @@
 | `write` | `skill-loader` | Prompt rules and report prose | Its rule "explain behavior the reader can picture before the technical term" is the basis of the slot-4 and comment rules |
 | `feature-worktree` | `prompt-required` | Durable plan needs a feature worktree | Created `maruina/pr-validate-clarity` from `origin/main` at `~/dd/.worktrees/dotfiles/maruina-pr-validate-clarity` |
 
+### Execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `resolve-worktree` | `prompt-required` | The execution input is an absolute plan path in a worktree | Resolved the owning Git root and branch before reading repository files. |
+| `feature-worktree` | `prompt-required` | Execution must continue in the plan's feature worktree | Confirmed the resolved worktree was the intended feature branch. |
+| `skill-loader` | `prompt-required` | `/execute` requires execution-stage skill selection and provenance | Selected execution skills from the changed paths and recorded them here. |
+| `codebase-research` | `skill-loader` | The renderer validation behavior and nearby tests needed current-code review | Traced the validation limit, fixture, and test patterns before editing. |
+| `chezmoi` | `skill-loader` | Changed files are chezmoi source files | Kept edits in source paths and will preview/apply explicit target files. |
+| `write` | `skill-loader` | The prompt and example contain user-facing prose | Wrote the signal explanation in causal order with direct language. |
+| `humanizer` | `skill-loader` | The prompt and example contain user-facing prose | Kept prose specific and removed no supported facts. |
+| `reviewable-pr-workflow` | `prompt-required` | The slice is ready for a PR handoff | Applied its stack-split signals before preparing a draft PR. |
+
 ## Evidence
 Source of truth: the user request, `~/.pi/agent/pr-validate-reports/dd-source-116539.{json,html}`, PR [ddoghq/dd-source#116539](https://github.com/ddoghq/dd-source/pull/116539) threads, and session `01a11acc-1f93-7224-ab02-71cb27d9cfb5`.
 
@@ -159,13 +171,15 @@ Delivers the user feedback "the gate item explains the monitor and ends with the
 **Traces to:** Requirement "Items explain external signals before using them"; user points 2 and 3
 **Files:** `dot_pi/agent/exact_prompts/pr-validate.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`, `dot_pi/agent/exact_scripts/pr-validate-report/render.mjs`, `dot_pi/agent/exact_scripts/pr-validate-report/example.json`, `dot_pi/agent/exact_scripts/pr-validate-report/render.test.mjs`
 
-- [ ] Run `npm ci --ignore-scripts` in `dot_pi/agent`, then `npm run test:prompts` and `npm run test:pr-validate-report`; expect both green on the unchanged branch.
-- [ ] Add a `render.test.mjs` case: a 91-word `whyBad` fails with `items[0].whyBad` and limit 90, and a 75-word `whyBad` passes. Add `lifecycle-prompts.test.mjs` markers for the explanation rule. Run both suites; expect the new cases to fail.
-- [ ] In `render.mjs`, add `whyBad: 90` to `LIMITS` and use it for `item.whyBad`.
-- [ ] In `pr-validate.md` Item story slot 4, require this order: what the signal watches; when it alerts and what the alert means; why that state can happen; the direct effect; the real harm. Tell the model to follow the causal chain past the intermediate effect (for example "the deploy cannot run") to the harm (for example "the workflow cannot repair a broken bundle"). In the `comment.text` rules, require the same plain explanation of the signal first, with its link, then the effect, the harm, and the request.
-- [ ] Rewrite `example.json` item `gate-blocks-repair` `whyBad` and `comment.text` with that structure, modeled on comment 4217642497 (fictional monitor 123, under 90 and 120 words).
-- [ ] Run `npm run test:prompts` and `npm run test:pr-validate-report`; expect both green.
-- [ ] Commit with `feat(pi): require plain signal explanations in /pr-validate items`.
+- [x] Run `npm ci --ignore-scripts` in `dot_pi/agent`, then `npm run test:prompts` and `npm run test:pr-validate-report`; expect both green on the unchanged branch.
+- [x] Add a `render.test.mjs` case: a 91-word `whyBad` fails with `items[0].whyBad` and limit 90, and a 75-word `whyBad` passes. Add `lifecycle-prompts.test.mjs` markers for the explanation rule. Run both suites; the new cases fail as expected (`whyBad` reports the old 60-word limit; prompt markers are absent).
+- [x] In `render.mjs`, add `whyBad: 90` to `LIMITS` and use it for `item.whyBad`; `npm run test:pr-validate-report` passes.
+- [x] In `pr-validate.md` Item story slot 4, require this order: what the signal watches; when it alerts and what the alert means; why that state can happen; the direct effect; the real harm. Tell the model to follow the causal chain past the intermediate effect (for example "the deploy cannot run") to the harm (for example "the workflow cannot repair a broken bundle"). In the `comment.text` rules, require the same plain explanation of the signal first, with its link, then the effect, the harm, and the request; `npm run test:prompts` passes.
+- [x] Rewrite `example.json` item `gate-blocks-repair` `whyBad` and `comment.text` with that structure, modeled on comment 4217642497 (fictional monitor 123, under 90 and 120 words); the fixture now names the signal, trigger, cause, effect, and harm, and keeps the monitor link.
+- [x] Run `npm run test:prompts` and `npm run test:pr-validate-report`; both pass after rebasing (59 prompt tests and 9 renderer tests).
+Execution note: Rebased the plan and implementation commits onto updated `origin/main` twice as upstream advanced; reran both focused suites after the final rebase.
+
+- [x] Commit with `feat(pi): require plain signal explanations in /pr-validate items`.
 
 ### Slice 2: Prior-comment tagging
 Delivers the user feedback "each item tells me if a bot or a human already raised it, with a link".

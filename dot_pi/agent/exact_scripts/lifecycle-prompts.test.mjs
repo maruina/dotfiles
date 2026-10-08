@@ -489,6 +489,16 @@ test("PR validation revision 2 report shape, severity, and provenance", () => {
   assert.doesNotMatch(text, /feedback for improving `skill-loader`/i);
 });
 
+test("PR validation explains signals before identifiers and ends with the real harm", () => {
+  const text = prompt("pr-validate.md");
+
+  requireMarkers(text, [
+    /explain the signal before naming its identifier/i,
+    /end with the real harm/i,
+    /comment\.text.*explain the signal in plain words before its identifier/is,
+  ]);
+});
+
 test("PR validation report opens with a walkthrough", () => {
   const text = prompt("pr-validate.md");
 

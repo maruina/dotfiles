@@ -13,6 +13,9 @@ const example = () => JSON.parse(readFileSync(path.join(here, "example.json"), "
 
 test("example report is valid and renders sections in contract order", () => {
   const report = example();
+  const gateItem = report.items.find((item) => item.id === "gate-blocks-repair");
+  assert.match(gateItem.whyBad, /cannot repair the broken trust state\.$/);
+  assert.match(gateItem.comment.text, /https:\/\/app\.datadoghq\.com\/monitors\/123/);
   assert.deepEqual(validate(report), []);
   const html = render(report);
   const order = ['class="hero', "PR summary.", 'id="review-gates"', 'class="nav"', 'id="walkthrough"', 'id="request-changes"', 'id="asks"', 'id="reference"'];
@@ -55,6 +58,17 @@ test("word limits reject long text", () => {
   const errors = validate(report);
   assert.ok(errors.some((e) => e.startsWith("lead: 26 words, limit 25")), errors.join("\n"));
   assert.ok(errors.some((e) => e.startsWith("walkthrough.systemToday[0]: 21 words")), errors.join("\n"));
+});
+
+test("whyBad has a 90-word limit", () => {
+  const tooLong = example();
+  tooLong.items[0].whyBad = Array.from({ length: 91 }, () => "word").join(" ");
+  const errors = validate(tooLong);
+  assert.ok(errors.some((e) => e.startsWith("items[0].whyBad: 91 words, limit 90")), errors.join("\n"));
+
+  const withinLimit = example();
+  withinLimit.items[0].whyBad = Array.from({ length: 75 }, () => "word").join(" ");
+  assert.deepEqual(validate(withinLimit), []);
 });
 
 test("gates must be complete, ordered, linked, and agree with the verdict", () => {

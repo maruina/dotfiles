@@ -52,6 +52,7 @@ export const LIMITS = {
   stepPart: 30,
   itemTitle: 12,
   slot: 60,
+  whyBad: 90,
   exposureDetail: 8,
   comment: 120,
   excerptLines: 12,
@@ -171,7 +172,7 @@ export function validate(r) {
     text(item?.title, `${at}.title`, LIMITS.itemTitle);
     if (!stepIds.has(item?.step)) fail(`${at}.step`, "must name a walkthrough step id");
     text(item?.whereThisFits, `${at}.whereThisFits`, LIMITS.slot);
-    text(item?.whyBad, `${at}.whyBad`, LIMITS.slot);
+    text(item?.whyBad, `${at}.whyBad`, LIMITS.whyBad);
     if (item?.kind === "attention") {
       text(item.whyJudgment, `${at}.whyJudgment`, LIMITS.slot);
       if (item.code) range(item.code, `${at}.code`);

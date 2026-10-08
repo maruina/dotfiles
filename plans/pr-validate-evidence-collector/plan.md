@@ -18,6 +18,18 @@
 | `write` | `skill-loader` | The plan is a prose artifact. | Used its clarity, evidence, and scope guidance. |
 | `humanizer` | `skill-loader` | The plan is a prose artifact. | Kept the plan direct and specific. |
 | `feature-worktree` | `prompt-required` | A durable plan must be written outside the base checkout. | Created this feature worktree from the fetched `origin/main`. |
+### Execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `resolve-worktree` | `prompt-required` | The input is an absolute plan path in a worktree. | Resolved the plan's owning worktree and branch before reading repository files. |
+| `feature-worktree` | `prompt-required` | Execution must continue in the plan's worktree. | Confirmed the intended feature branch is active and clean. |
+| `skill-loader` | `prompt-required` | `/execute` requires execution-stage skill selection and provenance. | Selected and recorded skills for the CLI, chezmoi source, tests, and plan ledger. |
+| `codebase-research` | `skill-loader` | The collector crosses a CLI and GitHub evidence boundary. | Traced the prompt's evidence contract, current package patterns, and GitHub CLI pagination behavior. |
+| `chezmoi` | `skill-loader` | Implementation files are in chezmoi source paths. | Kept edits in source paths and will apply only the planned explicit targets. |
+| `cli-best-practices` | `skill-loader` | The collector is a new JSON CLI. | Applied stdout/stderr separation, input validation, help, and stable source failure guidance. |
+| `write` | `skill-loader` | The execution ledger is a prose artifact. | Kept execution notes and provenance concise and factual. |
+| `humanizer` | `skill-loader` | The execution ledger is prose. | Kept the ledger direct and free of unsupported claims. |
+| `reviewable-pr-workflow` | `prompt-required` | Execution requires a stack-split check before PR creation. | Loaded the stack-split signals and will apply them to the completed slice. |
 ## Source and repository evidence
 - The request authorizes planning the deterministic collector deferred in PR #105.
 - `plans/pr-validate-clarity/plan.md` names `collect.mjs` and records the original deferral trigger: repeat GitHub thread queries or token-cache rewrites above 150k in later benchmark runs.
@@ -129,12 +141,13 @@ Delivers: A standalone CLI emits one versioned, normalized GitHub evidence envel
 **Blocked by:** None
 **Traces to:** Requirements "The collector emits one normalized GitHub evidence envelope" and "Unavailable GitHub evidence remains explicit".
 **Files:** `dot_pi/agent/exact_scripts/pr-validate-report/collect.mjs`, `dot_pi/agent/exact_scripts/pr-validate-report/collect.test.mjs`, `dot_pi/agent/package.json`.
-- [ ] Add focused fake-`gh` tests for valid input variants, normalized successful sources, pagination, pending checks (exit code 8), one-source failures, all-source failures, large diff buffer handling, CLI `--help`, and invalid URLs; run `node --test dot_pi/agent/exact_scripts/pr-validate-report/collect.test.mjs` and confirm the tests fail before implementation.
-- [ ] Implement the smallest CLI using standard-library process APIs with stream/buffer safety for large outputs; emit one JSON envelope to stdout and diagnostics to stderr.
-- [ ] Add `test:pr-validate-collector` to `dot_pi/agent/package.json` and include it in `npm test`.
-- [ ] Run `npm run --prefix dot_pi/agent test:pr-validate-collector`; expect all collector cases to pass.
-- [ ] Refactor only after green, then rerun the focused collector tests.
-- [ ] Commit with `feat(pi): add deterministic PR evidence collector`.
+- [x] Add focused fake-`gh` tests for valid input variants, normalized successful sources, pagination, pending checks (exit code 8), one-source failures, all-source failures, large diff buffer handling, CLI `--help`, and invalid URLs; run `node --test dot_pi/agent/exact_scripts/pr-validate-report/collect.test.mjs` and confirm the tests fail before implementation.
+- [x] Implement the smallest CLI using standard-library process APIs with stream/buffer safety for large outputs; emit one JSON envelope to stdout and diagnostics to stderr.
+- [x] Add `test:pr-validate-collector` to `dot_pi/agent/package.json` and include it in `npm test`.
+- [x] Run `npm run --prefix dot_pi/agent test:pr-validate-collector`; all 10 collector cases pass.
+- [x] Refactor only after green, then rerun the focused collector tests. No refactor was needed; the final focused run passed.
+Execution note: The initial fake-`gh` call log used concurrent read-modify-write updates and raced. The fixture now appends each invocation atomically, and all 10 tests pass. GitHub GraphQL exposes thread `isOutdated` and comment `outdated` at different levels; the query uses each field at its documented level. The collector marks review-thread evidence unavailable when nested comment pagination would otherwise truncate records. Applied the three explicit chezmoi targets and confirmed each target matches the source. A post-commit `git diff --check` found an extra blank line at the end of `collect.test.mjs`; removed it before updating the draft PR.
+- [x] Commit with `feat(pi): add deterministic PR evidence collector`.
 ### Slice 2: Use collected evidence in the review
 Delivers: `/pr-validate` reads one GitHub evidence file and keeps external evidence collection in the prompt.
 #### Task 2: Replace repeated GitHub collection with one collector invocation

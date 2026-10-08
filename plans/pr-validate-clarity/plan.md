@@ -3,7 +3,7 @@
 
 **Goal:** Make `/pr-validate` items readable without follow-up questions, tag each item with the bot and human comments that already raised it, and remove the avoidable turns that slowed the dd-source#116539 run.
 **Smallest user-feedback slice:** The example report and a rerun show the gate item explaining what the monitor watches, when and why it alerts, and the real harm ("the workflow cannot repair a broken bundle"), with the monitor link in the comment.
-**Out of Scope:** A deterministic evidence-collector script (`collect.mjs`), deferred by the user; model or thinking-level changes; per-group monitor state queries; pointing the comment box at an existing thread as a reply; flagging resolved threads whose code did not change.
+**Out of Scope:** A deterministic evidence-collector script (`collect.mjs`), deferred by the user (revisit if prompt instructions alone fail to prevent duplicate GitHub thread queries or token cache rewrites exceed 150k in subsequent benchmark runs); model or thinking-level changes; per-group monitor state queries; pointing the comment box at an existing thread as a reply; flagging resolved threads whose code did not change.
 **Architecture:** The prompt `dot_pi/agent/exact_prompts/pr-validate.md` gains an explanation rule for slot 4 and comment text, a prior-comment matching rule, and six speed fixes. The renderer `dot_pi/agent/exact_scripts/pr-validate-report/render.mjs` gains a 90-word `whyBad` limit and a required `priorComments` item field rendered as chips. `example.json` models both, and the existing `node:test` suites pin the contract.
 **Tech Stack:** Markdown pi prompt, Node.js ESM renderer, `node:test`, chezmoi.
 
@@ -68,7 +68,7 @@ Source of truth: the user request, `~/.pi/agent/pr-validate-reports/dd-source-11
 - Detect bots by REST `user.type == "Bot"` or GraphQL `author.__typename == "Bot"`, never by login (verified on the PR).
 - Keep `schemaVersion` at 1. The renderer reads only fresh JSON from the same run; the missing-field error names `priorComments`, which is clear enough. Bumping the version would touch every fixture for no reader benefit.
 - Raise only `whyBad` to 90 words, not the shared `slot` limit, so other slots stay short.
-- Keep the evidence-collector script out of scope (user decision: later).
+- Keep the evidence-collector script out of scope (user decision: later; revisit trigger documented in Out of Scope).
 
 **Implementation Constraints:**
 - The read-only HARD-GATE in `pr-validate.md` does not change.
@@ -177,8 +177,8 @@ Delivers the user feedback "each item tells me if a bot or a human already raise
 **Files:** `dot_pi/agent/exact_prompts/pr-validate.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`, `dot_pi/agent/exact_scripts/pr-validate-report/render.mjs`, `dot_pi/agent/exact_scripts/pr-validate-report/example.json`, `dot_pi/agent/exact_scripts/pr-validate-report/render.test.mjs`
 
 - [ ] Add `render.test.mjs` cases for the bot chip, the human chip, "Not raised before", a missing field, a URL for another PR, a bad fragment, and a bad `kind`. Add prompt markers for detection, "never by login", PR-author exclusion, and the chat summary tag. Run both suites; expect the new cases to fail.
-- [ ] In `render.mjs` `validate()`, require `item.priorComments` as an array on every item kind. Validate each entry: `author` as short text, `kind` in `["bot", "human"]`, `url` matching `^https://github\.com/<repo>/pull/<number>#(discussion_r|issuecomment-|pullrequestreview-)\d+$` built from the report's `repo` and `number` with regex metacharacters escaped.
-- [ ] In `renderItem()`, render one line before slot 1: a chip per entry ("Already raised by bot `author`" or "Already raised by @author") that links to `url`, or one chip "Not raised before". Escape all values.
+- [ ] In `render.mjs` `validate()`, require `item.priorComments` as an array on every item kind (use `list(item?.priorComments, `${at}.priorComments`, 0)` or `Array.isArray` directly so empty arrays `[]` pass). Validate each entry: `author` as short text, `kind` in `["bot", "human"]`, `url` matching `^https://github\.com/<repo>/pull/<number>#(discussion_r|issuecomment-|pullrequestreview-)\d+$` built from the report's `repo` and `number` with regex metacharacters escaped.
+- [ ] In `renderItem()`, render one line before slot 1: a chip per entry (`Already raised by bot <code>${escapeHtml(author)}</code>` or `Already raised by @${escapeHtml(author)}`) as a link `<a class="chip" href="${escapeHtml(url)}">...</a>`, or one chip `<span class="chip">Not raised before</span>`. Escape all values.
 - [ ] In `example.json`, add `priorComments` to each item: one bot entry on `replay-break`, one human entry on `gate-blocks-repair`, and `[]` on `skip-visibility`.
 - [ ] In `pr-validate.md` Phase 2, record for each inline comment, top-level comment, and review body: author login, author type, comment URL, path, line, and thread resolution state. In Pass 2, add the matching rule from the Implementation Constraints. In the Item story, document `priorComments`. In the chat summary, add the prior-comment tag and link to each item line. When author type is unavailable, set `[]` and add a Coverage gap that names the query.
 - [ ] Run `npm run test:prompts` and `npm run test:pr-validate-report`; expect both green.
@@ -213,7 +213,7 @@ Delivers the user feedback "the review spends fewer turns on known waste".
 - [ ] Commit with `docs(pi): document /pr-validate prior comments` only if a file changed.
 
 ## Final verification
-- [ ] Run `chezmoi --source "$PWD" diff` on the five target files, then `chezmoi --source "$PWD" apply` on them.
+- [ ] Run `chezmoi --source "$PWD" diff` on the five target paths under `$HOME` (`~/.pi/agent/prompts/pr-validate.md`, `~/.pi/agent/scripts/lifecycle-prompts.test.mjs`, `~/.pi/agent/scripts/pr-validate-report/render.mjs`, `~/.pi/agent/scripts/pr-validate-report/example.json`, `~/.pi/agent/scripts/pr-validate-report/render.test.mjs`), then `chezmoi --source "$PWD" apply` on them.
 - [ ] Rerun `/pr-validate https://github.com/ddoghq/dd-source/pull/116539` in a new session.
 - [ ] Report check: the gate item `whyBad` explains what monitor 323592288 watches, when it alerts, what the alert means, why it can happen, and ends with "cannot repair a broken bundle" or an equal harm; its comment keeps the monitor link.
 - [ ] Report check: items link to bot comments 4167287924, 4184262278, 4184262293, and 4184262288, and to the human comments 4217642497 and 4217663797 where they match.

@@ -54,6 +54,17 @@
 | `humanizer` | `skill-loader` | Prompt instructions are prose | Kept the added guidance specific and concise. |
 | `reviewable-pr-workflow` | `prompt-required` | The existing PR will receive this slice | Checked the PR for new feedback before editing; preserved branch history and refreshed the PR body after the push. |
 
+#### Task 4 execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `feature-worktree` | `prompt-required` | Continue Task 4 on the existing PR branch | Verified the owning worktree and clean starting state. |
+| `skill-loader` | `prompt-required` | `/execute` requires execution-stage skill selection and provenance | Selected CLI, chezmoi, prose, and PR-update guidance. |
+| `cli-best-practices` | `skill-loader` | The renderer help text is user-facing CLI output | Added a concise required-field note and tested the help output. |
+| `chezmoi` | `skill-loader` | Renderer source and tests are chezmoi-managed | Edited source files, applied explicit targets, and confirmed no target drift. |
+| `write` | `skill-loader` | Plan and PR body need a clear Task 4 record | Kept the completion notes and reviewer guide direct. |
+| `humanizer` | `skill-loader` | Plan and PR body are prose | Kept the update specific and avoided generic claims. |
+| `reviewable-pr-workflow` | `prompt-required` | Task 4 updates the existing PR | Checked review state, preserved history, and refreshed the PR body at the final head. |
+
 ## Evidence
 Source of truth: the user request, `~/.pi/agent/pr-validate-reports/dd-source-116539.{json,html}`, PR [ddoghq/dd-source#116539](https://github.com/ddoghq/dd-source/pull/116539) threads, and session `01a11acc-1f93-7224-ab02-71cb27d9cfb5`.
 
@@ -249,9 +260,10 @@ Execution note: `npm ci --ignore-scripts` installed test dependencies; npm repor
 **Traces to:** Documentation requirement for Medium plans
 **Files:** `dot_pi/agent/exact_scripts/pr-validate-report/render.mjs` (`--help` text), `AGENTS.md` (check only)
 
-- [ ] Confirm that `render.mjs --help` prints the new `whyBad` limit through `LIMITS` and mentions `priorComments`; update the help text if it lists fields.
-- [ ] Check `AGENTS.md` and `dot_pi/agent/AGENTS.md` for `/pr-validate` content. Expected: none applies, so record "no change" in the PR body. No README covers the renderer.
-- [ ] Commit with `docs(pi): document /pr-validate prior comments` only if a file changed.
+- [x] Confirmed that `render.mjs --help` prints `whyBad=90` through `LIMITS`. It did not mention `priorComments`, so the help now states that every item requires the array; a renderer test pins both.
+- [x] Checked `AGENTS.md` and `dot_pi/agent/AGENTS.md` for `/pr-validate` content; neither contains any, so no guidance file changed. No README covers the renderer.
+- [x] Committed the help and test update with `docs(pi): document /pr-validate prior comments`.
+Execution note: The applied renderer help showed `whyBad=90` and `priorComments`, and the explicit target diff was clean. The first full test run after applying targets found source dependencies absent; after `npm ci --ignore-scripts`, `npm test` and `npm run test:all` both passed. Removed `dot_pi/agent/node_modules` after testing.
 
 ## Final verification
 - [ ] Run `chezmoi --source "$PWD" diff` on the five target paths under `$HOME` (`~/.pi/agent/prompts/pr-validate.md`, `~/.pi/agent/scripts/lifecycle-prompts.test.mjs`, `~/.pi/agent/scripts/pr-validate-report/render.mjs`, `~/.pi/agent/scripts/pr-validate-report/example.json`, `~/.pi/agent/scripts/pr-validate-report/render.test.mjs`), then `chezmoi --source "$PWD" apply` on them.
@@ -261,7 +273,7 @@ Execution note: `npm ci --ignore-scripts` installed test dependencies; npm repor
 - [ ] Session check with jq on the new session JSONL: exactly one `tool_search`, no `ENOENT` tool errors, no renderer schema error for `filesByClass` or `marketplace`, and fewer than 54 assistant turns. Record wall time; a value under 12 min is advisory because model latency varies.
 
 ## Documentation impact
-Prompt and renderer help text only. No `AGENTS.md` change expected; Task 4 confirms.
+The prompt and renderer help document the report contract. No `/pr-validate` guidance applies in `AGENTS.md` or `dot_pi/agent/AGENTS.md`; no README covers the renderer.
 
 ## Learning candidates
 None yet.

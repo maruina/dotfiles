@@ -188,6 +188,13 @@ test("comment links use the sha256 diff anchor", () => {
   assert.equal(commentLink(report, c), `https://github.com/example-org/example-service/pull/42/files#diff-${anchor}R38-R44`);
 });
 
+test("CLI help lists the whyBad limit and priorComments field", () => {
+  const result = spawnSync(process.execPath, [path.join(here, "render.mjs"), "--help"], { encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /whyBad=90/);
+  assert.match(result.stdout, /priorComments/);
+});
+
 test("CLI writes nothing when validation fails", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "prv-"));
   const input = path.join(dir, "repo-1.json");

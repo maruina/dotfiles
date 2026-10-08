@@ -493,7 +493,7 @@ Validates /pr-validate report data and renders the standard HTML report.
 The default output path replaces .json with .html. On validation errors,
 prints one "field: problem" line per error to stderr, writes nothing, and exits 1.
 
-Field shape: example.json next to this script.
+Field shape: example.json next to this script. Each item requires a \`priorComments\` array.
 Text fields allow only \`code\` spans and [label](https://...) or [label](#id) links.
 Word limits: ${Object.entries(LIMITS)
   .map(([k, v]) => `${k}=${v}`)

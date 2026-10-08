@@ -446,6 +446,31 @@ test("PR validation prompt defines a safe delegated review contract", () => {
   assert.doesNotMatch(text, /reset --hard/);
 });
 
+test("PR validation uses one collector for GitHub evidence", () => {
+  const text = prompt("pr-validate.md");
+  const phase1 = text.slice(text.indexOf("## Phase 1"), text.indexOf("## Phase 2"));
+  const phase2 = text.slice(text.indexOf("## Phase 2"), text.indexOf("## Pass 1"));
+
+  requireMarkers(text, [
+    /collector.*once.*after verifying the base-repository remote.*before.*worktree/is,
+    /`umask 077`/,
+    /mode `0700`/,
+    /`evidence\.json`/,
+    /`pr\.headRefOid`/,
+    /missing.*`headRefOid`.*Coverage gap/is,
+    /external queries.*Datadog.*Atlas/is,
+    /DDCI CI-status tools/i,
+  ]);
+
+  assert.equal((text.match(/scripts\/pr-validate-report\/collect\.mjs/g) ?? []).length, 1);
+  assert.ok(phase1.indexOf("base-repository remote") < phase1.indexOf("collect.mjs"));
+  assert.ok(phase1.indexOf("collect.mjs") < phase1.indexOf("Set the review worktree path"));
+  assert.ok(phase1.indexOf("umask 077") < phase1.indexOf("collect.mjs"));
+  assert.doesNotMatch(phase2, /\bgh (?:pr (?:view|diff|checks)|api)\b/);
+  assert.match(phase2, /external queries.*Datadog.*Atlas/is);
+  assert.match(phase2, /DDCI CI-status tools/i);
+});
+
 test("PR validation revision 2 report shape, severity, and provenance", () => {
   const text = prompt("pr-validate.md");
 
@@ -504,7 +529,7 @@ test("PR validation defines prior-comment metadata, matching, and summary tags",
 
   requireMarkers(text, [
     /author login.*author type.*comment URL.*path.*line/is,
-    /user\.type.*__typename/is,
+    /`authorType`.*REST `user\.type`/is,
     /never by login/i,
     /same failure at the same code path/i,
     /PR author/i,
@@ -582,8 +607,8 @@ test("PR validation avoids known wasted turns", () => {
     /one `tool_search` call before large reads/is,
     /Datadog monitor.*DDCI CI.*status/is,
     /each call invalidates the prompt cache/is,
-    /one compact `evidence\.json` file/is,
-    /read slices of that file/is,
+    /only GitHub `evidence\.json` file/is,
+    /read only the slices needed during review/is,
     /do not query.*(?:threads|comments).*again/is,
     /Read `example\.json` next to the renderer/i,
     /classify every changed file as generated, build, behavior, test, docs, or schema/i,

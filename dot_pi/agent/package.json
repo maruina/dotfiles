@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "npm run test:unit && npm run test:prompts && npm run test:pr-validate-report && npm run test:skills && npm run test:pi-deps",
+    "test": "npm run test:unit && npm run test:prompts && npm run test:pr-validate-report && npm run test:pr-validate-collector && npm run test:skills && npm run test:pi-deps",
     "test:all": "npm test && npm run test:smoke",
     "test:compute-guardrails": "sh -c 'ext=$([ -d exact_extensions ] && echo exact_extensions || echo extensions); node --experimental-strip-types --test \"$ext\"/compute-guardrails.test.mjs'",
     "test:context-kit": "sh -c 'ext=$([ -d exact_extensions ] && echo exact_extensions || echo extensions); node --experimental-strip-types --test \"$ext\"/context-kit/*.test.ts'",
@@ -13,6 +13,7 @@
     "test:session-tags": "sh -c 'ext=$([ -d exact_extensions ] && echo exact_extensions || echo extensions); node --experimental-strip-types --test \"$ext\"/session-tags.test.mjs'",
     "test:pi-deps": "sh -c 'scripts=$([ -d exact_scripts ] && echo exact_scripts || echo scripts); node \"$scripts\"/validate-pi-deps.mjs'",
     "test:pr-validate-report": "sh -c 'scripts=$([ -d exact_scripts ] && echo exact_scripts || echo scripts); node --test \"$scripts\"/pr-validate-report/render.test.mjs'",
+    "test:pr-validate-collector": "sh -c 'scripts=$([ -d exact_scripts ] && echo exact_scripts || echo scripts); node --test \"$scripts\"/pr-validate-report/collect.test.mjs'",
     "test:prompts": "sh -c 'scripts=$([ -d exact_scripts ] && echo exact_scripts || echo scripts); set -- \"$scripts\"/*-prompts.test.mjs; [ -e \"$1\" ] || { echo \"No prompt tests found\" >&2; exit 1; }; node --test \"$@\"'",
     "test:skills": "sh -c 'scripts=$([ -d exact_scripts ] && echo exact_scripts || echo scripts); node \"$scripts\"/validate-skills.mjs'",
     "test:skills:profiles": "sh -c 'scripts=$([ -d exact_scripts ] && echo exact_scripts || echo scripts); CHEZMOI_VALIDATE_PROFILE=work node \"$scripts\"/validate-skills.mjs && CHEZMOI_VALIDATE_PROFILE=personal node \"$scripts\"/validate-skills.mjs'",

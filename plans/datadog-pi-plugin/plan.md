@@ -22,6 +22,20 @@
 | `humanizer` | `skill-loader` | The plan is a durable prose artifact | Removed unsupported claims and templated wording. |
 | `feature-worktree` | `prompt-required` | Durable plans must not be written on `main` | Created this plan in a feature worktree from updated `origin/main`. |
 
+### Execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `resolve-worktree` | `prompt-required` | The plan path may belong to a different worktree | Resolved the exact plan path and operated from its owning worktree. |
+| `feature-worktree` | `prompt-required` | File changes require the plan's feature worktree | Confirmed the existing feature worktree was clean and on `maruina/datadog-pi-plugin`; kept the base checkout on `main`. |
+| `skill-loader` | `prompt-required` | Required at the start of execution | Selected execution guidance based on the affected settings template. |
+| `chezmoi` | `skill-loader` | The settings source is chezmoi-managed | Rendered both profiles, reviewed the target diff, applied only the work settings target, and verified it. |
+| `codebase-research` | `skill-loader` | Authentication settings affect multiple profile paths | Checked the existing modifier and repository guidance before editing; preserved existing profile behavior. |
+| `write` | `skill-loader` | The execution ledger and agent guidance are durable Markdown | Recorded progress and updated the Datadog guidance for the plugin. |
+| `diataxis` | `skill-loader` | Task 3 updates operational agent guidance | Kept the skill goal-oriented and separated setup, routing, and query guidance. |
+| `humanizer` | `skill-loader` | Task 3 edits prose | Removed stale wrapper wording and kept supported plugin behavior. |
+| `reviewable-pr-workflow` | `prompt-required` | The PR gate requires a stack-split check before opening | Compared the feature, wrapper retirement, and documentation work; stopped before PR creation because the stack-split signals require user approval. |
+| `script-best-practices` | `skill-loader` | Task 2 updates a `run_onchange` shell template | Preserved both cleanup commands and changed only the migration-intent comment. |
+
 ## Source of truth and confirmed decisions
 - You confirmed that no prior design exists and approved the alignment brief, including both work organizations as migration requirements.
 - The cloned [plugin repository](https://github.com/datadog-labs/pi-plugin) is at `f9eb29b` (release `0.7.20`); `npm view @datadog/pi-plugin@latest version` returned `0.7.20`.
@@ -188,62 +202,66 @@ Root agent guidance and the work Datadog skill SHALL describe plugin setup, org 
 This slice delivers a usable plugin path before removing the existing Datadog integration.
 
 ### Task 1: Declare the plugin in both profile settings and validate work access
+**Execution status:** Complete; both profiles render the package, and the user confirmed the plugin works in a fresh work session. Before final handoff, the work settings target had reverted to the pre-migration package list; reapplying from this feature worktree restored the plugin source and verified the target.
 **Delivers:** Both profiles declare the plugin, and the work session verifies its prod/`ddstaging` access and agent-driven switching while the wrapper remains installed.
 **Blocked by:** None
 **Traces to:** Goal; Requirements “The plugin is available in both profiles,” “Work production and `ddstaging` access is preserved,” and “The agent selects the requested organization”
 **Files:** `dot_pi/agent/modify_private_settings.json.tmpl`
 
-- [ ] Run the profile render assertion in the test strategy; expect it to fail for both profiles because the package source is absent.
-- [ ] Add `npm:@datadog/pi-plugin` once to the work and personal `.packages` arrays. Keep all existing package entries and profile-specific settings.
-- [ ] Render the settings modifier for both profiles and assert that each `.packages` array contains the new source exactly once.
-- [ ] Run `chezmoi --source "$PWD" diff ~/.pi/agent/settings.json`; review the targeted change before applying.
-- [ ] Apply only the work settings target with `chezmoi --source "$PWD" apply ~/.pi/agent/settings.json`; do not change the active chezmoi profile.
-- [ ] Start a fresh work Pi session. Confirm the package is configured with `pi list` and the plugin loads its `/datadog` command. Use `/datadog` to save the production and `ddstaging` organizations on US1. Use the `ddconfig` tool with `action: "check"` and one read-only query per organization to verify the selected org identities and tool access.
-- [ ] In the same session, ask for a read-only request targeting the other org. Confirm the agent uses `ddconfig` to switch before calling `datadog`; verify the selected identity with the `ddconfig` tool using `action: "check"`. Keep the `dd-auth` wrapper intact if any check fails.
-- [ ] Check plugin credential directory/file modes without printing their contents. Record the observed `0700`/`0600` modes.
-- [ ] Commit with `feat(pi): install Datadog plugin in both profiles`.
+- [x] Run the profile render assertion in the test strategy; expect it to fail for both profiles because the package source is absent.
+- [x] Add `npm:@datadog/pi-plugin` once to the work and personal `.packages` arrays. Keep all existing package entries and profile-specific settings.
+- [x] Render the settings modifier for both profiles and assert that each `.packages` array contains the new source exactly once.
+- [x] Run `chezmoi --source "$PWD" diff ~/.pi/agent/settings.json`; review the targeted change before applying.
+- [x] Apply only the work settings target with `chezmoi --source "$PWD" apply ~/.pi/agent/settings.json`; do not change the active chezmoi profile. The target verifies, and `pi list` shows the package source.
+- [x] Start a fresh work Pi session. Confirm the package is configured with `pi list` and the plugin loads its `/datadog` command. Use `/datadog` to save the production and `ddstaging` organizations on US1. Use the `ddconfig` tool with `action: "check"` and one read-only query per organization to verify the selected org identities and tool access. The user reported that the fresh-session checks work.
+- [x] In the same session, ask for a read-only request targeting the other org. Confirm the agent uses `ddconfig` to switch before calling `datadog`; verify the selected identity with the `ddconfig` tool using `action: "check"`. The user reported that the plugin works.
+- [x] Check plugin credential directory/file modes without printing their contents. Record the observed `0700`/`0600` modes. The Datadog state root and eight nested directories use `0700`; all four files use `0600`.
+- [x] Commit with `feat(pi): install Datadog plugin in both profiles` (`01e221c`).
 
 ### Slice 2: Retire the wrapper after successful integration checks
 This slice removes duplicate auth and cleans saved MCP state only after Slice 1 passes.
 
 ### Task 2: Remove legacy auth and clean old Datadog MCP entries
+**Execution status:** Complete; the user confirmed that the plugin works in a fresh Pi session after extension removal. The work target also had the legacy extension restored before final verification; applying the feature worktree's exact extension set removed it again.
+**Approved deviation:** The user approved removing the wrapper before the normal Task 1 validation gate to test a fresh session. The user later confirmed that the plugin works.
 **Delivers:** The wrapper no longer loads, tests no longer reference it, and apply removes any saved static Datadog entries.
-**Blocked by:** Task 1 passing for both work orgs and switching
+**Blocked by:** Task 1 passing for both work orgs and switching, except for the user-approved diagnostic sequence recorded above.
 **Traces to:** Requirement “Legacy auth and saved entries are removed only after plugin validation”
 **Files:** `dot_pi/agent/exact_extensions/datadog-mcp-auth/`, `dot_pi/agent/package.json`, `.chezmoiignore`, `run_onchange_pi-mcp-servers.sh.tmpl`
 
 - Reason a failing test is not practical: Task 2 is pure deletion and configuration cleanup of legacy components. Existing unit tests and configuration pass before deletion; the task verifies that tests continue to pass after deletion and that rendered template scripts pass `bash -n` and output assertions.
-- [ ] Run `npm ci --ignore-scripts` in `dot_pi/agent` so the TypeScript language server can load.
-- [ ] Run `lsp_find_references` for `registerDatadogMcpAuth` in `_core.ts` and the default-exported `datadogMcpAuthExtension` in `index.ts` before deleting the directory. Also text-search the extension path because Pi discovers default factories automatically. Resolve any references not covered by the following files.
-- [ ] Remove `dot_pi/agent/exact_extensions/datadog-mcp-auth/` and its `"$ext"/datadog-mcp-auth/*.test.ts` entry from `dot_pi/agent/package.json`.
-- [ ] Remove `.pi/agent/extensions/datadog-mcp-auth` from the personal block in `.chezmoiignore`; the source no longer exists.
-- [ ] Clarify the legacy Datadog cleanup intent in `run_onchange_pi-mcp-servers.sh.tmpl` so its content change reruns the script. Keep both `pi mcp remove datadog-prod` and `pi mcp remove datadog-staging` commands in both profile branches; do not modify other server registrations.
-- [ ] Render the script for `work` and `personal`; confirm both outputs remove the old Datadog names and preserve their other server commands. Run `bash -n` on each rendered script.
-- [ ] Run `cd dot_pi/agent && npm run test:unit`; expect all remaining unit tests to pass.
-- [ ] Apply the work extension removal and updated script through chezmoi: run `chezmoi --source "$PWD" apply ~/.pi/agent/extensions` to prune the legacy extension directory via `exact_`, and `chezmoi --source "$PWD" apply --include scripts` to execute the updated cleanup script. Restart Pi. Check `/mcp` and only the `.mcpServers` keys in `~/.pi/agent/mcp.json`; confirm no old Datadog server names remain. Do not print the full config because it may contain the Home Assistant URL.
-- [ ] Commit with `refactor(pi): remove legacy Datadog auth extension`.
+- [x] Run `npm ci --ignore-scripts` in `dot_pi/agent` so the TypeScript language server can load.
+- [x] Run `lsp_find_references` for `registerDatadogMcpAuth` in `_core.ts` and the default-exported `datadogMcpAuthExtension` in `index.ts` before deleting the directory. Also text-search the extension path because Pi discovers default factories automatically. Resolve any references not covered by the following files. The only out-of-directory references are the test glob, personal ignore entry, cleanup script, and Task 3 guidance.
+- [x] Remove `dot_pi/agent/exact_extensions/datadog-mcp-auth/` and its `"$ext"/datadog-mcp-auth/*.test.ts` entry from `dot_pi/agent/package.json`. The user removed the source directory after the tool guard blocked recursive deletion.
+- [x] Remove `.pi/agent/extensions/datadog-mcp-auth` from the personal block in `.chezmoiignore`; the source no longer exists.
+- [x] Clarify the legacy Datadog cleanup intent in `run_onchange_pi-mcp-servers.sh.tmpl` so its content change reruns the script. Keep both `pi mcp remove datadog-prod` and `pi mcp remove datadog-staging` commands in both profile branches; do not modify other server registrations.
+- [x] Render the script for `work` and `personal`; confirm both outputs remove the old Datadog names and preserve their other server commands. Run `bash -n` on each rendered script.
+- [x] Run `cd dot_pi/agent && npm run test:unit`; expect all remaining unit tests to pass (209 tests passed).
+- [x] Apply the work extension removal and updated script through chezmoi: run `chezmoi --source "$PWD" apply ~/.pi/agent/extensions` to prune the legacy extension directory via `exact_`, and `chezmoi --source "$PWD" apply --include scripts` to execute the updated cleanup script. The user confirmed the plugin works in a fresh Pi session. A key-only `mcp.json` check found no old Datadog server names and preserved `ddci-mcp-prod`, `slack`, and `trajectory`.
+- [x] Commit with `refactor(pi): remove legacy Datadog auth extension` (`e607507`).
 
 ### Task 3: Update guidance and complete feature-level verification
+**Execution status:** Complete; documentation, profile validation, full tests, template renders, source search, and user-reported fresh-session checks passed.
 **Delivers:** Agent guidance uses the plugin and all automated, profile, and work-session checks pass after cleanup.
 **Blocked by:** Task 2
 **Traces to:** Requirement “Datadog guidance describes the plugin”; all feature-level requirements
 **Files:** `AGENTS.md`, `dot_pi/agent/exact_skills_work/datadog-mcp/SKILL.md`
 
 - Reason a failing test is not practical: Task 3 updates prose documentation and agent skills. Documentation changes are verified through the profile skill validation linter (`npm run test:skills:profiles`), full test suite pass (`npm test && npm run test:all`), and negative search across source for obsolete references.
-- [ ] Update the root `AGENTS.md` Pi MCP section to state that the Datadog plugin is declared in both profile settings; describe `/datadog`, `datadog`, `ddconfig`, and `ddtoolsets`; explain that the agent can switch only among saved orgs; retain Slack, Home Assistant, and trajectory guidance.
-- [ ] Rewrite the work `datadog-mcp` skill for the plugin. Keep the production/`ddstaging` routing rules and read-only requirements. Explain that `ddconfig` selects a saved org, confirm org identity before queries, and use separate Pi sessions when results from different orgs must not share conversation context.
-- [ ] Review `dot_pi/agent/AGENTS.md` and record that no change is needed because it contains no Datadog or MCP guidance.
-- [ ] Run `npm run test:skills:profiles`; expect both profiles to validate.
-- [ ] Run `cd dot_pi/agent && npm test && npm run test:all`; expect all suites to pass. Remove `dot_pi/agent/node_modules` after the suites pass, per repository guidance.
-- [ ] Render both settings profiles and both cleanup-script branches again. Confirm plugin appears exactly once in each package list, both branches remove old Datadog server names, and neither profile contains the deleted extension path.
-- [ ] Search tracked source outside `plans/` for stale references to `datadog-mcp-auth` and old native tool names. Allow the deliberate `pi mcp remove` cleanup commands and historical plan files.
-- [ ] Review `chezmoi --source "$PWD" diff` for only the intended target. Apply the changed work skill to its target with `chezmoi --source "$PWD" apply ~/.pi/agent/skills_work/datadog-mcp/SKILL.md`; root `AGENTS.md` is excluded by `.chezmoiignore` and is tracked as an in-repo source change only. Do not apply the personal profile on this work machine.
-- [ ] Repeat the two-org read-only and agent-switch checks in a fresh work Pi session after removing the wrapper. Verify the production and `ddstaging` identities with the `ddconfig` tool using `action: "check"` before their queries.
-- [ ] Commit with `docs(pi): document Datadog plugin access`.
+- [x] Update the root `AGENTS.md` Pi MCP section to state that the Datadog plugin is declared in both profile settings; describe `/datadog`, `datadog`, `ddconfig`, and `ddtoolsets`; explain that the agent can switch only among saved orgs; retain Slack, Home Assistant, and trajectory guidance.
+- [x] Rewrite the work `datadog-mcp` skill for the plugin. Keep the production/`ddstaging` routing rules and read-only requirements. Explain that `ddconfig` selects a saved org, confirm org identity before queries, and use separate Pi sessions when results from different orgs must not share conversation context.
+- [x] Review `dot_pi/agent/AGENTS.md` and record that no change is needed because it contains no Datadog or MCP guidance.
+- [x] Run `npm run test:skills:profiles`; both profiles validated 45 skills.
+- [x] Run `cd dot_pi/agent && npm test && npm run test:all`; both commands passed (209 unit tests), then the user removed `dot_pi/agent/node_modules` as required.
+- [x] Render both settings profiles and both cleanup-script branches again. Confirm plugin appears exactly once in each package list, both branches remove old Datadog server names, and neither profile contains the deleted extension path.
+- [x] Search tracked source outside `plans/` for stale references to `datadog-mcp-auth` and old native tool names. Only the intentional cleanup commands remain.
+- [x] Review `chezmoi --source "$PWD" diff` for only the intended target. Apply the changed work skill to its target with `chezmoi --source "$PWD" apply ~/.pi/agent/skills_work/datadog-mcp/SKILL.md`; root `AGENTS.md` is excluded by `.chezmoiignore` and is tracked as an in-repo source change only. Do not apply the personal profile on this work machine.
+- [x] Repeat the two-org read-only and agent-switch checks in a fresh work Pi session after removing the wrapper. The user confirmed that everything works.
+- [x] Commit with `docs(pi): document Datadog plugin access`.
 
 ## Final verification
-- [ ] Feature-level acceptance: work and personal settings declare the package; work production and `ddstaging` requests succeed; the agent switches to the requested saved org; the wrapper and old entries are absent; no personal OAuth was configured on the work machine.
-- [ ] Confirm that rollback remains possible by reverting the source commits and applying the restored work configuration. Do not delete OAuth state as part of rollback.
+- [x] Feature-level acceptance: work and personal settings declare the package; the user confirmed that work production and `ddstaging` access and switching work; the wrapper and old entries are absent; no personal OAuth was configured on the work machine.
+- [x] Confirm that rollback remains possible by reverting the source commits and applying the restored work configuration. The extension source and cleanup commands remain available through Git history; no OAuth state was deleted.
 
 ## Documentation and future-agent guidance
 Task 3 updates root `AGENTS.md` and the work Datadog skill. `dot_pi/agent/AGENTS.md` requires no change because it has no Datadog or MCP instructions. The Pi plugin README remains the upstream setup reference; no upstream documentation change is required.

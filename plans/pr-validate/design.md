@@ -4,7 +4,9 @@ Add a read-only pi `/pr-validate <GitHub PR URL> [context]` prompt. It reviews s
 
 Revision 2 (2026-09-29) changes how the report is presented and what counts as evidence. Revision 1 moved the verdict to an HTML report, but that report was still a wall of text. In revision 2, every item follows a fixed story (why it matters, what the code does, why that is bad, whether it is real, the shape of the fix), with diagrams, chips, and short text in the style of the `show-me` story pages. Severity now depends on real exposure and fix cost, not only on whether the code is wrong. Three criteria are new: observability, dependencies, and docs. `/pr-validate` also learns to discover skills in the company marketplace. See [Revision 2: presentation and evidence](#revision-2-presentation-and-evidence).
 
-`/pr-validate` is the delegated review mode. The existing `/pr-review` stays unchanged. A later design will turn `/pr-review` into a guided review mode, in which the agent asks the user questions about the code in a logical order.
+Revision 3 adds the Walkthrough, the **Where this fits** item slot, Pass/Fail/Open review gates, and PR summary and review-gates tables. It retires `/pr-review` because the user uses `/pr-validate` for PR reviews.
+
+`/pr-validate` is the delegated review mode. The separate `/pr-review` command is retired.
 
 ## Alignment brief
 Problem:
@@ -408,7 +410,7 @@ Deliberately defer:
 ## Deferred alternatives
 | Alternative | Merit | Why deferred | Revisit trigger |
 |---|---|---|---|
-| Guided `/pr-review`: the agent collects evidence and asks the user questions in logical story order until the user can explain the PR | Builds real understanding. The "teach it back" end state gives a clear success signal. | The user has a current use case for delegated review. The guided mode has an unresolved medium question. | `/pr-validate` lands. Then decide where the Q&A happens: pi, browser, or both. |
+| Guided `/pr-review`: the agent collects evidence and asks the user questions in logical story order until the user can explain the PR | Builds real understanding. The "teach it back" end state gives a clear success signal. | Dropped: the user uses `/pr-validate` for PR reviews, so a second command would duplicate that workflow. | Revisit if the user asks for a guided, interactive review. |
 | Upgrade the `/to-html` template (navigation, callouts, before/after badges) | Improves every response, not only reviews, within the existing trust model | The problem is the review mode, not the page style | Real `/pr-validate` or `/pr-review` output is hard to read in the browser |
 | Agent-authored interactive HTML walkthrough skill with copy-back prompts | Clickable diagrams and a round trip from the browser to the agent | Adds a second trust path and a second rendering path. `show-me` already covers focused HTML. | Guided `/pr-review` needs spatial navigation that chat cannot give |
 | `gh pr review` comment panel | Fast posting | The user writes their own comments. The command is read-only. | The user asks for posting support |

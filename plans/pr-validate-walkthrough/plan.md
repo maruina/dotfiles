@@ -223,19 +223,19 @@ Evidence from session `01a11725` (GPT-6 Luna, 14m33s, 251k of 272k context token
 **Traces to:** Requirement: `/pr-review` is retired
 **Files:** `dot_pi/agent/exact_prompts/pr-review.md` (delete), `dot_pi/agent/exact_prompts/pr-cleanup.md`, `dot_pi/agent/exact_prompts/pr-address-feedback.md`, `dot_pi/agent/exact_prompts/verify.md`, `dot_pi/agent/exact_prompts/systematic-review.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`
 
-- [ ] Add a test that asserts `pr-review.md` does not exist in `promptsDir` and that no prompt file matches `/\/pr-review\b/`. Run the narrow command; expect failure.
-- [ ] Update the existing tests that read `pr-review.md`:
+- [x] Add a test that asserts `pr-review.md` does not exist in `promptsDir` and that no prompt file matches `/\/pr-review\b/`. Run the narrow command; expect failure.
+- [x] Update the existing tests that read `pr-review.md`:
   - remove it from `provenancePrompts`;
   - drop it from the "simplify and PR review report skill provenance" loop and remove the `domain rules are \`prompt-required\`` assertion;
   - remove it from the shared-worktree-path test list;
   - remove `const review = prompt("pr-review.md");` and all `review` assertions in "PR commands have distinct roles and aligned review artifacts";
   - remove it from the `feature-worktree` prompt list;
   - change the `addressFeedback` marker to `/Build a \*\*targeted model\*\*, not a full `\/pr-validate` walkthrough/`.
-- [ ] Delete `pr-review.md`. In `pr-cleanup.md` line 8, say that `/pr-validate` creates the worktree. In `verify.md` and `systematic-review.md` line 12, point at `/pr-validate` to assess someone else's GitHub PR. In `pr-address-feedback.md`:
+- [x] Delete `pr-review.md`. In `pr-cleanup.md` line 8, say that `/pr-validate` creates the worktree. In `verify.md` and `systematic-review.md` line 12, point at `/pr-validate` to assess someone else's GitHub PR. In `pr-address-feedback.md`:
   - on line 10, say `/pr-validate` reviews the PR as a whole;
   - on line 48, keep the evidence-hierarchy list and remove the "same as `/pr-review`" reference;
   - on line 57, say "not a full `/pr-validate` walkthrough".
-- [ ] Run `rg -n '/pr-review\b' dot_pi`; expect no output. Run the narrow command; expect all tests to pass.
+- [x] Run `rg -n '/pr-review\b' dot_pi`; expect no output. Run the narrow command; expect all tests to pass.
 - [ ] Commit with `feat(pi)!: retire /pr-review in favor of /pr-validate`.
 
 ### Task 6: Documentation and future-agent guidance
@@ -244,8 +244,8 @@ Evidence from session `01a11725` (GPT-6 Luna, 14m33s, 251k of 272k context token
 **Traces to:** Documentation contract
 **Files:** `plans/pr-validate/design.md`
 
-- [ ] Add a short "Revision 3" paragraph to the Summary of `plans/pr-validate/design.md`: Walkthrough, Where this fits, Pass/Fail/Open gates, end tables, and `/pr-review` retired. Change "The existing `/pr-review` stays unchanged" so it says the command is retired. In Deferred alternatives, mark the guided `/pr-review` row as dropped, with the reason that the user uses only `/pr-validate`.
-- [ ] Check these files and record that they need no change, because none of them names `/pr-review` or the report shape:
+- [x] Add a short "Revision 3" paragraph to the Summary of `plans/pr-validate/design.md`: Walkthrough, Where this fits, Pass/Fail/Open gates, end tables, and `/pr-review` retired. Change "The existing `/pr-review` stays unchanged" so it says the command is retired. In Deferred alternatives, mark the guided `/pr-review` row as dropped, with the reason that the user uses only `/pr-validate`.
+- [x] Check these files and record that they need no change, because none of them names `/pr-review` or the report shape:
   - `AGENTS.md`
   - `dot_pi/agent/AGENTS.md`
   - the `skill-loader`, `explain`, and `feature-worktree` skills

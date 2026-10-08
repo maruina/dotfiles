@@ -41,7 +41,6 @@ const provenancePrompts = [
   "systematic-review.md",
   "verify.md",
   "simplify.md",
-  "pr-review.md",
   "pr-validate.md",
   "troubleshoot.md",
 ];
@@ -332,16 +331,14 @@ test("writable stages record learning candidates; read-only stages capture nothi
   }
 });
 
-test("simplify and PR review report skill provenance", () => {
-  for (const file of ["simplify.md", "pr-review.md"]) {
+test("simplify and PR validation report skill provenance", () => {
+  for (const file of ["simplify.md", "pr-validate.md"]) {
     const text = prompt(file);
     requireMarkers(text, [
       provenanceReference,
       /\*\*Skills loaded and used\*\*|## Skills loaded and used/,
     ]);
   }
-
-  assert.match(prompt("pr-review.md"), /domain rules are `prompt-required`/i);
 });
 
 // verify.md and learn.md are terminal stages: no downstream handoff by design.
@@ -567,8 +564,8 @@ test("PR validation marketplace discovery is bounded, local, and read-only", () 
   ]);
 });
 
-test("PR validation shares the review-worktree path with review and cleanup", () => {
-  const paths = ["pr-validate.md", "pr-review.md", "pr-cleanup.md"]
+test("PR validation and cleanup share the review-worktree path", () => {
+  const paths = ["pr-validate.md", "pr-cleanup.md"]
     .flatMap((name) => [...prompt(name).matchAll(/~\/dd\/\.worktrees\/[^\s`")]+/g)])
     .map(([path]) => path);
 
@@ -596,20 +593,30 @@ test("PR updates reassess unresolved concerns without accumulating review histor
   ]);
 });
 
+test("retired PR review prompt is absent and unreferenced", () => {
+  const promptFiles = readdirSync(promptsDir).filter((name) => name.endsWith(".md"));
+  const retiredCommand = `/${"pr"}-review`;
+  const retiredPromptFile = `${"pr"}-review.md`;
+  assert.equal(promptFiles.includes(retiredPromptFile), false);
+
+  for (const file of promptFiles) {
+    assert.doesNotMatch(prompt(file), new RegExp(`${retiredCommand}\\b`), `${file} must not name the retired prompt`);
+  }
+});
+
 test("PR commands have distinct roles and aligned review artifacts", () => {
-  const review = prompt("pr-review.md");
+  const validate = prompt("pr-validate.md");
   const addressFeedback = prompt("pr-address-feedback.md");
   const create = prompt("pr-create.md");
   const update = prompt("pr-update.md");
   const cleanup = prompt("pr-cleanup.md");
 
-  assert.match(review, /Use `\/pr-address-feedback` to decide whether feedback on your own PR applies/);
-  assert.match(review, /run `\/to-html` after the response settles/i);
-  assert.doesNotMatch(review, /~\/dd\/\.worktrees\/REPO-pr-PR_NUMBER-review\.html/);
-  assert.doesNotMatch(review, /cdn\.jsdelivr\.net\/npm\/mermaid/);
-  assert.match(addressFeedback, /Build a \*\*targeted model\*\*, not a full `\/pr-review` narrative/);
+  assert.match(addressFeedback, /`\/pr-validate` explains and evaluates the PR as a whole/);
+  assert.match(addressFeedback, /Build a \*\*targeted model\*\*, not a full `\/pr-validate` walkthrough/);
+  assert.match(validate, /pr-validate-reports\/REPO-PR_NUMBER\.json/);
   assert.match(create, /post one `@codex review` comment/);
   assert.match(update, /Do not post `@codex review` unless the user explicitly asks/);
+  assert.match(cleanup, /created by `\/pr-validate`/);
   assert.match(cleanup, /git worktree remove "\$WORKTREE"/);
   assert.doesNotMatch(cleanup, /\bHTML\b/);
   assert.doesNotMatch(cleanup, /git worktree remove[^\n]*--force/);
@@ -627,7 +634,7 @@ test("worktree and PR checkout procedures live in skills, not prompts", () => {
     /mkdir -p.*WORKTREES_ROOT|parent directory if it does not exist/i,
   ]);
 
-  for (const file of ["brainstorm.md", "plan.md", "execute.md", "simplify.md", "pr-review.md", "pr-address-feedback.md"]) {
+  for (const file of ["brainstorm.md", "plan.md", "execute.md", "simplify.md", "pr-address-feedback.md"]) {
     assert.match(prompt(file), /`feature-worktree` skill/, `${file} must use the feature-worktree skill`);
   }
 

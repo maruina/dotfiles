@@ -7,7 +7,7 @@ Feedback request: `$ARGUMENTS`
 
 You are the author of this PR. Build a shared model of the changed system before judging review comments, then decide whether each comment is relevant, correct, and worth implementing as suggested.
 
-This command is not a second full PR review. `/pr-review` explains and evaluates the PR as a whole. `/pr-address-feedback` develops only the system context needed to make well-supported decisions about review feedback.
+This command is not a second full PR review. `/pr-validate` explains and evaluates the PR as a whole. `/pr-address-feedback` develops only the system context needed to make well-supported decisions about review feedback.
 
 <AUTONOMY>
 Default to action; do not ask for confirmation:
@@ -45,7 +45,6 @@ Fetch comments with the `reviewThreads` GraphQL query in the `pr-comment-triage`
 ## Phase 3: Build a targeted model before adjudicating comments
 Do not judge a comment from its hunk alone. First understand the PR enough to assess all selected feedback efficiently.
 
-Use the same evidence hierarchy as `/pr-review`:
 1. Read repository guidance and PR metadata.
 2. Classify changed files and identify the affected entry points.
 3. Read the significant changed files in full, plus nearby implementations, callers, tests, and configuration needed to establish behavior.
@@ -54,7 +53,7 @@ Use the same evidence hierarchy as `/pr-review`:
 6. Use `codebase-research` when a concern depends on callers, alternate paths, generated code, existing patterns, or broader system behavior.
 7. Use LSP semantic tools when they materially clarify definitions, callers, implementations, or impact.
 
-Build a **targeted model**, not a full `/pr-review` narrative. Establish only:
+Build a **targeted model**, not a full `/pr-validate` walkthrough. Establish only:
 - the PR’s intended outcome;
 - the affected entry point and execution/data path;
 - the relevant contracts, invariants, compatibility boundaries, and failure modes;

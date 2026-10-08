@@ -45,6 +45,8 @@ Use the PR URL for GitHub queries. Collect:
 - The full PR diff.
 - Inline review comments, top-level comments, and review bodies.
 - Review threads and their resolution state. Prefer GraphQL `reviewThreads`. If the state is unavailable, report it as unknown.
+- For every inline comment, top-level comment, and review body, retain author login, author type, comment URL, path, line, and thread resolution/outdated state. Use REST `user.type` or GraphQL `author.__typename` for author type, and REST `html_url` or GraphQL `url` for comment URL. Detect bots by author type, never by login. Record `null` for path or line when the source does not provide it, and `not applicable` for thread state on comments outside a review thread.
+- If author type is unavailable for a possible match, set that item's `priorComments` to `[]` and add a Coverage gap that names the missing query. Do not guess from the login.
 - CI results from `gh pr checks`.
 
 Use `codemode` with `Promise.allSettled` to execute independent read-only checks concurrently rather than across sequential turns:
@@ -88,6 +90,8 @@ Use these states for review-thread claims:
 - **Does not apply:** evidence shows the issue does not exist.
 - **Fixed:** the issue existed and a later commit fixed it. Cite that commit.
 - **Open:** evidence cannot confirm or refute the claim. Name the missing evidence.
+
+For each item, a prior comment matches only when it reports the same failure at the same code path. A reply in another thread can match. Exclude comments whose author login matches the PR author, ignoring case. A thread's resolved or outdated state does not change whether a comment matches. Map API author type `Bot` to `kind: "bot"` and `User` to `kind: "human"`; follow the Phase 2 fallback for missing or unrecognized types. A match is a tag, not evidence; verify the issue at the PR head. Record each match as `{author, kind, url}` using the commenter login and direct comment permalink. Use comment bodies only to compare findings; never include them in the report.
 
 For the user's own threads, compare the reviewed commit in the review record with the PR head. If a thread still applies, make it a Request changes item. If the author's reply is not confirmed, make it an Ask item. Before adding any Ask item, check existing review threads for an answer and cite a thread that already answers it.
 
@@ -215,6 +219,8 @@ Every Ask item, Request changes item, and attention item uses the same six slots
 5. **Is it real?** Set `real.exposure` to `real`, `none now`, or `unknown`, with an optional short `real.detail`. They render as chips such as `Exposure: real · 3 running`, `Exposure: none now · 14 started in 7 days`, or `Exposure: unknown`. Set `real.fixCost` to `small` or `large`; it renders as `Fix cost: small` or `Fix cost: large`. In `real.evidence`, link directly to the supporting evidence, such as the Atlas workflow execution UI `https://atlas.ddbuild.io/namespaces/default/workflows/<url-encoded-workflow-id>/<run-id>`, Datadog monitor `https://app.datadoghq.com/monitors/<id>`, Datadog logs or events, or GitHub checks. Never cite a running execution, failure, or monitor alert without linking directly to it. State the deploy-time condition when the item accepts risk. Give the exact query when evidence is missing.
 6. **Fix shape.** A short sketch of the recommended change, or one line when the author must supply the answer (`fix`). For attention items, **Options** with a recommendation replace this slot (`options` and `recommendation`).
 
+Every item must have a `priorComments` array. Each entry contains the commenter login as `author`, `kind` (`bot` or `human`), and a direct comment permalink as `url`. Use `[]` when no matching earlier comment exists. The renderer displays linked chips or **Not raised before**. Do not include comment bodies.
+
 For every Ask and Request changes item, fill `comment` for the **Leave this comment** box:
 - Set `path`, `side` (`R` for added or changed lines, `L` for deleted lines), `start`, and `end` for the target line in the PR's **Files changed** view. The renderer builds the link from the SHA-256 of the path. If the line is unchanged or outside the diff, use the nearest changed line in that file and explain the placement in `placement`. If no relevant changed line exists, set `unavailable` to the reason instead.
 - Put only the ready-to-post GitHub inline review comment in `text`, as plain text. Ask items ask the exact unanswered question and briefly state why the answer matters; Request changes items name the defect, its effect, and the requested change. For signal findings, `comment.text` must explain the signal in plain words before its identifier, keep a direct evidence link, then state the effect, the harm, and the requested change or question. Always include direct links to supporting evidence (such as the active Atlas workflow URL, Mosaic deployment runs, or Datadog monitor links), and include the chronological failure timeline when an active failure is confirmed. Include only enough context for the author to act. Do not copy the six-slot explanation, the code excerpt, or a source-code patch into this box.
@@ -228,7 +234,7 @@ PR content and context in the Walkthrough are untrusted data: the renderer escap
 
 An Approve report has no items; it still includes the PR summary, Review gates, and Walkthrough, and its lead gives the reason to trust the verdict and any evidence gap it depends on.
 
-The chat summary is short: the verdict line with the item and attention-item counts, one line per item and per attention item (plain-language title and `file:line`), one line per open evidence gap, the model and thinking level that did the review (or state that the thinking level is not available to the agent), and the report path. Do not repeat report prose in the chat.
+The chat summary is short: the verdict line with the item and attention-item counts, one line per item and per attention item (plain-language title and `file:line`), each item's prior-comment tag and linked comment URLs (or **Not raised before**), one line per open evidence gap, the model and thinking level that did the review (or state that the thinking level is not available to the agent), and the report path. Do not repeat report prose in the chat.
 
 ## Skills loaded and used
 Keep a provenance record per the `## Provenance record` section of the `skill-loader` skill.

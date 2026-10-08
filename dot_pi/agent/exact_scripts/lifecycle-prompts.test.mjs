@@ -499,6 +499,23 @@ test("PR validation explains signals before identifiers and ends with the real h
   ]);
 });
 
+test("PR validation defines prior-comment metadata, matching, and summary tags", () => {
+  const text = prompt("pr-validate.md");
+
+  requireMarkers(text, [
+    /author login.*author type.*comment URL.*path.*line/is,
+    /user\.type.*__typename/is,
+    /never by login/i,
+    /same failure at the same code path/i,
+    /PR author/i,
+    /resolved.*outdated.*does not change/is,
+    /priorComments.*author.*kind.*url/is,
+    /Not raised before/,
+    /author type is unavailable.*Coverage gap/is,
+    /prior-comment tag.*linked comment URLs/is,
+  ]);
+});
+
 test("PR validation report opens with a walkthrough", () => {
   const text = prompt("pr-validate.md");
 

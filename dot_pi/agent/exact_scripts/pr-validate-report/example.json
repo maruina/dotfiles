@@ -68,6 +68,11 @@
       "kind": "request",
       "title": "The gate blocks the certificate repair",
       "step": "step-rotate",
+      "priorComments": [{
+        "author": "reviewer",
+        "kind": "human",
+        "url": "https://github.com/example-org/example-service/pull/42#discussion_r2"
+      }],
       "whereThisFits": "`RotateCA` runs after `ClusterLifecycle` selects a rotation. It now calls the gate before the `ca_certs` deploy.",
       "whyItMatters": "The monitor alerts when nodes trust different roots. The deploy is what fixes that state.",
       "code": {
@@ -98,6 +103,11 @@
       "kind": "request",
       "title": "Running workflows fail after deploy",
       "step": "step-rotate",
+      "priorComments": [{
+        "author": "review-bot",
+        "kind": "bot",
+        "url": "https://github.com/example-org/example-service/pull/42#discussion_r1"
+      }],
       "whereThisFits": "The new gate call adds a child workflow command to `RotateCA` histories.",
       "whyItMatters": "Temporal replays each workflow against its recorded commands. A new command breaks running workflows.",
       "code": {
@@ -127,6 +137,7 @@
       "kind": "ask",
       "title": "Operators cannot see a skipped gate",
       "step": "step-rotate",
+      "priorComments": [],
       "whereThisFits": "The skip flag bypasses the gate inside `RotateCA`.",
       "whyItMatters": "A skipped gate removes the only safety check. On-call needs to see that it happened.",
       "code": {

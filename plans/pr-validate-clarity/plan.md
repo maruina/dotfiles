@@ -25,10 +25,23 @@
 | `feature-worktree` | `prompt-required` | Execution must continue in the plan's feature worktree | Confirmed the resolved worktree was the intended feature branch. |
 | `skill-loader` | `prompt-required` | `/execute` requires execution-stage skill selection and provenance | Selected execution skills from the changed paths and recorded them here. |
 | `codebase-research` | `skill-loader` | The renderer validation behavior and nearby tests needed current-code review | Traced the validation limit, fixture, and test patterns before editing. |
-| `chezmoi` | `skill-loader` | Changed files are chezmoi source files | Kept edits in source paths and will preview/apply explicit target files. |
+| `chezmoi` | `skill-loader` | Changed files are chezmoi source files | Kept edits in source paths; previewed and applied explicit target files, then confirmed no target drift. |
 | `write` | `skill-loader` | The prompt and example contain user-facing prose | Wrote the signal explanation in causal order with direct language. |
 | `humanizer` | `skill-loader` | The prompt and example contain user-facing prose | Kept prose specific and removed no supported facts. |
 | `reviewable-pr-workflow` | `prompt-required` | The slice is ready for a PR handoff | Applied its stack-split signals before preparing a draft PR. |
+
+#### Slice 2 execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `resolve-worktree` | `prompt-required` | The plan path belongs to a feature worktree | Resolved and switched to the owning branch before repository reads. |
+| `feature-worktree` | `prompt-required` | Execution must continue in the plan's feature worktree | Confirmed the current worktree owns the open draft PR. |
+| `skill-loader` | `prompt-required` | `/execute` requires execution-stage skill selection and provenance | Selected the skills needed for renderer and prompt changes. |
+| `codebase-research` | `skill-loader` | Prior-comment validation/rendering crosses prompt, renderer, and test contracts | Traced current validation, rendering, and test patterns before editing. |
+| `cli-best-practices` | `skill-loader` | Renderer validation errors and output are CLI behavior | Kept field errors specific and rendered only validated PR comment metadata. |
+| `chezmoi` | `skill-loader` | Changed files are chezmoi source files | Previewed and applied only the explicit target files, then confirmed no target drift. |
+| `write` | `skill-loader` | Prompt instructions need clear data-collection and matching rules | Stated exact metadata, matching, and fallback behavior. |
+| `humanizer` | `skill-loader` | Prompt instructions are human-readable prose | Kept the added guidance direct and specific. |
+| `reviewable-pr-workflow` | `prompt-required` | The open draft PR will receive this slice | Will apply its stack-split and PR update guidance. |
 
 ## Evidence
 Source of truth: the user request, `~/.pi/agent/pr-validate-reports/dd-source-116539.{json,html}`, PR [ddoghq/dd-source#116539](https://github.com/ddoghq/dd-source/pull/116539) threads, and session `01a11acc-1f93-7224-ab02-71cb27d9cfb5`.
@@ -59,7 +72,7 @@ Source of truth: the user request, `~/.pi/agent/pr-validate-reports/dd-source-11
 |---|---|---|---|---|
 | Plain-language slot 4 and comment | Prompt rule plus `example.json` model item | `pr-validate.md` Item story; `example.json` is read every run | Marker test; final rerun | Not applicable |
 | 90-word `whyBad` | `LIMITS.whyBad` in `render.mjs` | `LIMITS` and `text()` validation, `render.mjs:41-118` | `render.test.mjs` word-limit test | Not applicable |
-| Bot and human detection | REST `user.type`, GraphQL `author.__typename`, `html_url`/`url` | Verified on dd-source#116539 | Final rerun lists the four bot links | Report the item as `Prior comments: unknown` in Coverage |
+| Bot and human detection | REST `user.type`, GraphQL `author.__typename`, `html_url`/`url` | Verified on dd-source#116539 | Final rerun lists the four bot links | Set `priorComments` to `[]` and add a Coverage gap naming the missing query |
 | Required `priorComments` | `validate()` and `renderItem()` in `render.mjs` | Existing item validation pattern, `render.mjs:165-206` | `render.test.mjs` | Not applicable |
 | One early `tool_search` | Prompt instruction in Phase 2 | Session shows two late calls and cache rewrites | Marker test; jq on rerun session | Not applicable |
 | Fetch threads once | Prompt instruction for one compact threads file | Session shows four thread reads | Marker test; jq on rerun session | Not applicable |
@@ -190,13 +203,13 @@ Delivers the user feedback "each item tells me if a bot or a human already raise
 **Traces to:** Requirement "Items show which earlier comments already raised them"; user request about bot comments and decisions 1–3
 **Files:** `dot_pi/agent/exact_prompts/pr-validate.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`, `dot_pi/agent/exact_scripts/pr-validate-report/render.mjs`, `dot_pi/agent/exact_scripts/pr-validate-report/example.json`, `dot_pi/agent/exact_scripts/pr-validate-report/render.test.mjs`
 
-- [ ] Add `render.test.mjs` cases for the bot chip, the human chip, "Not raised before", a missing field, a URL for another PR, a bad fragment, and a bad `kind`. Add prompt markers for detection, "never by login", PR-author exclusion, and the chat summary tag. Run both suites; expect the new cases to fail.
-- [ ] In `render.mjs` `validate()`, require `item.priorComments` as an array on every item kind (use `list(item?.priorComments, `${at}.priorComments`, 0)` or `Array.isArray` directly so empty arrays `[]` pass). Validate each entry: `author` as short text, `kind` in `["bot", "human"]`, `url` matching `^https://github\.com/<repo>/pull/<number>#(discussion_r|issuecomment-|pullrequestreview-)\d+$` built from the report's `repo` and `number` with regex metacharacters escaped.
-- [ ] In `renderItem()`, render one line before slot 1: a chip per entry (`Already raised by bot <code>${escapeHtml(author)}</code>` or `Already raised by @${escapeHtml(author)}`) as a link `<a class="chip" href="${escapeHtml(url)}">...</a>`, or one chip `<span class="chip">Not raised before</span>`. Escape all values.
-- [ ] In `example.json`, add `priorComments` to each item: one bot entry on `replay-break`, one human entry on `gate-blocks-repair`, and `[]` on `skip-visibility`.
-- [ ] In `pr-validate.md` Phase 2, record for each inline comment, top-level comment, and review body: author login, author type, comment URL, path, line, and thread resolution state. In Pass 2, add the matching rule from the Implementation Constraints. In the Item story, document `priorComments`. In the chat summary, add the prior-comment tag and link to each item line. When author type is unavailable, set `[]` and add a Coverage gap that names the query.
-- [ ] Run `npm run test:prompts` and `npm run test:pr-validate-report`; expect both green.
-- [ ] Commit with `feat(pi): tag /pr-validate items with prior bot and human comments`.
+- [x] Add `render.test.mjs` cases for the bot chip, the human chip, "Not raised before", a missing field, a URL for another PR, a bad fragment, and a bad `kind`. Add prompt markers for detection, "never by login", PR-author exclusion, and the chat summary tag. Run both suites; the new cases fail as expected.
+- [x] In `render.mjs` `validate()`, require `item.priorComments` as an array on every item kind (empty arrays pass). Validate each entry: `author` as short text, `kind` in `["bot", "human"]`, and a same-PR comment URL with an allowed fragment; escape regex metacharacters from `repo`. Required-array, bad-URL, bad-fragment, bad-kind, and dotted-repo cases pass.
+- [x] In `renderItem()`, render one line before slot 1: linked bot/human chips or `Not raised before`; escape author and URL values. The focused chip test passes.
+- [x] In `example.json`, add `priorComments` to each item: one bot entry on `replay-break`, one human entry on `gate-blocks-repair`, and `[]` on `skip-visibility`; the report renders both tags and the empty state.
+- [x] In `pr-validate.md` Phase 2, record for each inline comment, top-level comment, and review body: author login, author type, comment URL, path, line, and thread resolution state. In Pass 2, add the matching rule from the Implementation Constraints. In the Item story, document `priorComments`. In the chat summary, add the prior-comment tag and link to each item line. When author type is unavailable, set `[]` and add a Coverage gap that names the query; prompt markers pass.
+- [x] Run `npm run test:prompts` and `npm run test:pr-validate-report`; both pass (60 prompt tests and 13 renderer tests).
+- [ ] **In progress:** Commit with `feat(pi): tag /pr-validate items with prior bot and human comments`.
 
 ### Slice 3: Faster review
 Delivers the user feedback "the review spends fewer turns on known waste".

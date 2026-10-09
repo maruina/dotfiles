@@ -34,6 +34,8 @@ Treat exploration as a dependency-aware decision tree. Each answer or discovery 
 
 Finish each material branch as accepted, rejected, deferred, blocked on named evidence, or split into a smaller slice. Converge when every material branch has one of these states and no material assumption remains implicit. Useful branches include audience and pain, desired outcome, proposed solution, constraints, success and validation, alternatives, failure modes, rollout/reversibility, and ownership/maintenance.
 
+Compare material options' mechanisms with user constraints using evidence. For code claims, inspect code or tests; file names alone are not evidence. Treat priorities as criteria, not decisions; only explicit selection or exclusion decides. Investigate generic risks or label them hypotheses and leave the branch unresolved or deferred. Use relevant stakeholder decisions, preferences, docs, measurements, or tests; preferences and non-code constraints need no code reference. Reopen only affected comparisons when new requirements or complexity materially weaken the selected direction. No line-count threshold; keep settled branches closed absent material change.
+
 Offer recommendations and strawmen after the user has reasoned about a question, not with it; see `## Coaching`.
 
 Do not ask generic questions, long questionnaires, or lookup chores that code, tests, docs, tickets, logs, metrics, PRs, or repository guidance can answer cheaply. Do not produce a polished solution before the problem is understood.
@@ -141,6 +143,8 @@ When more than one design or approach is viable, select the one whose smallest s
 ## Alignment and durable output
 Summarize the agreed framing in chat before writing an artifact. The alignment brief and durable design spec must include `Skills loaded and used`; use the exact durable-spec heading `## Skills loaded and used`. Fill it per the `## Provenance record` section of the `skill-loader` skill.
 
+Before the brief, review as a skeptical staff engineer. Name the selected downside and each alternative's merit. Show user feedback from the smallest slice; non-selected alternatives are deferred rather than merged. Compare options, including the smallest existing-code change, on coverage, safety, delivery, cost, validation, and accepted limits. Scale to the decision; Small work needs no exhaustive or artificial comparison.
+
 ```md
 ## Alignment brief
 Problem:
@@ -173,11 +177,14 @@ Success criteria and validation:
 Operational notes:
 - ...
 
+Alternatives compared:
+- [approach, genuine merit, evidence, rejection reason, accepted limits, revisit trigger]
+
 Open questions:
 - ...
 ```
 
-Ask the user to confirm or adjust the brief. After confirmation, create the durable design unless the user chose the chat-only exception.
+Ask the user to confirm or adjust the brief. After confirmation, create the durable design unless the user chose the chat-only exception. Before writing `design.md` or another user-requested durable output, confirm that the comparison still holds. If it no longer holds, return to alignment; otherwise proceed without repeating the review or seeking approval. Do not write to Jira or Confluence unless requested.
 
 ## Design artifact
 When creating or updating `design.md`:
@@ -185,7 +192,7 @@ When creating or updating `design.md`:
 1. Use the `feature-worktree` skill to continue in the correct existing worktree or create one from the latest default branch.
 2. Write `plans/<ticket-or-feature>/design.md`, preferably under the relevant package in a monorepo.
 3. Include the confirmed alignment brief plus context reviewed, goals and non-goals, assumptions, the smallest user-feedback slice and the deferred alternatives, design overview, alternatives, risks and mitigations, operability, rollout/rollback, security and data handling, testing strategy, and open questions. Preserve skill provenance and add skills used while writing or reviewing the spec. Write for a reader outside the conversation: explain context, domain terms, and current behavior where relevant. The design is a synthesis, not a transcript or quiz report; omit coaching exchanges and question history.
-4. Self-review as a skeptical staff engineer. The chosen direction must name at least one downside, and every considered alternative must name a genuine merit. Check that the smallest user-feedback slice produces user feedback and that non-selected alternatives are deferred rather than merged. Fix blocking issues inline and record material rejected findings with rationale.
+4. Apply the review in `## Alignment and durable output`. Fix blocking issues inline and record material rejected findings with rationale.
 5. Commit only the design with `docs: add <ticket-or-feature> design`. Stop rather than commit on `main` or `master` or with unrelated changes.
 
 ## Update or restart

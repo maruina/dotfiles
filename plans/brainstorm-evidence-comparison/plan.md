@@ -19,6 +19,15 @@
 | `write` | `skill-loader` | Prompt and plan prose | Required precise requirement verbs and benefit-before-rejection wording for the prompt revision |
 | `feature-worktree` | `prompt-required` | Durable plan location | Continued in the existing feature worktree; nothing written on `main` |
 
+### Execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `resolve-worktree` | `prompt-required` | Resolve the supplied plan path | Confirmed the plan and switched context to its owning worktree |
+| `skill-loader` | `prompt-required` | Select execution skills before editing | Selected chezmoi and prose guidance for the prompt and plan Markdown |
+| `feature-worktree` | `prompt-required` | Keep writes in the plan's feature branch | Confirmed this is the correct feature worktree |
+| `chezmoi` | `skill-loader` | Source prompt is a managed dotfile | Kept edits in source; will preview the explicit target before any apply |
+| `write` | `skill-loader` | Revise lifecycle prompt and record execution notes | Applied concise requirements and evidence-based decision wording |
+
 ## Scope decision
 The design scoped the slice to the prompt, focused contract tests, and a bounded behavioral evaluation. At the planning alignment gate, the user narrowed the slice: change only `brainstorm.md` and test the behavior during later sessions. Therefore:
 - `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs` and `learn-prompts.test.mjs` do not change. They run as regression checks for the byte budget and tested phrases.
@@ -142,14 +151,16 @@ Before writing `design.md` or a user-requested substitute such as Jira tickets, 
 **Traces to:** R1–R4 and the user-narrowed slice.
 **Files:** Modify `dot_pi/agent/exact_prompts/brainstorm.md`; record execution notes in `plans/brainstorm-evidence-comparison/plan.md`.
 
-- [ ] From `dot_pi/agent/exact_scripts`, run `node --test lifecycle-prompts.test.mjs learn-prompts.test.mjs`; expect 53/53 passing. Run `wc -c ../exact_prompts/brainstorm.md`; expect 12,744 bytes.
-- [ ] Extend the `## Method` branch-closure paragraph with the R1 evidence rule and the R2 reopen rule.
-- [ ] In `## Alignment and durable output`, add the R3 review before the brief, add `Alternatives compared:` to the brief template, and add the R4 recheck before durable output.
-- [ ] Replace `## Design artifact` step 4 with a reference to the review. Keep only the instruction to fix blocking issues inline and record material rejected findings.
-- [ ] Rerun the regression command; expect 53/53 passing and `brainstorm.md` at or below 14,000 bytes. Record the final byte count.
-- [ ] Review the diff against R1–R4, the scenarios, and the implementation constraints. Check that `genuine merit` appears once and that the prompt contains no numeric line-count threshold. Record each requirement's location in the prompt.
-- [ ] Run `git diff --check`; expect no output.
-- [ ] Commit with `feat(pi): require evidence-based alternative comparison in brainstorm`.
+- [x] From `dot_pi/agent/exact_scripts`, run `node --test lifecycle-prompts.test.mjs learn-prompts.test.mjs`; expect 53/53 passing. Run `wc -c ../exact_prompts/brainstorm.md`; expect 12,744 bytes.
+- [x] Extend the `## Method` branch-closure paragraph with the R1 evidence rule and the R2 reopen rule.
+- [x] In `## Alignment and durable output`, add the R3 review before the brief, add `Alternatives compared:` to the brief template, and add the R4 recheck before durable output.
+- [x] Replace `## Design artifact` step 4 with a reference to the review. Keep only the instruction to fix blocking issues inline and record material rejected findings.
+- [x] Rerun the regression command; expect 53/53 passing and `brainstorm.md` at or below 14,000 bytes. Record the final byte count: 13,992.
+- [x] Review the diff against R1–R4, the scenarios, and the implementation constraints. Check that `genuine merit` appears once and that the prompt contains no numeric line-count threshold. Requirement locations: R1 and R2 in `## Method`; R3 review and visible field in `## Alignment and durable output`; R4 recheck in that section before durable output. The small-work exception remains explicit.
+- [x] Run `git diff --check`; expect no output.
+- [x] Commit with `feat(pi): require evidence-based alternative comparison in brainstorm`.
+
+**Execution notes:** Intermediate regression runs found a missing preserved phrase and prompt byte-budget overruns (up to 14,251 bytes). The final wording restored the phrase and passed all 53 tests at 13,992 bytes.
 
 ### Task 2: Review documentation and prepare verification
 **Delivers:** A documented candidate with full package checks and a previewed rollout.

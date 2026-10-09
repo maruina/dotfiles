@@ -19,6 +19,18 @@
 | `learning-lookup` | prompt-required | Check advisory guidance before planning | Queried the learning store; no relevant guidance applied. |
 | `obsidian-cli` | agent-selected | Access the advisory store | Used the CLI for a read-only learning lookup. |
 
+### Execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `resolve-worktree` | prompt-required | Resolve the supplied plan path | Located the owning feature worktree before reading repository files. |
+| `feature-worktree` | prompt-required | Keep writes off the base checkout | Confirmed the plan's clean feature worktree and branch. |
+| `skill-loader` | prompt-required | Select execution guidance for affected files | Identified applicable skills and recorded execution provenance. |
+| `codebase-research` | skill-loader | Trace prose consumers and tests | Mapped skill definitions, active consumers, test coverage, and report example. |
+| `chezmoi` | skill-loader | Edit managed source files safely | Used source-only edits and explicit target/directory dry-run previews. |
+| `write` | skill-loader | Consolidate prose guidance | Added contextual review checks while preserving the existing voice and output guidance. |
+| `humanizer` | skill-loader | Evaluate guidance being removed | Preserved useful pattern review while excluding blanket bans and its output contract. |
+| `reviewable-pr-workflow` | prompt-required | Apply the PR stack-split check | Confirmed this is one cohesive skill-guidance change with no independent stack slice. |
+
 ## Scope
 The user approved the consolidation proposed in the conversation. This is a small, direct implementation plan with one execution unit. No separate design document is needed.
 
@@ -36,19 +48,22 @@ Active references are in `skill-loader`, `pr-validate`, its lifecycle prompt tes
 - Modify `dot_pi/agent/exact_scripts/pr-validate-report/example.json`.
 - Delete `dot_pi/agent/exact_skills/humanizer/SKILL.md`, `LICENSE`, and `VENDOR.md`.
 
-- [ ] Update the lifecycle prompt tests to require loading only `write` in `pr-validate.md`, reject an active `humanizer` reference in `pr-validate.md`, and reject `humanizer` in `skill-loader/SKILL.md`; run `node --test --test-name-pattern='PR validation report is rendered from bounded JSON data' dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs` from the repository root and confirm it fails against the old prompt.
-- [ ] Update `write`'s frontmatter description to include its consolidated role in reviewing and editing formulaic LLM prose. Add a compact `Final review` section to `write`. Cover repeated closers or heading restatements, unneeded defenses against objections, repeated paragraph shapes or sentence openings, and automatic punctuation or formatting. Refer to existing rhetorical-pattern guidance rather than duplicating the triad rule.
-- [ ] State that these checks are review prompts, not forbidden forms. Edit only to improve clarity, remove repetition, or match the requested voice. Preserve facts, scope, uncertainty, and the writer's position. Keep useful summaries, genuine alternatives, and formatting that helps readers scan.
-- [ ] Retain the existing final-text output default. Do not transfer word blacklists, dash bans, AI-authorship claims, guessed reactions, or the draft-plus-critique output contract.
-- [ ] Change both prose references in `skill-loader` to use only `write` and describe its consolidated purpose. Change the PR-report instruction to load and apply only `write`.
-- [ ] Remove the obsolete skill entry from the JSON example without changing its schema or unrelated report content. Remove the entire vendored skill directory from the source.
-- [ ] Rerun the focused test above and expect a pass. Run `node --test dot_pi/agent/exact_scripts/pr-validate-report/render.test.mjs` and expect all renderer tests to pass.
-- [ ] Search `dot_pi/agent` with `rg -n -i humanizer dot_pi/agent`; expect only any intentional negative test assertion, not a loading instruction, example entry, skill definition, or vendor record.
-- [ ] Review the final instructions against the acceptance scenarios below. Do not claim that deterministic structural tests establish the quality of all future LLM prose.
-- [ ] Run `npm ci --ignore-scripts`, `npm test`, and `npm run test:all` in `dot_pi/agent`. Keep dependencies until both suites complete, then remove only the disposable source `node_modules` directory per repository guidance.
-- [ ] Run `git diff --check` and the targeted chezmoi previews below. Review the complete intended diff and stop on unrelated drift or an unsafe apply scope.
-- [ ] Hand off for fresh independent `/verify`; do not claim final verification from implementation-stage evidence.
-- [ ] After independent verification, complete the repository's safe apply, commit, and push workflow with `refactor(pi): consolidate prose guidance into write`. Recheck the verified candidate before any apply. The completion stage is not part of read-only `/verify`.
+- [x] Update the lifecycle prompt tests to require loading only `write` in `pr-validate.md`, reject an active `humanizer` reference in `pr-validate.md`, and reject `humanizer` in `skill-loader/SKILL.md`; run `node --test --test-name-pattern='PR validation report is rendered from bounded JSON data' dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs` from the repository root and confirm it fails against the old prompt.
+- [x] Update `write`'s frontmatter description to include its consolidated role in reviewing and editing formulaic LLM prose. Add a compact `Final review` section to `write`. Cover repeated closers or heading restatements, unneeded defenses against objections, repeated paragraph shapes or sentence openings, and automatic punctuation or formatting. Refer to existing rhetorical-pattern guidance rather than duplicating the triad rule.
+- [x] State that these checks are review prompts, not forbidden forms. Edit only to improve clarity, remove repetition, or match the requested voice. Preserve facts, scope, uncertainty, and the writer's position. Keep useful summaries, genuine alternatives, and formatting that helps readers scan.
+- [x] Retain the existing final-text output default. Do not transfer word blacklists, dash bans, AI-authorship claims, guessed reactions, or the draft-plus-critique output contract. No such material was added to `write`; its existing output guidance remains unchanged.
+- [x] Change both prose references in `skill-loader` to use only `write` and describe its consolidated purpose. Change the PR-report instruction to load and apply only `write`.
+- [x] Remove the obsolete skill entry from the JSON example without changing its schema or unrelated report content. Remove the entire vendored skill directory from the source.
+- [x] Rerun the focused test above and expect a pass. Run `node --test dot_pi/agent/exact_scripts/pr-validate-report/render.test.mjs` and expect all renderer tests to pass.
+- [x] Search `dot_pi/agent` with `rg -n -i humanizer dot_pi/agent`; expect only any intentional negative test assertion, not a loading instruction, example entry, skill definition, or vendor record.
+- [x] Review the final instructions against the acceptance scenarios below. Do not claim that deterministic structural tests establish the quality of all future LLM prose.
+- [x] Run `npm ci --ignore-scripts`, `npm test`, and `npm run test:all` in `dot_pi/agent`. Keep dependencies until both suites complete, then remove only the disposable source `node_modules` directory per repository guidance.
+  - Execution note: Both suites passed. The offline smoke test reported that no models were available but passed without extension issues.
+- [x] Run `git diff --check` and the targeted chezmoi previews below. Review the complete intended diff and stop on unrelated drift or an unsafe apply scope.
+  - Execution note: All five changed targets previewed as scoped changes. Per-file `chezmoi diff` for removed skill files returned `not managed` after source deletion; the managed inventory and target listing confirmed only the expected three files, and the exact-parent dry-run showed only the humanizer directory deletion plus the planned skill updates.
+- [x] Hand off for fresh independent `/verify`; do not claim final verification from implementation-stage evidence.
+- [x] After independent verification, safely apply the reviewed source changes and commit directly to `main` with `refactor(pi): consolidate prose guidance into write`. Matteo explicitly requested this instead of a draft PR and feature-branch push. Recheck the verified candidate before any apply. The completion stage is not part of read-only `/verify`. The reviewed targets were applied and the commit was created.
+  - Execution note: The first fetch and signing attempt failed; a retry succeeded. GitHub confirmed `main` was at `426c732`. The plan commits were cherry-picked onto `main`; the reviewed source changes were applied, and all changed targets match source with the humanizer target absent.
 
 ## Validation
 ### Requirement: Single prose skill

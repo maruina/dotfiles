@@ -1,6 +1,6 @@
 ---
 name: write
-description: Write, rewrite, and edit text for clarity, concision, and precision using Eva Parish's editing principles. Use whenever drafting or editing prose, docs, comments, PR descriptions, plans, specs, messages, or user-facing text.
+description: Write, rewrite, edit, and review prose for clarity, concision, precision, and formulaic LLM patterns using Eva Parish's editing principles. Use whenever drafting or editing prose, docs, comments, PR descriptions, plans, specs, messages, or other user-facing text.
 ---
 # Write
 Say exactly what you mean. Remove every word that does not help the reader.
@@ -39,6 +39,14 @@ Say exactly what you mean. Remove every word that does not help the reader.
 ## Instructions
 - For procedural documentation, recommend one clear path for the common case instead of listing every option. Use realistic scenarios and concrete commands with the arguments needed for the task.
 - Use an imperative or `must` for a requirement, `recommend` for a recommendation, `can` for an option, and `might` for a possible outcome. Avoid ambiguous `should`.
+
+## Final review
+Use these checks as prompts, not forbidden forms. Edit only to improve clarity, remove repetition, or match the requested voice. Preserve facts, scope, uncertainty, and the writer's position. Keep useful summaries, genuine alternatives, and formatting that helps readers scan.
+- Check whether a closing sentence repeats the paragraph or a heading is restated before the point.
+- Remove a defense against an objection the reader did not raise unless it carries needed context.
+- Check repeated paragraph shapes and sentence openings. Vary them only when the repetition distracts.
+- Check for punctuation or formatting applied by habit. Change it only when the change improves clarity or scanability.
+- Use the existing rhetorical-pattern guidance above. Do not remove distinct items only because they form a group of three.
 
 ## Technical decisions
 - When rejecting an alternative, state its benefit before explaining why it does not fit this case.

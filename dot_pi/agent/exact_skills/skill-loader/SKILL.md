@@ -53,13 +53,13 @@ Load when opening a new PR, amending commits before review, or responding to rev
 Load when the user provides a GitHub PR or review-discussion URL and asks to assess, address, or decide whether comments apply. Also load `reviewable-pr-workflow` when the result changes commits or PR structure.
 
 ### Documentation — `diataxis`
-Load when creating, organizing, or reviewing user documentation, including tutorials, how-to guides, reference pages, and explanations. Also load `write` and `humanizer` for prose.
+Load when creating, organizing, or reviewing user documentation, including tutorials, how-to guides, reference pages, and explanations. Also load `write` for prose.
 
 ### ddoc-managed documentation — `ddoc`
 Load when creating or modifying Markdown with `ddoc:` frontmatter or `<!-- ddoc:... -->` directives, syncing code-adjacent docs to Confluence, or invoking the `ddoc` CLI.
 
-### Prose — `humanizer` and `write`
-Load both when drafting, editing, or reviewing human-readable prose, including documentation, PR descriptions, design docs, runbooks, commit messages, and other user-facing text. Use `write` for clarity and precision; use `humanizer` to remove AI-sounding patterns without changing the meaning.
+### Prose — `write`
+Load when drafting, editing, or reviewing human-readable prose, including documentation, PR descriptions, design docs, runbooks, commit messages, and other user-facing text. Use `write` for clarity, precision, and contextual review of formulaic LLM patterns without changing the meaning.
 
 ### Presenterm slides — `presenterm`
 Load when creating or editing Markdown presentations for presenterm.

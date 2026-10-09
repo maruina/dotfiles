@@ -178,7 +178,7 @@ List one to five items, highest impact first. Say when no decision needs the rev
 Produce the report for every verdict, including Approve. Write the report data as JSON, render it with the standard renderer, and return a short summary in the chat. The renderer owns the page layout, so every report has the same shape.
 
 ### Write the report text
-Read the `write` and `humanizer` skills before you write any report text, and apply them to every text field:
+Read the `write` skill before you write any report text, and apply it to every text field:
 - Use one idea per sentence and short, plain words.
 - Lead with the result. Do not restate the gate or the field name.
 - Put each detail in the field that owns it. Do not repeat it in other fields.

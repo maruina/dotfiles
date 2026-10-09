@@ -607,7 +607,7 @@ test("PR validation report is rendered from bounded JSON data", () => {
     /~\/\.pi\/agent\/pr-validate-reports\/REPO-PR_NUMBER\.json/,
     /scripts\/pr-validate-report\/render\.mjs/,
     /Read `example\.json`/,
-    /Read the `write` and `humanizer` skills before you write any report text/,
+    /Read the `write` skill before you write any report text/,
     /rejects text that is longer than its word limits/i,
     /Do not read, write, or edit the HTML file/,
     /Hero box also holds the \*\*PR summary\.\*\* table/,
@@ -621,6 +621,8 @@ test("PR validation report is rendered from bounded JSON data", () => {
 
   assert.doesNotMatch(text, /`explain` story page shape/);
   assert.doesNotMatch(text, /highlight\.js/);
+  assert.doesNotMatch(text, /humanizer/i);
+  assert.doesNotMatch(skill("skill-loader"), /humanizer/i);
 });
 
 test("PR validation avoids known wasted turns", () => {

@@ -176,7 +176,6 @@
   ],
   "skills": [
     { "skill": "atlas-best-practices", "source": "skill-loader", "why": "The PR changes a Temporal workflow.", "how": "Checked version gates and replay coverage." },
-    { "skill": "write", "source": "prompt-required", "why": "The report has prose.", "how": "Kept sentences short and concrete." },
-    { "skill": "humanizer", "source": "prompt-required", "why": "The report has prose.", "how": "Removed filler and AI tells." }
+    { "skill": "write", "source": "prompt-required", "why": "The report has prose.", "how": "Kept sentences short and concrete." }
   ]
 }

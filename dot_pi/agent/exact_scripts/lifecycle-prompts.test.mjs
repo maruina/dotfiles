@@ -195,6 +195,29 @@ test("plan anchors scope to the smallest user-feedback slice with conditional gr
   ]);
 });
 
+test("lifecycle stages enforce negative scenarios, consumer maps, behavioral checks, and debug limits", () => {
+  requireMarkers(prompt("plan.md"), [
+    /find every consumer with `rg` or `lsp_find_references`, including tests, fixtures, and generated code/,
+    /Map each consumer to a task or to evidence that it needs no change/,
+    /Each behavior requirement also needs a negative scenario.*or a one-line reason why none applies/is,
+  ]);
+
+  requireMarkers(prompt("systematic-review.md"), [
+    /each behavior requirement has a negative scenario, or a reason why none applies/i,
+    /has every consumer mapped to a task or to evidence that it needs no change/i,
+  ]);
+
+  requireMarkers(prompt("verify.md"), [
+    /would still pass with a plausible wrong implementation does not observe its stated result/i,
+    /false positives.*false negatives.*contradictions with design or plan decisions.*idempotency.*ordering sensitivity.*boundary values/is,
+    /Mark each inapplicable risk with a one-line reason/,
+  ]);
+
+  const execute = prompt("execute.md");
+  requireMarkers(execute, [/Stop after 3 focused attempts on the same failure/, /still fails after 3 focused debugging attempts/]);
+  assert.doesNotMatch(execute, /fails repeatedly/);
+});
+
 test("brainstorm and plan stay within prompt context budgets", () => {
   const budgets = new Map([
     ["brainstorm.md", 14_000],

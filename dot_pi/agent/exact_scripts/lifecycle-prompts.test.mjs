@@ -457,11 +457,14 @@ test("PR validation prompt defines a safe delegated review contract", () => {
     /verify the base-repository remote/i,
     /existing worktree.*clean.*including untracked/is,
     /HEAD.*headRefOid/is,
-    /refs\/pull\/PR_NUMBER\/head/,
+    /refs\/pull\/(?:PR_NUMBER|\$PR_NUMBER)\/head/,
     /FETCH_HEAD.*headRefOid/is,
     /~\/dd\/\.worktrees\/REPO\/pr-PR_NUMBER-review/,
     /~\/\.pi\/agent\/pr-validate-reports\/REPO-PR_NUMBER\.html/,
     /only permitted writes are the report data.*the HTML report.*scratch files/is,
+    /fetched PR objects.*checkout updates to the clean, verified review worktree/is,
+    /canonical.*paths|physical.*paths/i,
+    /clean[\s\S]*HEAD[\s\S]*differs[\s\S]*checkout --detach[\s\S]*HEAD_REF_OID/i,
     /Do not repeat report prose in the chat/,
     /cannot inject markup or scripts/i,
   ]);
@@ -488,6 +491,9 @@ test("PR validation uses one collector for GitHub evidence", () => {
   assert.equal((text.match(/scripts\/pr-validate-report\/collect\.mjs/g) ?? []).length, 1);
   assert.ok(phase1.indexOf("base-repository remote") < phase1.indexOf("collect.mjs"));
   assert.ok(phase1.indexOf("collect.mjs") < phase1.indexOf("Set the review worktree path"));
+  assert.ok(phase1.indexOf("collect.mjs") < phase1.indexOf("Fetch `refs/pull/$PR_NUMBER/head`"));
+  assert.ok(phase1.indexOf("Fetch `refs/pull/$PR_NUMBER/head`") < phase1.indexOf("If the expected path exists"));
+  assert.ok(phase1.indexOf("existing worktree is clean") < phase1.indexOf("HEAD` differs"));
   assert.ok(phase1.indexOf("umask 077") < phase1.indexOf("collect.mjs"));
   assert.doesNotMatch(phase2, /\bgh (?:pr (?:view|diff|checks)|api)\b/);
   assert.match(phase2, /external queries.*Datadog.*Atlas/is);

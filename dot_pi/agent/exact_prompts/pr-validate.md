@@ -111,6 +111,11 @@ When a change affects deployed configuration, identify the target clusters from 
 
 No cluster writes are allowed, and do not refresh credentials. `compute-guardrails` is a second safety layer; do not depend on it to enforce this rule. If evidence is unavailable, keep the claim open and name both the missing evidence and the query that would settle it. Do not block the run or ask the user.
 
+### Terraform creates and remote ownership
+For Terraform/OpenTofu changes, inspect planned creates, including creates caused by module-version changes. A successful plan or a `+ create` action describes the selected state; it does not prove that the cloud object is absent or that another state, module, cluster, or service does not own it. For resources with account-wide or global identities, or known external owners, check the exact target account, region, and resource identity against an authorized, read-only inventory or API source. Check the module's external-management or import pattern when one exists. Do not infer absence from an empty Terraform state or a passing plan.
+
+Keep this check scoped to the affected targets and planned resource identities. Do not refresh credentials, change state, or apply. If available evidence cannot establish whether the object already exists or who owns it, keep the finding Open and ask about that exact resource; name the missing evidence and the read-only query that would settle it. A confirmed ownership or duplicate-resource conflict is a correctness defect.
+
 ## Pass 4: Check consistency
 Compare the change with neighboring code, repository guidance, and the loaded skills. Check that each claim agrees with the implementation and the tests.
 

@@ -3,8 +3,8 @@ set -eufo pipefail
 
 # Register pi native MCP servers (pi >= 0.99.2) in ~/.pi/agent/mcp.json.
 # pi mcp add is add-or-replace and preserves unrelated entries, such as the
-# IT-managed trajectory server. Removals keep the other profile's servers
-# out of mcp.json after a profile switch.
+# IT-managed trajectory server. Remove legacy Datadog entries from both
+# profiles during the auth migration; preserve unrelated entries.
 {{ if eq .profile "work" }}
 pi mcp remove ha-mcp >/dev/null 2>&1 || true
 pi mcp remove datadog-prod >/dev/null 2>&1 || true

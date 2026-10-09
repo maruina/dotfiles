@@ -24,7 +24,8 @@ printf '%s\n' "$input" | jq '
     "../../go/src/github.com/DataDog/datadog-pi-packages/packages/pi-npm-guard",
     "../../go/src/github.com/DataDog/datadog-pi-packages/packages/prompt-stash",
     "../../go/src/github.com/DataDog/datadog-pi-packages/packages/session-cost",
-    "../../go/src/github.com/DataDog/datadog-pi-packages/packages/research-web"
+    "../../go/src/github.com/DataDog/datadog-pi-packages/packages/research-web",
+    "npm:@datadog/pi-plugin"
   ] |
   .npmCommand = [
     "{{ .chezmoi.homeDir }}/go/src/github.com/DataDog/datadog-pi-packages/packages/pi-npm-guard/bin/pi-npm-guard.mjs"
@@ -42,7 +43,7 @@ printf '%s\n' "$input" | jq '
   .skills = [
     "{{ .chezmoi.homeDir }}/.pi/agent/skills_personal"
   ] |
-  .packages = [] |
+  .packages = ["npm:@datadog/pi-plugin"] |
   del(.npmCommand) |
   del(.npmGuard) |
 {{- end }}

@@ -57,6 +57,8 @@ For `plan.md` targets, check that:
 - scope that re-entered from an alternative design or a prior review is deferred with a revisit trigger
 - the plan carries enough feature-level criteria for the final verification
 - acceptance requirements are expressed as testable scenarios, each mapped to at least one task
+- each behavior requirement has a negative scenario, or a reason why none applies
+- a changed shared type, schema, configuration key, or public API has every consumer mapped to a task or to evidence that it needs no change
 - tasks are vertical, ordered safely, and independently verifiable
 - each task includes a focused failing test or an explicit reason one is not practical
 - file paths, commands, types, functions, flags, and dependencies exist and match the repository

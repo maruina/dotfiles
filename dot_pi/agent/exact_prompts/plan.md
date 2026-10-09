@@ -53,6 +53,8 @@ Before acceptance criteria or tasks, establish a concrete mechanism and observab
 
 For each acceptance behavior, choose the highest supported interface that observes it deterministically. Prefer an existing test seam and introduce the fewest new seams necessary. Confirm a new seam when it changes architecture, a public interface, or validation strength.
 
+When the change modifies a shared type, schema, configuration key, or public API, find every consumer with `rg` or `lsp_find_references`, including tests, fixtures, and generated code. Map each consumer to a task or to evidence that it needs no change.
+
 If a required mechanism is unavailable, either add and validate the enabling work, narrow or defer the requirement with user approval, or stop on the blocker. Never use placeholders such as “requires proof” or validate only a nearby subsystem.
 
 Ask a planning question when multiple reasonable approaches materially change compatibility, failure behavior, authorization or data handling, operability, public interfaces, test evidence, or review boundaries. Explain options, recommend one, and do not ask about mechanics established by repository evidence.
@@ -176,7 +178,7 @@ The system SHALL <normative statement>.
 - THEN <observable outcome>
 ```
 
-Every requirement needs a scenario through a supported interface and must map to a task; every behavior task maps back to a requirement. Prefer a focused automated test. When automation is impractical, specify reproducible setup, invocation, expected result, cleanup, and why automation is impractical. Small plans may inline one or two scenarios under `## Validation`.
+Every requirement needs a scenario through a supported interface and must map to a task. Each behavior requirement also needs a negative scenario in which the system must not act or produce output, or a one-line reason why none applies; every behavior task maps back to a requirement. Prefer a focused automated test. When automation is impractical, specify reproducible setup, invocation, expected result, cleanup, and why automation is impractical. Small plans may inline one or two scenarios under `## Validation`.
 
 ### Task contract
 Each task must be understandable and executable by a fresh agent from the plan and repository alone. Use:

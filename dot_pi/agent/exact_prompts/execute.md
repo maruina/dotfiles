@@ -89,7 +89,7 @@ The terminal state is implemented, verified changes with the plan updated as the
 5. Perform only the current step.
 6. Run the specified verification, or explain why an equivalent command is required before running it.
 7. Mark the step complete only after verification passes.
-8. If verification fails, debug only within the current step and plan scope.
+8. If verification fails, debug only within the current step and plan scope. Stop after 3 focused attempts on the same failure.
 9. Commit only when the plan says to commit. Use the exact commit message unless it no longer matches the change; if it does not match, stop and ask. If the plan leaves commit boundaries ambiguous, commit only when a logical unit is complete, tests pass, and the message would describe a complete valuable change. If unsure, stop and ask.
 
 Do not batch unrelated tasks or skip narrow tests because later tasks run broader ones. Do not batch all tests ahead of implementation or all implementation ahead of verification unless the plan explicitly requires that shape.
@@ -150,7 +150,7 @@ Stop and ask when:
 - a plan instruction conflicts with repository guidance or a loaded skill
 - an instruction is unclear
 - a required dependency, credential, service, or generated artifact is missing
-- verification fails repeatedly after focused debugging
+- verification still fails after 3 focused debugging attempts on the same failure
 - implementation needs a scope, behavior, API, schema, rollout, or rollback change beyond the committed plan
 - the plan requires an unavailable skill
 - the current codebase materially differs from the plan assumptions

@@ -27,6 +27,7 @@
 | `feature-worktree` | `prompt-required` | Keep writes in the plan's feature branch | Confirmed this is the correct feature worktree |
 | `chezmoi` | `skill-loader` | Source prompt is a managed dotfile | Kept edits in source; will preview the explicit target before any apply |
 | `write` | `skill-loader` | Revise lifecycle prompt and record execution notes | Applied concise requirements and evidence-based decision wording |
+| `reviewable-pr-workflow` | `prompt-required` | PR handoff and stack-split check | Confirmed this is one reviewable prompt change; no stack split is needed |
 
 ## Scope decision
 The design scoped the slice to the prompt, focused contract tests, and a bounded behavioral evaluation. At the planning alignment gate, the user narrowed the slice: change only `brainstorm.md` and test the behavior during later sessions. Therefore:
@@ -168,7 +169,11 @@ Before writing `design.md` or a user-requested substitute such as Jira tickets, 
 **Traces to:** The documentation requirement and repository completion rules.
 **Files:** Review `AGENTS.md` and `dot_pi/agent/AGENTS.md`; record results in `plans/brainstorm-evidence-comparison/plan.md`.
 
-- [ ] Review both `AGENTS.md` files. Expect no update: each lifecycle prompt is the source of truth for its stage, and no command, script, or test procedure changes. Record the result. No README, runbook, or generated reference covers this prompt.
-- [ ] From `dot_pi/agent`, run `npm ci --ignore-scripts`, then `npm test` and `npm run test:all`; expect all suites to pass and the smoke test to report no extension issues. Keep `node_modules` for `/verify`, then remove it after the verdict.
-- [ ] From the worktree root, run `chezmoi --source "$PWD" diff ~/.pi/agent/prompts/brainstorm.md`; expect only the reviewed change. Do not apply before the verdict.
-- [ ] Commit the execution notes with `docs: record brainstorm-evidence-comparison execution`.
+- [x] Review both `AGENTS.md` files. Expect no update: each lifecycle prompt is the source of truth for its stage, and no command, script, or test procedure changes. Record the result. No README, runbook, or generated reference covers this prompt.
+
+**Documentation review:** Read repository `AGENTS.md` and `dot_pi/agent/AGENTS.md`. No guidance change is needed: this is a lifecycle prompt-only revision; no command, script, or test procedure changed. No README, runbook, or generated reference covers this prompt.
+- [x] From `dot_pi/agent`, run `npm ci --ignore-scripts`, then `npm test` and `npm run test:all`; all suites passed and the smoke test reported no extension issues. Keep `node_modules` for `/verify`, then remove it after the verdict.
+- [x] From the worktree root, run `chezmoi --source "$PWD" diff ~/.pi/agent/prompts/brainstorm.md`; it shows only the reviewed prompt change. Do not apply before the verdict.
+- [x] Commit the execution notes with `docs: record brainstorm-evidence-comparison execution`.
+
+**Execution notes:** `npm ci --ignore-scripts` installed 358 packages and reported 7 audit advisories (3 low, 2 moderate, 2 high). `npm test` and `npm run test:all` passed; the smoke test emitted model-pattern warnings but no extension issues. The targeted chezmoi diff contains only the reviewed `brainstorm.md` change. `node_modules` remains for `/verify`; no apply was run. The stack-split check found no trigger: three changed files, fewer than 400 net added lines, one purpose, and no two soft signals.

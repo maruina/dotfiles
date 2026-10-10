@@ -32,6 +32,9 @@ Load when designing, planning, reviewing, or implementing software that uses Typ
 
 ## Domain skills
 
+### Kubernetes Pod eviction investigations — `k8s-pod-evictions`
+Load when investigating Pod eviction, unexpected Pod termination or deletion, PDB bypass, node pressure, NoExecute taints, kubelet admission rejection after restart, priority preemption, or Node deletion and PodGC cleanup. Also load when planning or reviewing changes to these disruption paths. Use it to identify the actor and trigger from evidence, distinguish container restarts from Pod disruption, and check PDB and termination-grace behavior. The skill is shared by personal and work profiles; work-only tools are optional.
+
 ### Atlas Go workflows — `atlas-best-practices`
 Load when Go Atlas workflow, activity, worker, client, generated-client, or worker-bootstrap code changes; when Atlas Temporal proto definitions or options change; or when work involves determinism, version gates, Breaking Change Detection, replay tests, signals, queries, child workflows, Continue-As-New, retries, timeouts, schedules, checkpoints, or worker deployment configuration using `atlas_domain`, `atlas_context`, task queues, or Atlas worker routing.
 

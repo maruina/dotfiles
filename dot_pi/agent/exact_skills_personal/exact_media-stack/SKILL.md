@@ -34,9 +34,9 @@ All images are Alpine (busybox `sh`). Even when `bash` exists, prefer `sh -c` �
 | Tool | qBittorrent | Sonarr | Radarr | Prowlarr | Maintainerr | Plex |
 |------|-------------|--------|--------|----------|-------------|------|
 | `curl`, `wget` | yes | yes | yes | yes | yes | yes |
-| `jq` | yes | no | no | no | no | yes |
-| `python3` | yes | no | no | no | no | no |
-| `bash` | yes | yes | yes | yes | **no** — `sh` only | yes |
+| `jq` | yes | no | no | no | no | check |
+| `python3` | yes | no | no | no | no | check |
+| `bash` | yes | yes | yes | yes | **no** — `sh` only | check |
 | `sqlite3` | no | no | no | no | no — copy the DB out | no |
 
 So: parse JSON with local `python3`/`sqlite3` after copying output to the laptop; never `jq`-parse inside Sonarr/Radarr/Prowlarr/Maintainerr.
@@ -63,6 +63,7 @@ Any expected-to-be-slow query (interactive search, full indexer fan-out, big lib
 ## Safety rules
 
 1. Read-only by default. Ask before: grabbing a release, deleting a torrent (especially `deleteFiles=true`), changing monitoring state, triggering imports, editing Maintainerr rules/collections, deleting Plex files or collections.
+1. One acquisition path per series: never combine automatic searches with a manual magnet grab for the same series. Before any grab, check the Sonarr/Radarr queue and known torrent sizes — details and the failure case in `references/sonarr-radarr.md`.
 2. Never trust `save_path`/`content_path` from qBittorrent after any torrent move — `ls` the real path inside the pod before asserting where files live.
 3. Multi-value requests no-op silently on qBittorrent (5.2.3): `torrents/delete` and `filePrio` take one `value` or `id` per request. Verify each delete with `torrents/info`; a 200 means nothing.
 4. Before bulk imports or file surgery on torrents near ratio limits, suspend qbit_manage (Flux kustomization + CronJob) — it deletes download data every 30 min with no confirmation. Full recipe in the repo runbook.

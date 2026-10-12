@@ -27,6 +27,20 @@ kubectl exec -n media deploy/sonarr -- grep -o '<ApiKey>[^<]*</ApiKey>' /config/
 kubectl exec -n media deploy/plex -- grep -oE 'PlexOnlineToken="[a-zA-Z0-9]+"' "/config/Library/Application Support/Plex Media Server/Preferences.xml" | sed 's/.*="//;s/"//' > /tmp/ptoken.txt
 ```
 
+## Container tooling (verified 2026-10-12)
+
+All images are Alpine (busybox `sh`). Even when `bash` exists, prefer `sh -c` — it works everywhere.
+
+| Tool | qBittorrent | Sonarr | Radarr | Prowlarr | Maintainerr | Plex |
+|------|-------------|--------|--------|----------|-------------|------|
+| `curl`, `wget` | yes | yes | yes | yes | yes | yes |
+| `jq` | yes | no | no | no | no | check |
+| `python3` | yes | no | no | no | no | check |
+| `bash` | yes | yes | yes | yes | **no** — `sh` only | check |
+| `sqlite3` | no | no | no | no | no — copy the DB out | no |
+
+So: parse JSON with local `python3`/`sqlite3` after copying output to the laptop; never `jq`-parse inside Sonarr/Radarr/Prowlarr/Maintainerr.
+
 ## Shell discipline (every command)
 
 - Append `2>/dev/null` to every `kubectl exec`. kubectl's "Defaulted container..." stderr poisons piped JSON.

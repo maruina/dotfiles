@@ -28,6 +28,17 @@ After any move (qbit-manage, manual, category edit, import), `save_path`/`conten
 kubectl exec -n media deploy/qbittorrent -c qbittorrent -- ls -la "<content_path>"
 ```
 
+## Selective re-download (from a torrent you already have)
+
+When the swarm is healthy, re-download individual files cheaply:
+
+1. `torrents/info` → hash; `torrents/files?hash=` → per-file `index`.
+2. Set skip/nominal priorities via `filePrio` — one `id` per request (multi-id lists no-op).
+3. `torrents/recheck`, then `setForceStart` (`value=true`) so it does not queue behind other active downloads.
+4. Import via ManualImport afterward, or let Completed Download Handling do it automatically.
+
+After files appear, Sonarr's import may move the download copy away and put the torrent into `missingFiles` — safe (media lives in the library) but harder for later file-level operations.
+
 ## ENOSPC wedge recovery
 
 An ENOSPC event puts a torrent in permanent `error` state that `recheck`/`start`/`setForceStart` alone do not clear (errored pieces stay skipped):

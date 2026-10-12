@@ -34,9 +34,9 @@ All images are Alpine (busybox `sh`). Even when `bash` exists, prefer `sh -c` �
 | Tool | qBittorrent | Sonarr | Radarr | Prowlarr | Maintainerr | Plex |
 |------|-------------|--------|--------|----------|-------------|------|
 | `curl`, `wget` | yes | yes | yes | yes | yes | yes |
-| `jq` | yes | no | no | no | no | check |
-| `python3` | yes | no | no | no | no | check |
-| `bash` | yes | yes | yes | yes | **no** — `sh` only | check |
+| `jq` | yes | no | no | no | no | yes |
+| `python3` | yes | no | no | no | no | no |
+| `bash` | yes | yes | yes | yes | **no** — `sh` only | yes |
 | `sqlite3` | no | no | no | no | no — copy the DB out | no |
 
 So: parse JSON with local `python3`/`sqlite3` after copying output to the laptop; never `jq`-parse inside Sonarr/Radarr/Prowlarr/Maintainerr.

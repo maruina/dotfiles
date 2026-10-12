@@ -2,6 +2,15 @@
 
 Sonarr 4.x at `http://localhost:8989/api/v3/`, Radarr 3.x-era at `http://localhost:7878/api/v3/`.
 
+## Acquisition discipline (learned 2026-10-12)
+
+One acquisition path per series at a time. Sonarr cannot see manual magnet grabs (no download-client linkage, no queue item on its side), so an automatic search will happily grab a full alternate release pack in parallel:
+
+- Decide on search vs manual-magnet BEFORE triggering anything. Do not run `SeasonSearch`/`EpisodesSearch`/`MoviesSearch` when a manual grab for the same series is in flight or planned. Check `GET /api/v3/queue?seriesId=<id>` before grabbing a manual magnet — a series already acquiring must not gain a second path.
+- Automatic season-pack grabs cost multiples of the target: two Vodes packs (65 + 84 GiB) raced a 46 GiB manual pack. Always read `size` from Prowlarr search results before grabbing anything; a "season pack" for a full BD anime can run 65–90 GiB.
+- To cancel a search-driven grab: delete the torrent(s) in qBittorrent (one hash per call, verify with `torrents/info`), then `DELETE /api/v3/queue/bulk` with `removeFromClient: true` and `blocklist: true` so RSS cannot re-grab the same release. Partially downloaded data of the cancelled path is lost — accept and state that to the user when it is large (do not silently fall for the nearly-done argument; the user's storage budget decides).
+- Unmonitored seasons do not search. Use monitoring state (not just grabs) as part of acquisition-state checks.
+
 ## Series / movies
 
 - `GET /api/v3/series` returns ALL series — `?id=` is not a filter. Use `GET /api/v3/series/<id>` and assert on the returned `id`.

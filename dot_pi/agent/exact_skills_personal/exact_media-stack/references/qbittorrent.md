@@ -55,4 +55,4 @@ Tracing a real wedge (2026-10-11):
 
 ## Incomplete/missingFiles after imports
 
-After Sonarr imports and moves the download copy away, the torrent shows `missingFiles`. That is safe (media lives in the library) but makes later file-level operations harder.
+After Sonarr imports and moves the download copy away, the torrent shows `missingFiles`. That is safe (media lives in the library) but makes later file-level operations harder. When the data returns to the original paths (restored from the recycle bin), the torrent self-recovers to `uploading` on its next pass — no recheck or force-start needed (verified 2026-10-12).

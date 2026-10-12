@@ -34,9 +34,27 @@ The dry run and import command split the UI's "select" phase:
 3. Payload shape is **flat per file**: `path` (full), `seriesId`, `episodeIds` (array), `quality` (full object), `languages` (list of `{id,name}` objects), `mode`. The UI-style nested payload (a `series` object + `episodes` array) silently normalizes to `seriesId: 0` and fails with "Series with ID 0 does not exist".
 4. `languages` is required. Omitting it: Sonarr moves the file on disk, then fails the DB insert — files on disk but `hasFile: false`. Recovery: `POST /api/v3/command {"name":"RescanSeries","seriesId":<id>}` (do not re-import; files are already in place).
 5. One file per episode ID in one command — two files mapped to the same episode collide.
-6. `mode: Auto` copies when the series folder is on a different filesystem. Observed (2026-10-12): an explicit no-mode ManualImport of a 46 GiB pack on the same filesystem still produced nlink=1 copies — assume copy unless verified.
+6. `Auto` mode picks per-filesystem: hardlink when possible (same fs), copy next, and **move** as the last resort for cross-filesystem series roots — see the cross-filesystem section below for when this emptied a pack mid-seed.
 7. Anime guardrails: exclude `NC/` paths unconditionally (creditless OP/ED clips named `OP 01.mkv` match the `NN.mkv` pattern; importing one replaces the real episode file and deletes it). Sanity check: TV episode ≥ 150 MiB, NC clip < 50 MiB.
 8. Manual imports do not carry a `downloadId`, so qBittorrent keeps seeding from the download copy. Verify site hardlinks (`stat -c "%h"`) before storage math.
+
+Cross-filesystem import = move (verified 2026-10-12, JUJUTSU KAISEN backfill):
+
+- With a library root on a different filesystem (`media-archive` NFS series root, NVMe pack), `Auto` mode **moves, not copies** — the pack folder empties and the qBittorrent torrent loses its data home (`missingFiles`). It self-recovers to `uploading` once the files return to the pack path; no recheck needed.
+- After an interrupted import/restore cycle: reconcile pack and recycle-bin dirs per season — expect mixed old/new naming and root-owned partial files from a killed copy. Count `SxxEyy` per dir, delete strays and partials, import only from a verified set.
+- Statistics oscillate mid-import (episode counts drift while RssSync/RefreshMonitoredDownloads run concurrently). Poll until import commands report `completed`, then re-verify from `/api/v3/series/<id>`.
+
+Quality override is silently ignored (same session):
+
+- The `quality` field in the `ManualImport` payload and `PUT /api/v3/episodefile` (returns 202, persists nothing) do not stick — Sonarr re-derives quality from filename tags and falls back to `HDTV-2160p` when names lack tags. Trial-import one file and read it back before a multi-GB pass.
+- Consequences when ignored: correct files, wrong labels, `[HDTV-...]` baked into renamed filenames; upgrade logic sees a bogus above-cutoff tier (blocks unwanted auto-upgrades — desirable here); Plex reads accurate mediainfo regardless. Only real fix is parseable tags in the source filenames.
+
+## Radarr movie inside a series pack (JUJUTSU KAISEN 0)
+
+1. Add the movie first: `POST /api/v3/movie` with the full lookup resource qualityProfileId, rootFolderPath, `movies`, addOptions. Radarr parses bare batch names (`Jujutsu Kaisen 0.mkv`) poorly — `DownloadedMoviesScan` on the pack root returns an empty import list.
+2. Stage a parseable **hardlink** (zero-copy, keeps the torrent data seeded): `ln <pack-file> /data/downloads/manual/<staging>/<Name> (Year) [BLURAY-1080p][x265 10bit].mkv`, then `{"name":"DownloadedMoviesScan","path":"<staging>","movieId":<id>}`.
+3. **Staging dir ownership**: kubectl exec runs as UID 0, Radarr as `1000:1000` (`abc`) — `chown -R 1000:1000` and `chmod 775` the staging dirs before the scan, else the import dies with `UnauthorizedAccessException ... denied` even with 664 files.
+4. Delete the staging dir after import; the library file keeps the pack file hardlinked (nlink=2) and seeding.
 
 ## Quality profiles
 

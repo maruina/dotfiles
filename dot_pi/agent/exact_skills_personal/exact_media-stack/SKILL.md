@@ -96,3 +96,4 @@ Evaluate conditions from the live rule JSON and cross-check Plex: watch state, `
 | `references/sonarr-radarr.md` | series/commands, manual import schema, queue, Radarr movie ops |
 | `references/plex.md` | token, sections, collections, watch state |
 | `references/maintainerr.md` | rules, sqlite inspection, deletion conditions |
+| `references/iptv.md` | IPTV provider episodes: player_api, 302/token redirects, direct library drops |

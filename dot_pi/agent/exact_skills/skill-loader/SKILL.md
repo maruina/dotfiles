@@ -40,6 +40,9 @@ Load when Go Atlas workflow, activity, worker, client, generated-client, or work
 
 For affected `.go` files, also load `go-best-practices`. Follow `atlas-best-practices` when Atlas SDK choice, workflow semantics, determinism, retry or timeout behavior, compatibility, or Atlas testing differs from ordinary Go guidance.
 
+### Home media stack — `media-stack`
+Personal-profile skill (`skills_personal`, not available in work sessions). Load when the user asks to operate qBittorrent, Sonarr, Radarr, Prowlarr, Plex, or Maintainerr: check downloads, search or grab releases, manual imports, episode replacement, Plex library/collection checks, or Maintainerr deletion eligibility. Read-only by default; the skill lists the mutations that need user confirmation.
+
 ### Unfamiliar code area — `codebase-research`
 Load before proposing, planning, reviewing, or modifying behavior in an unfamiliar area, especially when correctness depends on callers, existing patterns, or cross-file effects.
 

@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "repo": "example-org/example-service",
   "number": 42,
   "title": "Add a monitor gate before certificate rotation",
@@ -30,35 +30,24 @@
     { "gate": "Docs", "status": "Pass", "evidence": "The runbook now describes the skip flag." }
   ],
   "walkthrough": {
-    "problem": "A root CA rotation can start before every node trusts the new root. Nodes then lose API access.",
-    "systemToday": [
-      "An operator runs `ctl rotate-ca` for one cluster.",
-      "The CLI signals the `ClusterLifecycle` workflow.",
-      "`ClusterLifecycle` starts the `RotateCA` child workflow.",
-      "`RotateCA` deploys the `ca_certs` chart set.",
-      "`RotateCA` then marks the new root as active."
-    ],
-    "coreIntuition": "The gate is a wait loop in front of the deploy. It is safe only if the deploy cannot be what clears the alert.",
-    "solutionMap": [
-      { "component": "`WaitForMonitorGate` workflow", "solves": "Waits until the trust monitor is OK." },
-      { "component": "`CheckMonitor` activity", "solves": "Reads the monitor state for one cluster." },
-      { "component": "`--skip-gate` flag", "solves": "Lets an operator bypass a stuck gate." }
-    ],
-    "flowchart": "flowchart LR\n  CLI[ctl rotate-ca] --> L[ClusterLifecycle]\n  L --> R[RotateCA]:::rc\n  R --> G[Monitor gate]:::ask\n  G --> D[Deploy ca_certs]",
+    "systemToday": {
+      "explanation": "The CLI signals `ClusterLifecycle`, which starts `RotateCA`; the child deploys certificates and marks the new root active.",
+      "diagram": "flowchart LR\n  CLI[ctl rotate-ca] --> L[ClusterLifecycle]\n  L --> R[RotateCA]\n  R --> D[Direct deploy]"
+    },
+    "proposedSystem": {
+      "explanation": "`RotateCA` checks the trust monitor before deploying. The skip flag bypasses the gate, and the workflow then marks the new root active.",
+      "diagram": "flowchart LR\n  CLI[ctl rotate-ca] --> L[ClusterLifecycle]\n  L --> R[RotateCA]\n  R --> G[Monitor gate]\n  G --> D[Deploy ca_certs]"
+    },
     "steps": [
       {
         "id": "step-entry",
         "title": "Operator starts a rotation",
-        "today": "The CLI signals `ClusterLifecycle` with the target cluster.",
-        "changed": "Nothing changed here.",
-        "effect": "Every rotation still enters through `ClusterLifecycle`."
+        "description": "The CLI signals `ClusterLifecycle`, which starts `RotateCA` for the target cluster."
       },
       {
         "id": "step-rotate",
-        "title": "RotateCA calls the gate",
-        "today": "`RotateCA` deploys certificates right away.",
-        "changed": "It now waits on the monitor gate first, unless the skip flag is set.",
-        "effect": "A rotation can wait up to 48 hours before the deploy."
+        "title": "RotateCA checks the trust monitor",
+        "description": "The workflow waits for the monitor unless the operator sets `--skip-gate`, then deploys certificates and activates the root."
       }
     ]
   },

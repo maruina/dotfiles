@@ -570,20 +570,22 @@ test("PR validation defines prior-comment metadata, matching, and summary tags",
   ]);
 });
 
-test("PR validation report opens with a walkthrough", () => {
+test("PR validation walkthrough separates the current and proposed systems", () => {
   const text = prompt("pr-validate.md");
+  const walkthrough = text.split("### Walkthrough")[1].split("### Item story")[0];
 
-  requireMarkers(text, [
-    /Problem/,
-    /System today/,
-    /Core intuition/,
-    /Solution map/,
+  requireMarkers(walkthrough, [
+    /System today diagram/i,
+    /Proposed system diagram/i,
+    /walkthrough\.systemToday\.diagram/,
+    /walkthrough\.proposedSystem\.diagram/,
+    /explanation/i,
+    /proposed flow/i,
     /entry-point order/i,
-    /How it works today/,
-    /What changed and why/,
-    /Downstream effect/,
-    /PR content and context.*(?:walkthrough|Walkthrough).*escape/i,
+    /item.*link.*proposed.*step/is,
   ]);
+  assert.doesNotMatch(walkthrough, /walkthrough\.(?:problem|coreIntuition|solutionMap|flowchart)|^\d+\. \*\*(?:Problem|Core intuition|Solution map|Map flowchart)/m);
+  assert.match(text, /PR content and context.*(?:walkthrough|Walkthrough).*escape/i);
 });
 
 test("PR validation report includes PR summary and review gates", () => {
@@ -612,14 +614,15 @@ test("PR validation report is rendered from bounded JSON data", () => {
   requireMarkers(text, [
     /~\/\.pi\/agent\/pr-validate-reports\/REPO-PR_NUMBER\.json/,
     /scripts\/pr-validate-report\/render\.mjs/,
+    /schemaVersion.*2/is,
     /Read `example\.json`/,
     /Read the `write` skill before you write any report text/,
     /rejects text that is longer than its word limits/i,
     /Do not read, write, or edit the HTML file/,
     /Hero box also holds the \*\*PR summary\.\*\* table/,
     /`lead` of 25 words or fewer/,
-    /at most seven steps of 20 words or fewer/,
-    /Never write a paragraph here/,
+    /each title to 10 words and description to 30 words/,
+    /Describe the proposed system, not a repeated today\/changed\/effect comparison/,
     /`rg -l` or `rg --max-count`/,
     /`git diff --stat` first/,
     /atlas workflow list --context <ctx> --query/,

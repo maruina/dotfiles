@@ -22,6 +22,18 @@
 | `feature-worktree` | `prompt-required` | A durable plan must be committed in a feature worktree | Created this worktree from fetched `origin/main` at `f07b7fe5a57ea9693106cfb315ca4df487da2e9e` |
 | `obsidian-cli` | `agent-selected` | Needed to perform the required learning lookup | Followed the CLI guidance to query the learning store |
 
+### Execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `skill-loader` | `prompt-required` | `/execute` requires selecting implementation guidance | Identified the applicable repository, research, prose, and Mermaid skills |
+| `resolve-worktree` | `prompt-required` | The plan path may belong to another worktree | Resolved the plan and switched all work to its owning feature worktree |
+| `feature-worktree` | `prompt-required` | Changes must stay in a feature worktree | Confirmed this branch is the plan's worktree and kept the base checkout untouched |
+| `codebase-research` | `skill-loader` | The prompt and renderer form one report pipeline | Checked the prompt, schema, renderer, fixture, tests, and current section order before editing |
+| `chezmoi` | `skill-loader` | The changed prompt and renderer are managed source files | Edited source paths only; deferred target application to Task 3 as planned |
+| `write` | `skill-loader` | The prompt contains user-facing instructions | Kept the new walkthrough instructions direct and specific |
+| `mermaid-best-practices` | `skill-loader` | The report renders two system diagrams | Kept one diagram per system view and retained short, agent-written labels |
+| `reviewable-pr-workflow` | `skill-loader` | This completed slice is ready for a draft PR | Applied the stack-split check; no split signal requires restructuring |
+
 ## Scope
 The Walkthrough will show **System today** (diagram and explanation), **Proposed system** (diagram and explanation), and then steps through the proposed flow. Remove the redundant current `Problem`, `Core intuition`, `Solution map`, and single `Map` presentation rather than keep parallel summaries. Keep the existing PR summary and review gates ahead of the Walkthrough, and keep item links attached to proposed-flow steps.
 
@@ -164,11 +176,13 @@ The report SHALL retain existing verdict behavior and escaped, strict-mode rende
 **Traces to:** Goal; Requirement: Explain the current and proposed systems.
 **Files:** `dot_pi/agent/exact_prompts/pr-validate.md`, `dot_pi/agent/exact_scripts/pr-validate-report/render.mjs`, `dot_pi/agent/exact_scripts/pr-validate-report/example.json`, `dot_pi/agent/exact_scripts/pr-validate-report/render.test.mjs`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`.
 
-- [ ] Add renderer and prompt assertions for schema version 2, the two diagrams, their explanations, their order, proposed-flow steps, item links, escaped diagram text, and the absence of the redundant old Walkthrough sections. Include a test that stale version-1 input is rejected without writing HTML. Run the two narrow Node test commands; expect the new assertions to fail.
-- [ ] Change the Walkthrough data shape, validation, example, and HTML rendering to include System today and Proposed system diagrams with explanations, followed by proposed-flow steps. Keep Mermaid labels agent-written, text escaped, and item links attached to the proposed steps.
-- [ ] Update `/pr-validate` Pass 1 and Output instructions to construct these distinct views from repository evidence and render them in order for every verdict. Preserve the existing review gates and verdict logic.
-- [ ] Run `cd dot_pi/agent && node --test exact_scripts/pr-validate-report/render.test.mjs` and `cd dot_pi/agent && node --test exact_scripts/lifecycle-prompts.test.mjs`; expect both to pass.
-- [ ] Commit with `feat(pi): show current and proposed systems in pr-validate`.
+- [x] Add renderer and prompt assertions for schema version 2, the two diagrams, their explanations, their order, proposed-flow steps, item links, escaped diagram text, and the absence of the redundant old Walkthrough sections. Include a test that stale version-1 input is rejected without writing HTML. Run the two narrow Node test commands; expect the new assertions to fail. **Execution:** Both narrow tests failed on the new contract as expected (version 1 was accepted; the prompt lacks the new schema and walkthrough instructions).
+- [x] Change the Walkthrough data shape, validation, example, and HTML rendering to include System today and Proposed system diagrams with explanations, followed by proposed-flow steps. Keep Mermaid labels agent-written, text escaped, and item links attached to the proposed steps.
+- [x] Update `/pr-validate` Pass 1 and Output instructions to construct these distinct views from repository evidence and render them in order for every verdict. Preserve the existing review gates and verdict logic.
+- [x] Run `cd dot_pi/agent && node --test exact_scripts/pr-validate-report/render.test.mjs` and `cd dot_pi/agent && node --test exact_scripts/lifecycle-prompts.test.mjs`; expect both to pass. **Execution:** both narrow commands passed; generated report fixtures for Approve and Request changes showed the two diagrams, explanations, and ordered proposed-flow steps. The stale version-1 CLI test confirmed that the renderer writes no HTML.
+- [x] Commit with `feat(pi): show current and proposed systems in pr-validate`.
+
+**Execution notes:** The first post-edit runs found stale test expectations for the old current-flow list and comparison-style step wording. Updated those assertions to the new contract; both focused suites then passed. LSP context could not start because the worktree has no TypeScript installation. The `.mjs` code passed focused tests and rendered-report inspection. Apply the Pi targets and run the full package suites in Task 3, as planned; the reference `/pr-validate` run remains a final-plan check.
 
 ## Slice 2: Give the reviewer an evidence-backed checklist
 ### Task 2: Add reviewer questions to the report

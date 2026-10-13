@@ -36,6 +36,31 @@ const EXPOSURES = ["real", "none now", "unknown"];
 const FIX_COSTS = ["small", "large"];
 const SKILL_SOURCES = ["skill-loader", "prompt-required", "user-requested", "agent-selected"];
 const THREAD_STATES = ["Applies", "Does not apply", "Fixed", "Open"];
+const REVIEWER_QUESTIONS = [
+  {
+    id: "change-purpose",
+    question: "Can the reviewer explain what changes and why, using an OpenSpec or proposal artifact when available rather than repeating the PR author's summary?",
+  },
+  { id: "necessity", question: "Is the change necessary?" },
+  { id: "changed-files", question: "Are any changed files unexpected or unexplained?" },
+  {
+    id: "hard-to-reverse-contracts",
+    question: "Does the diff change a hard-to-reverse contract: gRPC/API, public program parameters, object models or fields, or database schema?",
+  },
+  {
+    id: "go-interfaces",
+    question: "Which Go interfaces exist? If none exist, does the surrounding architecture make that normal?",
+  },
+  { id: "bootstrap-cycles", question: "Does bootstrap introduce a circular dependency?" },
+  {
+    id: "failure-observability",
+    question: "Does the change create a new failure mode, and can on-call staff observe it at 4 a.m.?",
+  },
+  {
+    id: "manual-inspection",
+    question: "Can the reviewer skip manual UI, function, and algorithm inspection because an AI-written description and associated tests explain the behavior?",
+  },
+];
 
 // Word limits per text field. Links count as their label; a code span counts as one word.
 export const LIMITS = {
@@ -265,6 +290,21 @@ export function validate(r) {
     text(step?.description, `${at}.description`, LIMITS.stepPart);
   });
 
+  if (!Array.isArray(r.reviewerQuestions)) fail("reviewerQuestions", "must be an array");
+  const reviewerQuestions = Array.isArray(r.reviewerQuestions) ? r.reviewerQuestions : [];
+  if (reviewerQuestions.length !== REVIEWER_QUESTIONS.length) {
+    fail("reviewerQuestions", `must list all ${REVIEWER_QUESTIONS.length} fixed questions in order`);
+  }
+  reviewerQuestions.forEach((row, i) => {
+    const at = `reviewerQuestions[${i}]`;
+    const expected = REVIEWER_QUESTIONS[i];
+    if (row?.id !== expected?.id) fail(`${at}.id`, `must be ${JSON.stringify(expected?.id)}`);
+    if (row?.question !== expected?.question) fail(`${at}.question`, "must match the fixed question for this category");
+    text(row?.question, `${at}.question`, LIMITS.short);
+    text(row?.finding, `${at}.finding`, LIMITS.short);
+    text(row?.decision, `${at}.decision`, LIMITS.short);
+  });
+
   if (r.question !== undefined) {
     text(r.question?.question, "question.question", LIMITS.short);
     text(r.question?.answer, "question.answer", LIMITS.slot);
@@ -415,6 +455,7 @@ ${table(["Field", "Details"], summaryRows.map(([k, v]) => [escapeHtml(k), v]), [
   const nav = [
     ["review-gates", "Review gates"],
     ["walkthrough", "Walkthrough"],
+    ["reviewer-questions", "Reviewer questions"],
     ...chapters.flatMap((kind) => byKind(kind).map((item) => [item.id, itemLabel[item.id]])),
     ...(r.question ? [["your-question", "Your question"]] : []),
     ["reference", "Reference"],
@@ -437,6 +478,14 @@ ${table(["Field", "Details"], summaryRows.map(([k, v]) => [escapeHtml(k), v]), [
 ${systemDiagram("System today", w.systemToday)}
 ${systemDiagram("Proposed system", w.proposedSystem)}
 ${stepHtml}
+</section>`;
+
+  const reviewerQuestionsSection = `<section class="table-card chapter" id="reviewer-questions"><h2>Reviewer questions.</h2>
+${table(
+  ["Question", "What the review found", "Your decision"],
+  r.reviewerQuestions.map((row) => [inline(row.question), inline(row.finding), inline(row.decision)]),
+  ["34%", "33%", "33%"],
+)}
 </section>`;
 
   const itemChapters = chapters
@@ -469,6 +518,7 @@ ${r.claims?.length ? `<details><summary>Claims ledger</summary>${table(["Claim",
     navHtml,
     "<main>",
     walkthrough,
+    reviewerQuestionsSection,
     itemChapters,
     question,
     reference,

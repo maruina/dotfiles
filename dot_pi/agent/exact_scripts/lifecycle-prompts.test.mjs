@@ -588,6 +588,45 @@ test("PR validation walkthrough separates the current and proposed systems", () 
   assert.match(text, /PR content and context.*(?:walkthrough|Walkthrough).*escape/i);
 });
 
+test("PR validation checklist covers eight evidence-backed reviewer questions", () => {
+  const text = prompt("pr-validate.md");
+  const checklist = text.split("### Reviewer questions")[1].split("### Item story")[0];
+  const ids = [
+    "change-purpose",
+    "necessity",
+    "changed-files",
+    "hard-to-reverse-contracts",
+    "go-interfaces",
+    "bootstrap-cycles",
+    "failure-observability",
+    "manual-inspection",
+  ];
+  const positions = ids.map((id) => checklist.indexOf(`\`${id}\``));
+  positions.forEach((position, i) => assert.ok(position >= 0, `missing ${ids[i]}`));
+  assert.deepEqual([...positions].sort((a, b) => a - b), positions);
+
+  requireMarkers(checklist, [
+    /OpenSpec or proposal artifact/i,
+    /Is the change necessary/,
+    /changed files unexpected or unexplained/i,
+    /gRPC\/API.*public program parameters.*object models or fields.*database schema/is,
+    /Go interfaces.*surrounding architecture.*normal/is,
+    /bootstrap.*circular dependency/is,
+    /failure mode.*on-call.*4 a\.m\./is,
+    /skip manual UI, function, and algorithm inspection.*description and associated tests/is,
+    /agent still reads and checks all relevant UI, functions, and algorithms/is,
+    /only when both the AI-written behavior description and associated tests are clear/is,
+    /If either is missing or unclear.*inspect the affected code manually/is,
+    /Do not report a defect only because a listed category is absent/is,
+    /not verdict gates/i,
+    /40 words or fewer/,
+  ]);
+
+  const reportContract = text.split("### Report contract")[1].split("### Walkthrough")[0];
+  assert.ok(reportContract.indexOf("**Walkthrough.**") < reportContract.indexOf("**Reviewer questions.**"));
+  assert.ok(reportContract.indexOf("**Reviewer questions.**") < reportContract.indexOf("**Item chapters.**"));
+});
+
 test("PR validation report includes PR summary and review gates", () => {
   const text = prompt("pr-validate.md");
 

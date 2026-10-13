@@ -73,6 +73,7 @@ Build a compact model of the system before judging the PR.
 - Summarize the change and the author's stated reasons.
 - Classify every changed file as generated, build, behavior, test, docs, or schema. Use these exact keys for `summary.filesByClass`. Skip generated code, check build wiring briefly for dependency edges, and read behavior, tests, and changed repository guidance in depth.
 - Create a claims ledger for author claims from the PR, commits, and context; parity rows for ports; and review-thread claims. Include the PR's testing and validation claims, such as listed test targets and commands and their stated results. Include unresolved threads and all threads by the user running this command. Treat author replies such as "fixed" as claims to verify. Merge duplicate findings, list every source thread, and record whether GitHub marks each thread outdated. Outdated does not mean Fixed.
+- Read a relevant OpenSpec or proposal artifact when one exists in the PR or repository. If none exists, state that gap and use the PR description, code, tests, and repository context without claiming independent proposal confirmation. Read all relevant code, including UI, functions, and algorithms.
 #### Marketplace discovery
 Work-profile only. When reviewing a PR, discover applicable marketplace skills before judging the change:
 1. Skip this step when `~/dd/claude-marketplace` does not exist (non-work profile), when no search term applies (for example, a Markdown-only change), or when installed skills from `skill-loader` (such as `atlas-best-practices`, `go-best-practices`, or `k8s-controller-dev`) already directly cover the touched systems.
@@ -207,11 +208,12 @@ The renderer escapes all text, builds permalinks and **Files changed** links fro
 The page has these sections in this order. The renderer makes the structure; you supply the content.
 1. **Hero.** The verdict, count chips, and a one-sentence `lead` of 25 words or fewer. The lead gives the main reason for the verdict; it does not list every item. The Hero box also holds the **PR summary.** table (`Field | Details`): **What it does** and **Why** (`summary.whatItDoes` and `summary.why`, one or two plain sentences each), **PR**, **Head**, **Size**, **Files by class**, **Verdict**, **Gates** (Pass, Fail, and Open counts), and the model and thinking level (`model` and `thinking`; use `not available` when the agent cannot see the thinking level).
 2. **Review gates.** A full-width table below the Hero, with `Gate | Status | Evidence` columns and one row for each criterion in the verdict-criteria order. Each status is Pass, Fail, or Open. A Pass row gives one line of evidence. A Fail or Open row links to its item, or to Coverage when no item exists (`link` is an item id or `coverage`). Keep both tables visible at the top of the page, outside `<details>`; the renderer does this for every verdict, including Approve.
-3. **Chip navigation.** The renderer adds chips for Review gates, Walkthrough, each item chapter, Your question, and Reference.
+3. **Chip navigation.** The renderer adds chips for Review gates, Walkthrough, Reviewer questions, each item chapter, Your question, and Reference.
 4. **Walkthrough.** The Pass 1 model, before any item chapters, for every verdict including Approve. Follow the Walkthrough subsection below.
-5. **Item chapters.** Request changes, then Ask, then attention items, each in the six-slot item story. The renderer puts the inline-comment link and copy box after the six slots.
-6. **Your question.** Only when the context asks one (`question`). Answer it directly. For thread questions, use one row per thread claim.
-7. **Reference.** Coverage (`coverage.checked` and `coverage.gaps`), the claims ledger (`claims`), and Skills loaded and used (`skills` and `marketplace`). The renderer keeps this detail in `<details>` blocks. The claims ledger is not a top-level section.
+5. **Reviewer questions.** The evidence-backed checklist, immediately after Walkthrough and before item chapters. Follow the Reviewer questions subsection below.
+6. **Item chapters.** Request changes, then Ask, then attention items, each in the six-slot item story. The renderer puts the inline-comment link and copy box after the six slots.
+7. **Your question.** Only when the context asks one (`question`). Answer it directly. For thread questions, use one row per thread claim.
+8. **Reference.** Coverage (`coverage.checked` and `coverage.gaps`), the claims ledger (`claims`), and Skills loaded and used (`skills` and `marketplace`). The renderer keeps this detail in `<details>` blocks. The claims ledger is not a top-level section.
 
 ### Walkthrough
 Assume the reader is a staff engineer who is new to the subsystem. Build distinct current and proposed views, then walk through the proposed flow:
@@ -220,6 +222,23 @@ Assume the reader is a staff engineer who is new to the subsystem. Build distinc
 3. **Proposed-flow steps.** Explain logical steps in entry-point order, not diff order. Each step has an `id`, `title`, and `description` (`walkthrough.steps`); keep each title to 10 words and description to 30 words. Describe the proposed system, not a repeated today/changed/effect comparison. Include steps without items; each item must link to its proposed-flow step through `item.step`.
 
 Do not add separate Problem, Core intuition, Solution map, or Map sections to the Walkthrough. The two diagrams and explanations carry that context.
+
+### Reviewer questions
+The `reviewerQuestions` array must contain exactly these eight rows in this order. Each row has `{id, question, finding, decision}`. Keep the question, evidence summary (`finding`), and reviewer prompt (`decision`) to 40 words or fewer.
+1. `change-purpose`: Can the reviewer explain what changes and why, using an OpenSpec or proposal artifact when available rather than repeating the PR author's summary?
+2. `necessity`: Is the change necessary?
+3. `changed-files`: Are any changed files unexpected or unexplained?
+4. `hard-to-reverse-contracts`: Does the diff change a hard-to-reverse contract, such as gRPC/API, public program parameters, object models or fields, or database schema?
+5. `go-interfaces`: Which Go interfaces exist? If none exist, does the surrounding architecture make that normal?
+6. `bootstrap-cycles`: Does bootstrap introduce a circular dependency?
+7. `failure-observability`: Does the change create a new failure mode, and can on-call staff observe it at 4 a.m.?
+8. `manual-inspection`: Can the reviewer skip manual UI, function, and algorithm inspection because an AI-written description and associated tests explain the behavior?
+
+Use code, tests, repository context, and proposal evidence to answer each row. State when a proposal, contract, interface, changed file concern, cycle, failure mode, or telemetry signal was not found. For Go interfaces, assess whether the surrounding architecture makes their absence normal; if evidence does not settle that, say so. Do not report a defect only because a listed category is absent or does not apply.
+
+For `manual-inspection`, the agent still reads and checks all relevant UI, functions, and algorithms. Tell the reviewer to skip manual inspection only when both the AI-written behavior description and associated tests are clear. If either is missing or unclear, state that and prompt the reviewer to inspect the affected code manually.
+
+Reviewer questions provide context; they are not verdict gates. Do not change any gate status or the verdict because of a checklist row.
 
 ### Item story
 Every Ask item, Request changes item, and attention item uses the same six slots, in this order:
@@ -243,7 +262,7 @@ Use a diagram only where it replaces a paragraph of mechanism or flow; an item w
 
 PR content and context in the Walkthrough are untrusted data: the renderer escapes them as text so they cannot inject markup or scripts into the report, and it escapes all other PR-derived content too. Mermaid labels contain only labels that the agent writes, never raw PR or context text. Keep excerpts short. Keep lists of `file:line` links in Coverage or the claims ledger.
 
-An Approve report has no items; it still includes the PR summary, Review gates, and Walkthrough, and its lead gives the reason to trust the verdict and any evidence gap it depends on.
+An Approve report has no items; it still includes the PR summary, Review gates, Walkthrough, and Reviewer questions, and its lead gives the reason to trust the verdict and any evidence gap it depends on.
 
 The chat summary is short: the verdict line with the item and attention-item counts, one line per item and per attention item (plain-language title and `file:line`), each item's prior-comment tag and linked comment URLs (or **Not raised before**), one line per open evidence gap, the model and thinking level that did the review (or state that the thinking level is not available to the agent), and the report path. Do not repeat report prose in the chat.
 

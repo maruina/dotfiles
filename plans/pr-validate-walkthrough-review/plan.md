@@ -34,6 +34,17 @@
 | `mermaid-best-practices` | `skill-loader` | The report renders two system diagrams | Kept one diagram per system view and retained short, agent-written labels |
 | `reviewable-pr-workflow` | `skill-loader` | This completed slice is ready for a draft PR | Applied the stack-split check; no split signal requires restructuring |
 
+#### Slice 2
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `skill-loader` | `prompt-required` | `/execute` requires selecting guidance for this slice | Selected repo, research, prose, and PR workflow guidance |
+| `resolve-worktree` | `prompt-required` | The plan path is in another worktree | Resolved the plan and used its owning worktree |
+| `feature-worktree` | `prompt-required` | Writes must stay in the feature worktree | Confirmed the existing plan worktree and PR branch were clean |
+| `codebase-research` | `skill-loader` | The checklist spans report validation, rendering, and prompt output | Traced the renderer contract, output order, tests, and proposal/evidence flow |
+| `chezmoi` | `skill-loader` | All implementation files are managed source files | Edited source only; target application remains in Task 3 |
+| `write` | `skill-loader` | The prompt and design record contain user-facing prose | Kept the checklist questions and rules direct and evidence-based |
+| `reviewable-pr-workflow` | `skill-loader` | The branch already has draft PR #113 | Checked current review state and will update the existing PR without a duplicate Codex trigger |
+
 ## Scope
 The Walkthrough will show **System today** (diagram and explanation), **Proposed system** (diagram and explanation), and then steps through the proposed flow. Remove the redundant current `Problem`, `Core intuition`, `Solution map`, and single `Map` presentation rather than keep parallel summaries. Keep the existing PR summary and review gates ahead of the Walkthrough, and keep item links attached to proposed-flow steps.
 
@@ -191,12 +202,14 @@ The report SHALL retain existing verdict behavior and escaped, strict-mode rende
 **Traces to:** Goal; Requirement: Help the reviewer answer the requested questions; Requirement: Preserve verdict and report safety.
 **Files:** `dot_pi/agent/exact_prompts/pr-validate.md`, `dot_pi/agent/exact_scripts/pr-validate-report/render.mjs`, `dot_pi/agent/exact_scripts/pr-validate-report/example.json`, `dot_pi/agent/exact_scripts/pr-validate-report/render.test.mjs`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`.
 
-- [ ] Add failing tests for the checklist section order and navigation chip, all eight fixed question categories, 40-word field limits, safe treatment of absent evidence, the UI/function/algorithm manual-review rule, escaping, and unchanged gate/verdict validation.
-- [ ] Add a required structured checklist to the version-2 report data and renderer, immediately after the Walkthrough and before item chapters. Add a navigation chip. Render one row per fixed category; each question, evidence summary, and decision prompt is limited to 40 words. Include the proposal/OpenSpec, necessity, unexpected files, hard-to-reverse contracts, Go interfaces and architecture, bootstrap cycles, 4 a.m. operability, and conditional manual-inspection guidance.
-- [ ] Update the prompt to read relevant proposal artifacts when present, compare them with the diff and tests, inspect all relevant code, and avoid telling the reviewer to skip manual inspection unless the description and tests are clear. Do not convert checklist rows into verdict gates.
-- [ ] Extend `example.json` and renderer tests to cover applicable and absent categories, unsafe text, and section order. Add prompt markers for the requested questions and unchanged verdict rules.
-- [ ] Run both narrow Node test commands; expect both to pass.
-- [ ] Commit with `feat(pi): add reviewer checklist to pr-validate`.
+- [x] Add failing tests for the checklist section order and navigation chip, all eight fixed question categories, 40-word field limits, safe treatment of absent evidence, the UI/function/algorithm manual-review rule, escaping, and unchanged gate/verdict validation. **Execution:** the renderer tests failed before implementation because the required section and data were absent. Prompt assertions were added alongside the prompt update and passed on their first run.
+- [x] Add a required structured checklist to the version-2 report data and renderer, immediately after the Walkthrough and before item chapters. Add a navigation chip. Render one row per fixed category; each question, evidence summary, and decision prompt is limited to 40 words. Include the proposal/OpenSpec, necessity, unexpected files, hard-to-reverse contracts, Go interfaces and architecture, bootstrap cycles, 4 a.m. operability, and conditional manual-inspection guidance.
+- [x] Update the prompt to read relevant proposal artifacts when present, compare them with the diff and tests, inspect all relevant code, and avoid telling the reviewer to skip manual inspection unless the description and tests are clear. Do not convert checklist rows into verdict gates.
+- [x] Extend `example.json` and renderer tests to cover applicable and absent categories, unsafe text, and section order. Add prompt markers for the requested questions and unchanged verdict rules.
+- [x] Run both narrow Node test commands; expect both to pass. **Execution:** renderer tests passed (17 tests) and prompt tests passed (45 tests). Approve and Request changes fixtures rendered all eight rows after the Walkthrough and before item chapters; escaped checklist text remained inert.
+- [x] Commit with `feat(pi): add reviewer checklist to pr-validate`.
+
+**Slice 2 execution notes:** PR #113 is still a draft and has no submitted reviews or inline comments; its only comment is the author's `@codex review` trigger. LSP context could not start because the worktree has no TypeScript installation. The required full test setup and target application remain in Task 3.
 
 ### Task 3: Update the design record and future-agent guidance
 **Delivers:** The design record matches the report contract, and repository guidance changes only when the new workflow creates a durable instruction.

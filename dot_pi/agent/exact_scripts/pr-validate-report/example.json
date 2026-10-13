@@ -51,6 +51,56 @@
       }
     ]
   },
+  "reviewerQuestions": [
+    {
+      "id": "change-purpose",
+      "question": "Can the reviewer explain what changes and why, using an OpenSpec or proposal artifact when available rather than repeating the PR author's summary?",
+      "finding": "No OpenSpec or proposal artifact was found. The PR description and diff explain the change, but do not independently confirm its intent.",
+      "decision": "Does the available PR and code evidence explain the need, or must the author provide a durable proposal?"
+    },
+    {
+      "id": "necessity",
+      "question": "Is the change necessary?",
+      "finding": "The author cites a goal, but the evidence does not show whether the existing workflow can meet it.",
+      "decision": "Does the evidence show a clear benefit that justifies the added report behavior?"
+    },
+    {
+      "id": "changed-files",
+      "question": "Are any changed files unexpected or unexplained?",
+      "finding": "All changed files are prompt, renderer, fixture, or test files for this report change.",
+      "decision": "Do these files match the stated scope, or does any file need an explanation?"
+    },
+    {
+      "id": "hard-to-reverse-contracts",
+      "question": "Does the diff change a hard-to-reverse contract: gRPC/API, public program parameters, object models or fields, or database schema?",
+      "finding": "No public contract or database schema change was found in the reviewed diff.",
+      "decision": "If a contract change is present, review compatibility and migration costs before approval."
+    },
+    {
+      "id": "go-interfaces",
+      "question": "Which Go interfaces exist? If none exist, does the surrounding architecture make that normal?",
+      "finding": "No Go interface was found in the reviewed paths. Neighboring code uses concrete workflow types; check nearby package boundaries to assess whether that is normal.",
+      "decision": "Does this design match established boundaries, or would an interface improve a real seam?"
+    },
+    {
+      "id": "bootstrap-cycles",
+      "question": "Does bootstrap introduce a circular dependency?",
+      "finding": "No bootstrap cycle was found in the package and dependency paths reviewed.",
+      "decision": "If a bootstrap loop exists, identify its cycle and decide whether initialization must change."
+    },
+    {
+      "id": "failure-observability",
+      "question": "Does the change create a new failure mode, and can on-call staff observe it at 4 a.m.?",
+      "finding": "The skipped-gate path has no log, metric, or event that shows when an operator bypasses the check.",
+      "decision": "Can on-call detect this failure from existing signals, or is additional telemetry required?"
+    },
+    {
+      "id": "manual-inspection",
+      "question": "Can the reviewer skip manual UI, function, and algorithm inspection because an AI-written description and associated tests explain the behavior?",
+      "finding": "The behavior description and associated tests clearly explain the changed control flow.",
+      "decision": "You can skip manual inspection while the description and associated tests remain clear; inspect manually if either is unclear."
+    }
+  ],
   "items": [
     {
       "id": "gate-blocks-repair",

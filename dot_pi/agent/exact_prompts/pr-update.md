@@ -9,8 +9,6 @@ Update the current branch's existing GitHub PR after implementation or review fe
 
 Read `reviewable-pr-workflow` before acting. It is the source of truth for PR bodies, history, stacks, reviewer guides, and reporting. Read `git-machete` only when using git-machete.
 
-Do not post `@codex review` unless the user explicitly asks.
-
 ## Phase 1: Establish PR and review state
 Run:
 
@@ -47,6 +45,15 @@ Read the current body and final branch state. Preserve accurate handwritten cont
 - refresh the stack-navigation block for every affected stacked PR.
 
 Use the `reviewable-pr-workflow` body template. Include `## Lessons learned` only for reviewer-relevant surprises or tradeoffs. Include `## Evidence` only when external artifacts help reviewers verify or understand the change.
+
+Before refreshing the reviewer guide, compare the full diff with the task context, relevant design artifacts, OpenSpec proposals or specs, and linked issue. Check:
+- **Need:** Ask a reviewer who did not originate the prompt or implement the change to assess whether the evidence supports the problem, necessity, and scope. Do not present the author's rationale as independent validation.
+- **Scope:** Call out changed files or behavior that do not match the stated intent or lack an explanation.
+- **Hard-to-reverse contracts:** Check gRPC and other public APIs, program parameters, data models and fields, and database schemas for compatibility, migration, and rollout risks.
+- **Go architecture and startup:** Inspect relevant interfaces, implementations, and callers. If no interface changes, assess whether that fits existing patterns; do not require an interface by default. For bootstrap changes, check that dependencies are available in order and do not introduce cycles.
+- **Operability:** Identify new failure modes and what an on-call engineer would need at 4 a.m. Check diagnosis and recovery signals, including useful errors, logs, metrics, and traces, bounded metric cardinality, and sensitive log data.
+
+Surface applicable findings as specific, prioritized reviewer questions. Do not add empty checklist items or invent concerns for unaffected areas. Mention an unaffected high-risk area only when that context helps the reviewer.
 
 If the title is stale, propose a replacement. Change it only when the user explicitly requested it or approves the proposal.
 

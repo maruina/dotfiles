@@ -2,6 +2,6 @@
 
 - Upstream: https://github.com/DataDog/claude-marketplace
 - Path: `compute/skills/k8s-api-design`
-- Pinned commit: `837f61178ecb6e4bf183e82ea418bfd4a2b6bfbd`
+- Pinned commit: `0f03d730c52438120bbab7d4f827a2f20cae15f2`
 
 Update with the `/sync-vendored-skills` prompt.

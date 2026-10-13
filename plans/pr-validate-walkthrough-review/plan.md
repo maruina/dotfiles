@@ -217,11 +217,13 @@ The report SHALL retain existing verdict behavior and escaped, strict-mode rende
 **Traces to:** Documentation and future-agent guidance requirement.
 **Files:** `plans/pr-validate/design.md`; inspect `AGENTS.md`, `dot_pi/agent/AGENTS.md`, and relevant report documentation.
 
-- [ ] Update the `/pr-validate` design record with the two-diagram order, proposed-flow walkthrough, reviewer checklist, and rule that the agent may inspect UI/functions/algorithms while the human may skip manual inspection only when explanations and tests are clear.
-- [ ] Check the repository and agent `AGENTS.md` files, READMEs, and report documentation. Update files only if they contain guidance made incorrect by this change; otherwise record why each needs no change in the design record or task notes.
-- [ ] Run `npm ci --ignore-scripts`, `npm test`, and `npm run test:all` in `dot_pi/agent`; expect all to pass. Remove disposable `node_modules` only after both test commands complete and when removal is safe.
-- [ ] Run `chezmoi --source "$PWD" diff` against each changed target, then apply only the verified changed Pi targets for the prompt, renderer, fixture, and tests. Compare each rendered target with its source.
-- [ ] Commit with `docs: update pr-validate walkthrough design`.
+- [x] Update the `/pr-validate` design record with the two-diagram order, proposed-flow walkthrough, reviewer checklist, and rule that the agent may inspect UI/functions/algorithms while the human may skip manual inspection only when explanations and tests are clear.
+- [x] Check the repository and agent `AGENTS.md` files, READMEs, and report documentation. Update files only if they contain guidance made incorrect by this change; otherwise record why each needs no change in the design record or task notes. **Execution:** both `AGENTS.md` files remain applicable. There is no root README or report-specific README; the only agent README documents unrelated context-kit behavior. Recorded why no guidance changes were needed in the design record.
+- [x] Run `npm ci --ignore-scripts`, `npm test`, and `npm run test:all` in `dot_pi/agent`; expect all to pass. Remove disposable `node_modules` only after both test commands complete and when removal is safe. **Execution:** install completed; `npm test` passed all 209 tests. `npm run test:all` passed: 209 unit tests, 64 prompt tests, 17 renderer tests, 10 collector tests, 46 skill validations, dependency validation, and smoke check. Smoke output warned that no models match the offline pattern; the check exited successfully with no extension issues. Removed disposable `node_modules`. npm reported 7 audit findings (3 low, 2 moderate, 2 high); no dependency changes were made.
+- [x] Run `chezmoi --source "$PWD" diff` against each changed target, then apply only the verified changed Pi targets for the prompt, renderer, fixture, and tests. Compare each rendered target with its source. **Execution:** explicit target-file preview showed the expected cumulative report changes from both feature slices. Applied the five explicit targets and confirmed each target matches its worktree source with `diff -u`.
+- [x] Commit with `docs: update pr-validate walkthrough design`.
+
+**Slice 2 execution notes:** LSP diagnostics could not initialize: the worktree does not provide a valid TypeScript installation. Full unit, prompt, renderer, collector, skill, dependency, and smoke checks passed.
 
 ## Final Verification
 - [ ] Confirm both diagrams and explanations appear in order, followed by proposed-flow steps and the reviewer checklist, for Approve and non-Approve fixture reports.

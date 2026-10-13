@@ -226,11 +226,14 @@ The report SHALL retain existing verdict behavior and escaped, strict-mode rende
 **Slice 2 execution notes:** LSP diagnostics could not initialize: the worktree does not provide a valid TypeScript installation. Full unit, prompt, renderer, collector, skill, dependency, and smoke checks passed.
 
 ## Final Verification
-- [ ] Confirm both diagrams and explanations appear in order, followed by proposed-flow steps and the reviewer checklist, for Approve and non-Approve fixture reports.
-- [ ] Confirm every item link points to a proposed-flow step and the checklist covers each requested review question.
-- [ ] Confirm the reviewer may skip manual UI/function/algorithm inspection only when the AI description and associated tests are clear; confirm the agent still reads that code.
-- [ ] Confirm the checklist does not alter existing gate status, verdict rules, read-only boundaries, or HTML/Mermaid safety.
-- [ ] Run the full tests and inspect one rendered `/pr-validate` report from `ddoghq/dd-source#103728`; report evidence gaps instead of inferring missing design, interface, or operational facts.
+- [x] Confirm both diagrams and explanations appear in order, followed by proposed-flow steps and the reviewer checklist, for Approve and non-Approve fixture reports. **Execution:** regenerated `/tmp/pr-validate-final-approve.html` and `/tmp/pr-validate-final-request.html`; both contain two ordered system views, proposed-flow steps, and all eight checklist rows. The Request changes checklist precedes item chapters.
+- [x] Confirm every item link points to a proposed-flow step and the checklist covers each requested review question. **Execution:** renderer validation and tests verify item step references and fixed checklist order/categories.
+- [x] Confirm the reviewer may skip manual UI/function/algorithm inspection only when the AI description and associated tests are clear; confirm the agent still reads that code. **Execution:** prompt markers and renderer tests cover the condition and manual-inspection fallback.
+- [x] Confirm the checklist does not alter existing gate status, verdict rules, read-only boundaries, or HTML/Mermaid safety. **Execution:** gate/verdict independence and escaping tests passed; the prompt's read-only review boundary and strict Mermaid mode remain unchanged.
+- [x] Run the full tests; all suites passed as recorded in Task 3.
+- [ ] **Blocked:** Inspect one rendered `/pr-validate` report from `ddoghq/dd-source#103728`; report evidence gaps instead of inferring missing design, interface, or operational facts. **Execution:** attempted `pi --no-session -p '/pr-validate https://github.com/ddoghq/dd-source/pull/103728'`; the command timed out after 900 seconds. It emitted only the warning that no models match `baseten/baseten/zai-org/GLM-5.3-Flash`, and produced no report. Do not infer a successful reference run.
+
+**PR #113:** Pushed both Slice 2 commits and updated the existing PR body with the checklist and validation evidence. The PR remains open and was not draft at the final check. It has no submitted reviews or inline comments; the only issue comment remains the author's original `@codex review` trigger.
 
 ## Documentation Impact
 Update `plans/pr-validate/design.md`. Inspect relevant `AGENTS.md`, README, and report docs as part of Task 3; update each only if it contains guidance made incorrect by this report change, and record why other files need no change.

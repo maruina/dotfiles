@@ -36,6 +36,31 @@ const EXPOSURES = ["real", "none now", "unknown"];
 const FIX_COSTS = ["small", "large"];
 const SKILL_SOURCES = ["skill-loader", "prompt-required", "user-requested", "agent-selected"];
 const THREAD_STATES = ["Applies", "Does not apply", "Fixed", "Open"];
+const REVIEWER_QUESTIONS = [
+  {
+    id: "change-purpose",
+    question: "Can the reviewer explain what changes and why, using an OpenSpec or proposal artifact when available rather than repeating the PR author's summary?",
+  },
+  { id: "necessity", question: "Is the change necessary?" },
+  { id: "changed-files", question: "Are any changed files unexpected or unexplained?" },
+  {
+    id: "hard-to-reverse-contracts",
+    question: "Does the diff change a hard-to-reverse contract: gRPC/API, public program parameters, object models or fields, or database schema?",
+  },
+  {
+    id: "go-interfaces",
+    question: "Which Go interfaces exist? If none exist, does the surrounding architecture make that normal?",
+  },
+  { id: "bootstrap-cycles", question: "Does bootstrap introduce a circular dependency?" },
+  {
+    id: "failure-observability",
+    question: "Does the change create a new failure mode, and can on-call staff observe it at 4 a.m.?",
+  },
+  {
+    id: "manual-inspection",
+    question: "Can the reviewer skip manual UI, function, and algorithm inspection because an AI-written description and associated tests explain the behavior?",
+  },
+];
 
 // Word limits per text field. Links count as their label; a code span counts as one word.
 export const LIMITS = {
@@ -43,11 +68,6 @@ export const LIMITS = {
   whatItDoes: 30,
   why: 30,
   gateEvidence: 30,
-  problem: 40,
-  systemTodayStep: 20,
-  systemTodaySteps: 7,
-  coreIntuition: 40,
-  solves: 20,
   stepTitle: 10,
   stepPart: 30,
   itemTitle: 12,
@@ -140,7 +160,7 @@ export function validate(r) {
   const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
   if (!r || typeof r !== "object") return ["report: must be a JSON object"];
-  if (r.schemaVersion !== 1) fail("schemaVersion", "must be 1");
+  if (r.schemaVersion !== 2) fail("schemaVersion", "must be 2");
   if (typeof r.repo !== "string" || !/^[\w.-]+\/[\w.-]+$/.test(r.repo)) fail("repo", "must be ORG/REPO");
   if (!Number.isInteger(r.number) || r.number < 1) fail("number", "must be the PR number");
   for (const key of ["title", "author", "baseRef", "headRef", "model", "thinking"]) text(r[key], key);
@@ -250,16 +270,16 @@ export function validate(r) {
     fail("items", `at most ${LIMITS.attentionItems} attention items; recommend splitting the PR`);
   }
 
-  text(w.problem, "walkthrough.problem", LIMITS.problem);
-  const today = list(w.systemToday, "walkthrough.systemToday");
-  if (today.length > LIMITS.systemTodaySteps) fail("walkthrough.systemToday", `at most ${LIMITS.systemTodaySteps} steps`);
-  today.forEach((step, i) => text(step, `walkthrough.systemToday[${i}]`, LIMITS.systemTodayStep));
-  text(w.coreIntuition, "walkthrough.coreIntuition", LIMITS.coreIntuition);
-  list(w.solutionMap, "walkthrough.solutionMap").forEach((row, i) => {
-    text(row?.component, `walkthrough.solutionMap[${i}].component`, LIMITS.short);
-    text(row?.solves, `walkthrough.solutionMap[${i}].solves`, LIMITS.solves);
-  });
-  text(w.flowchart, "walkthrough.flowchart");
+  const systemView = (view, where) => {
+    if (!view || typeof view !== "object" || Array.isArray(view)) {
+      fail(where, "required object");
+      return;
+    }
+    text(view.explanation, `${where}.explanation`, LIMITS.slot);
+    text(view.diagram, `${where}.diagram`);
+  };
+  systemView(w.systemToday, "walkthrough.systemToday");
+  systemView(w.proposedSystem, "walkthrough.proposedSystem");
   const seenSteps = new Set();
   list(w.steps, "walkthrough.steps").forEach((step, i) => {
     const at = `walkthrough.steps[${i}]`;
@@ -267,7 +287,22 @@ export function validate(r) {
     else if (seenSteps.has(step.id) || itemIds.has(step.id)) fail(`${at}.id`, `duplicate id ${step.id}`);
     else seenSteps.add(step.id);
     text(step?.title, `${at}.title`, LIMITS.stepTitle);
-    for (const key of ["today", "changed", "effect"]) text(step?.[key], `${at}.${key}`, LIMITS.stepPart);
+    text(step?.description, `${at}.description`, LIMITS.stepPart);
+  });
+
+  if (!Array.isArray(r.reviewerQuestions)) fail("reviewerQuestions", "must be an array");
+  const reviewerQuestions = Array.isArray(r.reviewerQuestions) ? r.reviewerQuestions : [];
+  if (reviewerQuestions.length !== REVIEWER_QUESTIONS.length) {
+    fail("reviewerQuestions", `must list all ${REVIEWER_QUESTIONS.length} fixed questions in order`);
+  }
+  reviewerQuestions.forEach((row, i) => {
+    const at = `reviewerQuestions[${i}]`;
+    const expected = REVIEWER_QUESTIONS[i];
+    if (row?.id !== expected?.id) fail(`${at}.id`, `must be ${JSON.stringify(expected?.id)}`);
+    if (row?.question !== expected?.question) fail(`${at}.question`, "must match the fixed question for this category");
+    text(row?.question, `${at}.question`, LIMITS.short);
+    text(row?.finding, `${at}.finding`, LIMITS.short);
+    text(row?.decision, `${at}.decision`, LIMITS.short);
   });
 
   if (r.question !== undefined) {
@@ -320,6 +355,10 @@ function mermaid(source, highlight) {
 
 function slot(title, html) {
   return `<div class="slot"><h4>${escapeHtml(title)}</h4>${html}</div>`;
+}
+
+function systemDiagram(title, system) {
+  return `<article class="card"><h3>${escapeHtml(title)}</h3><p>${inline(system.explanation)}</p>${mermaid(system.diagram, false)}</article>`;
 }
 
 function excerpt(r, code) {
@@ -416,6 +455,7 @@ ${table(["Field", "Details"], summaryRows.map(([k, v]) => [escapeHtml(k), v]), [
   const nav = [
     ["review-gates", "Review gates"],
     ["walkthrough", "Walkthrough"],
+    ["reviewer-questions", "Reviewer questions"],
     ...chapters.flatMap((kind) => byKind(kind).map((item) => [item.id, itemLabel[item.id]])),
     ...(r.question ? [["your-question", "Your question"]] : []),
     ["reference", "Reference"],
@@ -431,18 +471,21 @@ ${table(["Field", "Details"], summaryRows.map(([k, v]) => [escapeHtml(k), v]), [
         ? `<p class="small">Related: ${related.map((item) => `<a href="#${escapeHtml(item.id)}">${escapeHtml(KIND_LABEL[item.kind])}: ${inline(item.title)}</a>`).join(" · ")}</p>`
         : "";
       return `<section class="card walk-step${cls}" id="${escapeHtml(step.id)}"><h3>Step ${i + 1}. ${inline(step.title)}</h3>
-<dl class="parts"><dt>How it works today</dt><dd>${inline(step.today)}</dd><dt>What changed and why</dt><dd>${inline(step.changed)}</dd><dt>Downstream effect</dt><dd>${inline(step.effect)}</dd></dl>${links}</section>`;
+<p>${inline(step.description)}</p>${links}</section>`;
     })
     .join("\n");
   const walkthrough = `<section class="chapter" id="walkthrough"><h2>Walkthrough</h2>
-<article class="card">
-<h3>Problem</h3><p>${inline(w.problem)}</p>
-<h3>System today</h3><ol class="flow">${w.systemToday.map((st) => `<li>${inline(st)}</li>`).join("")}</ol>
-<h3>Core intuition</h3><p>${inline(w.coreIntuition)}</p>
-<h3>Solution map</h3>${table(["Component", "Problem it solves"], w.solutionMap.map((row) => [inline(row.component), inline(row.solves)]), ["35%", "65%"])}
-<h3>Map</h3>${mermaid(w.flowchart, true)}
-</article>
+${systemDiagram("System today", w.systemToday)}
+${systemDiagram("Proposed system", w.proposedSystem)}
 ${stepHtml}
+</section>`;
+
+  const reviewerQuestionsSection = `<section class="table-card chapter" id="reviewer-questions"><h2>Reviewer questions.</h2>
+${table(
+  ["Question", "What the review found", "Your decision"],
+  r.reviewerQuestions.map((row) => [inline(row.question), inline(row.finding), inline(row.decision)]),
+  ["34%", "33%", "33%"],
+)}
 </section>`;
 
   const itemChapters = chapters
@@ -475,6 +518,7 @@ ${r.claims?.length ? `<details><summary>Claims ledger</summary>${table(["Claim",
     navHtml,
     "<main>",
     walkthrough,
+    reviewerQuestionsSection,
     itemChapters,
     question,
     reference,

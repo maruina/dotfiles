@@ -570,20 +570,61 @@ test("PR validation defines prior-comment metadata, matching, and summary tags",
   ]);
 });
 
-test("PR validation report opens with a walkthrough", () => {
+test("PR validation walkthrough separates the current and proposed systems", () => {
   const text = prompt("pr-validate.md");
+  const walkthrough = text.split("### Walkthrough")[1].split("### Item story")[0];
 
-  requireMarkers(text, [
-    /Problem/,
-    /System today/,
-    /Core intuition/,
-    /Solution map/,
+  requireMarkers(walkthrough, [
+    /System today diagram/i,
+    /Proposed system diagram/i,
+    /walkthrough\.systemToday\.diagram/,
+    /walkthrough\.proposedSystem\.diagram/,
+    /explanation/i,
+    /proposed flow/i,
     /entry-point order/i,
-    /How it works today/,
-    /What changed and why/,
-    /Downstream effect/,
-    /PR content and context.*(?:walkthrough|Walkthrough).*escape/i,
+    /item.*link.*proposed.*step/is,
   ]);
+  assert.doesNotMatch(walkthrough, /walkthrough\.(?:problem|coreIntuition|solutionMap|flowchart)|^\d+\. \*\*(?:Problem|Core intuition|Solution map|Map flowchart)/m);
+  assert.match(text, /PR content and context.*(?:walkthrough|Walkthrough).*escape/i);
+});
+
+test("PR validation checklist covers eight evidence-backed reviewer questions", () => {
+  const text = prompt("pr-validate.md");
+  const checklist = text.split("### Reviewer questions")[1].split("### Item story")[0];
+  const ids = [
+    "change-purpose",
+    "necessity",
+    "changed-files",
+    "hard-to-reverse-contracts",
+    "go-interfaces",
+    "bootstrap-cycles",
+    "failure-observability",
+    "manual-inspection",
+  ];
+  const positions = ids.map((id) => checklist.indexOf(`\`${id}\``));
+  positions.forEach((position, i) => assert.ok(position >= 0, `missing ${ids[i]}`));
+  assert.deepEqual([...positions].sort((a, b) => a - b), positions);
+
+  requireMarkers(checklist, [
+    /OpenSpec or proposal artifact/i,
+    /Is the change necessary/,
+    /changed files unexpected or unexplained/i,
+    /gRPC\/API.*public program parameters.*object models or fields.*database schema/is,
+    /Go interfaces.*surrounding architecture.*normal/is,
+    /bootstrap.*circular dependency/is,
+    /failure mode.*on-call.*4 a\.m\./is,
+    /skip manual UI, function, and algorithm inspection.*description and associated tests/is,
+    /agent still reads and checks all relevant UI, functions, and algorithms/is,
+    /only when both the AI-written behavior description and associated tests are clear/is,
+    /If either is missing or unclear.*inspect the affected code manually/is,
+    /Do not report a defect only because a listed category is absent/is,
+    /not verdict gates/i,
+    /40 words or fewer/,
+  ]);
+
+  const reportContract = text.split("### Report contract")[1].split("### Walkthrough")[0];
+  assert.ok(reportContract.indexOf("**Walkthrough.**") < reportContract.indexOf("**Reviewer questions.**"));
+  assert.ok(reportContract.indexOf("**Reviewer questions.**") < reportContract.indexOf("**Item chapters.**"));
 });
 
 test("PR validation report includes PR summary and review gates", () => {
@@ -612,14 +653,15 @@ test("PR validation report is rendered from bounded JSON data", () => {
   requireMarkers(text, [
     /~\/\.pi\/agent\/pr-validate-reports\/REPO-PR_NUMBER\.json/,
     /scripts\/pr-validate-report\/render\.mjs/,
+    /schemaVersion.*2/is,
     /Read `example\.json`/,
     /Read the `write` skill before you write any report text/,
     /rejects text that is longer than its word limits/i,
     /Do not read, write, or edit the HTML file/,
     /Hero box also holds the \*\*PR summary\.\*\* table/,
     /`lead` of 25 words or fewer/,
-    /at most seven steps of 20 words or fewer/,
-    /Never write a paragraph here/,
+    /each title to 10 words and description to 30 words/,
+    /Describe the proposed system, not a repeated today\/changed\/effect comparison/,
     /`rg -l` or `rg --max-count`/,
     /`git diff --stat` first/,
     /atlas workflow list --context <ctx> --query/,

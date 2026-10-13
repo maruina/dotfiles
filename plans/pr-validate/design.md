@@ -6,6 +6,8 @@ Revision 2 (2026-09-29) changes how the report is presented and what counts as e
 
 Revision 3 adds the Walkthrough, the **Where this fits** item slot, Pass/Fail/Open review gates, and PR summary and review-gates tables. It retires `/pr-review` because the user uses `/pr-validate` for PR reviews.
 
+Revision 4 replaces the single changed-flow Map with separate System today and Proposed system diagrams and explanations, then walks through the proposed flow. It adds an evidence-backed Reviewer questions table without changing the verdict gates.
+
 `/pr-validate` is the delegated review mode. The separate `/pr-review` command is retired.
 
 ## Alignment brief
@@ -321,6 +323,29 @@ deliberate: the five-term and three-skill caps can miss a relevant skill. The up
 Extending discovery to the other lifecycle stages (through `skill-loader` or a shared skill) waits until real `/pr-validate` runs consistently load a marketplace skill that Pi does not already load; see the extension row in [Deferred alternatives](#deferred-alternatives).
 
 This change can ship on its own and is a separate plan task and commit, so it can be reverted on its own.
+
+## Revision 4: system walkthrough and reviewer checklist
+This revision supersedes the Walkthrough and report-section order described under Revision 2.
+### System views and proposed-flow steps
+The report shows these sections in order: System today (diagram and explanation), Proposed system (diagram and explanation), then ordered steps through the proposed flow. The steps describe the proposed system; they do not repeat a today/changed/effect comparison. Item links point to proposed-flow steps. Reports without a material flow change use the smallest flow supported by evidence and do not invent a change.
+
+The version-2 report JSON contains `walkthrough.systemToday` and `walkthrough.proposedSystem`, each with an agent-written Mermaid `diagram` and escaped `explanation`. `walkthrough.steps` contains ordered `{id, title, description}` records. Mermaid keeps `securityLevel: "strict"`; diagrams contain no raw PR or context text. Offline, the diagram source remains visible as text.
+### Reviewer questions
+Immediately after Walkthrough and before item chapters, the report shows a Reviewer questions section with a navigation chip and one row per fixed category. Each row has **Question**, **What the review found**, and **Your decision** columns. The eight categories are:
+- `change-purpose`: explain what changes and why, using an OpenSpec/proposal artifact when available instead of repeating the PR summary.
+- `necessity`: assess whether evidence supports the change.
+- `changed-files`: identify unexpected or unexplained changed files.
+- `hard-to-reverse-contracts`: identify gRPC/API, public parameters, object-model fields, or database schema changes.
+- `go-interfaces`: name the Go interfaces and assess whether their absence fits the surrounding architecture.
+- `bootstrap-cycles`: check for circular dependencies introduced during bootstrap.
+- `failure-observability`: identify new failure modes and whether on-call staff can observe them at 4 a.m.
+- `manual-inspection`: tell the reviewer to skip UI, function, or algorithm inspection only when the AI-written description and associated tests clearly explain the behavior.
+
+The renderer requires all eight rows in the fixed order and limits the question, finding, and decision text to 40 words each. The prompt reads relevant proposal artifacts when present and names the gap when none is available. It states when a category does not apply or evidence is unavailable; absence alone is not a defect. The agent still reads all relevant UI, function, and algorithm code. Checklist content does not change gate status or verdict.
+### Trust and repository guidance
+The renderer escapes checklist text as inert content. The existing strict Mermaid behavior and read-only review boundary remain unchanged. No service telemetry applies; the checklist makes missing operational evidence visible.
+
+The repository and `dot_pi/agent/AGENTS.md` guidance still applies. The repository root has no README, and the report directory has no README or separate report guide. The only agent README is for the unrelated context-kit extension. No guidance update is needed outside this design record.
 
 ## Reference cases
 ### Delegated review of a large port

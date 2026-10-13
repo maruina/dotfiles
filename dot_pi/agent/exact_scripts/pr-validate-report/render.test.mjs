@@ -10,9 +10,20 @@ import { commentLink, diffAnchor, inline, render, validate, words } from "./rend
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const example = () => JSON.parse(readFileSync(path.join(here, "example.json"), "utf8"));
+const REVIEWER_QUESTION_IDS = [
+  "change-purpose",
+  "necessity",
+  "changed-files",
+  "hard-to-reverse-contracts",
+  "go-interfaces",
+  "bootstrap-cycles",
+  "failure-observability",
+  "manual-inspection",
+];
 
-test("example report is valid and renders sections in contract order", () => {
+test("example report is valid and renders the new walkthrough in contract order", () => {
   const report = example();
+  assert.equal(report.schemaVersion, 2);
   const gateItem = report.items.find((item) => item.id === "gate-blocks-repair");
   assert.match(gateItem.whyBad, /cannot repair the broken trust state\.$/);
   assert.match(gateItem.comment.text, /https:\/\/app\.datadoghq\.com\/monitors\/123/);
@@ -21,10 +32,26 @@ test("example report is valid and renders sections in contract order", () => {
   assert.match(html, /Already raised by @reviewer/);
   assert.match(html, /Already raised by bot <code>review-bot<\/code>/);
   assert.match(html, /Not raised before/);
-  const order = ['class="hero', "PR summary.", 'id="review-gates"', 'class="nav"', 'id="walkthrough"', 'id="request-changes"', 'id="asks"', 'id="reference"'];
+  const order = [
+    'class="hero', "PR summary.", 'id="review-gates"', 'class="nav"', 'id="walkthrough"',
+    "<h3>System today</h3>", "The CLI signals", "Direct deploy", "<h3>Proposed system</h3>",
+    "checks the trust monitor before deploying", "Monitor gate", "Step 1.", 'id="reviewer-questions"',
+    'id="request-changes"', 'id="asks"', 'id="reference"',
+  ];
   const positions = order.map((marker) => html.indexOf(marker));
   positions.forEach((pos, i) => assert.ok(pos >= 0, `missing ${order[i]}`));
   assert.deepEqual([...positions].sort((a, b) => a - b), positions);
+  assert.deepEqual(report.reviewerQuestions.map((row) => row.id), REVIEWER_QUESTION_IDS);
+  assert.match(html, /<a href="#reviewer-questions">Reviewer questions<\/a>/);
+  const walkthrough = html.slice(html.indexOf('id="walkthrough"'), html.indexOf('id="reviewer-questions"'));
+  assert.equal(walkthrough.match(/class="mermaid"/g)?.length, 2);
+  const reviewerQuestions = html.slice(html.indexOf('id="reviewer-questions"'), html.indexOf('id="request-changes"'));
+  assert.match(reviewerQuestions, /<th>Question<\/th><th>What the review found<\/th><th>Your decision<\/th>/);
+  assert.equal(reviewerQuestions.match(/<tbody>/)?.length, 1);
+  assert.equal(reviewerQuestions.match(/<tr>/g)?.length, REVIEWER_QUESTION_IDS.length + 1);
+  assert.match(html, /<a href="#step-rotate">Walkthrough step 2<\/a>/);
+  assert.match(html, /Related: <a href="#gate-blocks-repair">Request changes:/);
+  assert.doesNotMatch(walkthrough, /<h3>(?:Problem|Core intuition|Solution map|Map)<\/h3>/);
   // The PR summary sits inside the hero box.
   assert.ok(html.indexOf("PR summary.") < html.indexOf("</header>"));
   assert.match(html, /securityLevel:"strict"/);
@@ -48,19 +75,31 @@ test("PR-derived text is inert", () => {
   report.title = "</title><script>alert(1)</script>";
   report.items[0].comment.text = "</textarea><script>alert(1)</script>";
   report.items[0].code.excerpt = "<img src=x onerror=alert(1)>";
+  report.walkthrough.systemToday.diagram = "flowchart TD\n  A[<iframe src=x>]";
+  report.reviewerQuestions[0].finding = "<iframe src=checklist>";
   const html = render(report);
   assert.doesNotMatch(html, /<script>alert/);
   assert.doesNotMatch(html, /<img src=x/);
+  assert.doesNotMatch(html, /<iframe src=x>/);
+  assert.doesNotMatch(html, /<iframe src=checklist>/);
+  assert.match(html, /&lt;iframe src=x&gt;/);
+  assert.match(html, /&lt;iframe src=checklist&gt;/);
 });
 
 test("word limits reject long text", () => {
   assert.equal(words("Read [the long label](https://a.test) and `a b`"), 6);
   const report = example();
   report.lead = Array.from({ length: 26 }, () => "word").join(" ");
-  report.walkthrough.systemToday[0] = Array.from({ length: 21 }, () => "word").join(" ");
+  report.walkthrough.systemToday.explanation = Array.from({ length: 61 }, () => "word").join(" ");
+  report.reviewerQuestions[0].question = Array.from({ length: 41 }, () => "word").join(" ");
+  report.reviewerQuestions[0].finding = Array.from({ length: 41 }, () => "word").join(" ");
+  report.reviewerQuestions[0].decision = Array.from({ length: 41 }, () => "word").join(" ");
   const errors = validate(report);
   assert.ok(errors.some((e) => e.startsWith("lead: 26 words, limit 25")), errors.join("\n"));
-  assert.ok(errors.some((e) => e.startsWith("walkthrough.systemToday[0]: 21 words")), errors.join("\n"));
+  assert.ok(errors.some((e) => e.startsWith("walkthrough.systemToday.explanation: 61 words, limit 60")), errors.join("\n"));
+  assert.ok(errors.some((e) => e.startsWith("reviewerQuestions[0].question: 41 words, limit 40")), errors.join("\n"));
+  assert.ok(errors.some((e) => e.startsWith("reviewerQuestions[0].finding: 41 words, limit 40")), errors.join("\n"));
+  assert.ok(errors.some((e) => e.startsWith("reviewerQuestions[0].decision: 41 words, limit 40")), errors.join("\n"));
 });
 
 test("prior comments render as escaped bot and human links before item slots", () => {
@@ -147,6 +186,49 @@ test("prior comment kind and escaped repository matching are validated", () => {
   assert.ok(validate(dottedRepo).some((error) => error.startsWith("items[0].priorComments[0].url:")));
 });
 
+test("reviewer questions use all fixed categories and describe absent evidence safely", () => {
+  const report = example();
+  assert.deepEqual(report.reviewerQuestions.map((row) => row.id), REVIEWER_QUESTION_IDS);
+  assert.match(report.reviewerQuestions[0].finding, /No OpenSpec or proposal artifact was found/);
+  assert.match(report.reviewerQuestions[3].finding, /No public contract or database schema change was found/);
+  assert.match(report.reviewerQuestions[4].finding, /No Go interface was found/);
+  assert.match(report.reviewerQuestions[5].finding, /No bootstrap cycle was found/);
+  assert.deepEqual(validate(report), []);
+
+  const missingCategory = example();
+  missingCategory.reviewerQuestions.pop();
+  assert.ok(validate(missingCategory).some((error) => error.startsWith("reviewerQuestions: must list all 8 fixed questions")));
+
+  const wrongOrder = example();
+  [wrongOrder.reviewerQuestions[0], wrongOrder.reviewerQuestions[1]] = [wrongOrder.reviewerQuestions[1], wrongOrder.reviewerQuestions[0]];
+  assert.ok(validate(wrongOrder).some((error) => error.startsWith('reviewerQuestions[0].id: must be "change-purpose"')));
+
+  const wrongQuestion = example();
+  wrongQuestion.reviewerQuestions[0].question = "A different question for this category?";
+  assert.ok(validate(wrongQuestion).some((error) => error.startsWith("reviewerQuestions[0].question: must match the fixed question")));
+});
+
+test("manual inspection is skipped only when the description and tests are clear", () => {
+  const clear = example();
+  const html = render(clear);
+  assert.match(html, /You can skip manual inspection while the description and associated tests remain clear/);
+
+  const unclear = example();
+  unclear.reviewerQuestions[7].finding = "The description is unclear, and no associated test covers this behavior.";
+  unclear.reviewerQuestions[7].decision = "Manually inspect the relevant UI, functions, and algorithms.";
+  const unclearHtml = render(unclear);
+  assert.match(unclearHtml, /Manually inspect the relevant UI, functions, and algorithms/);
+  assert.doesNotMatch(unclearHtml, /You can skip manual inspection/);
+});
+
+test("reviewer questions do not change gate or verdict validation", () => {
+  const report = example();
+  report.reviewerQuestions[0].finding = "A different supported explanation.";
+  assert.deepEqual(validate(report), []);
+  report.verdict = "Approve";
+  assert.ok(validate(report).some((error) => error.startsWith('verdict: gates require "Request changes"')));
+});
+
 test("whyBad has a 90-word limit", () => {
   const tooLong = example();
   tooLong.items[0].whyBad = Array.from({ length: 91 }, () => "word").join(" ");
@@ -212,6 +294,22 @@ test("CLI writes nothing when validation fails", () => {
   const invalidPriorComments = spawnSync(process.execPath, [path.join(here, "render.mjs"), input], { encoding: "utf8" });
   assert.equal(invalidPriorComments.status, 1);
   assert.match(invalidPriorComments.stderr, /items\[0\]\.priorComments: required array/);
+  assert.equal(existsSync(path.join(dir, "repo-1.html")), false);
+
+  const missingReviewerQuestions = example();
+  delete missingReviewerQuestions.reviewerQuestions;
+  writeFileSync(input, JSON.stringify(missingReviewerQuestions));
+  const invalidReviewerQuestions = spawnSync(process.execPath, [path.join(here, "render.mjs"), input], { encoding: "utf8" });
+  assert.equal(invalidReviewerQuestions.status, 1);
+  assert.match(invalidReviewerQuestions.stderr, /reviewerQuestions: must be an array/);
+  assert.equal(existsSync(path.join(dir, "repo-1.html")), false);
+
+  const staleVersion = example();
+  staleVersion.schemaVersion = 1;
+  writeFileSync(input, JSON.stringify(staleVersion));
+  const stale = spawnSync(process.execPath, [path.join(here, "render.mjs"), input], { encoding: "utf8" });
+  assert.equal(stale.status, 1);
+  assert.match(stale.stderr, /schemaVersion: must be 2/);
   assert.equal(existsSync(path.join(dir, "repo-1.html")), false);
 
   writeFileSync(input, JSON.stringify(example()));

@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "repo": "example-org/example-service",
   "number": 42,
   "title": "Add a monitor gate before certificate rotation",
@@ -30,38 +30,77 @@
     { "gate": "Docs", "status": "Pass", "evidence": "The runbook now describes the skip flag." }
   ],
   "walkthrough": {
-    "problem": "A root CA rotation can start before every node trusts the new root. Nodes then lose API access.",
-    "systemToday": [
-      "An operator runs `ctl rotate-ca` for one cluster.",
-      "The CLI signals the `ClusterLifecycle` workflow.",
-      "`ClusterLifecycle` starts the `RotateCA` child workflow.",
-      "`RotateCA` deploys the `ca_certs` chart set.",
-      "`RotateCA` then marks the new root as active."
-    ],
-    "coreIntuition": "The gate is a wait loop in front of the deploy. It is safe only if the deploy cannot be what clears the alert.",
-    "solutionMap": [
-      { "component": "`WaitForMonitorGate` workflow", "solves": "Waits until the trust monitor is OK." },
-      { "component": "`CheckMonitor` activity", "solves": "Reads the monitor state for one cluster." },
-      { "component": "`--skip-gate` flag", "solves": "Lets an operator bypass a stuck gate." }
-    ],
-    "flowchart": "flowchart LR\n  CLI[ctl rotate-ca] --> L[ClusterLifecycle]\n  L --> R[RotateCA]:::rc\n  R --> G[Monitor gate]:::ask\n  G --> D[Deploy ca_certs]",
+    "systemToday": {
+      "explanation": "The CLI signals `ClusterLifecycle`, which starts `RotateCA`; the child deploys certificates and marks the new root active.",
+      "diagram": "flowchart LR\n  CLI[ctl rotate-ca] --> L[ClusterLifecycle]\n  L --> R[RotateCA]\n  R --> D[Direct deploy]"
+    },
+    "proposedSystem": {
+      "explanation": "`RotateCA` checks the trust monitor before deploying. The skip flag bypasses the gate, and the workflow then marks the new root active.",
+      "diagram": "flowchart LR\n  CLI[ctl rotate-ca] --> L[ClusterLifecycle]\n  L --> R[RotateCA]\n  R --> G[Monitor gate]\n  G --> D[Deploy ca_certs]"
+    },
     "steps": [
       {
         "id": "step-entry",
         "title": "Operator starts a rotation",
-        "today": "The CLI signals `ClusterLifecycle` with the target cluster.",
-        "changed": "Nothing changed here.",
-        "effect": "Every rotation still enters through `ClusterLifecycle`."
+        "description": "The CLI signals `ClusterLifecycle`, which starts `RotateCA` for the target cluster."
       },
       {
         "id": "step-rotate",
-        "title": "RotateCA calls the gate",
-        "today": "`RotateCA` deploys certificates right away.",
-        "changed": "It now waits on the monitor gate first, unless the skip flag is set.",
-        "effect": "A rotation can wait up to 48 hours before the deploy."
+        "title": "RotateCA checks the trust monitor",
+        "description": "The workflow waits for the monitor unless the operator sets `--skip-gate`, then deploys certificates and activates the root."
       }
     ]
   },
+  "reviewerQuestions": [
+    {
+      "id": "change-purpose",
+      "question": "Can the reviewer explain what changes and why, using an OpenSpec or proposal artifact when available rather than repeating the PR author's summary?",
+      "finding": "No OpenSpec or proposal artifact was found. The PR description and diff explain the change, but do not independently confirm its intent.",
+      "decision": "Does the available PR and code evidence explain the need, or must the author provide a durable proposal?"
+    },
+    {
+      "id": "necessity",
+      "question": "Is the change necessary?",
+      "finding": "The author cites a goal, but the evidence does not show whether the existing workflow can meet it.",
+      "decision": "Does the evidence show a clear benefit that justifies the added report behavior?"
+    },
+    {
+      "id": "changed-files",
+      "question": "Are any changed files unexpected or unexplained?",
+      "finding": "All changed files are prompt, renderer, fixture, or test files for this report change.",
+      "decision": "Do these files match the stated scope, or does any file need an explanation?"
+    },
+    {
+      "id": "hard-to-reverse-contracts",
+      "question": "Does the diff change a hard-to-reverse contract: gRPC/API, public program parameters, object models or fields, or database schema?",
+      "finding": "No public contract or database schema change was found in the reviewed diff.",
+      "decision": "If a contract change is present, review compatibility and migration costs before approval."
+    },
+    {
+      "id": "go-interfaces",
+      "question": "Which Go interfaces exist? If none exist, does the surrounding architecture make that normal?",
+      "finding": "No Go interface was found in the reviewed paths. Neighboring code uses concrete workflow types; check nearby package boundaries to assess whether that is normal.",
+      "decision": "Does this design match established boundaries, or would an interface improve a real seam?"
+    },
+    {
+      "id": "bootstrap-cycles",
+      "question": "Does bootstrap introduce a circular dependency?",
+      "finding": "No bootstrap cycle was found in the package and dependency paths reviewed.",
+      "decision": "If a bootstrap loop exists, identify its cycle and decide whether initialization must change."
+    },
+    {
+      "id": "failure-observability",
+      "question": "Does the change create a new failure mode, and can on-call staff observe it at 4 a.m.?",
+      "finding": "The skipped-gate path has no log, metric, or event that shows when an operator bypasses the check.",
+      "decision": "Can on-call detect this failure from existing signals, or is additional telemetry required?"
+    },
+    {
+      "id": "manual-inspection",
+      "question": "Can the reviewer skip manual UI, function, and algorithm inspection because an AI-written description and associated tests explain the behavior?",
+      "finding": "The behavior description and associated tests clearly explain the changed control flow.",
+      "decision": "You can skip manual inspection while the description and associated tests remain clear; inspect manually if either is unclear."
+    }
+  ],
   "items": [
     {
       "id": "gate-blocks-repair",

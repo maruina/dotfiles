@@ -172,6 +172,13 @@ Selector metav1.LabelSelector `json:"selector"`
 Selector metav1.LabelSelector `json:"selector"`
 ```
 
+**Pitfall: Free-form JSON and unknown fields bypass `self == oldSelf`.**
+`self == oldSelf` does not reliably enforce immutability on free-form objects (`runtime.RawExtension`, `type: object` with `x-kubernetes-preserve-unknown-fields: true`). In upstream Kubernetes CEL (k8s 1.25–1.36+), map equality checks `size(self) == size(oldSelf)` and compares values only for shared keys, but does not check key-set equality. Replacing `{"clusterFqdn": "foo"}` with `{"other": "bar"}` passes because both maps have size 1 with 0 shared keys. Clients can swap keys and then restore the original key with a different value.
+**Fix**: When `runtime.RawExtension` must be immutable, enforce immutability in an admission webhook or controller, or use an explicit CEL key-set check:
+```go
+// +kubebuilder:validation:XValidation:rule="self.all(k, k in oldSelf) && oldSelf.all(k, k in self) && self == oldSelf",message="input is immutable"
+```
+
 ### CEL Cross-Field Validation
 
 Use `+kubebuilder:validation:XValidation` at the struct level (not field level) to enforce relationships between fields. This is the primary reason to reach for CEL beyond immutability:

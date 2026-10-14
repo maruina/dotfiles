@@ -182,6 +182,20 @@ Cross-namespace references without the target namespace's consent create securit
 
 **Fix**: Use a handshake mechanism like Gateway API's `ReferenceGrant`. If cross-namespace references aren't essential, restrict to same-namespace.
 
+### Free-Form JSON and Unknown Fields Bypass `self == oldSelf` Immutability
+
+`rule="self == oldSelf"` is the canonical Kubebuilder marker for immutable fields, but it does not reliably protect free-form JSON objects (`runtime.RawExtension`, `type: object` with `x-kubernetes-preserve-unknown-fields: true`).
+
+In upstream Kubernetes CEL (k8s 1.25–1.36+), map equality `self == oldSelf` checks length equality (`size(self) == size(oldSelf)`) and compares values only for keys present in both maps. It does not enforce key-set equality. Consequently, replacing `{"keyA": "value"}` with `{"keyB": "value"}` evaluates to `true` because both maps have 1 key and 0 shared keys. Clients can swap keys and then restore the original key with a mutated value, silently bypassing immutability.
+
+**Fix**: When `runtime.RawExtension` must be immutable:
+1. Enforce immutability in an admission webhook or controller logic.
+2. Or use an explicit key-set comparison in CEL:
+   ```go
+   // +kubebuilder:validation:XValidation:rule="self.all(k, k in oldSelf) && oldSelf.all(k, k in self) && self == oldSelf",message="field is immutable"
+   ```
+3. Always include test cases that attempt to replace keys (`{"keyA": "v1"} -> {"keyB": "v2"}`), not just mutating values under existing keys.
+
 ### Make Fields Optional with Defaults
 
 Required fields cannot be added after v1 without breaking existing resources. More required fields means less room to evolve.
@@ -231,6 +245,7 @@ SemVer governs your binary release lifecycle. API version (`v1alpha1`, `v1beta1`
 - [ ] Arrays use `+listType=map` where elements have identity
 - [ ] Cross-namespace references have a handshake mechanism
 - [ ] Selector fields have immutability XValidation (`self == oldSelf`) and non-empty guard
+- [ ] Free-form JSON fields (`runtime.RawExtension`) test key replacement and do not rely solely on naive `self == oldSelf`
 - [ ] Print columns include a health indicator (Ready or Stalled sourced from conditions)
 - [ ] Extensible string fields (non-enum) document built-in values and silent failure behavior
 - [ ] API reads naturally top-down as a sentence

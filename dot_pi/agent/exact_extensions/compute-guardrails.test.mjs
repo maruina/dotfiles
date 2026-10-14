@@ -38,6 +38,9 @@ const blockedCases = [
   "rm -rf ~/dot_pi/agent/node_modules",
   "rm -fr dot_pi/agent/node_modules",
   "rm -rf node_modules",
+  "rm -rf /tmp/pr-validate-computecla-controllers-2/../../etc",
+  "rm -rf $SCRATCH_DIR /tmp/foo",
+  "sudo rm -rf $SCRATCH_DIR",
 ];
 
 const allowedCases = [
@@ -66,6 +69,12 @@ const allowedCases = [
   "ddtool --verbose",
   "rm -rf dot_pi/agent/node_modules",
   "rm -rf \"dot_pi/agent/node_modules\"",
+  'rm -rf "$SCRATCH_DIR"',
+  'rm -rf "${SCRATCH_DIR}"',
+  "rm -rf $SCRATCH_DIR",
+  "rm -rf /tmp/pr-validate-computecla-controllers-2",
+  'rm -rf "${TMPDIR:-/tmp}/pr-validate-computecla-controllers-2"',
+  "rm -rf /tmp/pr-validate-repo-123/",
 ];
 
 test("compute guardrails block mutating protected commands", () => {

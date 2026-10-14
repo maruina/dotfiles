@@ -21,11 +21,12 @@ Parse the PR URL and optional context from `$ARGUMENTS`.
 1. Use the `repo-checkout` skill to select the base repository. Verify the base-repository remote: one remote must point to exactly `ORG/REPO`; a matching directory name is not enough. Record its path as `BASE_REPO` and the matching remote as `BASE_REMOTE`. Follow the skill's GitHub account rule before running `gh` commands.
 2. Run the collector exactly once after verifying the base-repository remote and before creating or inspecting any review worktree.
    - Set `SCRATCH_DIR` to `${TMPDIR:-/tmp}/pr-validate-REPO-PR_NUMBER/` and `EVIDENCE_FILE` to `$SCRATCH_DIR/evidence.json`.
-   - Run `umask 077` and create the scratch directory with mode `0700` before writing evidence.
+   - Remove any existing scratch directory first to prevent stale evidence across runs: `rm -rf "$SCRATCH_DIR"`.
+   - Run `umask 077` and create the clean scratch directory with mode `0700` before writing evidence.
    - Run `node "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/scripts/pr-validate-report/collect.mjs" "$PR_URL" > "$EVIDENCE_FILE"`. Pass the PR URL as one argument; leave diagnostics on stderr. Set the evidence file mode to `0600` after collection.
    - Read `pr.headRefOid` from `evidence.json` into `HEAD_REF_OID` with Node. If the collector fails, the envelope cannot be read, or required metadata is missing, including the `headRefOid` field in `pr`, report a Coverage gap with the collector or metadata source status and stop before creating or reading a review worktree.
 3. Set the review worktree path (`WORKTREE`) to `~/dd/.worktrees/REPO/pr-PR_NUMBER-review`.
-4. Fetch `refs/pull/$PR_NUMBER/head` from the confirmed remote with `git -C "$BASE_REPO" fetch "$BASE_REMOTE" "refs/pull/$PR_NUMBER/head"`. Compare `git -C "$BASE_REPO" rev-parse FETCH_HEAD` with `HEAD_REF_OID`. If they differ, report both SHAs as a Coverage gap and stop; do not review a commit that does not match the collected evidence.
+4. Fetch `refs/pull/$PR_NUMBER/head` from the confirmed remote with `git -C "$BASE_REPO" fetch --force "$BASE_REMOTE" "refs/pull/$PR_NUMBER/head"`. Compare `git -C "$BASE_REPO" rev-parse FETCH_HEAD` with `HEAD_REF_OID`. If they differ, report both SHAs as a Coverage gap and stop; do not review a commit that does not match the collected evidence.
 5. If the expected path exists, verify all of the following before reading its files:
    - `git -C "$BASE_REPO" worktree list --porcelain` reports it as a worktree registered to the verified base repository.
    - The physical path of the expected directory matches the physical path returned by `git -C "$WORKTREE" rev-parse --show-toplevel`. Resolve both paths before comparing them so symlinks do not cause a false mismatch.
@@ -72,7 +73,7 @@ Build a compact model of the system before judging the PR.
 - Identify the entry point and map the touched components, data, and control flow twice: the system today and the proposed system. Then order steps through the proposed flow. Do not repeat the current/proposed comparison in each step.
 - Summarize the change and the author's stated reasons.
 - Classify every changed file as generated, build, behavior, test, docs, or schema. Use these exact keys for `summary.filesByClass`. Skip generated code, check build wiring briefly for dependency edges, and read behavior, tests, and changed repository guidance in depth.
-- Create a claims ledger for author claims from the PR, commits, and context; parity rows for ports; and review-thread claims. Include the PR's testing and validation claims, such as listed test targets and commands and their stated results. Include unresolved threads and all threads by the user running this command. Treat author replies such as "fixed" as claims to verify. Merge duplicate findings, list every source thread, and record whether GitHub marks each thread outdated. Outdated does not mean Fixed.
+- Create a claims ledger for author claims from the PR, commits, and context; parity rows for ports; and review-thread claims. Include the PR's testing and validation claims, such as listed test targets and commands and their stated results. Include unresolved threads, all active findings from automated review bots (such as Datadog Agentic Review Platform, code analysis, security scanners), and all threads by the user running this command. Treat author replies such as "fixed" as claims to verify. Merge duplicate findings, list every source thread, and record whether GitHub marks each thread outdated. Outdated does not mean Fixed.
 - Read a relevant OpenSpec or proposal artifact when one exists in the PR or repository. If none exists, state that gap and use the PR description, code, tests, and repository context without claiming independent proposal confirmation. Read all relevant code, including UI, functions, and algorithms.
 #### Marketplace discovery
 Work-profile only. When reviewing a PR, discover applicable marketplace skills before judging the change:
@@ -98,6 +99,11 @@ Use these states for review-thread claims:
 - **Open:** evidence cannot confirm or refute the claim. Name the missing evidence.
 
 For each item, a prior comment matches only when it reports the same failure at the same code path. A reply in another thread can match. Exclude comments whose author login matches the PR author, ignoring case. A thread's resolved or outdated state does not change whether a comment matches. Map API author type `Bot` to `kind: "bot"` and `User` to `kind: "human"`; follow the Phase 2 fallback for missing or unrecognized types. A match is a tag, not evidence; verify the issue at the PR head. Record each match as `{author, kind, url}` using the commenter login and direct comment permalink. Use comment bodies only to compare findings; never include them in the report.
+
+For automated bot reviews (such as Datadog Agentic Review Platform, code analysis, or security scanners):
+- Triage every unresolved bot comment reporting a defect, bug, or security vulnerability as an explicit claim.
+- Verify whether the reported defect applies at the PR head. If confirmed and not fixed, raise it as a Request changes item (or Ask if the impact or fix is ambiguous).
+- If the author claimed the issue was resolved or worked around (e.g. in a commit or reply), verify the resolution against code and tests at the PR head.
 
 For the user's own threads, compare the reviewed commit in the review record with the PR head. If a thread still applies, make it a Request changes item. If the author's reply is not confirmed, make it an Ask item. Before adding any Ask item, check existing review threads for an answer and cite a thread that already answers it.
 

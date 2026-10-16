@@ -39,6 +39,12 @@ The Fish command SHALL pass `~/.ssh/ddtool-agent.sock` explicitly to `ddtool ope
 - THEN the command returns non-zero with an actionable message
 - AND it does not fall back to the current `SSH_AUTH_SOCK`
 
+#### Scenario: Environment argument is invalid
+- GIVEN the user supplies zero or more than one environment arguments
+- WHEN the user runs `ddsshgen` with those arguments
+- THEN the function returns non-zero with usage text
+- AND it does not invoke ddtool
+
 ### Requirement: SSH can select the dedicated agent explicitly
 The `ddssh` Fish command SHALL pass the dedicated socket as OpenSSH's `IdentityAgent` option without changing `SSH_AUTH_SOCK`.
 
@@ -54,15 +60,15 @@ The `ddssh` Fish command SHALL pass the dedicated socket as OpenSSH's `IdentityA
 - THEN the function returns non-zero with an actionable message
 - AND it does not invoke OpenSSH with the default agent
 
-### Requirement: Work-only deployment
-The LaunchAgent and Fish functions SHALL be excluded from non-work or non-macOS chezmoi profiles.
+### Requirement: Work-profile deployment
+The LaunchAgent and Fish functions SHALL be excluded from the personal chezmoi profile.
 
 #### Scenario: Render the work profile
 - GIVEN chezmoi data selects the work profile on macOS
 - WHEN the source is rendered
 - THEN the LaunchAgent plist and both Fish functions are included
 
-#### Scenario: Render a non-work profile
+#### Scenario: Render the personal profile
 - GIVEN chezmoi data selects the personal profile
 - WHEN the source is rendered
 - THEN the LaunchAgent plist and both Fish functions are excluded
@@ -74,13 +80,14 @@ The LaunchAgent and Fish functions SHALL be excluded from non-work or non-macOS 
 |---|---|---|---|
 | LaunchAgent | `Library/LaunchAgents/com.matteo.ruina.ddtool-ssh-agent.plist.tmpl` | Start and keep a dedicated agent alive on a fixed socket | Render and `plutil -lint`; bootstrap and query with `launchctl` |
 | Fish functions | `dot_config/private_fish/exact_functions/ddsshgen.fish`, `dot_config/private_fish/exact_functions/ddssh.fish` | Select the dedicated socket for certificate generation and SSH connections | `fish -n`; `ddssh -G localhost`; staging certificate generation |
-| Profile gating | `.chezmoiignore` | Exclude these targets outside work-profile macOS | Render `.chezmoiignore` for work, personal, and non-macOS data |
+| Profile gating | `.chezmoiignore` | Exclude these targets from the personal profile | Render `.chezmoiignore` for work and personal profiles |
 
 ### Key Decisions
 - Keep the 1Password and current agents unchanged. The existing signing key is visible through both, but the current work profile does not set a 1Password `IdentityAgent` rule.
 - Use the explicit `ddssh` wrapper instead of guessing SSH host patterns or changing the global agent.
-- Require one environment argument to `ddsshgen`; do not generate staging and production certificates implicitly.
-- Deploy only on the work macOS profile.
+- Require exactly one environment argument to `ddsshgen`; reject zero or multiple arguments before invoking ddtool.
+- Implement `ddssh` as an explicit Fish function that runs `ssh` with the dedicated `IdentityAgent`; do not change the default `ssh` command.
+- Deploy only on the work profile. Matteo uses this configuration on macOS.
 
 ### Implementation Constraints
 - Edit chezmoi source files only; do not edit rendered targets directly.
@@ -91,6 +98,7 @@ The LaunchAgent and Fish functions SHALL be excluded from non-work or non-macOS 
 ### Security Requirements
 - The dedicated socket must remain in the existing private `~/.ssh` directory and be managed by `ssh-agent`.
 - Neither function may fall back to the default agent when the dedicated socket is missing.
+- `ddsshgen` must reject a missing or extra environment argument before invoking ddtool.
 - Do not change the 1Password agent, current agent, or Git signing configuration.
 
 ### Observability Requirements
@@ -109,7 +117,7 @@ The LaunchAgent and Fish functions SHALL be excluded from non-work or non-macOS 
 
 ### Test Strategy
 - First run focused render and syntax checks in their failing state, then implement and rerun them.
-- Render the plist and `.chezmoiignore` against work, personal, and non-macOS data; assert profile inclusion and exclusion.
+- Render the plist and `.chezmoiignore` against work and personal data; assert profile inclusion and exclusion.
 - Run `fish -n` on both function files and `plutil -lint` on the rendered plist.
 - After targeted apply, bootstrap the service and verify that the dedicated socket responds to `ssh-add -l` while the global `SSH_AUTH_SOCK` remains unchanged.
 - Run `ddssh -G localhost` and assert its `identityagent` points to the dedicated socket.
@@ -125,13 +133,14 @@ The LaunchAgent and Fish functions SHALL be excluded from non-work or non-macOS 
 **Files:** `.chezmoiignore`, `Library/LaunchAgents/com.matteo.ruina.ddtool-ssh-agent.plist.tmpl`, `dot_config/private_fish/exact_functions/ddsshgen.fish`, `dot_config/private_fish/exact_functions/ddssh.fish`
 
 - [ ] Run `test -e Library/LaunchAgents/com.matteo.ruina.ddtool-ssh-agent.plist.tmpl && test -e dot_config/private_fish/exact_functions/ddsshgen.fish && test -e dot_config/private_fish/exact_functions/ddssh.fish`; expect non-zero before implementation.
-- [ ] Add the LaunchAgent, Fish functions, and personal/non-macOS exclusions.
+- [ ] Add the LaunchAgent, Fish functions, and personal-profile exclusion.
 - [ ] Run `fish -n dot_config/private_fish/exact_functions/ddsshgen.fish && fish -n dot_config/private_fish/exact_functions/ddssh.fish`; expect success.
 - [ ] Render the plist with `chezmoi --source "$PWD" execute-template < Library/LaunchAgents/com.matteo.ruina.ddtool-ssh-agent.plist.tmpl > /tmp/ddtool-ssh-agent.plist` and run `plutil -lint /tmp/ddtool-ssh-agent.plist`; expect valid XML.
-- [ ] Render `.chezmoiignore` with work, personal, and non-macOS data; confirm only work/macOS includes the targets and personal/non-macOS excludes them.
+- [ ] Render `.chezmoiignore` with work and personal data; confirm the work profile includes the targets and the personal profile excludes them.
 - [ ] Confirm missing-socket behavior fails without invoking ddtool or changing global agent settings.
+- [ ] Run `ddsshgen` with zero and two arguments; expect a non-zero usage error and no ddtool invocation.
 - [ ] Run targeted `chezmoi --source "$PWD" diff` for the three targets; review the complete diff, apply only those targets, then bootstrap and query the LaunchAgent.
-- [ ] Run `ddssh -G localhost`; expect `identityagent` to be the dedicated socket.
+- [ ] Run `ddssh -G localhost`; expect `identityagent` to be the dedicated socket. Confirm that the normal shell `SSH_AUTH_SOCK` value is unchanged.
 - [ ] Capture `ssh-add -L` output from the current and 1Password sockets, run `ddsshgen staging`, then confirm the certificate appears only in the dedicated agent and the two existing identity lists are unchanged.
 
 ### Task 2: Review documentation and future-agent guidance

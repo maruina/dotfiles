@@ -1,5 +1,8 @@
 {{- if eq .profile "personal" }}
 .pi/agent/skills_work
+Library/LaunchAgents/com.matteo.ruina.ddtool-ssh-agent.plist
+.config/fish/functions/ddsshgen.fish
+.config/fish/functions/ddssh.fish
 {{- end }}
 {{- if eq .profile "work" }}
 .pi/agent/skills_personal

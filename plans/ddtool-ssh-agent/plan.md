@@ -22,6 +22,18 @@
 | `obsidian-cli` | `agent-selected` | Required to read the learning store | Read the learning store through the Obsidian CLI. |
 | `skill-loader` | `prompt-required` | Required before planning implementation | Selected the applicable skills above. |
 
+### Execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `resolve-worktree` | `prompt-required` | The plan path was in a separate worktree | Resolved the plan root and continued in its feature worktree. |
+| `feature-worktree` | `prompt-required` | File changes and a commit require the plan's feature worktree | Confirmed this was the correct branch worktree and left the base checkout on `main`. |
+| `skill-loader` | `prompt-required` | Required before execution work | Selected execution skills based on the affected files and plan. |
+| `codebase-research` | `skill-loader` | Shell, SSH, and profile behavior needed repository context | Inspected the current Fish, SSH, and chezmoi patterns and searched for existing runbook documentation. |
+| `chezmoi` | `skill-loader` | The implementation changes chezmoi source and installed targets | Kept edits in source, reviewed explicit target diffs, applied only the three feature targets, and rehearsed rollback. |
+| `script-best-practices` | `prompt-required` | The plan named this skill for Fish command functions | Kept argument handling explicit, preserved command status, and tested exact argument forwarding. |
+| `write` | `skill-loader` | Function descriptions, execution evidence, and PR prose are user-facing | Kept diagnostics actionable and recorded concise implementation evidence. |
+| `reviewable-pr-workflow` | `skill-loader` | The completed branch is ready for a draft PR | Applied the stack-split check and prepared a focused reviewer guide with linked code references and validation evidence. |
+
 ## Scope
 
 ### Requirement: ddtool uses only the dedicated agent
@@ -174,22 +186,34 @@ The LaunchAgent SHALL supervise one foreground agent. Restarting it SHALL NOT be
 ## Tasks
 
 ### Task 1: Add the isolated work-profile agent and Fish commands
+**Status:** Complete.
 **Delivers:** A persistent dedicated socket and explicit commands for certificate generation and SSH use.
 **Blocked by:** None
 **Traces to:** Slice 1; requirements 1–4, including all failure and rollback scenarios
 **Files:** `.chezmoiignore`, `Library/LaunchAgents/com.matteo.ruina.ddtool-ssh-agent.plist.tmpl`, `dot_config/private_fish/exact_functions/ddsshgen.fish`, `dot_config/private_fish/exact_functions/ddssh.fish`
 
-- [ ] Prepare and run the isolated Fish behavior checks described in Test Strategy before implementation; expect failure. Include argument capture, missing-socket rejection for both functions, invalid environment argument count, downstream failure propagation, and unchanged caller `SSH_AUTH_SOCK`.
-- [ ] Add the LaunchAgent, Fish functions, and personal-profile exclusion.
-- [ ] Run `fish -n dot_config/private_fish/exact_functions/ddsshgen.fish && fish -n dot_config/private_fish/exact_functions/ddssh.fish`; expect success.
-- [ ] Render the plist with `chezmoi --source "$PWD" execute-template < Library/LaunchAgents/com.matteo.ruina.ddtool-ssh-agent.plist.tmpl > /tmp/ddtool-ssh-agent.plist` and run `plutil -lint /tmp/ddtool-ssh-agent.plist`; expect valid XML.
-- [ ] Render `.chezmoiignore` with work and personal data and check effective `chezmoi ignored` results; confirm the work profile includes the targets and the personal profile excludes them.
-- [ ] Rerun the same isolated Fish behavior checks; expect every assertion to pass and clean up only the test-owned agent and files.
-- [ ] Run targeted `chezmoi --source "$PWD" diff` for the three targets; review the complete diff, apply only those targets, then bootstrap and query the LaunchAgent.
-- [ ] Verify socket ownership and permissions, empty-agent reachability, normal restart, and controlled stale-socket recovery before loading a real certificate. Follow the process-ownership and cleanup limits in Test Strategy.
-- [ ] Run `ddssh -G localhost`; expect `identityagent` to be the dedicated socket. Confirm that normal `ssh -G localhost` retains its existing selection and the normal shell `SSH_AUTH_SOCK` value is unchanged.
-- [ ] Rehearse the targeted rollback before certificate generation: unload the dedicated service, explicitly remove only its installed plist and two function files, and verify that the service, plist, functions, and socket are absent. Keep the implementation source for this rehearsal, then restore only the three feature targets and bootstrap again.
-- [ ] Capture identity fingerprints from the current and 1Password sockets, run `ddsshgen staging`, then confirm the certificate appears only in the dedicated agent and the two existing identity lists are unchanged. Do not print certificate material.
+- [x] Prepare and run the isolated Fish behavior checks described in Test Strategy before implementation; expect failure. Include argument capture, missing-socket rejection for both functions, invalid environment argument count, downstream failure propagation, and unchanged caller `SSH_AUTH_SOCK`.
+- [x] Add the LaunchAgent, Fish functions, and personal-profile exclusion.
+- [x] Run `fish -n dot_config/private_fish/exact_functions/ddsshgen.fish && fish -n dot_config/private_fish/exact_functions/ddssh.fish`; expect success.
+- [x] Render the plist with `chezmoi --source "$PWD" execute-template < Library/LaunchAgents/com.matteo.ruina.ddtool-ssh-agent.plist.tmpl > /tmp/ddtool-ssh-agent.plist` and run `plutil -lint /tmp/ddtool-ssh-agent.plist`; expect valid XML.
+- [x] Render `.chezmoiignore` with work and personal data and check effective `chezmoi ignored` results; confirm the work profile includes the targets and the personal profile excludes them.
+- [x] Rerun the same isolated Fish behavior checks; expect every assertion to pass and clean up only the test-owned agent and files.
+- [x] Run targeted `chezmoi --source "$PWD" diff` for the three targets; review the complete diff, apply only those targets, then bootstrap and query the LaunchAgent.
+- [x] Verify socket ownership and permissions, empty-agent reachability, normal restart, and controlled stale-socket recovery before loading a real certificate. Follow the process-ownership and cleanup limits in Test Strategy.
+- [x] Run `ddssh -G localhost`; expect `identityagent` to be the dedicated socket. Confirm that normal `ssh -G localhost` retains its existing selection and the normal shell `SSH_AUTH_SOCK` value is unchanged.
+- [x] Rehearse the targeted rollback before certificate generation: unload the dedicated service, explicitly remove only its installed plist and two function files, and verify that the service, plist, functions, and socket are absent. Keep the implementation source for this rehearsal, then restore only the three feature targets and bootstrap again.
+- [x] Capture identity fingerprints from the current and 1Password sockets, run `ddsshgen staging`, then confirm the certificate appears only in the dedicated agent and the two existing identity lists are unchanged. Do not print certificate material.
+
+### Execution evidence
+- Pre-implementation red check: `bash /tmp/ddtool-ssh-agent-checks.sh "$PWD" pre` confirmed the new functions were absent in isolated Fish.
+- Post-implementation checks: `fish -n` passed for both functions; the same temporary-HOME behavior harness passed missing-socket rejection, argument-count validation, exact argument forwarding, status/stderr preservation, and unchanged `SSH_AUTH_SOCK`. Its temporary agent and HOME were cleaned up.
+- The LaunchAgent rendered with the absolute home-directory socket and passed `plutil -lint`. Work-profile `chezmoi ignored` did not list any of the three targets; personal-profile output listed all three.
+- Targeted diffs contained only the LaunchAgent plist and two Fish functions. Applied only those targets. The dedicated socket was owned by Matteo with mode `0600`; `~/.ssh` was owned by Matteo and not group- or world-writable. `ssh-add -l` returned 1 with “The agent has no identities” for the empty agent.
+- Normal bootout/bootstrap restored a reachable empty agent. A controlled `SIGKILL` of the confirmed dedicated PID left a stale socket; after bootout, process and response checks, and owner validation, recovery removed only that socket and restored the empty agent.
+- `ddssh -G localhost` reported the dedicated socket as `identityagent`. Normal `ssh -G localhost` had no explicit `IdentityAgent` override, and the inherited `SSH_AUTH_SOCK` remained unchanged.
+- Both `AGENTS.md` files remain unchanged: the bootstrap and recovery procedure is specific to the user's local workflow and is documented in the function descriptions, diagnostics, and this plan. Repository search found no existing ddtool SSH runbook, so no separate page was added.
+- The rollback rehearsal unloaded the service and removed only its plist, two functions, and socket. `chezmoi apply` detected the deliberate target removal as drift and requested a TTY; targeted `chezmoi apply --force` restored only those three absent targets, after which bootstrap and empty-agent checks passed.
+- `ddsshgen staging` exited 0. The dedicated agent gained one exclusive identity; the default and 1Password agents retained their original four fingerprints each. Fingerprints and certificate output were not printed.
 
 ### Task 2: Review documentation and future-agent guidance
 **Delivers:** Confirmation that the new local workflow is documented at the right level without adding unrelated agent guidance.
@@ -197,11 +221,11 @@ The LaunchAgent SHALL supervise one foreground agent. Restarting it SHALL NOT be
 **Traces to:** Slice 1 closeout; documentation, lifecycle recovery, and rollback requirements
 **Files:** `AGENTS.md`, `dot_pi/agent/AGENTS.md`, Fish function descriptions and diagnostics
 
-- [ ] Review both `AGENTS.md` files and repository documentation for instructions that need to change.
-- [ ] Keep the user workflow in the Fish function descriptions and missing-socket diagnostic, including the bootstrap action and the location of the recovery procedure in this plan; add no separate page unless the repository has an existing ddtool SSH runbook. No failing runtime test applies to this documentation-only task; validate it against the behavior and lifecycle checks from Task 1.
-- [ ] Record why no `AGENTS.md` change is needed, or make a narrowly scoped update if the new bootstrap procedure is durable guidance for future agents.
-- [ ] Run `git diff --check`; expect no whitespace errors.
-- [ ] Commit the verified implementation and any required documentation change with `feat: add isolated ddtool SSH agent`; do not add unrelated guidance.
+- [x] Review both `AGENTS.md` files and repository documentation for instructions that need to change.
+- [x] Keep the user workflow in the Fish function descriptions and missing-socket diagnostic, including the bootstrap action and the location of the recovery procedure in this plan; add no separate page unless the repository has an existing ddtool SSH runbook. No failing runtime test applies to this documentation-only task; validate it against the behavior and lifecycle checks from Task 1.
+- [x] Record why no `AGENTS.md` change is needed, or make a narrowly scoped update if the new bootstrap procedure is durable guidance for future agents.
+- [x] Run `git diff --check`; expect no whitespace errors.
+- [x] Commit the verified implementation and any required documentation change with `feat: add isolated ddtool SSH agent`; do not add unrelated guidance.
 
 ## Documentation impact
 The function descriptions and missing-socket diagnostic cover the user workflow. The implementation task reviews both applicable `AGENTS.md` files and existing docs; no separate documentation page is planned unless an existing ddtool SSH runbook is found.

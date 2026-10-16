@@ -55,6 +55,7 @@ A hidden `user-context` extension injects current repository, branch, pull reque
 
 ## Language and Writing
 - Use US English and ASD-STE100 Simplified Technical English for all user communication and prose artifacts, including documentation, code comments, plans, and specifications.
+- When drafting a reply for the user to send, put only the message body in a plain-text code block. Keep labels outside the block. Do not add quote bars, line prefixes, or extra indentation.
 - In Markdown, do not insert a blank line after frontmatter or headings; use one blank line between sections.
 - Write comments only for non-obvious behavior, workarounds, or bug-fix context. Do not restate the code.
 

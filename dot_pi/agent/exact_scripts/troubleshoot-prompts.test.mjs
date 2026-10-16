@@ -58,6 +58,15 @@ test("troubleshoot requires evidence labels and reserves root cause", () => {
   ]);
 });
 
+test("agent guidance requires skill-loader for every slash-command template", () => {
+  const text = readFileSync(path.join(agentDir, "AGENTS.md"), "utf8");
+
+  requireMarkers(text, [
+    /Every slash-command template must load `skill-loader` before task-specific work/i,
+    /load every matching domain or language skill/i,
+  ]);
+});
+
 test("troubleshoot loads skill-loader and matching domain guidance before investigation", () => {
   const text = prompt("troubleshoot.md");
 

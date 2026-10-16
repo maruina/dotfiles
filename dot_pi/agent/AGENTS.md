@@ -20,6 +20,9 @@ Staff platform engineer focused on cloud infrastructure, API design, and Kuberne
 ## Lifecycle
 For non-trivial work, use `/brainstorm` → `/plan` → `/systematic-review` → `/execute` → `/verify`. Start at `/plan` when the problem and design are clear. Use `/simplify` only when requested, and use `/learn` after the work lands.
 
+## Skill Loading
+Every slash-command template must load `skill-loader` before task-specific work, then load every matching domain or language skill. Keep prompt-specific safety and workflow rules in the prompt.
+
 Each lifecycle prompt is the source of truth for its stage.
 
 ## Git and Worktrees

@@ -58,14 +58,39 @@ test("troubleshoot requires evidence labels and reserves root cause", () => {
   ]);
 });
 
+test("troubleshoot loads skill-loader and matching domain guidance before investigation", () => {
+  const text = prompt("troubleshoot.md");
+
+  requireMarkers(text, [
+    /Before routing, load the `skill-loader` skill/i,
+    /Read each matching skill before choosing domain commands/i,
+  ]);
+});
+
 test("troubleshoot routes only from explicit skill-description matches", () => {
   const text = prompt("troubleshoot.md");
 
   requireMarkers(text, [
-    /skill only when its description explicitly matches a supplied identifier or confirmed evidence/i,
+    /domain-skill triggers and other available skill descriptions/i,
+    /explicit identifiers or confirmed evidence/i,
     /Do not infer a route from a plausible correlation/i,
     /If no skill description explicitly matches, emit a bounded source-of-truth gap and ask for a pointer/i,
-    /load.*matching skill|matching skill.*load/is,
+    /Read each matching skill before choosing domain commands/i,
+  ]);
+});
+
+test("skill-loader includes compute-support investigation triggers", () => {
+  const text = readFileSync(
+    path.join(agentDir, "exact_skills", "skill-loader", "SKILL.md"),
+    "utf8",
+  );
+
+  requireMarkers(text, [
+    /start of every template prompt/i,
+    /Compute infrastructure investigations — `compute-support`/,
+    /Pending pods|FailedScheduling/i,
+    /cluster autoscaler|NodeGroup/i,
+    /NLA|node drain/i,
   ]);
 });
 

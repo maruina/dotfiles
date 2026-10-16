@@ -1,10 +1,10 @@
 ---
 name: skill-loader
-description: Load the right best-practice skills before writing, reviewing, or planning code. Use this skill at the start of /execute, /plan, and /systematic-review to determine which language and domain skills to read based on affected files. Also defines the `Skills loaded and used` provenance record that lifecycle and review prompts report.
+description: Load relevant domain and best-practice skills before template-driven investigations, planning, editing, or review. Use this skill to route investigation symptoms or select guidance from affected files. Also defines the `Skills loaded and used` provenance record that template prompts report.
 ---
 # Skill Loader
 
-Use this skill before editing, planning, or reviewing code. Based on the files affected, read the skills listed below. Read them now — do not defer.
+Use this skill at the start of every template prompt, before task-specific work. For investigations, select domain skills from explicit identifiers or confirmed evidence. For planning, editing, or review, select skills based on the affected files. Read matching skills now — do not defer.
 
 Prefer specific skills over general ones. When multiple skills apply, read all of them; note any conflicts and follow the more specific skill.
 
@@ -34,6 +34,9 @@ Load when designing, planning, reviewing, or implementing software that uses Typ
 
 ### Kubernetes Pod eviction investigations — `k8s-pod-evictions`
 Load when investigating Pod eviction, unexpected Pod termination or deletion, PDB bypass, node pressure, NoExecute taints, kubelet admission rejection after restart, priority preemption, or Node deletion and PodGC cleanup. Also load when planning or reviewing changes to these disruption paths. Use it to identify the actor and trigger from evidence, distinguish container restarts from Pod disruption, and check PDB and termination-grace behavior. The skill is shared by personal and work profiles; work-only tools are optional.
+
+### Compute infrastructure investigations — `compute-support`
+Work-profile skill. Load for compute infrastructure incidents, including Pending or unschedulable Pods, `FailedScheduling`, cluster autoscaler or NodeGroup capacity failures, placement issues, workload-group access, NLA or `draino` problems, and unhealthy nodes. Follow its read-only limits and runbook confirmation steps. If the skill is unavailable, report that gap and do not claim it was used.
 
 ### Atlas Go workflows — `atlas-best-practices`
 Load when Go Atlas workflow, activity, worker, client, generated-client, or worker-bootstrap code changes; when Atlas Temporal proto definitions or options change; or when work involves determinism, version gates, Breaking Change Detection, replay tests, signals, queries, child workflows, Continue-As-New, retries, timeouts, schedules, checkpoints, or worker deployment configuration using `atlas_domain`, `atlas_context`, task queues, or Atlas worker routing.
@@ -75,9 +78,10 @@ Load when creating or editing any Mermaid diagram (`.mmd` files or ` ```mermaid 
 
 ## Skill load checklist
 
-Before editing, confirm each of these:
+Before domain work, planning, or editing, confirm each of these:
 
-- [ ] Identified all file extensions and paths affected by the task.
+- [ ] Identified all file extensions and paths affected by the task, when the task changes files.
+- [ ] For investigations, matched explicit identifiers or confirmed evidence to domain-skill triggers.
 - [ ] Loaded every skill whose trigger matches.
 - [ ] For Atlas: determined whether affected Go, proto, or deployment files define or invoke Atlas workflows; loaded `atlas-best-practices` when they do.
 - [ ] For Go: confirmed whether any Kubernetes interaction is involved (controller-runtime, webhooks, `client-go`, `k8s.io/*`, `sigs.k8s.io/*`); loaded `k8s-controller-dev` if available, otherwise noted the missing skill and continued with `go-best-practices`.

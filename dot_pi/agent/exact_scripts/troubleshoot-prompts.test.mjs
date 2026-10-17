@@ -134,7 +134,7 @@ test("troubleshoot emits the required output sections", () => {
     /### Recommended next step/,
     /### Routing candidate/,
     /### Skills loaded and used/,
-    /\| Hypothesis \| Evidence for \| Evidence against \/ gap \| Test and expected observation \| State \|/,
+    /\| Hypothesis \| Evidence for \(fact IDs\) \| Evidence against \/ gap \| Test and expected observation \| State \|/,
   ]);
 });
 
@@ -161,6 +161,81 @@ test("troubleshoot encodes the required behavior-specific scenario contracts", (
     /dependency explanation remains a hypothesis or unknown/i,
     /Treat an ambiguous environment, account, cluster, namespace, domain, or context as a stop condition/i,
     /Do not modify skills, prompts, or routing knowledge during the investigation/i,
+  ]);
+});
+
+test("troubleshoot separates factual observations from causal interpretations", () => {
+  const text = prompt("troubleshoot.md");
+  requireMarkers(text, [
+    /stable IDs.*`F1`.*`F2`/,
+    /environment, instance, time window, and deployed version/,
+    /Keep direct observations separate from causal interpretations/,
+    /Preserve the original observation.*record the correction/,
+    /\*\*Fact ID:\*\* F1/,
+    /Evidence for \(fact IDs\)/,
+  ]);
+});
+
+test("troubleshoot uses optional controls without treating shared observations as irrelevant", () => {
+  const text = prompt("troubleshoot.md");
+  requireMarkers(text, [
+    /Seek a comparable control/,
+    /confounding differences/,
+    /If no trustworthy control is available, record the gap and continue/,
+    /Shared observations remain constraints.*interact with another change/,
+  ]);
+});
+
+test("troubleshoot validates all material facts and bounds stalled investigations", () => {
+  const text = prompt("troubleshoot.md");
+  requireMarkers(text, [
+    /explained, compatible but not explained, contradictory, or not yet assessed/,
+    /Compatibility alone does not establish causality/,
+    /Use a hypothesis-by-fact matrix only when several explanations survive or progress stalls/,
+    /recheck collection scope.*split overly broad hypotheses.*shared mechanism or complementary causes/is,
+    /next relevant layer or dependency/,
+    /Stop when access, safety, or query limits prevent progress/,
+    /Which fact is hardest to explain/,
+    /remove each cause.*material fact becomes unexplained/,
+  ]);
+});
+
+test("troubleshoot descends through evidence layers only as needed", () => {
+  const text = prompt("troubleshoot.md");
+  requireMarkers(text, [
+    /Progressive signal discovery/,
+    /explanations still fail or remain indistinguishable.*bounded observation from the next relevant layer or dependency/,
+    /application logs and configuration to network behavior, process\/thread state, or kernel evidence/,
+    /Use each observation to choose the next source; do not follow a fixed stack checklist/,
+    /Stop descending when the evidence distinguishes the explanations, then validate the leading explanation against every material fact/,
+    /report the gap rather than expanding access or changing state/,
+  ]);
+});
+
+test("troubleshoot grounds source inspection and supplied repros in incident observations", () => {
+  const text = prompt("troubleshoot.md");
+  requireMarkers(text, [
+    /Prefer runtime evidence before reading code/,
+    /relevant deployed revision/,
+    /supplied reproduction.*discriminating incident signals/is,
+    /Do not run a state-changing reproduction/,
+    /A surviving hypothesis alone is not a confirmed root cause/,
+  ]);
+});
+
+test("troubleshoot does not confirm causes with unresolved material evidence gaps", () => {
+  const text = prompt("troubleshoot.md");
+  requireMarkers(text, [
+    /If a material fact remains unassessed or a causal link lacks authoritative evidence, keep the explanation a supported hypothesis or unknown/,
+    /State the missing observation needed to confirm it/,
+  ]);
+});
+
+test("troubleshoot records actual test outcomes separately from expectations", () => {
+  const text = prompt("troubleshoot.md");
+  requireMarkers(text, [
+    /After each test, record whether it ran.*link the actual observation by fact ID.*update the hypothesis state/,
+    /If the test could not run, record the evidence gap; do not treat the expected observation as a result/,
   ]);
 });
 

@@ -21,7 +21,7 @@
 - [x] Preserve existing labels and output headings. Show factual IDs in the existing Confirmed section and reference them in the hypothesis ledger. Prefer runtime evidence before targeted deployed-source inspection. Assess supplied reproduction evidence without executing a state-changing reproduction.
 - [x] Run focused tests, install dependencies with `npm ci --ignore-scripts`, then run `npm test` and `npm run test:all`.
 - [ ] Remove disposable source dependencies after both suites finish. Tool safety policy blocked recursive deletion; manual cleanup remains.
-- [ ] Review the complete diff, preview explicit chezmoi targets, commit with `feat(pi): constrain troubleshooting hypotheses with factual evidence`, push, and open a draft PR. Leave target apply and final independent `/verify` pending.
+- [x] Review the complete diff, preview explicit chezmoi targets, commit with `feat(pi): constrain troubleshooting hypotheses with factual evidence`, push, and open a draft PR. Leave target apply and final independent `/verify` pending.
 
 ## Validation
 - Given an incident report, when hypotheses are evaluated, the prompt must require stable factual IDs, collection provenance, and all-material-fact coverage that distinguishes explained facts from compatibility and contradiction.
@@ -38,6 +38,14 @@
 - `npm test` and `npm run test:all` both stopped at the existing `PR commands have distinct roles and aligned review artifacts` test. It requires `post one @codex review comment` in the unchanged PR-create prompt. A focused run on unchanged main reproduced the failure. Each run passed 209 unit tests and 70 of 71 prompt tests; downstream suites were not reached.
 - `git diff --check` passed. Targeted chezmoi diff was collected for the prompt and its test file; neither target was applied.
 - Self-review found no blocking issue in the scoped diff. Contract tests validate instructions, not actual model compliance. Independent verification remains pending and the PR must remain a draft.
+
+## Approved follow-up: progressive signal discovery
+- [x] Make layer discovery concrete: collect from the next relevant layer or dependency only when explanations still fail or cannot be distinguished; include application, network, process/thread, and kernel examples without a fixed checklist.
+- [x] Stop descending once explanations can be distinguished, then validate all material facts. Preserve access, safety, and query limits.
+- [x] Add a focused contract test and run it red before the prompt change, then green: all 18 troubleshooting contracts passed.
+- [x] Rerun dependency installation, `npm test`, and `npm run test:all`. Each full test command passed 209 unit tests and 71 of 72 prompt tests before the same known baseline failure; downstream suites were not reached.
+- [x] Preview both explicit chezmoi targets and run `git diff --check`; no target apply.
+- Commit: `docs(pi): clarify progressive signal discovery`.
 
 ## Plan review
 The existing prompt and tests support this bounded change. No blocking scope or feasibility findings. Keep controls optional, preserve evidence conflicts, and do not infer causality from a hypothesis merely surviving the observed facts.

@@ -193,10 +193,22 @@ test("troubleshoot validates all material facts and bounds stalled investigation
     /Compatibility alone does not establish causality/,
     /Use a hypothesis-by-fact matrix only when several explanations survive or progress stalls/,
     /recheck collection scope.*split overly broad hypotheses.*shared mechanism or complementary causes/is,
-    /another relevant system layer/,
+    /next relevant layer or dependency/,
     /Stop when access, safety, or query limits prevent progress/,
     /Which fact is hardest to explain/,
     /remove each cause.*material fact becomes unexplained/,
+  ]);
+});
+
+test("troubleshoot descends through evidence layers only as needed", () => {
+  const text = prompt("troubleshoot.md");
+  requireMarkers(text, [
+    /Progressive signal discovery/,
+    /explanations still fail or remain indistinguishable.*bounded observation from the next relevant layer or dependency/,
+    /application logs and configuration to network behavior, process\/thread state, or kernel evidence/,
+    /Use each observation to choose the next source; do not follow a fixed stack checklist/,
+    /Stop descending when the evidence distinguishes the explanations, then validate the leading explanation against every material fact/,
+    /report the gap rather than expanding access or changing state/,
   ]);
 });
 

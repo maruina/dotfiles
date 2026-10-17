@@ -16,10 +16,11 @@
 | `reviewable-pr-workflow` | skill-loader | Requested PR | One focused draft PR with validation evidence |
 
 ## Scope
-- [ ] Add focused failing contract tests in `dot_pi/agent/exact_scripts/troubleshoot-prompts.test.mjs` for the approved investigation rules.
-- [ ] Update `dot_pi/agent/exact_prompts/troubleshoot.md`: maintain factual IDs and provenance; seek an optional trustworthy control; validate the leading hypothesis against all material facts; use a matrix only for ambiguity or stalled progress; refine hypotheses before collecting another bounded discriminating observation; check contradictions and necessary contributing causes.
-- [ ] Preserve existing labels and output headings. Show factual IDs in the existing Confirmed section and reference them in the hypothesis ledger. Prefer runtime evidence before targeted deployed-source inspection. Assess supplied reproduction evidence without executing a state-changing reproduction.
-- [ ] Run focused tests, install dependencies with `npm ci --ignore-scripts`, then run `npm test` and `npm run test:all`. Remove disposable source dependencies after both suites finish.
+- [x] Add focused failing contract tests in `dot_pi/agent/exact_scripts/troubleshoot-prompts.test.mjs` for the approved investigation rules.
+- [x] Update `dot_pi/agent/exact_prompts/troubleshoot.md`: maintain factual IDs and provenance; seek an optional trustworthy control; validate the leading hypothesis against all material facts; use a matrix only for ambiguity or stalled progress; refine hypotheses before collecting another bounded discriminating observation; check contradictions and necessary contributing causes.
+- [x] Preserve existing labels and output headings. Show factual IDs in the existing Confirmed section and reference them in the hypothesis ledger. Prefer runtime evidence before targeted deployed-source inspection. Assess supplied reproduction evidence without executing a state-changing reproduction.
+- [x] Run focused tests, install dependencies with `npm ci --ignore-scripts`, then run `npm test` and `npm run test:all`.
+- [ ] Remove disposable source dependencies after both suites finish. Tool safety policy blocked recursive deletion; manual cleanup remains.
 - [ ] Review the complete diff, preview explicit chezmoi targets, commit with `feat(pi): constrain troubleshooting hypotheses with factual evidence`, push, and open a draft PR. Leave target apply and final independent `/verify` pending.
 
 ## Validation
@@ -30,6 +31,13 @@
 - The Node contract tests check instruction presence, not live model compliance. Semantic review remains necessary.
 - Documentation impact: the prompt is the user-facing behavior contract; no separate README or AGENTS change is needed.
 - Rollout: apply only the changed explicit target files after independent verification. Rollback: restore the prior prompt source and reapply those targets.
+
+## Execution evidence
+- Focused tests: added contracts failed before the prompt change; all 17 passed afterward.
+- `npm ci --ignore-scripts` passed; npm reported 7 dependency audit findings. No dependency changes were made.
+- `npm test` and `npm run test:all` both stopped at the existing `PR commands have distinct roles and aligned review artifacts` test. It requires `post one @codex review comment` in the unchanged PR-create prompt. A focused run on unchanged main reproduced the failure. Each run passed 209 unit tests and 70 of 71 prompt tests; downstream suites were not reached.
+- `git diff --check` passed. Targeted chezmoi diff was collected for the prompt and its test file; neither target was applied.
+- Self-review found no blocking issue in the scoped diff. Contract tests validate instructions, not actual model compliance. Independent verification remains pending and the PR must remain a draft.
 
 ## Plan review
 The existing prompt and tests support this bounded change. No blocking scope or feasibility findings. Keep controls optional, preserve evidence conflicts, and do not infer causality from a hypothesis merely surviving the observed facts.

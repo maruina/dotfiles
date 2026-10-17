@@ -134,7 +134,7 @@ test("troubleshoot emits the required output sections", () => {
     /### Recommended next step/,
     /### Routing candidate/,
     /### Skills loaded and used/,
-    /\| Hypothesis \| Evidence for \| Evidence against \/ gap \| Test and expected observation \| State \|/,
+    /\| Hypothesis \| Evidence for \(fact IDs\) \| Evidence against \/ gap \| Test and expected observation \| State \|/,
   ]);
 });
 
@@ -161,6 +161,53 @@ test("troubleshoot encodes the required behavior-specific scenario contracts", (
     /dependency explanation remains a hypothesis or unknown/i,
     /Treat an ambiguous environment, account, cluster, namespace, domain, or context as a stop condition/i,
     /Do not modify skills, prompts, or routing knowledge during the investigation/i,
+  ]);
+});
+
+test("troubleshoot separates factual observations from causal interpretations", () => {
+  const text = prompt("troubleshoot.md");
+  requireMarkers(text, [
+    /stable IDs.*`F1`.*`F2`/,
+    /environment, instance, time window, and deployed version/,
+    /Keep direct observations separate from causal interpretations/,
+    /Preserve the original observation.*record the correction/,
+    /\*\*Fact ID:\*\* F1/,
+    /Evidence for \(fact IDs\)/,
+  ]);
+});
+
+test("troubleshoot uses optional controls without treating shared observations as irrelevant", () => {
+  const text = prompt("troubleshoot.md");
+  requireMarkers(text, [
+    /Seek a comparable control/,
+    /confounding differences/,
+    /If no trustworthy control is available, record the gap and continue/,
+    /Shared observations remain constraints.*interact with another change/,
+  ]);
+});
+
+test("troubleshoot validates all material facts and bounds stalled investigations", () => {
+  const text = prompt("troubleshoot.md");
+  requireMarkers(text, [
+    /explained, compatible but not explained, contradictory, or not yet assessed/,
+    /Compatibility alone does not establish causality/,
+    /Use a hypothesis-by-fact matrix only when several explanations survive or progress stalls/,
+    /recheck collection scope.*split overly broad hypotheses.*shared mechanism or complementary causes/is,
+    /another relevant system layer/,
+    /Stop when access, safety, or query limits prevent progress/,
+    /Which fact is hardest to explain/,
+    /remove each cause.*material fact becomes unexplained/,
+  ]);
+});
+
+test("troubleshoot grounds source inspection and supplied repros in incident observations", () => {
+  const text = prompt("troubleshoot.md");
+  requireMarkers(text, [
+    /Prefer runtime evidence before reading code/,
+    /relevant deployed revision/,
+    /supplied reproduction.*discriminating incident signals/is,
+    /Do not run a state-changing reproduction/,
+    /A surviving hypothesis alone is not a confirmed root cause/,
   ]);
 });
 

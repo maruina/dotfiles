@@ -27,9 +27,21 @@ Before routing, load the `skill-loader` skill. Use its domain-skill triggers and
 An Atlas or Temporal workflow URL (host `atlas.ddbuild.io` or `temporal.ddbuild.io`) explicitly routes to `atlas-workflows`. Use that skill to collect a bounded visible failure chain. That skill determines the correct Atlas context/domain and gathers status, failure tree, workflow metadata, input, output, or bounded history. If collected evidence establishes a Datadog telemetry investigation, route to `datadog-mcp`, which determines the organization and constrains query shape.
 
 ### 4. Diagnose
-Maintain a hypothesis ledger. A hypothesis contains evidence for it, evidence against it or the remaining gap, one bounded discriminating read-only test, the expected observation, and a state. Run high-value tests one at a time. Publish negative results because they reduce the search space.
+Maintain two separate tiers:
+- **Factual tier:** Give material observations stable IDs such as `F1`, `F2`. Record the observed result, source and command/query, environment, instance, time window, and deployed version where relevant, plus collection limits or conflicts. Keep direct observations separate from causal interpretations. Start with available incident evidence and cheap, bounded read-only queries; collect across instances or sources when that can distinguish explanations.
+- **Hypothesis tier:** Maintain the hypothesis ledger below. Reference factual IDs for supporting and opposing evidence, record remaining gaps, and give each hypothesis one bounded discriminating read-only test, its expected observation, and a state. Run high-value tests one at a time. Publish negative results because they reduce the search space.
+
+Seek a comparable control: a successful run, unaffected instance, previous version, or well-understood alternative failure. Check whether it could share the suspected failure and record confounding differences. If no trustworthy control is available, record the gap and continue with other evidence. Prefer measured differences that distinguish explanations over broad symptoms such as elevated latency. Shared observations remain constraints; they can still interact with another change.
+
+Before concluding, check the leading hypothesis against every material fact: explained, compatible but not explained, contradictory, or not yet assessed. Compatibility alone does not establish causality. Reject an explanation contradicted by a reliable observation; preserve unresolved evidence conflicts rather than silently discarding them. Use a hypothesis-by-fact matrix only when several explanations survive or progress stalls.
+
+When no hypothesis fits, recheck collection scope and quality, split overly broad hypotheses, and consider a shared mechanism or complementary causes where supported by facts. If explanations still fail or remain indistinguishable, gather a bounded discriminating observation from another relevant system layer instead of adding speculative hypotheses. Stop when access, safety, or query limits prevent progress; name the missing evidence and next source.
+
+Prefer runtime evidence before reading code to generate causal hypotheses. Inspect the relevant deployed revision to explain or test an observed mechanism; source code alone does not establish which path ran. Assess any supplied reproduction against the discriminating incident signals, not just a similar symptom. Do not run a state-changing reproduction; hand off any experiment that requires one.
 
 ### 5. Conclude and hand off
+Before the handoff, try to contradict the leading explanation: Which fact is hardest to explain? Which causal link rests only on code or timing? For combined causes, remove each cause and identify which material fact becomes unexplained. A surviving hypothesis alone is not a confirmed root cause.
+
 Lead with status and impact, then confirmed evidence and the visible failure chain. Clearly identify hypotheses, rejected explanations, uncertainty, and the next authoritative source or owner. Recommend remediation but do not execute it. A code, configuration, or workflow change enters `/brainstorm` and then the normal lifecycle.
 
 ## Evidence and assertion policy
@@ -43,6 +55,8 @@ Every material claim uses exactly one label:
 | **Unknown** | Evidence is unavailable, ambiguous, contradictory, incomplete, or inaccessible | State the gap and the smallest authoritative next source |
 
 Reserve "root cause" for a confirmed causal chain. A workflow activity error confirms that the activity failed; it does not by itself establish why its dependency failed. In that case the workflow error is a visible failure and the dependency explanation remains a hypothesis or unknown.
+
+Preserve the original observation and its provenance when evidence is questioned. If a collection error is established, record the correction and its basis rather than silently rewriting the factual tier. Treat user reports as attributed reports until independently verified.
 
 Tool errors, missing permissions, incomplete histories, and wrong or ambiguous context are evidence gaps, not negative evidence. Conflicting sources remain explicit conflicts until a bounded read-only test resolves them. Do not fill an evidence gap with likely-sounding narration.
 
@@ -69,15 +83,16 @@ Produce a concise, evidence-oriented result. Fill `Skills loaded and used` per t
 - ...
 
 ### Confirmed
-- **Source:** ...
-  **Evidence:** ...
-  **Conclusion:** ...
+- **Fact ID:** F1
+  **Source and collection scope:** ...
+  **Observed result:** ...
+  **Limits or conflicts:** ...
 
 ### Visible failure chain
 - ...
 
 ### Hypothesis ledger
-| Hypothesis | Evidence for | Evidence against / gap | Test and expected observation | State |
+| Hypothesis | Evidence for (fact IDs) | Evidence against / gap | Test and expected observation | State |
 |---|---|---|---|---|
 | ... | ... | ... | ... | Supported / Rejected / Unknown |
 

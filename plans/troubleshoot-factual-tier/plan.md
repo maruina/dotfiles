@@ -47,5 +47,13 @@
 - [x] Preview both explicit chezmoi targets and run `git diff --check`; no target apply.
 - Commit: `docs(pi): clarify progressive signal discovery`.
 
+## Approved follow-up: self-review clarifications
+- [x] Keep a causal explanation a supported hypothesis or unknown when a material fact is unassessed or a causal link lacks authoritative evidence; name the missing observation required for confirmation.
+- [x] Record whether each test ran, reference the actual observation by fact ID, and update the hypothesis state. A blocked test remains an evidence gap, never an expected result presented as observed.
+- [x] Add two focused contract tests: both failed before the prompt change; all 20 troubleshooting tests passed afterward.
+- [x] Rerun `npm ci --ignore-scripts`, `npm test`, and `npm run test:all`. Each full test command passed 209 unit tests and 73 of 74 prompt tests before the same known baseline failure; downstream suites were not reached.
+- Commit: `docs(pi): clarify troubleshooting evidence gaps and test outcomes`.
+- Self-review: both approved findings are addressed without extra ledger columns, output headings, access, or state-changing operations. Independent verification and target apply remain pending.
+
 ## Plan review
 The existing prompt and tests support this bounded change. No blocking scope or feasibility findings. Keep controls optional, preserve evidence conflicts, and do not infer causality from a hypothesis merely surviving the observed facts.

@@ -223,6 +223,22 @@ test("troubleshoot grounds source inspection and supplied repros in incident obs
   ]);
 });
 
+test("troubleshoot does not confirm causes with unresolved material evidence gaps", () => {
+  const text = prompt("troubleshoot.md");
+  requireMarkers(text, [
+    /If a material fact remains unassessed or a causal link lacks authoritative evidence, keep the explanation a supported hypothesis or unknown/,
+    /State the missing observation needed to confirm it/,
+  ]);
+});
+
+test("troubleshoot records actual test outcomes separately from expectations", () => {
+  const text = prompt("troubleshoot.md");
+  requireMarkers(text, [
+    /After each test, record whether it ran.*link the actual observation by fact ID.*update the hypothesis state/,
+    /If the test could not run, record the evidence gap; do not treat the expected observation as a result/,
+  ]);
+});
+
 test("troubleshoot records skill provenance", () => {
   const text = prompt("troubleshoot.md");
 

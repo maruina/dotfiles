@@ -281,6 +281,28 @@ test("verify scopes grouped plans to the slice and runs a final feature pass", (
   ]);
 });
 
+test("verify gates the next execution handoff on plan prerequisites and keeps fixes out of verification", () => {
+  const text = prompt("verify.md");
+
+  requireMarkers(text, [
+    /inspect the next incomplete task's `Blocked by` field and all explicit prerequisites/i,
+    /if any prerequisite is unresolved.*recommend resolving it through `\/plan` or a user decision.*do not say to proceed with implementation/is,
+    /give the exact `\/execute <absolute-plan-path>` command/i,
+    /do not give a worktree root as the plan argument/i,
+    /`\/verify` is read-only and must not fix, commit, or push/i,
+    /offer `\/execute` as the follow-up/i,
+    /only after the fix is implemented and independently verified/i,
+    /\*\*Copy-paste follow-up:\*\* when \*\*Findings\*\* contains any finding/i,
+    /self-contained prompt for a new execution session in a plain-text code block/i,
+    /each finding with its classification and evidence/i,
+    /address only confirmed, actionable findings within the committed plan/i,
+    /include the prompt even when findings are all non-blocking/i,
+    /run fresh checks and a new `\/verify` after execution/i,
+    /omit this section only when there are no findings/i,
+    /accepted non-blocking style advisories and environment\/toolchain limitations/i,
+  ]);
+});
+
 test("brainstorm and plan preserve dependency-aware lifecycle contracts", () => {
   const brainstorm = prompt("brainstorm.md");
   requireMarkers(brainstorm, [
@@ -759,8 +781,8 @@ test("PR commands have distinct roles and aligned review artifacts", () => {
   assert.match(addressFeedback, /`\/pr-validate` explains and evaluates the PR as a whole/);
   assert.match(addressFeedback, /Build a \*\*targeted model\*\*, not a full `\/pr-validate` walkthrough/);
   assert.match(validate, /pr-validate-reports\/REPO-PR_NUMBER\.json/);
-  assert.match(create, /post one `@codex review` comment/);
-  assert.match(update, /Do not post `@codex review` unless the user explicitly asks/);
+  assert.doesNotMatch(create, /@codex review/);
+  assert.doesNotMatch(update, /@codex review/);
   assert.match(cleanup, /created by `\/pr-validate`/);
   assert.match(cleanup, /git worktree remove "\$WORKTREE"/);
   assert.doesNotMatch(cleanup, /\bHTML\b/);

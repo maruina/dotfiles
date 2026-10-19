@@ -21,14 +21,14 @@ Episode URLs return **HTTP 302 to a tokenized CDN node** (`ironv-0X.entertai4.xy
 curl -L -o <target> 'http://smart.entertai5.pro:80/series/<user>/<pass>/<file-id>.mkv'
 ```
 
-Without `-L` the request stalls as `000`/empty. A HEAD with `-L` gives `Content-Length` for a size sanity check.
+Without `-L` the request stalls as `000`/empty. Size sanity checks are limited: a HEAD with `-L` reports `Content-Length: 0` (useless), and the server ignores Range requests (`curl -C -` returns 200 and resends the whole body, so resume probing cannot detect completeness). Verify completion with `curl -sL -w 'HTTP:%{http_code} bytes:%{size_download}'` and a clean exit code; identical byte counts across two downloads is a strong completeness signal.
 
-## Workflow (verified 2026-10-12)
+## Workflow (verified 2026-10-19)
 
 1. Locate the Plex series (`library/sections/2/all`) and confirm its disk folder and existing file naming pattern — look at one `Part/file` path from `GET /library/metadata/<key>/children`. The folder name carries the TVDB id: `... {tvdb-436956}`. Plex matches by that id; the display title can differ from the folder name (Italian title vs English folder).
 2. Enumerate available episodes (player_api or m3u grep). Match provider `Sxx Eyy` numbering to the file names used by existing seasons (`S01Exx.mkv` = plain `S{season:02}E{episode:02}`).
-3. Download into a **temp dir first** (`/tmp/hn-dl` in the pod), `mv` into the series folder only when complete — Plex rescan runs on its own and must not ingest partial files.
-4. Downloads reach ~45 MB/s from the cluster (a couple of GB per episode). Run as a background pod script with a log file, poll every 15–30 s (see SKILL.md long-operations rule).
+3. Download into a **temp dir first**, `mv` into the series folder only when complete — Plex rescan runs on its own and must not ingest partial files. Do this in a pod with a **read-write** `/media-archive` mount: the Plex pod mounts it read-only (the `mv` fails with "Read-only file system"); the Sonarr pod mounts it rw, so download to a temp dir there (e.g. `/config/tmp-hn-dl`) and `mv` into the series folder.
+4. Downloads reach ~45 MB/s from the cluster (a couple of GB per episode). Run as a background pod script with a log file, poll every 15–30 s (see SKILL.md long-operations rule). Note curl can exit silently mid-transfer (empty log, no error): always capture `curl -w` byte counts, and see the redirect section above for completeness checks.
 5. Trigger the scan explicitly, then verify: `POST /library/sections/2/refresh?X-Plex-Token=`, wait ~45 s, re-fetch the series `children` — expect the new `Season N` with `leafCount` matching, and part paths pointing at the new files.
 
 ## Library hygiene notes

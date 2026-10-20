@@ -432,30 +432,34 @@ test("weekly summary has no obsolete session-note command reference", () => {
   assert.doesNotMatch(prompt("weekly-summary.md"), /\/prompt:session-note|\/session-note/);
 });
 
-test("reviewer guides prioritize concrete concerns rather than commits", () => {
-  const skillsDir = existsSync(path.join(agentDir, "exact_skills")) ? "exact_skills" : "skills";
-  const skill = readFileSync(path.join(agentDir, skillsDir, "reviewable-pr-workflow", "SKILL.md"), "utf8");
+test("PR descriptions explain behavior and examples without a reviewer checklist", () => {
+  const text = skill("reviewable-pr-workflow");
 
-  requireMarkers(skill, [
-    /organize the guide by review concern, not by commit or file order/i,
-    /## what to look for in this PR/i,
-    /relevant files or symbols/i,
-    /why it needs human attention/i,
-    /specific check or question for the reviewer/i,
-    /only concerns supported by the diff, design context, tests, or review discussion/i,
-    /distinguish known behavior from assumptions and open questions/i,
-    /do not invent uncertainty or risks/i,
-    /highest-impact concerns first/i,
-    /if no area needs special attention, say so briefly/i,
-    /link each `where` to the file at the PR head SHA/i,
-    /supersedes another/i,
-    /1\. \*\*<Concern>\*\*/,
-    /Commit links in reviewer guides must use `\/pull\/<pr>\/changes\/<full-sha>`, never bare `\/commit\/<sha>` links\./,
+  requireMarkers(text, [
+    /engineer who does not know this subsystem/,
+    /Explain the change rather than summarize the diff/,
+    /## What is this PR\?/,
+    /## Why is it built this way\?/,
+    /## How it works/,
+    /Follow the input-to-result flow/,
+    /show representative output/,
+    /explain who uses each and when/,
+    /Use the same scenario across examples/,
+    /Verify examples and claims against the implementation or tests/,
+    /Label illustrative examples/,
+    /do not present a future command or consumer as already available/,
+    /Do not include .*What to look for in this PR.*or an equivalent reviewer checklist/,
+    /For trivial changes, omit sections/,
+    /file at the PR head SHA with line anchors/,
+    /Commit links must use .*\/pull\/<pr>\/changes\/<full-sha>/,
+    /Can a reader explain why this change exists, how it works, and what it produces/,
+    /Add a .*mermaid.* diagram when it makes a flow, interaction, or transformation easier to understand/,
+    /one concept per diagram/,
   ]);
 
-  for (const text of [skill, prompt("pr-create.md"), prompt("pr-update.md")]) {
-    assert.doesNotMatch(text, /Read the commits in this order|commits that match the guide/i);
-    assert.doesNotMatch(text, /regenerate reviewer-guide commit links|\| # \| Commit \| Files \|/i);
+  for (const body of [text, prompt("pr-create.md"), prompt("pr-update.md")]) {
+    assert.doesNotMatch(body, /^## What to look for in this PR$/m);
+    assert.doesNotMatch(body, /Why it needs human attention|1\. \*\*<Concern>\*\*/);
   }
 });
 
@@ -739,25 +743,38 @@ test("PR validation and cleanup share the review-worktree path", () => {
   assert.deepEqual([...new Set(paths)].sort(), ["~/dd/.worktrees/REPO/pr-PR_NUMBER-review"]);
 });
 
-test("PR creation derives review concerns from the change and checks final references", () => {
+test("PR creation derives explanations from the change and checks final references", () => {
   requireMarkers(prompt("pr-create.md"), [
-    /concrete risks, edge cases, complex logic, uncertain assumptions, and design decisions/i,
-    /reviewer-guide rules in `reviewable-pr-workflow`/i,
-    /review concerns and code references match the pushed branch/i,
-    /final reviewer-guide concerns/i,
+    /problem, behavior, design choices, and representative examples/,
+    /following .*reviewable-pr-workflow/,
+    /explanation, examples, and code references match the pushed branch/,
+    /explanation and examples included/,
   ]);
 });
 
-test("PR updates reassess unresolved concerns without accumulating review history", () => {
+test("PR updates preserve useful explanations without accumulating review history", () => {
   requireMarkers(prompt("pr-update.md"), [
-    /full PR diff and relevant review discussion, not only the latest commits/i,
-    /retain unresolved review questions/i,
-    /remove resolved or obsolete concerns/i,
-    /add concerns introduced by the update/i,
-    /refresh code references.*order.*by importance/i,
-    /preserve accurate handwritten context without accumulating a review-history log/i,
-    /reviewer-guide concerns added, resolved, or retained/i,
+    /full PR diff and relevant review discussion, not only the latest commits/,
+    /remove stale claims and refresh code references/,
+    /preserve accurate user-written explanations and examples, updating them when behavior changes/,
+    /remove any .*What to look for in this PR.*section/,
+    /preserving relevant constraints and unresolved decisions in the narrative/,
+    /not a record of the implementation process/,
+    /Do not replace useful context with a compressed diff summary or restore a reviewer checklist/,
+    /explanations and examples added, updated, or retained/,
   ]);
+
+  for (const name of ["pr-create.md", "pr-update.md"]) {
+    requireMarkers(prompt(name), [
+      /\*\*Need:\*\*/,
+      /\*\*Scope:\*\*/,
+      /\*\*Hard-to-reverse contracts:\*\*/,
+      /\*\*Go architecture and startup:\*\*/,
+      /\*\*Operability:\*\*/,
+      /prepare the explanation, not to generate a reviewer checklist/,
+      /Report unresolved blockers separately/,
+    ]);
+  }
 });
 
 test("retired PR review prompt is absent and unreferenced", () => {

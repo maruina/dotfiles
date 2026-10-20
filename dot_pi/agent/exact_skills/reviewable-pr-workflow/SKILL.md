@@ -1,11 +1,11 @@
 ---
 name: reviewable-pr-workflow
-description: "Create and update GitHub PRs that are easy, fast, and confidence-building to review: coherent PR stories, stacked PRs, review-state-based history rewriting, evidence links, safe force-pushes, reviewer guides, and git-machete stack mechanics."
+description: "Create and update GitHub PRs that are easy, fast, and confidence-building to review: coherent PR stories, stacked PRs, review-state-based history rewriting, evidence links, safe force-pushes, clear explanations, and git-machete stack mechanics."
 ---
 # Reviewable PR Workflow
 Use when creating, updating, splitting, restacking, cleaning up, or reviewing a GitHub PR.
 
-Goal: make the PR easy to review. When authoring the PR title or body (the `## What`/`## Why` narrative and reviewer-guide prose), read `write` and apply its plain-language principles. The reviewer should see the motivation, focused scope, review priorities, evidence, tests, and no accidental commit noise.
+Goal: make the PR easy to review. When authoring the PR title or body, read `write` and apply its plain-language principles. The reviewer should understand the problem, behavior, design choices, scope, evidence, and tests without reading the implementation session.
 
 ## Core principle
 Treat a PR as a review artifact. Because PRs are squash-merged, branch commits should tell the best review story, not preserve every intermediate mistake.
@@ -16,7 +16,7 @@ The boundary is **human review state**, not whether the PR is open.
 Before human review starts:
 - Rewrite freely to improve reviewability: rebase, squash, fixup, split, reorder, drop accidental files, and restack.
 - Push rewritten branches with `git push --force-with-lease`.
-- Refresh reviewer-guide code references against the final pushed branch.
+- Refresh PR-body code references against the final pushed branch.
 
 After human review starts:
 - Preserve branch history by default.
@@ -33,9 +33,9 @@ Explicit rewrite intent includes: “remove from history,” “drop from branch
 A reviewable PR has:
 - one clear purpose,
 - a title that says what changed,
-- a `## What` section with the final state,
-- a `## Why` section with motivation and tradeoffs,
-- a "What to look for in this PR" section with prioritized concerns and specific review questions,
+- an explanation of the problem and what changes,
+- motivation, design choices, and scope boundaries,
+- a clear account of how the change works, with examples when useful,
 - independently understandable commits,
 - tests or validation notes,
 - evidence links when external proof helps,
@@ -45,7 +45,7 @@ A reviewable PR has:
 Evaluate the change against these signals before opening a PR:
 
 - Strong signals: 2+ distinct subsystems that could ship independently; more than ~400 net lines of non-generated, non-test code; more than ~15 non-generated files.
-- Soft signals: the reviewer guide would need more than five topics; commits fall into independent groups; the branch mixes refactor, feature, and behavior change.
+- Soft signals: explaining the change would need more than five topics; commits fall into independent groups; the branch mixes refactor, feature, and behavior change.
 
 Split into a stack when any strong signal or two or more soft signals trip. Propose the stack as one row per branch in dependency order, and ask before restructuring.
 
@@ -97,56 +97,51 @@ Stacked PR bodies start with:
 
 Keep labels short, list PRs in dependency order, and keep the block consistent across the stack.
 
-## What to look for in this PR
-Direct the human reviewer to the parts of the change that most need careful inspection or a second opinion. Organize the guide by review concern, not by commit or file order.
+## PR description
+Write for a software engineer who does not know this subsystem and has not read the implementation session.
 
-Use a numbered list with the highest-impact concerns first, so reviewers can reference items by number. For each item, write a bold concern title, then three labeled sub-bullets:
-- **Where:** the relevant files or symbols. Link each `Where` to the file at the PR head SHA, using a blob URL with `#L<line>` anchors so the links survive squash-merge and branch cleanup.
-- **Why it needs human attention:** a failure consequence, subtle edge case, complex interaction, uncertain assumption, or unfamiliar pattern.
-- **What to verify:** state the specific check or question for the reviewer.
+Explain the change rather than summarize the diff. Give the reader enough context to understand:
+- the practical problem and why it matters;
+- what this PR adds or changes;
+- how the main parts work together;
+- what the result looks like and who or what consumes it;
+- the important design choices and scope boundaries.
 
-Indent the sub-bullets three spaces under the number so GitHub nests the list.
+Start with behavior the reader can picture. Introduce subsystem terms and code names only after explaining their purpose. Use short paragraphs and concrete language. Do not turn the description into a list of functions, types, or changed files.
 
-Consider boundary conditions, failure paths, concurrency, compatibility, rollout behavior, test gaps, design tradeoffs, and departures from established patterns. Include only concerns supported by the diff, design context, tests, or review discussion.
+When a change produces output, show representative output. If it provides multiple formats or interfaces, explain who uses each and when. Use the same scenario across examples so readers can compare them. Keep examples as small as possible without hiding the behavior being explained.
 
-Distinguish known behavior from assumptions and open questions. Make requests for a second opinion explicit. Do not invent uncertainty or risks to fill the section.
+Verify examples and claims against the implementation or tests. Label illustrative examples. Distinguish behavior delivered by this PR from planned integration; do not present a future command or consumer as already available.
 
-Prefer one to five items. Do not repeat the change summary, enumerate commits, or add generic requests such as "check correctness."
-
-When a PR supersedes another (a stale-bot closure, a deleted and recreated head branch), re-author this section in the current format from the new diff; do not copy the superseded PR's section.
-
-If no area needs special attention, say so briefly rather than manufacturing review topics.
+Do not include `## What to look for in this PR` or an equivalent reviewer checklist. Explain relevant constraints and failure behavior in the narrative. Surface unresolved decisions explicitly without manufacturing review questions.
 
 ## PR body template
+For non-trivial changes, use this structure. For trivial changes, omit sections that add no useful information.
+
 ```markdown
-## What
-One sentence describing the final state.
+## What is this PR?
+Explain the practical problem, why it matters, and what this change does.
 
-## Why
-Explain the motivation in plain language, as if to a newcomer to this subsystem: lead with the problem and its consequence, then what this change does about it. Keep the relevant context and tradeoffs, but use short sentences and avoid jargon-dense run-ons; split a long explanation into a few short paragraphs.
+## Why is it built this way?
+Explain the important design choices, tradeoffs, and scope boundaries.
 
-When the motivation involves a process, data flow, or non-obvious transformation, illustrate the "why" instead of only describing it:
-- a `mermaid` diagram for the flow or pipeline — GitHub renders it natively; follow `mermaid-best-practices`;
-- a concrete example in a fenced block showing real input/output shapes;
-- a `diff` block for a before/after transformation.
-Keep one concept per diagram, and skip the illustration for trivial changes where prose is already clear.
+## How it works
+Follow the input-to-result flow in a few steps. Mention files or symbols as navigation aids, not as the organizing principle.
 
-## What to look for in this PR
-1. **<Concern>**
-   - **Where:** [`<file>:<lines>`](<blob-url-at-the-PR-head-sha>#L<a>-L<b>) — <symbol or block>.
-   - **Why it needs human attention:** <failure consequence, subtle edge case, complex interaction, uncertain assumption, or unfamiliar pattern>.
-   - **What to verify:** <specific check or question for the reviewer>.
-
-## Evidence
-- Links or commands that support the change.
+## <Topic-specific examples heading>
+Show representative inputs, outputs, or before/after behavior. Explain who uses each format or interface and when.
 
 ## Tests
-- Validation command or scenario.
+Report validation performed and relevant limits.
 ```
 
-Omit `## Evidence` when code and tests are enough. Add `## Lessons learned` only for reviewer-relevant surprises or tradeoffs.
+Omit the examples section when it does not improve understanding. Use a fenced example or a `diff` block to make behavior concrete. Add a `mermaid` diagram when it makes a flow, interaction, or transformation easier to understand. GitHub renders Mermaid natively; follow `mermaid-best-practices`, keep one concept per diagram, and skip diagrams when prose or an example is already clear.
 
-Commit links in reviewer guides must use `/pull/<pr>/changes/<full-sha>`, never bare `/commit/<sha>` links.
+Keep stack navigation and relevant design links. Include `## Evidence` only when external artifacts help explain or verify the change. Add `## Lessons learned` only for reviewer-relevant surprises or tradeoffs.
+
+Link code references to the file at the PR head SHA with line anchors. Commit links must use `/pull/<pr>/changes/<full-sha>`, never bare `/commit/<sha>` links.
+
+Before publishing, check: Can a reader explain why this change exists, how it works, and what it produces without reading the diff or implementation session?
 
 ## Reporting
 When creating or updating a PR, report:

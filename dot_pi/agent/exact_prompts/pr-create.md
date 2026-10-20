@@ -1,5 +1,5 @@
 ---
-description: Create a draft GitHub PR with a focused reviewer guide
+description: Create a draft GitHub PR with a clear explanation of the change
 argument-hint: "[--base <branch>] [context]"
 ---
 # PR Create
@@ -7,7 +7,7 @@ Arguments: `$ARGUMENTS`
 
 Create the first GitHub PR for the current branch. Use `/pr-update` when the branch already has a PR.
 
-Read `reviewable-pr-workflow` before acting. It is the source of truth for PR bodies, history, stacks, reviewer guides, and reporting. Read `git-machete` only when using git-machete.
+Read `reviewable-pr-workflow` before acting. It is the source of truth for PR bodies, history, stacks, and reporting. Read `git-machete` only when using git-machete.
 
 Creating a PR is the explicit side effect of this command. Create it as a draft.
 
@@ -39,16 +39,16 @@ After committing intended changes, rerun the branch-diff commands. If the branch
 Read repository guidance in the root and changed package directories. Locate relevant `plans/**/design.md` and `plans/**/plan.md` artifacts, OpenSpec proposals or specs, and linked issue context.
 
 ## Phase 2: Prepare a reviewable change
-Read the significant diff and relevant design artifacts. Identify the PR's purpose, tests, evidence, and the areas where human review adds the most value. Build the reviewer guide from concrete risks, edge cases, complex logic, uncertain assumptions, and design decisions that need a second opinion. Follow the reviewer-guide rules in `reviewable-pr-workflow`. Ignore generated files unless reviewers need to inspect them.
+Read the significant diff and relevant design artifacts. Build the explanation from the problem, behavior, design choices, and representative examples, following `reviewable-pr-workflow`. Identify tests and supporting evidence. Ignore generated files unless they are needed to understand or verify the change.
 
-Before writing the guide, compare the full diff with the task context, proposal or spec, and linked issue. Check:
-- **Need:** Ask a reviewer who did not originate the prompt or implement the change to assess whether the evidence supports the problem, necessity, and scope. Do not present the author's rationale as independent validation.
+Before writing the description, compare the full diff with the task context, proposal or spec, and linked issue. Check:
+- **Need:** Assess whether the evidence supports the problem, necessity, and scope. Do not present the author's rationale as independent validation.
 - **Scope:** Call out changed files or behavior that do not match the stated intent or lack an explanation.
 - **Hard-to-reverse contracts:** Check gRPC and other public APIs, program parameters, data models and fields, and database schemas for compatibility, migration, and rollout risks.
 - **Go architecture and startup:** Inspect relevant interfaces, implementations, and callers. If no interface changes, assess whether that fits existing patterns; do not require an interface by default. For bootstrap changes, check that dependencies are available in order and do not introduce cycles.
 - **Operability:** Identify new failure modes and what an on-call engineer would need at 4 a.m. Check diagnosis and recovery signals, including useful errors, logs, metrics, and traces, bounded metric cardinality, and sensitive log data.
 
-Surface applicable findings as specific, prioritized reviewer questions. Do not add empty checklist items or invent concerns for unaffected areas. Mention an unaffected high-risk area only when that context helps the reviewer.
+Use these checks to prepare the explanation, not to generate a reviewer checklist. Explain supported constraints and failure behavior in the narrative. Report unresolved blockers separately and ask before proceeding when they require a decision. Do not invent concerns for unaffected areas.
 
 Apply the split and commit-story guidance in `reviewable-pr-workflow`:
 - If the change should be a stack, propose the stack and ask before restructuring it.
@@ -68,7 +68,7 @@ Draft a title and body using the `reviewable-pr-workflow` template. Include an o
 
 Create a draft PR. Prefer git-machete when the branch is in a stack; otherwise use `gh pr create --draft`. Capture its URL and number.
 
-Before setting the final body, verify that the review concerns and code references match the pushed branch.
+Before setting the final body, verify that the explanation, examples, and code references match the pushed branch.
 
 For a stack, fill or refresh the shared navigation block after creating each sibling PR. Run `/pr-update` on earlier stack PRs when later siblings obtain PR numbers.
 
@@ -76,4 +76,4 @@ For a stack, fill or refresh the shared navigation block after creating each sib
 Report per the workflow skill, plus:
 - the base branch;
 - whether a stack was proposed;
-- the final reviewer-guide concerns;
+- the explanation and examples included;

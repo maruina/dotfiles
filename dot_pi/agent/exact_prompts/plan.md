@@ -59,6 +59,8 @@ If a required mechanism is unavailable, either add and validate the enabling wor
 
 Ask a planning question when multiple reasonable approaches materially change compatibility, failure behavior, authorization or data handling, operability, public interfaces, test evidence, or review boundaries. Explain options, recommend one, and do not ask about mechanics established by repository evidence.
 
+A scope-narrowing choice on a shared component is a planning question, not an assumption. When a changed component has consumers outside the request, offer two options: limit the change to the requested consumer, or apply it to every consumer. The narrower behavior change can need a larger mechanism, such as a new API, option, flag, or state. In that case, state the cost of each option, then recommend one.
+
 Pressure-test only material risks:
 
 - untrusted inputs, invalid states, permissions, sensitive data, and partial failure
@@ -94,6 +96,9 @@ Design-to-code mapping:
 
 Existing patterns and ADRs to preserve:
 - ...
+
+Alternatives considered:
+- [option] — benefit: ... — cost: ... — [recommended / rejected because ...]
 
 Skills loaded and used:
 
@@ -153,7 +158,7 @@ Right-size the remainder:
 For Medium and Large/Risky plans, add `## Implementation Contract` containing:
 
 - **Components Affected:** `Component | Files | Responsibility | Verification`
-- **Key Decisions:** decision and rationale
+- **Key Decisions:** decision and rationale, including the rejected alternative and its benefit when the user chose between options
 - **Implementation Constraints:** applicable ADRs and patterns, assumptions, stop conditions, and material safety/performance/developer-experience requirements or why they are inapplicable
 - **Security Requirements** and **Observability Requirements**, including an explicit reason when none apply
 - **Failure Modes to Handle:** expected behavior and verification
@@ -209,6 +214,7 @@ For Medium and Large/Risky work, end with a documentation and future-agent guida
 Before committing, confirm:
 
 - interactive Medium/Large work has a user-confirmed alignment brief
+- every shared-component scope choice was asked as a question with the narrow and broad options, not recorded only as an assumption
 - scope, non-goals, requirements, tasks, and validation are bidirectionally traceable
 - paths, commands, types, dependencies, mechanisms, and expected results exist
 - behavior tasks are complete vertical slices; genuine blockers appear first; any integration exception is explicit

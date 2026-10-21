@@ -71,6 +71,7 @@ Default to repository conventions and make small, idiomatic changes because cons
 - Use non-blocking `select` and dropping only as deliberate overload policies because a `default` case silently trades delivery for latency. Bound the queue and expose dropped work through metrics or errors so overload remains observable.
 - Treat `sync.RWMutex` as a measured optimization rather than a default because its coordination overhead and write contention can make read-heavy code slower than a regular mutex.
 - Do not rely on buffered delivery from `time` timer channels: they are unbuffered when the main module's `go.mod` declares Go 1.23 or later, and Go 1.27 removes the `asynctimerchan` GODEBUG escape hatch. Review timeout and timer code when raising a module's Go version because code that previously observed a stale tick buffered before `Stop` or `Reset` no longer receives it.
+- In Go 1.23 or later, the garbage collector recovers unreferenced, unstopped timers. Do not flag `time.After` in loops or `select` statements as a timer or memory leak when `go.mod` declares Go 1.23 or later; prefer `time.After` when it is clear and readable.
 
 ## 7. Testing
 - Test exported behavior from an external test package when package boundaries are part of the contract because this catches accidental reliance on unexported state. Use internal-package tests only when exercising unexported behavior is necessary.

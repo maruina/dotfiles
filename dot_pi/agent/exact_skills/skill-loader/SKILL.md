@@ -38,6 +38,9 @@ Load when investigating Pod eviction, unexpected Pod termination or deletion, PD
 ### Compute infrastructure investigations — `compute-support`
 Work-profile skill. Load for compute infrastructure incidents, including Pending or unschedulable Pods, `FailedScheduling`, cluster autoscaler or NodeGroup capacity failures, placement issues, workload-group access, NLA or `draino` problems, and unhealthy nodes. Follow its read-only limits and runbook confirmation steps. If the skill is unavailable, report that gap and do not claim it was used.
 
+### Cilium connectivity investigations — `cilium-troubleshooting`
+Work-profile skill. Load when troubleshooting Cilium CNI, Hubble drops or policy denials, missing Hubble flows, CiliumNetworkPolicy, or a confirmed Cilium network path. Use it to map actual endpoints, check Hubble coverage, inspect installed policy and connection state, and distinguish endpoint policy from cloud routing. Do not infer a Cilium cause from a generic timeout. For Cilium-specific diagnostics, this skill takes precedence over general compute guidance; load `compute-support` too when broader compute symptoms match. If unavailable, report the gap and do not claim it was used.
+
 ### Atlas Go workflows — `atlas-best-practices`
 Load when Go Atlas workflow, activity, worker, client, generated-client, or worker-bootstrap code changes; when Atlas Temporal proto definitions or options change; or when work involves determinism, version gates, Breaking Change Detection, replay tests, signals, queries, child workflows, Continue-As-New, retries, timeouts, schedules, checkpoints, or worker deployment configuration using `atlas_domain`, `atlas_context`, task queues, or Atlas worker routing.
 
@@ -83,6 +86,7 @@ Before domain work, planning, or editing, confirm each of these:
 - [ ] Identified all file extensions and paths affected by the task, when the task changes files.
 - [ ] For investigations, matched explicit identifiers or confirmed evidence to domain-skill triggers.
 - [ ] Loaded every skill whose trigger matches.
+- [ ] For Cilium: checked for explicit Cilium/Hubble identifiers or a confirmed Cilium network path; loaded `cilium-troubleshooting` when they match, or reported that the work-profile skill is unavailable.
 - [ ] For Atlas: determined whether affected Go, proto, or deployment files define or invoke Atlas workflows; loaded `atlas-best-practices` when they do.
 - [ ] For Go: confirmed whether any Kubernetes interaction is involved (controller-runtime, webhooks, `client-go`, `k8s.io/*`, `sigs.k8s.io/*`); loaded `k8s-controller-dev` if available, otherwise noted the missing skill and continued with `go-best-practices`.
 - [ ] For Go CRD types: confirmed whether API type evolution is involved; loaded `k8s-api-design` if available, otherwise noted the missing skill and continued with `go-best-practices`.

@@ -7,14 +7,14 @@ Arguments: `$ARGUMENTS`
 
 Create the first GitHub PR for the current branch. Use `/pr-update` when the branch already has a PR.
 
-Read `reviewable-pr-workflow` before acting. It is the source of truth for PR bodies, history, stacks, and reporting. Read `git-machete` only when using git-machete.
+Read `reviewable-pr-workflow` before acting. It is the source of truth for PR bodies, history, stacks, and reporting. For stacked PRs, also read `github-stacks` and use GitHub's native stack workflow.
 
 Creating a PR is the explicit side effect of this command. Create it as a draft.
 
 ## Phase 1: Establish PR state
 Parse `--base <branch>`. All remaining arguments are task context.
 
-If `--base` is absent, use a non-`main` git-machete parent when one exists; otherwise use `main`.
+If `--base` is absent, use the parent branch from `gh stack status` when the current branch is in a native stack; otherwise use `main`.
 
 Run:
 
@@ -56,21 +56,20 @@ Apply the split and commit-story guidance in `reviewable-pr-workflow`:
 - After an approved rewrite, verify a clean working tree and that the final diff contains only intended changes.
 
 ## Phase 3: Push and create the draft PR
-Push the branch. For a git-machete stack, use its documented push workflow; otherwise use:
-
-```bash
-git push -u origin "$(git branch --show-current)"
-```
-
 Draft a title and body using the `reviewable-pr-workflow` template. Include an optional `## Design & implementation plan` section only when matching plan artifacts exist:
 - link `design.md` as the reviewer-facing design record;
 - link `plan.md` as optional implementation context.
 
-Create a draft PR. Prefer git-machete when the branch is in a stack; otherwise use `gh pr create --draft`. Capture its URL and number.
+For a native stack, run `gh stack submit` and capture the PR URLs and numbers it reports. Do not push or create the stack's PRs separately. For a standalone branch, push it and create a draft PR:
+
+```bash
+git push -u origin "$(git branch --show-current)"
+gh pr create --draft
+```
 
 Before setting the final body, verify that the explanation, examples, and code references match the pushed branch.
 
-For a stack, fill or refresh the shared navigation block after creating each sibling PR. Run `/pr-update` on earlier stack PRs when later siblings obtain PR numbers.
+For a native stack, confirm GitHub displays the full stack after submission. Do not add a manual stack-navigation block to PR bodies.
 
 ## Report
 Report per the workflow skill, plus:

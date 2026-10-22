@@ -21,7 +21,7 @@ Do not edit, format, generate, apply chezmoi state, stage, commit, push, open or
 2. Without a plan path, use the `--task` value copied from the `/execute` handoff as the requirements baseline. Fall back to the current task or conversation only when it contains an equally explicit baseline. Do not infer intended behavior solely from the diff. If the task baseline is missing or ambiguous, return `BLOCKED`.
 3. Read the implementation model ID from `--implemented-by` when present. This explicit handoff metadata survives `/new`; never infer the implementation model from the verifier model or repository state.
 4. Before running checks, snapshot the selected worktree's absolute path, branch, HEAD, `git status --porcelain=v1 --untracked-files=all`, staged diff, unstaged diff, intended untracked files, and candidate commits.
-5. Resolve the comparison base in this precedence: explicit plan/task context, `git machete show up <branch>`, open-PR base from `gh`, then the repository default branch. Use the base consistently for the branch diff. If available evidence produces a material conflict, return `BLOCKED` rather than selecting a fallback.
+5. Resolve the comparison base in this precedence: explicit plan/task context, native stack parent from `gh stack status`, open-PR base from `gh`, then the repository default branch. Use the base consistently for the branch diff. If available evidence produces a material conflict, return `BLOCKED` rather than selecting a fallback.
 6. Candidate scope MUST include commits relative to the base, staged changes, unstaged changes, and intended untracked files. Confirm the scope is attributable to the requirements baseline and has no unexplained unrelated changes. An empty candidate is `BLOCKED`.
 
 ## Slice scope

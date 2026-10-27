@@ -165,6 +165,8 @@ For Medium and Large/Risky plans, add `## Implementation Contract` containing:
 - **Rollout and Rollback:** smallest safe rollout, fastest safe rollback, and owner
 - **Test Strategy:** each requirement mapped to its highest deterministic supported interface, existing or justified new seams, system boundaries to mock, and the narrow command expected to fail before implementation
 
+For integration, reliability, performance, or cost checks, define comparable baseline and candidate workloads where applicable. Specify telemetry selectors for the exact instance, version, traffic cohort, and observation window. Define isolation for mutable state, queues, background jobs, and downstream effects, not only ports or incoming traffic. Record mock limitations and which claims require real dependencies. If required traffic, telemetry, or isolation is unavailable, name the gap and do not plan to infer success from absent errors.
+
 ### Slice grouping
 Group tasks under `### Slice N: <title>` headings only when the plan needs more than one shippable slice: Medium or Large/Risky work, or work with deliberately deferred scope. Each heading names the user feedback it delivers. Slice 1 is the smallest user-feedback slice. Small/direct plans keep the concise `## Scope` and `## Validation` shape with one execution unit and no slice headings.
 

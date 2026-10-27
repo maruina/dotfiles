@@ -92,6 +92,8 @@ The terminal state is implemented, verified changes with the plan updated as the
 8. If verification fails, debug only within the current step and plan scope. Stop after 3 focused attempts on the same failure.
 9. Commit only when the plan says to commit. Use the exact commit message unless it no longer matches the change; if it does not match, stop and ask. If the plan leaves commit boundaries ambiguous, commit only when a logical unit is complete, tests pass, and the message would describe a complete valuable change. If unsure, stop and ask.
 
+Do not disable a required check, weaken an agreed expectation, or change a tolerance merely to obtain a pass. If an expectation is wrong, stop and return to `/plan` for approval before changing it. Prompts and skills are advisory; CI, permissions, and required reviews provide enforcement.
+
 Do not batch unrelated tasks or skip narrow tests because later tasks run broader ones. Do not batch all tests ahead of implementation or all implementation ahead of verification unless the plan explicitly requires that shape.
 
 Keep tests on observable behavior through public or supported interfaces. Mock system boundaries (external APIs, time, randomness, databases, filesystems) when needed; do not mock internal collaborators unless the repository already treats that seam as public.
@@ -114,6 +116,11 @@ When changing behavior:
 - justify explicitly if no tests are added
 
 Before writing tests, check whether the plan's test scenarios cover applicable happy paths, edge cases, failure paths, and integration paths. If coverage is missing but clearly required by the current task, add it within scope. If adding it changes scope, stop and ask.
+
+## Integration and operational evidence
+For integration, reliability, performance, or cost checks, use the plan's comparable baseline and candidate workloads where applicable. Confirm isolation of mutable state, queues, background jobs, and downstream effects before exercising the candidate. Record mock limitations; mocked behavior alone cannot establish that a real integration works.
+
+Query telemetry for the exact instance, version, traffic cohort, and observation window. Record the workload, candidate configuration, queries, and observed results separately from the interpretation. Insufficient traffic or telemetry makes the result inconclusive and cannot satisfy a required check; an empty error query alone is not evidence of success. If required isolation is missing, stop rather than run the experiment.
 
 ## System-Wide Check
 Before marking a behavior task complete, ask:

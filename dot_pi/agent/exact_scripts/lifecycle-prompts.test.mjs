@@ -168,6 +168,34 @@ test("brainstorm synthesizes a design for human readers", () => {
   ]);
 });
 
+test("plan defines attributable evidence for integration and operational checks", () => {
+  requireMarkers(prompt("plan.md"), [
+    /integration, reliability, performance, or cost/i,
+    /comparable baseline and candidate workloads/i,
+    /exact instance, version, traffic cohort, and observation window/i,
+    /mutable state, queues, background jobs, and downstream effects/i,
+    /mock limitations.*require real dependencies/is,
+  ]);
+});
+
+test("execute requires attributable evidence and rejects inconclusive success", () => {
+  requireMarkers(prompt("execute.md"), [
+    /comparable baseline and candidate workloads/i,
+    /exact instance, version, traffic cohort, and observation window/i,
+    /mutable state, queues, background jobs, and downstream effects/i,
+    /mock limitations.*real integration/is,
+    /insufficient traffic or telemetry.*inconclusive.*cannot satisfy a required check/is,
+  ]);
+});
+
+test("execute protects agreed checks and returns incorrect expectations to planning", () => {
+  requireMarkers(prompt("execute.md"), [
+    /do not disable a required check, weaken an agreed expectation, or change a tolerance merely to obtain a pass/i,
+    /expectation is wrong.*return to `\/plan` for approval/is,
+    /prompts and skills.*advisory.*CI, permissions, and required reviews.*enforcement/is,
+  ]);
+});
+
 test("plan records skill provenance before approval and in durable plans", () => {
   const text = prompt("plan.md");
 

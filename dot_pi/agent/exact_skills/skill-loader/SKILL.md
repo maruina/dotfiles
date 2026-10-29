@@ -56,7 +56,7 @@ Load when files under the chezmoi source directory (`~/.local/share/chezmoi/`) a
 Load when `.md` files inside an Obsidian vault are created or modified, or when the user mentions wikilinks, callouts, frontmatter, embeds, or Obsidian notes.
 
 ### PR creation or update — `reviewable-pr-workflow`
-Load when opening a new PR, amending commits before review, or responding to review feedback that requires a force-push.
+Load when opening a new PR, amending commits before review, or responding to review feedback that requires a force-push. Also load `github-stacks` when creating, updating, or reviewing stacked PRs.
 
 ### PR review comments — `pr-comment-triage`
 Load when the user provides a GitHub PR or review-discussion URL and asks to assess, address, or decide whether comments apply. Also load `reviewable-pr-workflow` when the result changes commits or PR structure.

@@ -7,7 +7,7 @@ Arguments: `$ARGUMENTS`
 
 Update the current branch's existing GitHub PR after implementation or review feedback. Use `/pr-create` to open the first PR for a branch.
 
-Read `reviewable-pr-workflow` before acting. It is the source of truth for PR bodies, history, stacks, and reporting. Read `git-machete` only when using git-machete.
+Read `reviewable-pr-workflow` before acting. It is the source of truth for PR bodies, history, stacks, and reporting. For stacked PRs, also read `github-stacks` and use GitHub's native stack workflow.
 
 ## Phase 1: Establish PR and review state
 Run:
@@ -42,7 +42,7 @@ Read the current body and final branch state. Preserve accurate handwritten cont
 - remove stale claims and refresh code references;
 - preserve accurate user-written explanations and examples, updating them when behavior changes;
 - remove any `## What to look for in this PR` section, preserving relevant constraints and unresolved decisions in the narrative;
-- refresh the stack-navigation block for every affected stacked PR.
+- do not add a manual stack-navigation block; GitHub displays native stack navigation in the PR UI.
 
 Treat the PR body as a coherent explanation of the final change, not a record of the implementation process. Do not replace useful context with a compressed diff summary or restore a reviewer checklist.
 

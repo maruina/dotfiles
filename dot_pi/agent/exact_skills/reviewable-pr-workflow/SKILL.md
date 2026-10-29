@@ -1,6 +1,6 @@
 ---
 name: reviewable-pr-workflow
-description: "Create and update GitHub PRs that are easy, fast, and confidence-building to review: coherent PR stories, stacked PRs, review-state-based history rewriting, evidence links, safe force-pushes, clear explanations, and git-machete stack mechanics."
+description: "Create and update GitHub PRs that are easy, fast, and confidence-building to review: coherent PR stories, GitHub stacked PRs, review-state-based history rewriting, evidence links, safe force-pushes, and clear explanations."
 ---
 # Reviewable PR Workflow
 Use when creating, updating, splitting, restacking, cleaning up, or reviewing a GitHub PR.
@@ -71,31 +71,15 @@ Use Matteo's branch names:
 - `maruina/<jira-ticket>` when a Jira ticket exists,
 - `maruina/<branch-name>` otherwise.
 
-Use git-machete for mechanics:
-```fish
-git machete status -l
-git machete add -y maruina/<name>
-git machete traverse -y --return-to=here
-git machete traverse -y --push --return-to=here
-git machete github create-pr --draft
-git machete github retarget-pr
-git machete clean
+Use GitHub's native stack support for stacked PRs. Load `github-stacks` for its creation and management commands:
+```bash
+gh stack init maruina/<first-step>
+gh stack add maruina/<next-step>
+gh stack status
+gh stack submit
 ```
 
-When rewriting a stacked branch, restack descendants and push all affected branches. Do not rewrite only a parent and leave descendants based on old commits. If rewriting a reviewed parent would force rewriting a reviewed descendant, stop and ask unless the user explicitly requested a stack rewrite.
-
-Stacked PR bodies start with:
-```markdown
-> 📦 **Stacked PR <pos> of <total>** — part of [<TICKET>](<jira-url>)
->
-> - PR 1: <label> — #<pr1>
-> - PR 2: 👉 **<label> (this PR)** — #<pr2>
-> - PR 3: <label> — #<pr3>
-
----
-```
-
-Keep labels short, list PRs in dependency order, and keep the block consistent across the stack.
+GitHub shows stack navigation and PR status in the UI. Do not maintain a duplicate manual stack map in each PR body. When rewriting a stacked branch, inspect the full stack and update affected descendants. Do not rewrite only a parent and leave descendants based on old commits. If rewriting a reviewed parent would force rewriting a reviewed descendant, stop and ask unless the user explicitly requested a stack rewrite.
 
 ## PR description
 Write for a software engineer who does not know this subsystem and has not read the implementation session.
@@ -137,7 +121,7 @@ Report validation performed and relevant limits.
 
 Omit the examples section when it does not improve understanding. Use a fenced example or a `diff` block to make behavior concrete. Add a `mermaid` diagram when it makes a flow, interaction, or transformation easier to understand. GitHub renders Mermaid natively; follow `mermaid-best-practices`, keep one concept per diagram, and skip diagrams when prose or an example is already clear.
 
-Keep stack navigation and relevant design links. Include `## Evidence` only when external artifacts help explain or verify the change. Add `## Lessons learned` only for reviewer-relevant surprises or tradeoffs.
+Keep relevant design links. Let GitHub provide stack navigation for stacked PRs. Include `## Evidence` only when external artifacts help explain or verify the change. Add `## Lessons learned` only for reviewer-relevant surprises or tradeoffs.
 
 Link code references to the file at the PR head SHA with line anchors. Commit links must use `/pull/<pr>/changes/<full-sha>`, never bare `/commit/<sha>` links.
 

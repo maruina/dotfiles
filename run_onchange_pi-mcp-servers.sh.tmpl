@@ -14,6 +14,11 @@ pi mcp add ddci-mcp-prod --url "https://ddci-mcp.mcp.us1.ddbuild.io/internal/mcp
   --exposure deferred \
   --description 'Query and control DDCI (GitLab CI) pipelines: status, AI error summaries, job logs, retry failed jobs, trigger auto/on-demand runs, local build impact analysis. Sign in once with: pi mcp login ddci-mcp-prod.'
 
+pi mcp add datadog-google-workspace \
+  --url "https://google-workspace-mcp-server-834963730936.us-central1.run.app/mcp" \
+  --exposure deferred \
+  --description 'Search and read Google Drive, Docs, Sheets, and Slides with your Datadog Google account. Write only on explicit request. Sign in once with: pi mcp login datadog-google-workspace.'
+
 pi mcp add slack \
   --exposure deferred \
   --description 'Search and read Datadog Slack channels, threads, and users. Send only on explicit request.' \
@@ -22,6 +27,7 @@ pi mcp add slack \
 pi mcp remove datadog-prod >/dev/null 2>&1 || true
 pi mcp remove datadog-staging >/dev/null 2>&1 || true
 pi mcp remove ddci-mcp-prod >/dev/null 2>&1 || true
+pi mcp remove datadog-google-workspace >/dev/null 2>&1 || true
 pi mcp remove slack >/dev/null 2>&1 || true
 
 # The connect URL is the only Home Assistant credential; resolve it from

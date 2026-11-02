@@ -20,6 +20,7 @@ const METADATA_FIELDS = [
   "baseRefOid",
   "headRefName",
   "headRefOid",
+  "isCrossRepository",
   "labels",
   "additions",
   "deletions",
@@ -181,6 +182,7 @@ function normalizeMetadata(raw, canonicalUrl) {
     baseRefOid: raw.baseRefOid ?? null,
     headRefName: raw.headRefName ?? null,
     headRefOid: raw.headRefOid ?? null,
+    isCrossRepository: typeof raw.isCrossRepository === "boolean" ? raw.isCrossRepository : null,
     labels: Array.isArray(raw.labels) ? raw.labels.map((label) => label.name).filter((name) => typeof name === "string") : [],
     additions: raw.additions ?? null,
     deletions: raw.deletions ?? null,
@@ -276,7 +278,7 @@ async function collect(prUrl) {
     console.error("source unavailable: checks (invalid_response)");
   }
 
-  let pr = { url, title: null, body: null, author: null, state: null, baseRefName: null, baseRefOid: null, headRefName: null, headRefOid: null, labels: [], additions: null, deletions: null, files: [] };
+  let pr = { url, title: null, body: null, author: null, state: null, baseRefName: null, baseRefOid: null, headRefName: null, headRefOid: null, isCrossRepository: null, labels: [], additions: null, deletions: null, files: [] };
   if (results.metadata.ok) {
     try {
       pr = normalizeMetadata(results.metadata.value, url);

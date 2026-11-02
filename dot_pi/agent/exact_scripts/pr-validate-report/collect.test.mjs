@@ -17,6 +17,7 @@ const metadata = {
   baseRefOid: "base-sha",
   headRefName: "feature",
   headRefOid: "head-sha",
+  isCrossRepository: false,
   labels: [{ name: "area:test" }],
   additions: 4,
   deletions: 2,
@@ -139,6 +140,7 @@ test("valid PR URLs collect normalized evidence from every paginated source", (t
   assert.equal(evidence.schemaVersion, 1);
   assert.equal(evidence.collection.status, "complete");
   assert.equal(evidence.pr.headRefOid, "head-sha");
+  assert.equal(evidence.pr.isCrossRepository, false);
   assert.deepEqual(evidence.pr.labels, ["area:test"]);
   assert.deepEqual(evidence.pr.files, [{ path: "src/change.js", additions: 4, deletions: 2, changeType: "MODIFIED" }]);
   assert.match(evidence.diff, /\+change/);

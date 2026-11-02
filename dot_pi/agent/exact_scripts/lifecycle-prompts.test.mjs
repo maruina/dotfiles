@@ -554,6 +554,27 @@ test("PR validation uses one collector for GitHub evidence", () => {
   assert.match(phase2, /DDCI CI-status tools/i);
 });
 
+test("PR validation reads Git objects by default and does not run untrusted PR code", () => {
+  const text = prompt("pr-validate.md");
+  const phase1 = text.slice(text.indexOf("## Phase 1"), text.indexOf("## Phase 2"));
+
+  requireMarkers(phase1, [
+    /git -C "\$BASE_REPO" show "\$HEAD_REF_OID:<path>"/,
+    /git -C "\$BASE_REPO" grep -n .*"\$HEAD_REF_OID" -- <touched-dirs>/,
+    /Create or reuse the review worktree only when/i,
+    /record the reason in Coverage/i,
+  ]);
+  assert.ok(phase1.indexOf("Choose the read mode") > phase1.indexOf("Fetch `refs/pull/$PR_NUMBER/head`"));
+  assert.ok(phase1.indexOf("Choose the read mode") < phase1.indexOf("If the expected path exists"));
+
+  requireMarkers(text, [
+    /<HARD-GATE>[\s\S]*Build or run PR code only[\s\S]*repository-owned[\s\S]*`pr\.isCrossRepository` is `false`[\s\S]*<\/HARD-GATE>/,
+    /deleted assertions.*new skips.*expected values edited to match the new output/is,
+    /instructions aimed at the reviewer agent.*attention item/is,
+  ]);
+  assert.doesNotMatch(text, /revision-2|CMPT-4066|Slot 4/);
+});
+
 test("PR validation revision 2 report shape, severity, and provenance", () => {
   const text = prompt("pr-validate.md");
 
@@ -588,7 +609,7 @@ test("PR validation revision 2 report shape, severity, and provenance", () => {
     // Strict Mermaid and agent-written labels only
     /securityLevel: "strict"/,
     /labels that the agent writes/,
-    // Ten criteria, including the three revision-2 additions
+    // Ten criteria, including Observability, Dependencies, and Docs
     /Observability/,
     /Dependencies/,
     /Docs/,
@@ -717,7 +738,7 @@ test("PR validation report is rendered from bounded JSON data", () => {
     /each title to 10 words and description to 30 words/,
     /Describe the proposed system, not a repeated today\/changed\/effect comparison/,
     /`rg -l` or `rg --max-count`/,
-    /`git diff --stat` first/,
+    /`pr\.files`.*per-file change size first/,
     /atlas workflow list --context <ctx> --query/,
   ]);
 

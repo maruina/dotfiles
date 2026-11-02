@@ -748,6 +748,27 @@ test("PR validation report is rendered from bounded JSON data", () => {
   assert.doesNotMatch(skill("skill-loader"), /humanizer/i);
 });
 
+test("PR validation passes collected evidence and accounts for changed lines", () => {
+  const text = prompt("pr-validate.md");
+
+  requireMarkers(text, [
+    /--evidence "\$EVIDENCE_FILE"/,
+    /observed added lines/i,
+    /optional `refs` arrays/i,
+    /\{path, side, start, end\}/,
+    /A whole-file ref covers only observed added lines/,
+    /An `L` ref never covers added lines/,
+    /`mechanical` group with a summary of 40 words or fewer and nonempty `refs`/,
+    /Do not invent refs/,
+    /Deletions stay visible even when referenced/,
+    /does not prove that the code was read or correct/,
+    /never changes a gate, the verdict, or render success/,
+  ]);
+
+  assert.match(text, /<HARD-GATE>[\s\S]*read-only[\s\S]*<\/HARD-GATE>/i);
+  assert.match(text, /git -C "\$BASE_REPO" show "\$HEAD_REF_OID:<path>"/);
+});
+
 test("PR validation avoids known wasted turns", () => {
   const text = prompt("pr-validate.md");
 

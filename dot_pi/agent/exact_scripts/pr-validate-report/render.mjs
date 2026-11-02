@@ -83,6 +83,14 @@ export const LIMITS = {
 const LINK = /\[([^\]\n]+)\]\(((?:https:\/\/|#)[^\s()]+)\)/g;
 const CODE = /(`[^`\n]+`)/;
 
+// The collector envelope is the only evidence source. Report refs assert which
+// observed added lines the report accounts for; they never prove that code was read.
+// deliberate: coverage is advisory because a missing or truncated diff cannot
+// separate unreviewed code from provider omission. Revisit gating only after
+// representative reports show stable accounting.
+const COVERAGE_DETAIL_LIMIT = 50;
+const COVERAGE_DIAGNOSTIC_LIMIT = 50;
+
 export function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 }
@@ -157,6 +165,23 @@ export function validate(r) {
     if (!Number.isInteger(v.start) || v.start < 1) fail(`${where}.start`, "must be a positive line number");
     if (!Number.isInteger(v.end) || v.end < v.start) fail(`${where}.end`, "must be a line number >= start");
   };
+  const refs = (v, where) => {
+    if (v === undefined) return;
+    if (!Array.isArray(v)) return fail(where, "must be an array");
+    v.forEach((ref, i) => {
+      const at = `${where}[${i}]`;
+      if (!ref || typeof ref !== "object" || Array.isArray(ref)) return fail(at, "required object");
+      text(ref.path, `${at}.path`);
+      const hasSide = ref.side !== undefined;
+      const hasStart = ref.start !== undefined;
+      const hasEnd = ref.end !== undefined;
+      if (!hasSide && !hasStart && !hasEnd) return;
+      if (!hasSide || !hasStart || !hasEnd) return fail(at, "a line ref needs side, start, and end, or only path");
+      oneOf(ref.side, ["R", "L"], `${at}.side`);
+      if (!Number.isSafeInteger(ref.start) || ref.start < 1) fail(`${at}.start`, "must be a positive safe integer");
+      if (!Number.isSafeInteger(ref.end) || ref.end < ref.start) fail(`${at}.end`, "must be a safe integer >= start");
+    });
+  };
   const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
   if (!r || typeof r !== "object") return ["report: must be a JSON object"];
@@ -194,6 +219,7 @@ export function validate(r) {
     else itemIds.add(item.id);
     oneOf(item?.kind, KINDS, `${at}.kind`);
     text(item?.title, `${at}.title`, LIMITS.itemTitle);
+    refs(item?.refs, `${at}.refs`);
     if (!stepIds.has(item?.step)) fail(`${at}.step`, "must name a walkthrough step id");
     if (!Array.isArray(item?.priorComments)) {
       fail(`${at}.priorComments`, "required array");
@@ -288,6 +314,7 @@ export function validate(r) {
     else seenSteps.add(step.id);
     text(step?.title, `${at}.title`, LIMITS.stepTitle);
     text(step?.description, `${at}.description`, LIMITS.stepPart);
+    refs(step?.refs, `${at}.refs`);
   });
 
   if (!Array.isArray(r.reviewerQuestions)) fail("reviewerQuestions", "must be an array");
@@ -323,7 +350,19 @@ export function validate(r) {
     text(c?.claim, `claims[${i}].claim`, LIMITS.short);
     text(c?.source, `claims[${i}].source`, LIMITS.short);
     text(c?.result, `claims[${i}].result`, LIMITS.gateEvidence);
+    refs(c?.refs, `claims[${i}].refs`);
   });
+  if (r.mechanical !== undefined) {
+    if (!Array.isArray(r.mechanical)) fail("mechanical", "must be an array");
+    else {
+      r.mechanical.forEach((group, i) => {
+        const at = `mechanical[${i}]`;
+        text(group?.summary, `${at}.summary`, LIMITS.short);
+        if (!Array.isArray(group?.refs) || group.refs.length === 0) fail(`${at}.refs`, "must be a nonempty array");
+        else refs(group.refs, `${at}.refs`);
+      });
+    }
+  }
   list(r.skills, "skills").forEach((sk, i) => {
     text(sk?.skill, `skills[${i}].skill`);
     oneOf(sk?.source, SKILL_SOURCES, `skills[${i}].source`);
@@ -415,7 +454,455 @@ function renderItem(r, item, n, steps) {
   return `<article class="card" id="${escapeHtml(item.id)}">\n<h3>${n}. ${inline(item.title)}</h3>\n${parts.join("\n")}\n</article>`;
 }
 
-export function render(r, template = readFileSync(path.join(HERE, "template.html"), "utf8")) {
+function decodeQuotedPath(raw) {
+  const bytes = [];
+  for (let i = 0; i < raw.length; i += 1) {
+    const ch = raw[i];
+    if (ch !== "\\") {
+      for (const byte of Buffer.from(ch, "utf8")) bytes.push(byte);
+      continue;
+    }
+    i += 1;
+    if (i >= raw.length) return null;
+    const simple = { a: 0x07, b: 0x08, f: 0x0c, n: 0x0a, r: 0x0d, t: 0x09, v: 0x0b, "\\": 0x5c, '"': 0x22 };
+    if (Object.hasOwn(simple, raw[i])) {
+      bytes.push(simple[raw[i]]);
+      continue;
+    }
+    const octal = /^[0-7]{1,3}/.exec(raw.slice(i));
+    if (!octal) return null;
+    bytes.push(parseInt(octal[0], 8) & 0xff);
+    i += octal[0].length - 1;
+  }
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(Buffer.from(bytes));
+  } catch {
+    return null;
+  }
+}
+
+function scanQuoted(text) {
+  if (!text.startsWith('"')) return null;
+  for (let i = 1; i < text.length; i += 1) {
+    if (text[i] === "\\") {
+      i += 1;
+      continue;
+    }
+    if (text[i] === '"') {
+      const value = decodeQuotedPath(text.slice(1, i));
+      return value === null ? null : { value, end: i + 1 };
+    }
+  }
+  return null;
+}
+
+function stripPrefix(value, prefix) {
+  return typeof value === "string" && value.startsWith(prefix) ? value.slice(prefix.length) : value;
+}
+
+function headerPath(text) {
+  if (text.startsWith('"')) {
+    const quoted = scanQuoted(text);
+    return quoted ? quoted.value : null;
+  }
+  const tab = text.indexOf("\t");
+  return tab >= 0 ? text.slice(0, tab) : text;
+}
+
+function diffGitPaths(text) {
+  if (text.startsWith('"')) {
+    const old = scanQuoted(text);
+    if (!old) return { oldPath: null, newPath: null, ambiguous: true };
+    let i = old.end;
+    while (text[i] === " ") i += 1;
+    const next = scanQuoted(text.slice(i));
+    if (!next) return { oldPath: stripPrefix(old.value, "a/"), newPath: null, ambiguous: true };
+    return { oldPath: stripPrefix(old.value, "a/"), newPath: stripPrefix(next.value, "b/"), ambiguous: false };
+  }
+  if (!text.startsWith("a/")) return { oldPath: null, newPath: null, ambiguous: true };
+  const body = text.slice(2);
+  const middle = (body.length - 3) / 2;
+  if (Number.isInteger(middle) && middle > 0 && body.slice(middle, middle + 3) === " b/") {
+    const left = body.slice(0, middle);
+    const right = body.slice(middle + 3);
+    if (left === right) return { oldPath: left, newPath: right, ambiguous: false };
+  }
+  const separator = body.indexOf(" b/");
+  if (separator > 0) {
+    const oldPath = body.slice(0, separator);
+    const newPath = body.slice(separator + 3);
+    return { oldPath, newPath, ambiguous: oldPath.includes(" ") || newPath.includes(" ") };
+  }
+  return { oldPath: null, newPath: null, ambiguous: true };
+}
+
+function parseUnifiedDiff(diff) {
+  const files = [];
+  let current = null;
+  let hunk = null;
+  const body = diff.endsWith("\n") ? diff.slice(0, -1) : diff;
+
+  const addLine = (runs, line) => {
+    const last = runs[runs.length - 1];
+    if (last && last.end + 1 === line) last.end = line;
+    else runs.push({ start: line, end: line });
+  };
+  const closeHunk = () => {
+    if (!hunk) return;
+    if (hunk.oldRemaining !== 0 || hunk.newRemaining !== 0) current.issues.push("hunk counts do not match the patch body");
+    hunk = null;
+  };
+  const closeFile = () => {
+    if (!current) return;
+    closeHunk();
+    files.push(current);
+    current = null;
+  };
+
+  for (const line of body.split("\n")) {
+    if (line.startsWith("diff --git ")) {
+      closeFile();
+      const paths = diffGitPaths(line.slice("diff --git ".length));
+      current = {
+        oldPath: paths.oldPath,
+        newPath: paths.newPath,
+        renameFrom: null,
+        renameTo: null,
+        adds: [],
+        dels: [],
+        issues: [],
+        hasPatch: false,
+        binary: false,
+      };
+      continue;
+    }
+    if (!current) continue;
+    if (line.startsWith("@@")) {
+      closeHunk();
+      const match = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/.exec(line);
+      if (!match) {
+        current.issues.push("unparseable hunk header");
+        continue;
+      }
+      const oldStart = Number(match[1]);
+      const oldCount = match[2] === undefined ? 1 : Number(match[2]);
+      const newStart = Number(match[3]);
+      const newCount = match[4] === undefined ? 1 : Number(match[4]);
+      if (![oldStart, oldCount, newStart, newCount].every((n) => Number.isSafeInteger(n) && n >= 0)) {
+        current.issues.push("hunk line numbers are out of range");
+        continue;
+      }
+      current.hasPatch = true;
+      hunk = { oldRemaining: oldCount, newRemaining: newCount, oldLine: oldStart, newLine: newStart };
+      continue;
+    }
+    if (hunk) {
+      if (line === "\\ No newline at end of file") continue;
+      if (line.startsWith("+")) {
+        addLine(current.adds, hunk.newLine);
+        hunk.newLine += 1;
+        hunk.newRemaining -= 1;
+      } else if (line.startsWith("-")) {
+        addLine(current.dels, hunk.oldLine);
+        hunk.oldLine += 1;
+        hunk.oldRemaining -= 1;
+      } else if (line.startsWith(" ")) {
+        hunk.newLine += 1;
+        hunk.oldLine += 1;
+        hunk.newRemaining -= 1;
+        hunk.oldRemaining -= 1;
+      } else {
+        current.issues.push("unexpected hunk body line");
+      }
+      if (hunk.oldRemaining < 0 || hunk.newRemaining < 0) current.issues.push("hunk counts do not match the patch body");
+      continue;
+    }
+    if (line.startsWith("--- ")) current.oldPath = stripPrefix(headerPath(line.slice(4)), "a/");
+    else if (line.startsWith("+++ ")) current.newPath = stripPrefix(headerPath(line.slice(4)), "b/");
+    else if (line.startsWith("rename from ")) current.renameFrom = headerPath(line.slice("rename from ".length));
+    else if (line.startsWith("rename to ")) current.renameTo = headerPath(line.slice("rename to ".length));
+    else if (line.startsWith("Binary files ") || line.startsWith("GIT binary patch")) current.binary = true;
+  }
+  closeFile();
+
+  for (const file of files) {
+    if (file.oldPath === "/dev/null") file.oldPath = null;
+    if (file.newPath === "/dev/null") file.newPath = null;
+    file.oldPath = file.oldPath ?? file.renameFrom;
+    file.newPath = file.newPath ?? file.renameTo;
+  }
+  return files;
+}
+
+function mergeRanges(ranges) {
+  if (ranges.length === 0) return [];
+  const sorted = ranges.map((r) => ({ start: r.start, end: r.end })).sort((a, b) => a.start - b.start || a.end - b.end);
+  const merged = [sorted[0]];
+  for (const range of sorted.slice(1)) {
+    const last = merged[merged.length - 1];
+    if (range.start <= last.end + 1) last.end = Math.max(last.end, range.end);
+    else merged.push(range);
+  }
+  return merged;
+}
+
+function intersectRanges(ranges, start, end) {
+  const out = [];
+  for (const range of ranges) {
+    if (range.end < start) continue;
+    if (range.start > end) break;
+    out.push({ start: Math.max(range.start, start), end: Math.min(range.end, end) });
+  }
+  return out;
+}
+
+function subtractRanges(base, cut) {
+  const out = [];
+  for (const range of base) {
+    let cursor = range.start;
+    for (const taken of cut) {
+      if (taken.end < cursor) continue;
+      if (taken.start > range.end) break;
+      if (taken.start > cursor) out.push({ start: cursor, end: Math.min(taken.start - 1, range.end) });
+      cursor = Math.max(cursor, taken.end + 1);
+      if (cursor > range.end) break;
+    }
+    if (cursor <= range.end) out.push({ start: cursor, end: range.end });
+  }
+  return out;
+}
+
+function rangeCount(ranges) {
+  return ranges.reduce((sum, range) => sum + (range.end - range.start + 1), 0);
+}
+
+function isWellFormedRef(ref) {
+  if (!ref || typeof ref !== "object" || Array.isArray(ref)) return false;
+  if (typeof ref.path !== "string" || ref.path.trim() === "") return false;
+  if (ref.side === undefined && ref.start === undefined && ref.end === undefined) return true;
+  return (ref.side === "R" || ref.side === "L")
+    && Number.isSafeInteger(ref.start) && ref.start >= 1
+    && Number.isSafeInteger(ref.end) && ref.end >= ref.start;
+}
+
+function computeLineCoverage(report, options) {
+  const loaded = options?.evidence;
+  if (!loaded || loaded.status === "missing") return { available: false, reason: "no evidence file was supplied" };
+  if (loaded.status === "error") return { available: false, reason: loaded.reason };
+  const evidence = loaded.value;
+  if (!evidence || typeof evidence !== "object" || Array.isArray(evidence)) {
+    return { available: false, reason: "evidence is not a JSON object" };
+  }
+  if (evidence.schemaVersion !== 1) return { available: false, reason: "evidence schemaVersion is not 1" };
+  const sources = evidence.collection?.sources;
+  if (sources?.metadata?.status !== "complete") {
+    return { available: false, reason: `metadata source is ${sources?.metadata?.status ?? "missing"}; cannot confirm the head SHA` };
+  }
+  if (sources?.diff?.status !== "complete") {
+    return { available: false, reason: `diff source is ${sources?.diff?.status ?? "missing"}` };
+  }
+  const pr = evidence.pr;
+  if (!pr || typeof pr !== "object" || Array.isArray(pr)) return { available: false, reason: "evidence has no pull request metadata" };
+  const expectedUrl = `https://github.com/${report.repo}/pull/${report.number}`;
+  if (pr.url !== expectedUrl) return { available: false, reason: "evidence is for a different pull request" };
+  if (pr.headRefOid !== report.headSha) return { available: false, reason: "evidence head SHA does not match the report head SHA" };
+  if (typeof evidence.diff !== "string" || evidence.diff.trim() === "") {
+    return { available: false, reason: "collected diff has no content" };
+  }
+
+  const files = parseUnifiedDiff(evidence.diff);
+  const metadataFiles = Array.isArray(pr.files) ? pr.files.filter((file) => file && typeof file.path === "string") : [];
+  const metadataByPath = new Map(metadataFiles.map((file) => [file.path, file]));
+  const parsedPaths = new Set(files.flatMap((file) => [file.oldPath, file.newPath]).filter(Boolean));
+
+  for (const file of files) {
+    const key = file.newPath ?? file.oldPath;
+    const metadata = key ? metadataByPath.get(key) : undefined;
+    if (metadata && Number.isInteger(metadata.additions) && Number.isInteger(metadata.deletions)) {
+      if (metadata.additions !== rangeCount(file.adds) || metadata.deletions !== rangeCount(file.dels)) {
+        file.issues.push("diff line counts do not match PR metadata");
+      }
+    }
+    if (!file.oldPath && !file.newPath) file.issues.push("unparseable file path");
+  }
+
+  const exceptionReason = (file) => {
+    const reasons = new Set(file.issues);
+    if (file.binary) reasons.add("binary file; no line data");
+    if (!file.hasPatch && !file.binary) {
+      reasons.add(file.renameFrom && file.renameTo ? "pure rename; no line changes" : "no diff content");
+    }
+    return reasons.size > 0 ? [...reasons].join("; ") : null;
+  };
+
+  const measured = [];
+  const exceptions = [];
+  for (const file of files) {
+    const reason = exceptionReason(file);
+    const filePath = file.newPath ?? file.oldPath ?? "(unknown path)";
+    if (reason) exceptions.push({ path: filePath, reason });
+    else measured.push(file);
+  }
+  for (const metadata of metadataFiles) {
+    if (!parsedPaths.has(metadata.path)) exceptions.push({ path: metadata.path, reason: "no diff content in collected evidence" });
+  }
+
+  const additionsByPath = new Map();
+  const deletionsByPath = new Map();
+  for (const file of measured) {
+    if (file.newPath) additionsByPath.set(file.newPath, mergeRanges(file.adds));
+    if (file.oldPath) deletionsByPath.set(file.oldPath, mergeRanges(file.dels));
+  }
+
+  const coveredByPath = new Map();
+  const diagnostics = [];
+  const addCovered = (filePath, ranges) => {
+    coveredByPath.set(filePath, mergeRanges([...(coveredByPath.get(filePath) ?? []), ...ranges]));
+  };
+  const collect = (owner, where) => {
+    if (!Array.isArray(owner?.refs)) return;
+    owner.refs.forEach((ref, index) => {
+      if (!isWellFormedRef(ref)) return;
+      const at = `${where}[${index}]`;
+      const additions = additionsByPath.get(ref.path) ?? [];
+      const deletions = deletionsByPath.get(ref.path) ?? [];
+      if (additions.length === 0 && deletions.length === 0) {
+        diagnostics.push(`${at}: no observed changed lines for ${ref.path}`);
+        return;
+      }
+      if (ref.side === undefined) {
+        if (additions.length > 0) addCovered(ref.path, additions);
+        return;
+      }
+      const base = ref.side === "R" ? additions : deletions;
+      const hits = intersectRanges(base, ref.start, ref.end);
+      if (hits.length === 0) {
+        const side = ref.side === "R" ? "added" : "deleted";
+        diagnostics.push(`${at}: no observed ${side} lines in ${ref.path}:${ref.start}-${ref.end}`);
+        return;
+      }
+      if (ref.side === "R") addCovered(ref.path, hits);
+    });
+  };
+  (report.walkthrough?.steps ?? []).forEach((step, i) => collect(step, `walkthrough.steps[${i}].refs`));
+  (report.items ?? []).forEach((item, i) => collect(item, `items[${i}].refs`));
+  (report.claims ?? []).forEach((claim, i) => collect(claim, `claims[${i}].refs`));
+  (report.mechanical ?? []).forEach((group, i) => collect(group, `mechanical[${i}].refs`));
+
+  const uncoveredRanges = [];
+  for (const [filePath, ranges] of additionsByPath) {
+    for (const range of subtractRanges(ranges, coveredByPath.get(filePath) ?? [])) {
+      uncoveredRanges.push({ path: filePath, ...range });
+    }
+  }
+  const deletionRanges = [];
+  for (const [filePath, ranges] of deletionsByPath) {
+    for (const range of ranges) deletionRanges.push({ path: filePath, ...range });
+  }
+
+  const observedAdditions = [...additionsByPath.values()].reduce((n, ranges) => n + rangeCount(ranges), 0);
+  const coveredAdditions = [...coveredByPath.values()].reduce((n, ranges) => n + rangeCount(ranges), 0);
+  const deletedLines = [...deletionsByPath.values()].reduce((n, ranges) => n + rangeCount(ranges), 0);
+
+  const declared = Number.isSafeInteger(pr.changedFiles) && pr.changedFiles >= 0 ? pr.changedFiles : null;
+  const listed = metadataFiles.length;
+  let inventory = "unknown";
+  let unlisted = 0;
+  if (declared !== null) {
+    if (listed < declared) {
+      inventory = "incomplete";
+      unlisted = declared - listed;
+    } else inventory = listed > declared ? "inconsistent" : "complete";
+  }
+  const parsedAdditions = files.reduce((n, file) => n + rangeCount(file.adds), 0);
+  const parsedDeletions = files.reduce((n, file) => n + rangeCount(file.dels), 0);
+  const aggregateMismatch = (Number.isSafeInteger(pr.additions) && parsedAdditions !== pr.additions)
+    || (Number.isSafeInteger(pr.deletions) && parsedDeletions !== pr.deletions);
+
+  const measurementNotes = [];
+  if (declared === null) measurementNotes.push("the collector did not report a changed-file count");
+  if (inventory === "incomplete") measurementNotes.push(`${unlisted} changed file${unlisted === 1 ? " is" : "s are"} not in the file inventory`);
+  if (inventory === "inconsistent") measurementNotes.push("the file inventory is larger than the declared changed-file count");
+  if (exceptions.length > 0) measurementNotes.push(`${exceptions.length} file${exceptions.length === 1 ? " has" : "s have"} no usable line data`);
+  if (aggregateMismatch) measurementNotes.push("the collected diff does not match the PR addition or deletion totals");
+  const measurement = declared === null || !Number.isSafeInteger(pr.additions) || !Number.isSafeInteger(pr.deletions)
+    ? "unknown"
+    : inventory === "complete" && exceptions.length === 0 && !aggregateMismatch
+      ? "complete"
+      : "partial";
+
+  const entries = [
+    ...uncoveredRanges.map((range) => ({ kind: "Uncovered", path: range.path, side: "R", start: range.start, end: range.end })),
+    ...deletionRanges.map((range) => ({ kind: "Deleted", path: range.path, side: "L", start: range.start, end: range.end })),
+    ...exceptions.map((exception) => ({ kind: "Unmeasured", path: exception.path, side: "Z", start: 0, end: 0, reason: exception.reason })),
+  ].sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0)
+    || (a.side < b.side ? -1 : a.side > b.side ? 1 : 0)
+    || a.start - b.start);
+
+  return {
+    available: true,
+    observedAdditions,
+    coveredAdditions,
+    uncoveredAdditions: observedAdditions - coveredAdditions,
+    uncoveredRanges,
+    deletionRanges,
+    deletedLines,
+    exceptions,
+    inventory,
+    declared,
+    listed,
+    unlisted,
+    measurement,
+    measurementNotes,
+    entries: entries.slice(0, COVERAGE_DETAIL_LIMIT),
+    omittedEntries: Math.max(0, entries.length - COVERAGE_DETAIL_LIMIT),
+    diagnostics: diagnostics.slice(0, COVERAGE_DIAGNOSTIC_LIMIT),
+    omittedDiagnostics: Math.max(0, diagnostics.length - COVERAGE_DIAGNOSTIC_LIMIT),
+  };
+}
+
+function lineCoverageSection(r, coverage) {
+  if (!coverage.available) {
+    return `<details id="line-coverage" open><summary>Line coverage</summary>\n<p><strong>Line coverage unavailable.</strong> ${escapeHtml(coverage.reason)}</p></details>`;
+  }
+  const files = (n) => `${n} changed file${n === 1 ? "" : "s"}`;
+  const inventory = coverage.inventory === "complete"
+    ? `complete (${coverage.listed} of ${coverage.declared} changed files)`
+    : coverage.inventory === "incomplete"
+      ? `incomplete (${coverage.listed} of ${coverage.declared} changed files listed; ${coverage.unlisted} unlisted ${coverage.unlisted === 1 ? "file remains" : "files remain"} unmeasured)`
+      : coverage.inventory === "inconsistent"
+        ? `inconsistent (${coverage.listed} listed for ${coverage.declared} declared changed files)`
+        : "unknown (the collector did not report a changed-file count)";
+  const rows = coverage.entries.map((entry) => {
+    const location = entry.kind === "Unmeasured"
+      ? escapeHtml(entry.reason)
+      : entry.kind === "Uncovered"
+        ? `<a href="${escapeHtml(permalink(r, entry.path, entry.start, entry.end))}">${entry.start === entry.end ? entry.start : `${entry.start}-${entry.end}`}</a>`
+        : entry.start === entry.end ? `${entry.start}` : `${entry.start}-${entry.end}`;
+    return `<tr><td>${entry.kind}</td><td><code>${escapeHtml(entry.path)}</code></td><td>${location}</td></tr>`;
+  }).join("\n");
+  const details = coverage.entries.length > 0
+    ? `<table><colgroup><col style="width:14%"><col style="width:46%"><col style="width:40%"></colgroup><thead><tr><th>Kind</th><th>Path</th><th>Lines or reason</th></tr></thead><tbody>\n${rows}\n</tbody></table>`
+    : "<p>No uncovered added lines, deleted lines, or unmeasured files.</p>";
+  const detailCount = `<p class="small">Detail entries: ${coverage.entries.length} shown, ${coverage.omittedEntries} omitted.</p>`;
+  const notes = coverage.measurementNotes.length > 0 ? `<p class="small">Measurement limits: ${coverage.measurementNotes.map(escapeHtml).join("; ")}.</p>` : "";
+  const diagnostics = coverage.diagnostics.length > 0
+    ? `<ul>${coverage.diagnostics.map((diagnostic) => `<li>${escapeHtml(diagnostic)}</li>`).join("")}</ul>`
+    : "<p>None.</p>";
+  const omittedDiagnostics = coverage.omittedDiagnostics > 0 ? `<p class="small">${coverage.omittedDiagnostics} more diagnostics not shown.</p>` : "";
+  return `<details id="line-coverage" open><summary>Line coverage</summary>
+<p>Observed added lines: <strong>${coverage.observedAdditions}</strong>. Covered: <strong>${coverage.coveredAdditions}</strong>. Uncovered: <strong>${coverage.uncoveredAdditions}</strong> in ${coverage.uncoveredRanges.length} ${coverage.uncoveredRanges.length === 1 ? "range" : "ranges"}. Deleted lines: <strong>${coverage.deletedLines}</strong> in ${coverage.deletionRanges.length} ${coverage.deletionRanges.length === 1 ? "range" : "ranges"}. Unmeasured files: <strong>${coverage.exceptions.length}</strong>.</p>
+<p>Inventory: ${inventory}. Measurement: ${coverage.measurement}.</p>
+${notes}
+<h4>Coverage details</h4>
+${details}
+${detailCount}
+<h4>Ref diagnostics</h4>
+${diagnostics}
+${omittedDiagnostics}</details>`;
+}
+
+export function render(r, template = readFileSync(path.join(HERE, "template.html"), "utf8"), options = {}) {
   const items = r.items;
   const steps = r.walkthrough.steps;
   const byKind = (kind) => items.filter((item) => item.kind === kind);
@@ -501,11 +988,13 @@ ${table(
     : "";
 
   const cov = r.coverage;
+  const lineCoverage = computeLineCoverage(r, options);
   const reference = `<section class="chapter" id="reference"><h2>Reference</h2>
 <details id="coverage" open><summary>Coverage</summary>
 <h4>Checked</h4><ul>${cov.checked.map((v) => `<li>${inline(v)}</li>`).join("")}</ul>
 <h4>Evidence gaps</h4>${cov.gaps.length ? `<ul>${cov.gaps.map((v) => `<li>${inline(v)}</li>`).join("")}</ul>` : "<p>None.</p>"}
 </details>
+${lineCoverageSection(r, lineCoverage)}
 ${r.claims?.length ? `<details><summary>Claims ledger</summary>${table(["Claim", "Source", "Result"], r.claims.map((c) => [inline(c.claim), inline(c.source), inline(c.result)]), ["40%", "20%", "40%"])}</details>` : ""}
 <details><summary>Skills loaded and used</summary>${table(["Skill", "Source", "Why loaded", "How used"], r.skills.map((sk) => [`<code>${escapeHtml(sk.skill)}</code>`, escapeHtml(sk.source), inline(sk.why), inline(sk.how)]), ["20%", "15%", "30%", "35%"])}${
     r.marketplace ? `<p class="small">${inline(r.marketplace)}</p>` : ""
@@ -531,17 +1020,34 @@ ${r.claims?.length ? `<details><summary>Claims ledger</summary>${table(["Claim",
   return template.replace("{{TITLE}}", () => escapeHtml(title)).replace("{{BODY}}", () => body);
 }
 
-const HELP = `Usage: render.mjs <report.json> [--out <report.html>]
+const HELP = `Usage: render.mjs <report.json> [--out <report.html>] [--evidence <evidence.json>]
 
 Validates /pr-validate report data and renders the standard HTML report.
 The default output path replaces .json with .html. On validation errors,
 prints one "field: problem" line per error to stderr, writes nothing, and exits 1.
 
+--evidence reads the collector envelope for advisory line coverage. Without it,
+the report renders with line coverage unavailable. Coverage never changes the
+verdict or gates, and refs never prove that code was read.
+Reference lists up to 50 detail entries across uncovered ranges, deletions, and
+unmeasured files. Deletions stay visible even when referenced; missing diff
+content remains unmeasured.
+
 Field shape: example.json next to this script. Each item requires a \`priorComments\` array.
+Optional refs on a walkthrough step, item, or claim are {path} or {path, side, start, end}.
+Optional mechanical groups are {summary, refs} with nonempty refs and a summary of 40 words or fewer.
 Text fields allow only \`code\` spans and [label](https://...) or [label](#id) links.
 Word limits: ${Object.entries(LIMITS)
   .map(([k, v]) => `${k}=${v}`)
   .join(", ")}.`;
+
+function readEvidence(file) {
+  try {
+    return { status: "loaded", value: JSON.parse(readFileSync(file, "utf8")) };
+  } catch (error) {
+    return { status: "error", reason: error instanceof SyntaxError ? "evidence file is not valid JSON" : "evidence file cannot be read" };
+  }
+}
 
 function main(argv) {
   if (argv.includes("--help") || argv.includes("-h")) {
@@ -549,9 +1055,12 @@ function main(argv) {
     return 0;
   }
   const outIndex = argv.indexOf("--out");
+  const evidenceIndex = argv.indexOf("--evidence");
   const out = outIndex >= 0 ? argv[outIndex + 1] : undefined;
-  const input = argv.find((arg, i) => !arg.startsWith("--") && (outIndex < 0 || i !== outIndex + 1));
-  if (!input || (outIndex >= 0 && !out)) {
+  const evidencePath = evidenceIndex >= 0 ? argv[evidenceIndex + 1] : undefined;
+  const valueIndexes = new Set([outIndex, evidenceIndex].filter((index) => index >= 0).map((index) => index + 1));
+  const input = argv.find((arg, i) => !arg.startsWith("--") && !valueIndexes.has(i));
+  if (!input || (outIndex >= 0 && (!out || out.startsWith("--"))) || (evidenceIndex >= 0 && (!evidencePath || evidencePath.startsWith("--")))) {
     console.error(HELP);
     return 2;
   }
@@ -569,7 +1078,8 @@ function main(argv) {
     return 1;
   }
   const target = out ?? input.replace(/\.json$/, "") + ".html";
-  writeFileSync(target, render(report));
+  const evidence = evidencePath ? readEvidence(evidencePath) : { status: "missing" };
+  writeFileSync(target, render(report, undefined, { evidence }));
   console.log(target);
   return 0;
 }

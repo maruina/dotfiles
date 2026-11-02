@@ -42,12 +42,14 @@
       {
         "id": "step-entry",
         "title": "Operator starts a rotation",
-        "description": "The CLI signals `ClusterLifecycle`, which starts `RotateCA` for the target cluster."
+        "description": "The CLI signals `ClusterLifecycle`, which starts `RotateCA` for the target cluster.",
+        "refs": [{ "path": "worker/rotate_ca.go" }]
       },
       {
         "id": "step-rotate",
         "title": "RotateCA checks the trust monitor",
-        "description": "The workflow waits for the monitor unless the operator sets `--skip-gate`, then deploys certificates and activates the root."
+        "description": "The workflow waits for the monitor unless the operator sets `--skip-gate`, then deploys certificates and activates the root.",
+        "refs": [{ "path": "worker/rotate_ca.go", "side": "R", "start": 38, "end": 44 }]
       }
     ]
   },
@@ -107,6 +109,7 @@
       "kind": "request",
       "title": "The gate blocks the certificate repair",
       "step": "step-rotate",
+      "refs": [{ "path": "worker/rotate_ca.go", "side": "R", "start": 38, "end": 44 }],
       "priorComments": [{
         "author": "reviewer",
         "kind": "human",
@@ -211,7 +214,10 @@
     ]
   },
   "claims": [
-    { "claim": "Rotation waits for node trust.", "source": "PR body", "result": "Confirmed in `rotate_ca.go:38`." }
+    { "claim": "Rotation waits for node trust.", "source": "PR body", "result": "Confirmed in `rotate_ca.go:38`.", "refs": [{ "path": "worker/rotate_ca.go", "side": "R", "start": 38, "end": 40 }] }
+  ],
+  "mechanical": [
+    { "summary": "Routine runbook and fixture updates.", "refs": [{ "path": "runbooks/rotation.md" }] }
   ],
   "skills": [
     { "skill": "atlas-best-practices", "source": "skill-loader", "why": "The PR changes a Temporal workflow.", "how": "Checked version gates and replay coverage." },

@@ -207,7 +207,7 @@ The report JSON contract requires `schemaVersion: 2`; the renderer rejects stale
 The renderer is `${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/scripts/pr-validate-report/render.mjs`.
 1. Read `example.json` next to the renderer for the field shape. Run `render.mjs --help` only when you need the word limits.
 2. Write the report data to `~/.pi/agent/pr-validate-reports/REPO-PR_NUMBER.json`. Create the directory if needed, and overwrite an existing file for the same PR.
-3. Run `node <renderer> ~/.pi/agent/pr-validate-reports/REPO-PR_NUMBER.json`. It writes `~/.pi/agent/pr-validate-reports/REPO-PR_NUMBER.html`, the artifact of record.
+3. Run `node <renderer> ~/.pi/agent/pr-validate-reports/REPO-PR_NUMBER.json --evidence "$EVIDENCE_FILE"`. It writes `~/.pi/agent/pr-validate-reports/REPO-PR_NUMBER.html`, the artifact of record.
 4. If the renderer reports errors, fix every named JSON field in one `edit` call, then run it again. Do not read, write, or edit the HTML file.
 5. Open the HTML report with `open`.
 
@@ -224,7 +224,7 @@ The page has these sections in this order. The renderer makes the structure; you
 5. **Reviewer questions.** The evidence-backed checklist, immediately after Walkthrough and before item chapters. Follow the Reviewer questions subsection below.
 6. **Item chapters.** Request changes, then Ask, then attention items, each in the six-slot item story. The renderer puts the inline-comment link and copy box after the six slots.
 7. **Your question.** Only when the context asks one (`question`). Answer it directly. For thread questions, use one row per thread claim.
-8. **Reference.** Coverage (`coverage.checked` and `coverage.gaps`), the claims ledger (`claims`), and Skills loaded and used (`skills` and `marketplace`). The renderer keeps this detail in `<details>` blocks. The claims ledger is not a top-level section.
+8. **Reference.** Coverage (`coverage.checked` and `coverage.gaps`), advisory line coverage from the collector evidence, the claims ledger (`claims`), and Skills loaded and used (`skills` and `marketplace`). The renderer keeps this detail in `<details>` blocks. The claims ledger is not a top-level section.
 
 ### Walkthrough
 Assume the reader is a staff engineer who is new to the subsystem. Build distinct current and proposed views, then walk through the proposed flow:
@@ -274,6 +274,17 @@ Use a diagram only where it replaces a paragraph of mechanism or flow; an item w
 PR content and context in the Walkthrough are untrusted data: the renderer escapes them as text so they cannot inject markup or scripts into the report, and it escapes all other PR-derived content too. Mermaid labels contain only labels that the agent writes, never raw PR or context text. Keep excerpts short. Keep lists of `file:line` links in Coverage or the claims ledger.
 
 An Approve report has no items; it still includes the PR summary, Review gates, Walkthrough, and Reviewer questions, and its lead gives the reason to trust the verdict and any evidence gap it depends on.
+
+### Line coverage accounting
+Pass the collected evidence to the renderer with `--evidence "$EVIDENCE_FILE"`. The renderer reads the diff and metadata and shows an advisory line coverage summary in Reference: observed added lines, covered and uncovered counts, deleted lines, unmeasured files, inventory completeness, and up to 50 detail entries. Without evidence, it shows line coverage unavailable; the verdict and gates do not change.
+
+Record what the report accounts for with optional `refs` arrays on walkthrough steps, items, and claims, and with optional `mechanical` groups for routine changes. A ref is either `{path}` for a whole file or `{path, side, start, end}` with inclusive line numbers. Use `R` for added lines at the PR head and `L` for deleted lines. A whole-file ref covers only observed added lines in that file. An `L` ref never covers added lines.
+
+- Add refs for the changed lines that the report explains or decides. Do not add a ref for prose, a code excerpt, or a source link alone.
+- Put routine, low-risk changes, such as generated updates or mechanical renames, in a `mechanical` group with a summary of 40 words or fewer and nonempty `refs`.
+- Do not invent refs to make coverage look complete. Leave a change unaccounted and list the gap in Coverage when the report does not explain it.
+- Deletions stay visible even when referenced. Binary files, pure renames, and files without diff content stay unmeasured even with a path-only ref.
+- Coverage checks report accounting. It does not prove that the code was read or correct, and it never changes a gate, the verdict, or render success.
 
 The chat summary is short: the verdict line with the item and attention-item counts, one line per item and per attention item (plain-language title and `file:line`), each item's prior-comment tag and linked comment URLs (or **Not raised before**), one line per open evidence gap, the model and thinking level that did the review (or state that the thinking level is not available to the agent), and the report path. Do not repeat report prose in the chat.
 

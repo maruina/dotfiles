@@ -1029,10 +1029,13 @@ prints one "field: problem" line per error to stderr, writes nothing, and exits 
 --evidence reads the collector envelope for advisory line coverage. Without it,
 the report renders with line coverage unavailable. Coverage never changes the
 verdict or gates, and refs never prove that code was read.
+Reference lists up to 50 detail entries across uncovered ranges, deletions, and
+unmeasured files. Deletions stay visible even when referenced; missing diff
+content remains unmeasured.
 
 Field shape: example.json next to this script. Each item requires a \`priorComments\` array.
 Optional refs on a walkthrough step, item, or claim are {path} or {path, side, start, end}.
-Optional mechanical groups are {summary, refs} with nonempty refs and a 40-word summary.
+Optional mechanical groups are {summary, refs} with nonempty refs and a summary of 40 words or fewer.
 Text fields allow only \`code\` spans and [label](https://...) or [label](#id) links.
 Word limits: ${Object.entries(LIMITS)
   .map(([k, v]) => `${k}=${v}`)

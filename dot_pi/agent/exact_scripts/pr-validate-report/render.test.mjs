@@ -756,6 +756,10 @@ test("CLI help lists the whyBad limit and priorComments field", () => {
   assert.match(result.stdout, /--evidence/);
   assert.match(result.stdout, /\{path\}/);
   assert.match(result.stdout, /mechanical/);
+  assert.match(result.stdout, /40 words or fewer/);
+  assert.match(result.stdout, /up to 50 detail entries/);
+  assert.match(result.stdout, /Deletions stay visible/);
+  assert.match(result.stdout, /unmeasured files/);
 });
 
 test("the example documents optional refs and mechanical groups", () => {

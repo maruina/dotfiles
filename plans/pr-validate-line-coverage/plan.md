@@ -179,14 +179,38 @@ This is one complete feature slice, not independently shipped parser, schema, an
 **Traces to:** R1–R5, documentation requirements, and repository completion workflow.
 **Files:** `dot_pi/agent/exact_scripts/pr-validate-report/render.mjs` (help), `dot_pi/agent/exact_scripts/pr-validate-report/example.json`, `dot_pi/agent/exact_prompts/pr-validate.md`, `dot_pi/agent/exact_scripts/pr-validate-report/render.test.mjs`, `plans/pr-validate-line-coverage/plan.md` (tracking).
 
-- [ ] Check help, example, and prompt for consistent optional field shapes, evidence invocation, 40-word mechanical summaries, coverage caveats, and output cap. Add/run focused help tests before any remaining help change; avoid duplicating instructions in a new README.
-- [ ] Review repository `AGENTS.md`, inherited guidance, and `dot_pi/agent/AGENTS.md`. Record no update unless implementation establishes a durable command or trap not already documented; do not copy feature details into global guidance. Historical plans/designs require no updates. No ADR for this feature was found.
-- [ ] Run `npm ci --ignore-scripts` under `dot_pi/agent/` before final verification; keep dependencies until `npm test` and `npm run test:all` complete, then remove that disposable source `node_modules` directory per repository guidance. Do not change dependency manifests or lockfiles.
-- [ ] Run `npm test` and `npm run test:all` from `dot_pi/agent/`; expect all tests green. Record any environmental smoke-test blocker explicitly; do not infer success from absent output.
-- [ ] Final verification: rerun the focused command from Task 1 and demonstrate the three-part fixture through the CLI, unchanged verdict/gates, old-report compatibility, omission diagnostics, and the 50-entry cap. Inspect generated test HTML only in test scratch space, not a live report. Tests must clean temporary fixtures.
-- [ ] Run `git diff --check`; review the final diff against the scope, especially unchanged object-read/HARD-GATE rules and optional schema compatibility.
-- [ ] Preview and apply only changed runtime target files with `chezmoi --source "$PWD" diff <explicit-target-file>` and `chezmoi --source "$PWD" apply <explicit-target-file>`. Use each file's prefix-mapped target under `~/.pi/agent/`; verify explicit files, not directory targets. Do not apply the plan or broad targets. If unrelated target drift is present, stop and ask.
-- [ ] Commit any remaining documentation/tracking changes with `docs(pi): document advisory PR diff coverage`, only if such changes remain after Task 1. Push the feature branch using the repository's GitHub-account routing rules; restore and verify the original account on success or error.
+- [x] Check help, example, and prompt for consistent optional field shapes, evidence invocation, 40-word mechanical summaries, coverage caveats, and output cap. Add/run focused help tests before any remaining help change; avoid duplicating instructions in a new README.
+- [x] Review repository `AGENTS.md`, inherited guidance, and `dot_pi/agent/AGENTS.md`. Record no update unless implementation establishes a durable command or trap not already documented; do not copy feature details into global guidance. Historical plans/designs require no updates. No ADR for this feature was found.
+- [x] Run `npm ci --ignore-scripts` under `dot_pi/agent/` before final verification; keep dependencies until `npm test` and `npm run test:all` complete, then remove that disposable source `node_modules` directory per repository guidance. Do not change dependency manifests or lockfiles.
+- [x] Run `npm test` and `npm run test:all` from `dot_pi/agent/`; expect all tests green. Record any environmental smoke-test blocker explicitly; do not infer success from absent output.
+- [x] Final verification: rerun the focused command from Task 1 and demonstrate the three-part fixture through the CLI, unchanged verdict/gates, old-report compatibility, omission diagnostics, and the 50-entry cap. Inspect generated test HTML only in test scratch space, not a live report. Tests must clean temporary fixtures.
+- [x] Run `git diff --check`; review the final diff against the scope, especially unchanged object-read/HARD-GATE rules and optional schema compatibility.
+- [x] Preview and apply only changed runtime target files with `chezmoi --source "$PWD" diff <explicit-target-file>` and `chezmoi --source "$PWD" apply <explicit-target-file>`. Use each file's prefix-mapped target under `~/.pi/agent/`; verify explicit files, not directory targets. Do not apply the plan or broad targets. If unrelated target drift is present, stop and ask.
+- [x] Commit any remaining documentation/tracking changes with `docs(pi): document advisory PR diff coverage`, only if such changes remain after Task 1. Push the feature branch using the repository's GitHub-account routing rules; restore and verify the original account on success or error.
+
+### Slice 2 execution notes
+- Reviewed help, example, prompt, repository and inherited guidance, and agent guidance. No AGENTS.md change is needed. The optional field shapes and evidence invocation agree; help now states the 40-word maximum, 50-entry cap, and deletion/unmeasured caveats. Added help assertions first: the focused help test failed on the missing wording, then passed with the documentation change. No behavior or public symbol changed.
+- `npm ci --ignore-scripts`, `npm test`, and `npm run test:all` passed. Installation reported 10 dependency vulnerabilities (2 low, 4 moderate, 3 high, 1 critical); manifests and lockfile remain unchanged. The offline smoke command exited successfully without extension issues but reported no models available; it does not prove provider connectivity. Removed disposable source node_modules after both suites completed.
+- All 98 focused tests passed, including CLI-generated scratch HTML assertions for the three-part fixture, unchanged verdict/gates, omission diagnostics, and 50-entry cap; old-report compatibility is asserted through render(). The CLI fixture helper cleans its scratch directory. `git diff --check` passed.
+- Rollout blocker: four installed targets differ from origin/main independently of this feature: pr-validate.md, lifecycle-prompts.test.mjs, collect.mjs, and collect.test.mjs. Their installed content lacks earlier #121 object-read/HARD-GATE and isCrossRepository changes. No targets were applied. Ask whether to include those prerequisite updates in the targeted rollout.
+- PR blocker: the branch adds more than 400 net non-test implementation lines (render.mjs alone exceeds the threshold). No PR exists for this branch. Ask for an approved stack or single-PR exception before opening a draft. No commit or push for Slice 2 while blocked. GitHub account was restored and verified as matteo-ruina_ddog.
+
+- Both blockers were resolved by explicit user approval: ship one PR and include the earlier #121 prerequisite changes in the targeted apply. Re-ran all 98 focused tests successfully and reviewed the seven-file chezmoi preview. Applied only those seven explicit targets; explicit-file chezmoi verify and byte comparisons all passed. No broad targets or lifecycle artifacts were applied.
+- Completion commit: `docs(pi): document advisory PR diff coverage`. Preserve existing history and use a normal branch push; open one standalone draft PR against main. Independent verification remains a separate stage.
+
+Slice 2 skill provenance (supplements the earlier execution record):
+
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `skill-loader` | prompt-required | Execution setup | Selected matching source, CLI, prose, and PR skills |
+| `resolve-worktree` | prompt-required | Absolute plan path | Resolved the clean feature worktree before repository reads |
+| `feature-worktree` | prompt-required | Writes | Continued on the existing feature branch, not main |
+| `chezmoi` | skill-loader | Managed sources and rollout | Edited source only; detected target drift before apply |
+| `codebase-research` | skill-loader | Unfamiliar report area | Traced CLI help, example, prompt, public tests, and package commands |
+| `cli-best-practices` | skill-loader | Help consistency | Preserved invocation and clarified output limits |
+| `write` | skill-loader | Help and ledger prose | Used explicit limits and concrete verification notes |
+| `diataxis` | skill-loader | Usage reference | Kept help as concise reference, without a new README |
+| `reviewable-pr-workflow` | skill-loader | Draft PR handoff | Applied the size threshold and stopped for a split decision |
 
 ## Operational impact and stop conditions
 This is a local, on-demand renderer; there is no service rollout, database migration, or on-call change. Generated HTML remains the artifact of record. An evidence file is needed only at render time; reports do not embed raw evidence and do not need it to open later.

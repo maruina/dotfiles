@@ -22,6 +22,17 @@
 | `learning-lookup` | prompt-required | Advisory guidance | Checked the learning store; no relevant guidance matched |
 | `obsidian-cli` | agent-selected | Learning lookup dependency | Read the advisory store through the installed CLI |
 
+### Execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `resolve-worktree` | prompt-required | Plan path resolution | Confirmed the absolute plan path and stopped in the owning worktree |
+| `skill-loader` | prompt-required | Execution skill selection | Routed the changed `.mjs`, `.json`, and `.md` files to applicable skills |
+| `feature-worktree` | prompt-required | Worktree policy | Confirmed the existing feature worktree and branch |
+| `chezmoi` | skill-loader | Managed source files | Edited the source tree and deferred targeted application to Slice 2 |
+| `cli-best-practices` | skill-loader | Renderer CLI flag | Added the explicit `--evidence` flag and kept diagnostics on stderr |
+| `write` | skill-loader | Prompt and help prose | Kept new instructions short and concrete |
+| `reviewable-pr-workflow` | skill-loader | Slice handoff | Applied the stack-split check before proposing a PR |
+
 ## Source and confirmed alignment
 - Source of truth: the user's F1 request and confirmed planning alignment brief in this session.
 - Classification: Medium; bounded behavior with report-contract and evidence-handling changes.
@@ -143,16 +154,23 @@ This is one complete feature slice, not independently shipped parser, schema, an
 **Traces to:** R1–R5 and the tests-first instruction.
 **Files:** `dot_pi/agent/exact_scripts/pr-validate-report/render.mjs`, `dot_pi/agent/exact_scripts/pr-validate-report/render.test.mjs`, `dot_pi/agent/exact_scripts/pr-validate-report/collect.mjs`, `dot_pi/agent/exact_scripts/pr-validate-report/collect.test.mjs`, `dot_pi/agent/exact_scripts/pr-validate-report/example.json`, `dot_pi/agent/exact_scripts/pr-validate-report/template.html` (only if needed), `dot_pi/agent/exact_prompts/pr-validate.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`.
 
-- [ ] Inspect current consumers and use LSP definition/reference context before changing exported renderer behavior; preserve existing call signatures and template argument behavior.
-- [ ] Add the three-part fixture first: an uncovered addition hunk, a deletion-only hunk, and a metadata file without diff content. Start from the existing valid report example and supply matched identities. Run the expected-red command from Test Strategy.
-- [ ] Add fake-gh metadata assertions before requesting/normalizing optional `pr.changedFiles`; preserve null for absent/invalid counts and all existing source-status behavior.
-- [ ] Implement optional refs/mechanical validation, evidence CLI input and identity checks, strict diff parsing/reconciliation, interval accounting, and escaped Reference output as specified above.
-- [ ] Extend the fixture matrix for every R1–R4 positive and negative scenario before implementing each corresponding edge case. Include new/deleted empty-side hunks, no-newline markers, quoted paths, malformed hunks, zero observed additions, unavailable sources, and missing declared counts.
-- [ ] Update the prompt and example in the same slice. Pass the existing `$EVIDENCE_FILE` to the renderer; do not add collection or report-write locations. Explain that refs account for report content, not proof of understanding, and that unavailable/deleted changes remain visible.
-- [ ] Add lifecycle regression assertions for R5 and retain existing object-read/HARD-GATE tests.
-- [ ] Run `node --test dot_pi/agent/exact_scripts/pr-validate-report/render.test.mjs dot_pi/agent/exact_scripts/pr-validate-report/collect.test.mjs dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`; expect all tests green, including unchanged legacy cases.
-- [ ] Refactor only after green, then rerun the focused command. Run appropriate LSP diagnostics for edited JavaScript; report tool gaps without replacing execution tests.
-- [ ] Commit with `feat(pi): report advisory line-level PR diff coverage`.
+- [x] Inspect current consumers and use LSP definition/reference context before changing exported renderer behavior; preserve existing call signatures and template argument behavior.
+- [x] Add the three-part fixture first: an uncovered addition hunk, a deletion-only hunk, and a metadata file without diff content. Start from the existing valid report example and supply matched identities. Run the expected-red command from Test Strategy.
+- [x] Add fake-gh metadata assertions before requesting/normalizing optional `pr.changedFiles`; preserve null for absent/invalid counts and all existing source-status behavior.
+- [x] Implement optional refs/mechanical validation, evidence CLI input and identity checks, strict diff parsing/reconciliation, interval accounting, and escaped Reference output as specified above.
+- [x] Extend the fixture matrix for every R1–R4 positive and negative scenario before implementing each corresponding edge case. Include new/deleted empty-side hunks, no-newline markers, quoted paths, malformed hunks, zero observed additions, unavailable sources, and missing declared counts.
+- [x] Update the prompt and example in the same slice. Pass the existing `$EVIDENCE_FILE` to the renderer; do not add collection or report-write locations. Explain that refs account for report content, not proof of understanding, and that unavailable/deleted changes remain visible.
+- [x] Add lifecycle regression assertions for R5 and retain existing object-read/HARD-GATE tests.
+- [x] Run `node --test dot_pi/agent/exact_scripts/pr-validate-report/render.test.mjs dot_pi/agent/exact_scripts/pr-validate-report/collect.test.mjs dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`; expect all tests green, including unchanged legacy cases.
+- [x] Refactor only after green, then rerun the focused command. Run appropriate LSP diagnostics for edited JavaScript; report tool gaps without replacing execution tests.
+- [x] Commit with `feat(pi): report advisory line-level PR diff coverage`.
+
+**Execution notes:**
+- The expected-red run failed because line coverage content was absent; the fixture itself validated and rendered.
+- `lsp_diagnostics` could not start: the worktree has no TypeScript installation. `node --check` and the public renderer CLI tests supplied the syntax and behavior signal. `rg` confirmed the only consumers of `render`/`validate` are this prompt and the renderer tests.
+- No post-green refactor was needed; the focused command was rerun after the final changes. 98 focused tests pass (36 renderer, 12 collector, 50 lifecycle prompt). The pre-change renderer/collector baseline was 27 tests.
+- Coverage stays advisory. Evidence identity and source status gate the measurement; missing, mismatched, or partial evidence renders unavailable coverage and leaves the verdict and gates unchanged.
+
 
 ### Slice 2: Documentation and final verification
 ### Task 2: Complete usage guidance and verify the integrated feature

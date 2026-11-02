@@ -21,6 +21,7 @@ const metadata = {
   labels: [{ name: "area:test" }],
   additions: 4,
   deletions: 2,
+  changedFiles: 1,
   files: [{ path: "src/change.js", additions: 4, deletions: 2, changeType: "MODIFIED" }],
   url: "https://github.com/example-org/example-repo/pull/42",
 };
@@ -74,7 +75,16 @@ const pages = {
   checks: [{ bucket: "pass", name: "unit", state: "SUCCESS", link: "https://github.com/example-org/example-repo/actions/runs/1" }],
 };
 
-if (source === "diff" && process.env.FAKE_GH_SCENARIO === "large-diff") {
+if (source === "metadata" && process.env.FAKE_GH_SCENARIO === "missing-changed-files") {
+  delete pages.metadata.changedFiles;
+  process.stdout.write(JSON.stringify(pages.metadata));
+} else if (source === "metadata" && process.env.FAKE_GH_SCENARIO === "invalid-changed-files") {
+  pages.metadata.changedFiles = "many";
+  process.stdout.write(JSON.stringify(pages.metadata));
+} else if (source === "metadata" && process.env.FAKE_GH_SCENARIO === "incomplete-inventory") {
+  pages.metadata.changedFiles = 3;
+  process.stdout.write(JSON.stringify(pages.metadata));
+} else if (source === "diff" && process.env.FAKE_GH_SCENARIO === "large-diff") {
   process.stdout.write("diff --git a/large b/large\n" + "+".repeat(2 * 1024 * 1024));
 } else if (source === "reviewThreads" && process.env.FAKE_GH_SCENARIO === "nested-thread-pagination") {
   pages.reviewThreads[0].data.repository.pullRequest.reviewThreads.nodes[0].comments.pageInfo.hasNextPage = true;
@@ -142,6 +152,7 @@ test("valid PR URLs collect normalized evidence from every paginated source", (t
   assert.equal(evidence.pr.headRefOid, "head-sha");
   assert.equal(evidence.pr.isCrossRepository, false);
   assert.deepEqual(evidence.pr.labels, ["area:test"]);
+  assert.equal(evidence.pr.changedFiles, 1);
   assert.deepEqual(evidence.pr.files, [{ path: "src/change.js", additions: 4, deletions: 2, changeType: "MODIFIED" }]);
   assert.match(evidence.diff, /\+change/);
   assert.deepEqual(evidence.comments.inline.map((comment) => comment.id), [11, 12]);
@@ -167,8 +178,29 @@ test("valid PR URLs collect normalized evidence from every paginated source", (t
   for (const source of ["metadata", "diff", "inlineComments", "topLevelComments", "reviews", "reviewThreads", "checks"]) {
     assert.equal(evidence.collection.sources[source].status, "complete", source);
   }
+  const metadataCall = calls.find(({ args }) => args[0] === "pr" && args[1] === "view");
+  const metadataFields = metadataCall.args[metadataCall.args.indexOf("--json") + 1].split(",");
+  assert.ok(metadataFields.includes("changedFiles"));
   assert.ok(calls.some(({ args }) => args.includes("--paginate") && args.includes("--slurp")));
   assert.ok(calls.every(({ args, promptDisabled }) => promptDisabled === "1" && !args.some((arg) => ["POST", "PATCH", "PUT", "DELETE"].includes(arg))));
+});
+
+test("absent or invalid changed-file counts stay null instead of using the file-list length", (t) => {
+  for (const scenario of ["missing-changed-files", "invalid-changed-files"]) {
+    const { result } = runCollector(t, ["https://github.com/example-org/example-repo/pull/42"], scenario);
+    assert.equal(result.status, 0, result.stderr);
+    const evidence = JSON.parse(result.stdout);
+    assert.equal(evidence.pr.changedFiles, null, scenario);
+    assert.equal(evidence.pr.files.length, 1, scenario);
+  }
+});
+
+test("a declared count above the returned file list is preserved without substitution", (t) => {
+  const { result } = runCollector(t, ["https://github.com/example-org/example-repo/pull/42"], "incomplete-inventory");
+  assert.equal(result.status, 0, result.stderr);
+  const evidence = JSON.parse(result.stdout);
+  assert.equal(evidence.pr.changedFiles, 3);
+  assert.equal(evidence.pr.files.length, 1);
 });
 
 test("pending checks remain available data when gh exits with status 8", (t) => {

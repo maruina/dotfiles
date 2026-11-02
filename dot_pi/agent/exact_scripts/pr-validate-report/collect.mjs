@@ -25,6 +25,7 @@ const METADATA_FIELDS = [
   "additions",
   "deletions",
   "files",
+  "changedFiles",
   "url",
 ].join(",");
 
@@ -186,6 +187,7 @@ function normalizeMetadata(raw, canonicalUrl) {
     labels: Array.isArray(raw.labels) ? raw.labels.map((label) => label.name).filter((name) => typeof name === "string") : [],
     additions: raw.additions ?? null,
     deletions: raw.deletions ?? null,
+    changedFiles: Number.isSafeInteger(raw.changedFiles) && raw.changedFiles >= 0 ? raw.changedFiles : null,
     files: Array.isArray(raw.files)
       ? raw.files.map(({ path, additions, deletions, changeType }) => ({ path, additions, deletions, changeType }))
       : [],
@@ -278,7 +280,7 @@ async function collect(prUrl) {
     console.error("source unavailable: checks (invalid_response)");
   }
 
-  let pr = { url, title: null, body: null, author: null, state: null, baseRefName: null, baseRefOid: null, headRefName: null, headRefOid: null, isCrossRepository: null, labels: [], additions: null, deletions: null, files: [] };
+  let pr = { url, title: null, body: null, author: null, state: null, baseRefName: null, baseRefOid: null, headRefName: null, headRefOid: null, isCrossRepository: null, labels: [], additions: null, deletions: null, changedFiles: null, files: [] };
   if (results.metadata.ok) {
     try {
       pr = normalizeMetadata(results.metadata.value, url);

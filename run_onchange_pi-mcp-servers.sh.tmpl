@@ -7,6 +7,7 @@ set -eufo pipefail
 # profiles during the auth migration; preserve unrelated entries.
 {{ if eq .profile "work" }}
 pi mcp remove ha-mcp >/dev/null 2>&1 || true
+pi mcp remove b2-mcp >/dev/null 2>&1 || true
 pi mcp remove datadog-prod >/dev/null 2>&1 || true
 pi mcp remove datadog-staging >/dev/null 2>&1 || true
 
@@ -38,6 +39,21 @@ pi mcp add ha-mcp \
   --url "$ha_url" \
   --exposure deferred \
   --description 'Home Assistant inventory, state, history, and confirmed control. Routed by the home-assistant skill tiers.'
+
+# Both B2 credential fields resolve from 1Password at apply time so the key
+# never lives in fish env or chezmoi source.
+b2_key_id="$(op read 'op://Private/Backblaze/mcp-key-id')"
+b2_key="$(op read 'op://Private/Backblaze/mcp-application-key')"
+
+# deliberate: pinned to installed asdf node 24.20.0 because @backblaze-labs/b2-mcp
+# declares engines ^22.22.2 || ^24 || ^26 and the default global node is 25.2.1.
+# Upgrade path: change the pin when asdf's default moves to 24.x/26.x.
+pi mcp add b2-mcp \
+  --env "B2_APPLICATION_KEY_ID=$b2_key_id" \
+  --env "B2_APPLICATION_KEY=$b2_key" \
+  --exposure deferred \
+  --description 'Query and manage Backblaze B2 buckets, files, the S3 data plane, and application keys. Read-only by default; write and destructive tools gated, use only on explicit request.' \
+  -- "$HOME/.asdf/installs/nodejs/24.20.0/bin/npx" -y @backblaze-labs/b2-mcp
 {{ end }}
 
 # mcp.json can contain the Home Assistant connect URL; keep it user-readable only.

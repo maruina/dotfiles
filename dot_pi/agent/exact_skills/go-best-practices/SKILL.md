@@ -3,11 +3,15 @@ name: go-best-practices
 description: Write, review, and debug Go code using the Uber Go Style Guide and practical Go correctness, concurrency, testing, and performance guidance. Use for general Go work; load specialized Kubernetes skills first for controllers and API types.
 ---
 # Go Best Practices
-Apply these rules to the user's Go task. If no task is specified, ask for one. For Kubernetes controllers and API types, load the specialized Kubernetes skills first.
+Use for general Go changes. For controller-runtime, reconcilers, CRDs, watches, finalizers, status conditions, or envtest, load the Kubernetes-specific skill first because Kubernetes lifecycle and API conventions take precedence over general Go guidance.
+
+Default to repository conventions and make small, idiomatic changes because consistency reduces review cost and avoids unrelated risk. Do not rewrite working code for style alone because style churn obscures behavior-bearing changes.
 
 This skill merges the [Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md) (revision `1d60a91aa5e87d443002e23c21903c49489dbde5`) and `atom/skills/go-best-practices/SKILL.md` from the Claude marketplace (revision `b937ce451cf47154af8566b6ad7776a7749fc810`). **Uber wins when the two sources conflict.** The rules below consolidate both sources rather than requiring either source at runtime. The Uber guide is [Apache-2.0 licensed](https://github.com/uber-go/guide/blob/1d60a91aa5e87d443002e23c21903c49489dbde5/LICENSE). The Uber guide was originally created by Prashant Varanasi and Simon Newton and expanded by its contributors; this skill condenses, reorganizes, and supplements their guidance.
 
-Respect explicit repository requirements, supported Go versions, and existing package conventions. Do not rewrite unrelated code for style alone. Check the module's `go` directive and CI toolchains before adopting a version-specific API. Performance rules apply to measured hot paths, not as a reason to make ordinary code harder to read.
+## Version baseline
+- Check the module's `go` directive and supported development and CI toolchains before adopting a language feature, standard-library API, or runtime behavior introduced in a later Go version.
+- If the project supports an earlier version, use a compatible alternative. Do not raise the minimum Go version as an incidental style change. Run tests and `go vet` with the supported toolchain to check compatibility.
 
 ## Contracts and nil values
 - Validate external input and public API arguments where required by the contract. Trust internal constructors and functions that guarantee valid results on success; do not add redundant nil checks after every call.
@@ -212,13 +216,3 @@ go test -run='^$' -bench=. -trace=trace.out
 go tool trace trace.out
 go build -gcflags='-m' ./...
 ```
-
-## Merge decisions
-- Uber's nonzero enum default replaces the marketplace's zero-based example, with Uber's useful-zero exception preserved.
-- Uber's unbuffered-or-one channel guidance replaces a blanket default buffer size of one.
-- The marketplace recommends package globals for reusable lookup collections; Uber avoids mutable global state. This is a design tension, not a direct contradiction when a lookup remains read-only.
-- Uber's import-alias restrictions replace aliasing a standard package merely to resolve a local variable name.
-- Uber supplies an interface-based functional-options implementation. The marketplace gives only a `WithPort` signature and does not specify the `Option` type; there is no contradiction.
-- Uber's matching/context criteria for errors replace the expected-versus-unexpected split.
-- Both sources recognize nil-versus-empty serialization differences. Uber additionally states a default of returning nil slices; this is added detail, not a contradiction.
-- Factual corrections include shallow collection cloning, parameterized SQL, protected profiling endpoints, request-context lifetime, and version-aware parallel-loop captures. These do not change the precedence of Uber's style rules.

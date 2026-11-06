@@ -1,125 +1,218 @@
 ---
 name: go-best-practices
-description: Applies general Go best practices while writing or modifying Go code. Use for idiomatic design, ownership, errors, tests, concurrency, generics, performance, and diagnostics. Do not use as the primary guidance for Kubernetes controllers or controller-runtime code; use specialized controller skills first.
+description: Write, review, and debug Go code using the Uber Go Style Guide and practical Go correctness, concurrency, testing, and performance guidance. Use for general Go work; load specialized Kubernetes skills first for controllers and API types.
 ---
 # Go Best Practices
 Use for general Go changes. For controller-runtime, reconcilers, CRDs, watches, finalizers, status conditions, or envtest, load the Kubernetes-specific skill first because Kubernetes lifecycle and API conventions take precedence over general Go guidance.
 
 Default to repository conventions and make small, idiomatic changes because consistency reduces review cost and avoids unrelated risk. Do not rewrite working code for style alone because style churn obscures behavior-bearing changes.
 
+This skill merges the [Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md) (revision `1d60a91aa5e87d443002e23c21903c49489dbde5`) and `atom/skills/go-best-practices/SKILL.md` from the Claude marketplace (revision `b937ce451cf47154af8566b6ad7776a7749fc810`). **Uber wins when the two sources conflict.** The rules below consolidate both sources rather than requiring either source at runtime. The Uber guide is [Apache-2.0 licensed](https://github.com/uber-go/guide/blob/1d60a91aa5e87d443002e23c21903c49489dbde5/LICENSE). The Uber guide was originally created by Prashant Varanasi and Simon Newton and expanded by its contributors; this skill condenses, reorganizes, and supplements their guidance.
+
 ## Version baseline
-- Before using a language feature, standard-library API, or runtime behavior introduced in Go X.Y, require Go X.Y in the module's `go` directive and ensure local development and CI use Go X.Y or later. This keeps the source contract aligned with every supported toolchain.
-- If the project supports an earlier Go version, use the established compatible alternative and run `go vet` so its `stdversion` analyzer catches too-new standard-library references (`go test` runs that check by default only from Go 1.27). Otherwise, a locally successful change can fail for users or CI on the declared baseline.
+- Check the module's `go` directive and supported development and CI toolchains before adopting a language feature, standard-library API, or runtime behavior introduced in a later Go version.
+- If the project supports an earlier version, use a compatible alternative. Do not raise the minimum Go version as an incidental style change. Run tests and `go vet` with the supported toolchain to check compatibility.
 
-## 1. Introduction
-- Evaluate designs in this order: integrity, readability, simplicity, then performance. Later concerns cannot compensate for incorrect behavior or code that maintainers cannot safely change.
-- Maintain a clear mental model of ownership, data flow, invariants, and failure paths. If understanding local behavior requires repeatedly tracing distant code, simplify the design because hidden coupling makes defects and regressions harder to predict.
-- Make code honest: types, signatures, and control flow should expose mutation, blocking, ownership, and failure. Concealing these costs behind surprising abstractions causes callers to form the wrong model.
-- Require every rule and abstraction to prevent a concrete misuse, isolate an identified source of change, or materially simplify the system. Rules without a demonstrated benefit add complexity without paying for themselves.
-- Prototype uncertain designs concretely to learn the data and discover real contracts. Before treating the result as production code, harden its invariants, failure handling, tests, and operational behavior because a prototype validates an idea, not its reliability.
-- Understand the data and its transformations before choosing the algorithm or API because suitable structures and boundaries often become clear from the required data flow.
+## Contracts and nil values
+- Validate external input and public API arguments where required by the contract. Trust internal constructors and functions that guarantee valid results on success; do not add redundant nil checks after every call.
+- A nil result with a nil error is valid only when the API contract permits it. Do not impose a universal non-nil rule on APIs where absence is a valid result.
+- A nil slice has length zero and supports `append` and iteration. Prefer `var items []T` and return `nil` for an empty result unless the serialization contract requires a non-nil empty slice. Test emptiness with `len(items) == 0`.
+- A nil map supports reads but panics on writes. A nil channel blocks on send and receive; in a `select`, it disables that case. Calling a nil function panics.
+- An interface containing a typed nil pointer is not nil. Return a literal `nil` when returning no error or no interface value.
+- Use the comma-ok form for type assertions and handle failure instead of allowing an unchecked assertion to panic.
 
-## 2. Language mechanics
-- Choose pointers to express identity or shared access, not as a presumed performance optimization. Pointers can add aliasing, heap escapes, and garbage-collector work, so they can cost more than copying.
-- Treat stack placement, escape analysis, and inlining as compiler decisions rather than API contracts. Inspect them only after measurement identifies allocation pressure because compiler decisions can change across versions and call sites.
-- Do not copy values containing synchronization primitives or other state that becomes invalid when copied after first use. For pointer-semantic domain types, make snapshots explicit because incidental downstream copies can split identity or duplicate invalid internal state.
-- Reorder struct fields for memory layout only after profiling because field order can affect positional literals, serialized output, unsafe consumers, and binary layout while producing no meaningful application-level gain.
-- Assign explicit numeric values when constants become persisted data or protocol identifiers. Relying on an evolving `iota` sequence can silently reinterpret stored or transmitted values after a new constant is inserted.
-- Avoid `unsafe`, `reflect`, `go:linkname`, cgo, and `syscall` unless the need is clear and documented because they step outside type safety and the compatibility promise, so they can break on a toolchain upgrade in ways ordinary tests do not exercise.
+## APIs, interfaces, and receivers
+- Start with concrete implementations. Discover narrow interfaces at real consumer boundaries; define them in the consuming package. Prefer concrete return types and small interface parameters such as `io.Reader` and `io.Writer` where they fit the contract.
+- Pass interfaces as values, not pointers to interfaces. The concrete value inside an interface can itself be a pointer.
+- Verify required interface contracts at compile time, for example `var _ http.Handler = (*Handler)(nil)`. Use the asserted type's zero value on the right-hand side.
+- Use pointer receivers for mutation, identity, large structs, or state that must not be copied. Use value receivers for small copy-like values. Keep receiver semantics consistent.
+- Value-receiver methods belong to the method sets of both `T` and `*T`; pointer-receiver methods belong only to `*T`. Automatic addressing at a call site does not change interface satisfaction. Map values are not addressable.
+- Export only the supported API. Prefer direct field access over trivial getters and setters unless encapsulation is required. Document exported declarations with comments that start with the declaration's name.
+- Use named types and typed constants for finite domain values instead of repeated raw strings. Typed constants do not provide exhaustive switch checking.
+- Start integer enums with `iota + 1` unless zero is a useful default. Use explicit stable values for persisted or transmitted identifiers.
+- Avoid opaque boolean or numeric arguments. Prefer domain types; when the API cannot change, annotate unclear arguments with parameter-name comments such as `true /* flush */`.
+- Named return values can clarify multiple same-type results; avoid shadowing them or making the returned values unclear.
 
-## 3. Data structures
-- Treat subslices as aliases because they share a backing array. Mutating a subslice changes shared elements, and appending may overwrite elements visible through another slice when spare capacity remains.
-- Clone a slice when independent ownership is required. A full slice expression such as `s[:len(s):len(s)]` only prevents append from reusing spare capacity; it does not isolate mutations to existing elements.
-- Do not retain pointers to slice elements across an append that may grow the backing array because reallocation leaves those pointers referring to the old array rather than the current slice.
-- Copy small subslices or substrings when retaining them would keep a much larger backing allocation live because a tiny view can otherwise pin disproportionate memory.
-- Distinguish byte offsets, Unicode code points, and user-visible characters because `len(string)` and range indices are byte-oriented, while rune iteration still does not perform grapheme segmentation.
-- Before implementing collection helpers, check `slices`, `maps`, and `cmp` because standard implementations reduce local code and maintenance. Preserve contract-sensitive behavior such as nil versus non-nil empty slices when adopting them.
-- Prefer newer standard-library helpers such as `bytes.CutLast`, `strings.CutLast`, and `uuid` (Go 1.27), subject to the version baseline above, when they replace clear local code because hand-rolled splitting and identifier generation must otherwise be maintained and tested locally.
+## Generics
+- Use generics for reusable data structures and collection algorithms that perform the same operations across types. Use interfaces for varying behavior; do not introduce type parameters for ordinary method calls that a small interface can express.
+- Prefer concrete or constrained types to `any` when the contract is known. Use `any` only when heterogeneous values are genuinely part of the API, such as general serialization; do not recover a known contract through unchecked assertions.
+- Keep constraints limited to required operations. Preserve named collection types in results when that identity matters, and use `var zero T` for an unconstrained type parameter's zero value.
 
-## 4. Decoupling
-- Choose receiver semantics at the type level because callers need one consistent ownership model. Use pointer receivers when identity, shared mutation, or non-copyable state matters; use value receivers for copy-like values.
-- Keep receiver semantics consistent unless a specific contract requires an exception, such as an unmarshaling method that must mutate an otherwise value-semantic type. Inconsistent receivers obscure whether methods operate on copies or shared state.
-- Account for interface method sets when choosing receivers because method-call auto-addressing does not apply to interface satisfaction: a type with only pointer-receiver methods may satisfy an interface as `*T` but not as `T`.
-- Review method values for capture semantics because a value-receiver method value captures a copy, while a pointer-receiver method value continues to observe shared state.
-- Prefer named fields when reusing state because embedding promotes behavior and can unexpectedly expand method sets or make the outer type satisfy interfaces.
-- Do not use embedding to model inheritance or to create base structs whose only purpose is sharing fields because embedding provides promotion, not a subtype relationship.
+## Functional options
+Use functional options for optional constructor or public API arguments that are expected to grow, especially when there are already three or more arguments. Keep required arguments explicit and establish defaults before applying options.
 
-## 5. Software design
-- Start with concrete implementations and discover interfaces at actual change boundaries because designing interfaces before understanding the implementations produces speculative abstractions and interface pollution.
-- Define interfaces where they are consumed and include only the behavior that consumer needs because a narrow consumer-owned contract limits coupling. Pass separate capabilities when that is more precise than a broad composite interface.
-- Create named types when they add invariants, behavior, or type safety. Renaming existing data without adding meaning increases conversion and API cost without strengthening the model.
-- Return a literal nil interface when no error or interface value exists. Returning a typed nil pointer through `error` or another interface creates a non-nil interface and can send callers down the failure path unexpectedly.
-- Preserve error identity through wrapping and let callers inspect chains with `errors.Is` and `errors.As` because rendered error text is for humans and can change without changing failure semantics.
-- Handle an error once by recovering, translating it at a boundary, adding useful context, or returning it. Logging and returning the same failure without a distinct operational reason creates duplicate noise and ambiguous ownership.
-- Parse unstructured input into validated domain types at the boundary because raw transport representations permit invalid states to leak into business logic.
-- Do not adopt `encoding/json/v2` (Go 1.27) as a mechanical migration because its stricter defaults change JSON validation and duplicate-key handling. Make the change deliberate and test contract-sensitive inputs, since a decoder that newly rejects previously accepted payloads is a compatibility break for every producer.
-- Define finite classifications once and derive validation, labels, and behavior from that definition because parallel lists drift and produce contradictory treatment of the same value.
-- Name packages for what they provide and keep code that is not a supported import surface under `internal/` because vague buckets such as `util`, `common`, `helpers`, `models`, and `types` accumulate unrelated dependencies, and every exported package is a compatibility commitment that `internal/` avoids making.
-- Prefer explicit initialization over `init`, and never start unmanaged goroutines in `init`, because import-time side effects run before callers can configure, observe, or stop them, and work started that way has no owner, no cancellation, and no failure path.
+Prefer Uber's opaque interface-based options over a closure-based option type. Give the interface an unexported method that applies to an unexported options struct. Concrete option values can be compared in tests and can implement other interfaces.
 
-## 6. Concurrency
-- Give every goroutine an owner, a stop condition, and a wait path when completion matters because unowned work leaks resources and makes shutdown behavior unknowable. Bound its lifetime on error and cancellation paths as well as success.
-- Never infer ordering or progress guarantees from observed scheduler behavior because a result seen repeatedly is still not synchronization and may change across runs, machines, or Go versions.
-- Bound goroutine fan-out, worker pools, queues, retries, and pending work by the resource being protected because unbounded concurrency multiplies memory, connections, and scheduler pressure under load.
-- Size concurrency for the workload and constrained resource rather than defaulting to `GOMAXPROCS`, particularly for I/O-bound work, because CPU capacity may not be the limiting resource.
-- Protect complete invariants and read-modify-write operations because separately locking reads and writes can be data-race-free while still losing updates. The race detector finds unsynchronized memory access, not logical atomicity errors.
-- Treat channel capacity as part of the concurrency contract because it determines backpressure and handoff behavior. An unbuffered send guarantees that a receiver accepted the value, not that the resulting work completed.
-- Let the producer or coordinating owner close a channel when no more values will be sent because receivers cannot know whether another producer still intends to send, and sending after close panics. Closing is a signal, not resource cleanup.
-- Make work observe its context or another cancellation signal because cancellation only communicates that work should stop; it does not terminate a goroutine automatically.
-- Pass `context.Context` as the first parameter, except in established signatures, and do not store it in a struct because a stored context outlives the call it was scoped to and detaches cancellation and deadlines from the caller that owns them.
-- If a caller may abandon one result from non-cancelable work, use a one-result buffer so the worker can publish the result and terminate instead of blocking forever after the caller leaves.
-- Use non-blocking `select` and dropping only as deliberate overload policies because a `default` case silently trades delivery for latency. Bound the queue and expose dropped work through metrics or errors so overload remains observable.
-- Treat `sync.RWMutex` as a measured optimization rather than a default because its coordination overhead and write contention can make read-heavy code slower than a regular mutex.
-- Do not rely on buffered delivery from `time` timer channels: they are unbuffered when the main module's `go.mod` declares Go 1.23 or later, and Go 1.27 removes the `asynctimerchan` GODEBUG escape hatch. Review timeout and timer code when raising a module's Go version because code that previously observed a stale tick buffered before `Stop` or `Reset` no longer receives it.
-- In Go 1.23 or later, the garbage collector recovers unreferenced, unstopped timers. Do not flag `time.After` in loops or `select` statements as a timer or memory leak when `go.mod` declares Go 1.23 or later; prefer `time.After` when it is clear and readable.
+```go
+type options struct {
+	port int
+}
 
-## 7. Testing
-- Test exported behavior from an external test package when package boundaries are part of the contract because this catches accidental reliance on unexported state. Use internal-package tests only when exercising unexported behavior is necessary.
-- Prefer deterministic in-process facilities such as `httptest` over real external network calls because network availability and remote changes make tests slow and flaky.
-- Use mocks for behavior the test owns or failures that are otherwise impractical to trigger. Avoid broad mocks of external systems because they can silently drift from the real contract while tests continue to pass.
-- Run subtests in parallel only when their inputs, package state, environment, filesystem, and dependencies are isolated because shared mutable state turns timing into nondeterministic test interference.
-- Use table-driven tests only when setup and assertions remain unconditional and readable because a table that encodes case-specific control flow becomes a harder-to-understand testing language.
-- Test contract-sensitive failure behavior semantically rather than asserting complete error strings because wording can change while the error's identity and meaning remain stable.
-- Keep process exit in `main` and put command logic in a `run` function that returns an error because a function that calls `os.Exit` cannot be called from a test, and pending deferred cleanup does not run on exit.
+type Option interface {
+	apply(*options)
+}
 
-## 8. Benchmarking
-- Validate a benchmark's result before interpreting its speed because an incorrect operation or one removed by the compiler can produce an impressive but meaningless number.
-- Prefer `testing.B.Loop` when the module requires Go 1.24 or later because it manages benchmark timing and protects common loop bodies from optimization mistakes. Keep setup and cleanup outside the measured operation.
-- Preserve production-like data flow and consume results when necessary because small benchmark-only changes can alter inlining, escape analysis, or dead-code elimination.
-- Compare repeated runs with `benchstat` on an otherwise idle machine because scheduler noise, thermal scaling, and background activity can exceed the difference being measured.
-- Run potentially interfering benchmarks separately because goroutines, garbage collection, caches, or retained state from one benchmark can distort the next.
-- Include allocation measurements when allocation behavior is relevant, but do not pursue zero allocations independently of latency, clarity, and total resource use because avoiding one allocation can make the overall system worse.
+type portOption int
 
-## 9. Generics
-- Use generics for algorithms and data structures that are genuinely identical across types; use interfaces when behavior must vary dynamically. Choosing by purpose keeps compile-time abstraction separate from runtime polymorphism.
-- Keep constraints as small as the required operations allow because constraints are part of the public compatibility surface and tightening them later can reject existing callers.
-- Use `~T` only when accepting user-defined types with underlying type `T` is intentional because it broadens the admitted type set beyond the exact built-in or named type.
-- Preserve named collection types in generic results, for example with `S ~[]E`, when callers should retain their type identity because returning `[]E` can discard methods and domain meaning.
-- Use `var zero T` for a type parameter's zero value because `nil` is not valid for every type a constraint may permit.
-- Express requirements with a constraint instead of accepting `any` and recovering behavior through assertions or reflection because static constraints detect unsupported operations at compile time.
-- Do not introduce a type parameter when one concrete type or a small behavioral interface produces a clearer API because unnecessary generic dimensions increase inference, documentation, and compatibility costs.
-- Do not use generic methods (Go 1.27) to satisfy an interface because interface methods still cannot declare type parameters, so a generic method cannot implement one. Keep the type parameter on the type, or take it as a function parameter, when a value must satisfy an interface.
+func (p portOption) apply(opts *options) {
+	opts.port = int(p)
+}
 
-## 10. Profiling
-- Profile a representative workload before changing APIs, ownership, or data layout because optimizing an unmeasured path can add complexity without improving a meaningful outcome.
-- Select the profile for the symptom: CPU for execution time, allocation profiles for churn, heap profiles for retained memory, and mutex or block profiles for contention. Using the wrong profile answers a different question from the one being investigated.
-- Distinguish flat cost from cumulative cost and allocated bytes from live bytes before choosing an optimization target because each view attributes a different kind of resource consumption.
-- Collect one expensive profile at a time when profiling overhead could distort the result because simultaneous profilers can measure their effects on each other.
-- Use escape-analysis and inlining reports to explain measured allocations, not to establish source-level guarantees, because compiler decisions change across releases and surrounding call sites.
-- Prefer the clearest correct implementation unless profiling shows that a specialized implementation changes a meaningful system-level outcome because local micro-optimizations impose lasting maintenance cost.
-- Do not replace a precise interface or standard-library operation solely to remove an allocation without showing that the allocation matters because the resulting coupling can cost more than the saved memory.
+func WithPort(port int) Option {
+	return portOption(port)
+}
+```
 
-## 12. Tracing
-- Use runtime traces for scheduler behavior, blocking, garbage-collector pauses, goroutine lifetimes, and latency critical paths rather than as a replacement for CPU profiles because the tools expose different dimensions of execution.
-- Keep trace windows short and targeted because trace output, processing cost, and runtime overhead grow quickly.
-- Annotate important operations with tasks and regions because domain phases are easier to identify than raw runtime events in a large trace.
-- Confirm that fan-out shortens the critical path because additional goroutines can instead increase scheduling, synchronization, and garbage-collection costs.
-- Pool resources to enforce a resource budget, not merely to reuse goroutines, because the protected resource determines safe concurrency. Treat `sync.Pool` only as an opportunistic allocation cache because its contents may disappear at any garbage collection.
-- Tune `GOGC` or `GOMEMLIMIT` only with measured memory headroom and load tests because lower CPU cost from less frequent collection requires a larger live heap and raises out-of-memory risk.
-- Apply data-locality and batching optimizations only after traces or profiles identify memory access or coordination as a material cost because these changes often trade clarity and latency for throughput.
+Validate the resulting configuration before constructing the resource.
 
-## Finish
-- Run relevant tests because compilation alone does not validate the changed behavior or failure paths.
-- Run `go vet` or the repository lint target when practical because static analysis catches correctness and compatibility problems that tests may not execute.
-- Run race tests when touching concurrency because ordinary tests can pass despite unsynchronized accesses that only instrumentation reveals.
-- After writing new Go code and before committing, run a modernization check. On Go 1.26 or later, use the supported built-in `go fix -diff ./...`. On earlier Go, run the [modernize analyzer](https://pkg.go.dev/golang.org/x/tools/go/analysis/passes/modernize) at a pinned `golang.org/x/tools` version, not `@latest`, because the standalone command is an unsupported interface and a moving release can drift. The module's Go version prevents unsupported rewrites either way.
+## State, embedding, and initialization
+- Avoid mutable globals, including replaceable function variables. Inject dependencies such as clocks instead of changing global state in tests.
+- Do not automatically move lookup maps or slices to package globals to avoid allocation. For a fixed small classification, consider a switch; otherwise keep ownership explicit and measure before introducing shared state. A package-level map is mutable even if callers intend to treat it as read-only.
+- Prefer named fields and explicit delegation over embedding in public structs. Embedding exposes methods and fields, expands the API, and restricts future changes. Do not use it to model inheritance.
+- Embed only when all promoted behavior belongs to the outer type and its zero value, copy semantics, and public contract remain appropriate. Put embedded fields first, followed by a blank line before named fields.
+- Do not embed mutexes, even in unexported structs. Store `mu sync.Mutex` or `mu sync.RWMutex` as a named value field. Their zero values are usable; allocating a separate mutex is usually unnecessary.
+- Do not copy synchronization values after first use. Pass the containing state by pointer when shared identity is required.
+- Avoid `init()`. Prefer explicit initialization that can return errors. An unavoidable `init()` must be deterministic, avoid dependencies on other initialization side effects, and avoid environment access and I/O. Registry hooks and deterministic precomputation can justify exceptions.
+- Do not start goroutines in `init()`. Expose an object whose shutdown method signals its workers and waits for them to exit.
+
+## Errors and process termination
+- Choose errors by matching and context needs, not by whether the failure is expected or unexpected:
+  - Static message, no matching needed: `errors.New`.
+  - Dynamic message, no matching needed: `fmt.Errorf`.
+  - Static message, matching needed: a package-level error variable.
+  - Dynamic message, matching needed: a custom error type.
+- Name exported error variables `ErrSomething`, unexported ones `errSomething`, and custom types `SomethingError` or `somethingError`. Exported errors are part of the public API.
+- Match wrapped errors with `errors.Is` and `errors.As`, not string comparison or direct equality.
+- Return an error unchanged when it already has sufficient context. Otherwise add concise context with `fmt.Errorf("get user %q: %w", id, err)`. Avoid repetitive phrases such as `failed to` at every layer.
+- Use `%w` when callers can inspect the cause; document and test that contract. Use `%v` when intentionally hiding the underlying error from matching.
+- Handle each error once: recover and continue, translate it, or return it with useful context. Do not log and return the same error for a caller to log again.
+- Return errors for operational failures. Do not use panic/recover as normal error handling. Irrecoverable faults or startup validation such as `template.Must` are exceptions.
+- Call `os.Exit` or `log.Fatal` only in `main`, preferably at one exit point. Put fallible work in a testable function that returns an error or exit code. Immediate exit skips deferred cleanup.
+
+## Ownership and collections
+- Copy slices and maps at ownership boundaries when retaining caller data or returning internal mutable state. Copy while holding the lock when taking a snapshot of protected state; the original mutex does not protect a returned alias.
+- `maps.Clone` and `slices.Clone` make shallow copies. Pointers, maps, slices, and other references inside the copied elements still share their referenced data; copy deeper only when the ownership contract requires it.
+- Slice assignment and slicing share a backing array. `append` can overwrite another view's elements when capacity permits. `s[:len(s):len(s)]` prevents reuse of spare capacity by append, but does not isolate writes to existing elements.
+- `len` counts accessible elements; `cap` describes available backing-array capacity from the slice's start. Use `make([]T, 0, capacity)` when appending a known number of elements.
+- Copy small retained subslices or substrings when they would otherwise keep a large allocation alive. Use `strings.Clone` for strings. Clear discarded pointer-containing elements in a still-live backing array when they would retain unwanted objects.
+- Map iteration order is unspecified. Sort keys when order matters. Do not rely on deletion to reduce a map's backing allocation; rebuild a long-lived map if measured retention warrants it.
+- Use `make(map[K]V, sizeHint)` for empty or programmatically populated maps, and literals for a fixed initial set. A map size hint is not a guarantee of allocation-free insertion.
+- Slices, maps, and functions cannot be compared to each other with `==`; they can be compared to nil. Prefer `slices.Equal`, `maps.Equal`, or `bytes.Equal` for suitable element types. Use reflection-based comparison only when its semantics are intended.
+
+## Numbers, strings, and control flow
+- Use explicit octal such as `0o600` rather than ambiguous leading-zero notation, and separators such as `1_000_000` where useful.
+- Runtime integer overflow does not panic. Check bounds before arithmetic when overflow would violate the contract.
+- Choose floating-point comparisons for the domain. Approximate comparisons need appropriate absolute or relative tolerances; do not assume exact equality after rounded calculations.
+- `len(string)` and string indexing count bytes. Use `range` or `utf8.RuneCountInString` for Unicode code points. Code points are not necessarily user-visible characters.
+- `strings.TrimRight` removes a set of trailing characters; use `strings.TrimSuffix` to remove one suffix.
+- Prefer raw string literals when they remove distracting escaping. Use `strings.Builder` or `bytes.Buffer` for repeated concatenation; preallocate when the final size is known and meaningful.
+- Avoid repeated conversions between strings and byte slices. Use the `bytes` package for byte-oriented I/O, and convert fixed strings once when reusing the bytes.
+- Range iteration copies element values. Use indices to mutate slice elements. Iterating a slice uses the initial iteration bounds; appending does not extend that loop.
+- A `break` in a nested `switch` or `select` exits that statement, not the enclosing loop. Use a labeled break when needed.
+- Reduce nesting with early returns and loop continues. Remove unnecessary `else` branches and keep the successful path easy to follow.
+- Keep variables and constants in the smallest useful scope, but do not add nesting merely to reduce scope. Watch for accidental shadowing with `:=` in inner blocks.
+
+## Resource lifetime and concurrency
+- Use `defer` to release files, locks, and other resources promptly after successful acquisition. Check cleanup errors when they affect correctness, especially for writes.
+- Deferred arguments are evaluated when the defer is registered. Use a closure if cleanup needs a value evaluated later.
+- A defer inside a loop runs at function return, not at the end of each iteration. Extract a per-iteration function or close explicitly when resources must be released each iteration.
+- Every goroutine needs a predictable completion condition or a stop signal, plus a way for its owner to wait for completion. Cancellation signals work to stop; it does not terminate a goroutine by itself. A WaitGroup waits but does not cancel.
+- Bound fan-out, queues, and concurrency by the protected resource. CPU-bound work and I/O-bound work need different limits; do not assume `GOMAXPROCS` is appropriate for both.
+- Usually use an unbuffered channel or capacity one. A larger buffer requires a reasoned bound, a backpressure policy, and an explicit account of what happens when it fills.
+- Channels provide synchronization according to their send/receive rules, including when buffered. An unbuffered send waits for a corresponding receive, not for completion of the receiver's subsequent work.
+- A `select` with multiple ready cases does not give priority to the first case. Do not rely on case order.
+- Use `chan struct{}` for notifications. Let the producer or coordinating owner close channels after all sends are finished. A send to a closed channel panics.
+- Use mutexes for shared state and channels for coordination when they fit the design. Protect complete invariants, not only individual reads and writes. Data races and timing-dependent logical races are different; the race detector does not find every logical race.
+- Use a WaitGroup to wait for multiple workers. On compatible Go versions, `WaitGroup.Go` combines registration and launch; otherwise call `Add` before starting the goroutine and defer `Done` inside it.
+- Use `errgroup` when related concurrent tasks need error collection and cancellation. Use `sync.Cond` for condition-based waiting; `Broadcast` wakes all waiters and `Signal` wakes one. Wait in a loop that checks the condition.
+- Follow Uber's recommendation to use `go.uber.org/atomic` for typed atomic state rather than raw integer flags with mixed atomic and ordinary access. Do not read an atomic flag through a non-atomic path.
+- Watch for methods such as `String` acquiring locks during formatting while the same lock is held.
+- Shared slice appends require synchronization or independent storage. Clone protected collections inside the critical section before iterating without the lock.
+- Test packages that start goroutines for leaks; Uber recommends `go.uber.org/goleak`.
+
+## Context and time
+- Pass `context.Context` through request-scoped work, normally as the first parameter. Call the cancel function returned by `WithCancel`, `WithTimeout`, or `WithDeadline` when the operation ends.
+- An incoming HTTP request context is canceled when the connection closes, an HTTP/2 request is canceled, or `ServeHTTP` returns. Do not assume that writing a response is the cancellation boundary.
+- If work must outlive a request, give it a service-owned lifetime and shutdown path. `context.WithoutCancel` can preserve values while removing parent cancellation and deadlines; use it only deliberately, with a new bound and an owner that waits for completion.
+- Use `time.Time` for instants and `time.Duration` for elapsed periods. Specify units with `time.Second`, `time.Millisecond`, and similar constants, not unexplained integers.
+- Compare instants with `Equal`, `Before`, and `After`, not `==`, which also compares location and monotonic-clock representation.
+- Use `AddDate` for calendar changes and `Add` for elapsed durations. A calendar day is not always 24 hours.
+- Prefer time types at external boundaries when supported. Otherwise include units in numeric field names and use RFC 3339 for timestamps unless another format is agreed upon. Standard JSON encoding does not give `time.Duration` a human-readable duration representation.
+
+## HTTP, SQL, and serialization
+- Add explicit field tags for JSON, YAML, and other tag-based serialized formats. Wire field names are a compatibility contract.
+- Prefer typed decoding when the schema is known. For arbitrary JSON numbers, use a decoder with `UseNumber` when conversion to `float64` would lose required precision.
+- Use a named `time.Time` field instead of embedding it: promoted marshaling methods can change the enclosing type's serialized form.
+- Configure HTTP client timeouts and server read, write, header, and idle timeouts for the workload. Streaming and long-lived requests need explicit policies rather than arbitrary universal limits.
+- Close a successful HTTP response body. Read to EOF when connection reuse requires it and doing so is safe and bounded. Return after `http.Error` unless further execution is intentional.
+- `sql.Open` creates a pool and may not establish a connection. Use `PingContext` when startup requires a connection check.
+- Close `sql.Rows` and check `rows.Err` after iteration. Represent nullable columns with appropriate nullable or pointer types.
+- Use query parameters, not string concatenation, for untrusted SQL values. Prepared statements can help repeated queries; SQL injection prevention depends on parameterization, not on explicitly calling `Prepare`.
+- Bound database pools with suitable maximum open/idle connections and connection lifetimes.
+
+## Formatting and naming
+- Run `gofmt` or `goimports`. Use two import groups: the standard library, then everything else.
+- Use short, lowercase, singular package names without underscores. Name packages for what they provide; avoid `common`, `util`, `shared`, `lib`, and similar vague names.
+- Use MixedCaps for functions. Test functions may use underscores to group related cases.
+- Alias imports when the declared package name differs from the last path element, or when imports directly conflict. Otherwise avoid aliases; rename a conflicting local variable rather than adding an arbitrary alias.
+- Do not reuse built-in names such as `error`, `string`, or `len` for variables, fields, or parameters.
+- Prefix unexported package-level variables and constants with `_`. Error values use `err` instead, without the underscore.
+- Group related declarations. Adjacent variable declarations inside a function can be grouped even when unrelated.
+- At package scope, use `var` and omit a redundant type unless the desired type differs from the initializer's type. Locally, use `:=` for explicit initial values and `var` for zero values.
+- Put type and related constant/variable definitions before functions. Group methods by receiver and use rough call order, with exported functions early, constructors near their types, and helper functions toward the end.
+- Aim for a soft 99-character line limit; readability takes priority over a hard limit.
+- Use keyed struct literals. Test tables with at most three fields can omit field names. Omit zero-valued fields unless they add meaningful context.
+- Use `var value T` for a zero-value struct and `&T{}` rather than `new(T)` for a struct pointer.
+- Declare extracted format strings as constants. Give Printf-style functions a recognized name or an `f` suffix so `go vet` can check formatting.
+
+## Tests
+- Use table-driven subtests for repetitive behavior with varying inputs and outputs. Name the table `tests`, the case `tt`, and inputs/expectations with `give`/`want` prefixes.
+- Split tables when setup, mocks, or assertions require complex conditional logic. A short success-versus-error branch is acceptable when the test remains clear.
+- Run parallel subtests only when state and dependencies are isolated. For modules using pre-Go 1.22 loop semantics, rebind captured loop variables inside the loop before parallel subtests or goroutines. Go 1.22 per-iteration variables apply to variables declared by the loop, not reused variables.
+- Test exported behavior from an external `_test` package where useful. Use internal tests when access to unexported behavior is needed.
+- Use `t.Fatal`/`t.Fatalf` for hard preconditions and `t.Error`/`t.Errorf` for independent failures. With an existing Testify dependency, use `require` and `assert` for the same distinction. Do not introduce panics for test failures.
+- Call fatal test methods only in the test goroutine; send errors from worker goroutines back to it.
+- Avoid sleeps for coordination. Use channels, synchronization, or bounded polling. Inject a clock when exact time behavior matters.
+- Use `httptest.NewServer` for client tests, `httptest.NewRecorder` for handlers, and `iotest.ErrReader` for reader failures instead of depending on external services.
+- Test invalid inputs, error identity, cleanup, cancellation, and ownership boundaries. Use fuzzing for input-dependent invariants.
+- Use `testing.Short` or established integration build tags to separate expensive tests. Run race tests in CI where supported, and use shuffled runs to detect order dependencies. `-parallel` limits parallel tests; tests still need `t.Parallel` to opt in.
+
+## Benchmarks, profiling, and optimization
+- Measure a representative workload before changing allocation, data layout, or concurrency. Validate benchmark results so an incorrect or optimized-away operation is not mistaken for an improvement.
+- Keep setup outside the measured operation. Use `testing.B.Loop` when supported by the module baseline; otherwise use `b.N` with appropriate timer control and result consumption.
+- Run repeated benchmarks with allocation measurements and compare with `benchstat`. Consider CPU state, cache behavior, background work, and cross-benchmark interference.
+- In hot paths, prefer `strconv` to general `fmt` formatting for primitive conversions and avoid repeated fixed string-to-byte conversions. Supply realistic collection capacities when known.
+- Use CPU profiles for execution cost, heap/allocation profiles for retained memory or allocation churn, goroutine profiles for leaks, and block/mutex profiles for waiting and contention. Use runtime traces for scheduling, goroutine lifetimes, and critical paths.
+- `net/http/pprof` registers diagnostic handlers on the default mux. Do not expose them on an unprotected public listener. Restrict access and profile for bounded windows; collection itself can affect the workload.
+- Compare heap profiles over time to investigate retention. Escape-analysis and inlining reports explain compiler decisions; stack placement and inlining are not source-level guarantees.
+- Consider buffer reuse or `sync.Pool` only for measured allocation pressure. A pool is an opportunistic cache, not guaranteed storage or a concurrency limit.
+- Profile before reordering struct fields, adding cache-line padding, batching, or restructuring arithmetic. Cache-line size and performance effects are hardware-dependent; do not apply fixed padding as a universal rule.
+- Tune `GOGC` and `GOMEMLIMIT` only with measured memory headroom. `GOMEMLIMIT` is a soft runtime limit, not a hard process-memory cap. Use explicit cleanup instead of finalizers for resource lifetime.
+
+## Validation commands
+Use repository targets when available. Otherwise run the relevant subset of these commands with the project's supported tools:
+
+```sh
+go test ./...
+go test -race -shuffle=on ./...
+go test -short ./...
+go test -coverprofile=cover.out ./...
+go tool cover -html=cover.out
+go vet ./...
+staticcheck ./...
+golangci-lint run
+```
+
+Uber recommends consistent linting with `errcheck`, `goimports`, `revive`, `govet`, and `staticcheck`, with `golangci-lint` as a runner. Use `revive` rather than deprecated `golint`. The old `go vet -shadow` command is not supported; use an explicitly configured shadow analyzer if needed.
+
+Use these commands for focused performance work:
+
+```sh
+go test -run='^$' -bench=. -benchmem -count=10 > bench.txt
+benchstat bench.txt
+go test -run='^$' -bench=. -cpuprofile=cpu.out -memprofile=mem.out
+go tool pprof -http=127.0.0.1:8080 cpu.out
+go test -run='^$' -bench=. -trace=trace.out
+go tool trace trace.out
+go build -gcflags='-m' ./...
+```

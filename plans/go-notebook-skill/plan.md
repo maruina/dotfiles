@@ -164,15 +164,16 @@ Each `/execute` run completes one slice (at most one chapter, 10–32 printed pa
 
 ### Slice 1: Source ledger and Chapter 2 (`Language Mechanics`) in `ownership-and-memory.md`
 #### Task 1: Integrate `main` (`13d2330`) and establish the source ledger
+Execution status: complete. Recovered the reviewed lifecycle update in `8fad246`; merged `origin/main` in `0f1ca37`. The focused missing-file check returned 1. PDF identity and Go 1.27.3 confirmed.
 **Delivers:** Worktree rebased onto merged PR #125 (`13d2330`) with `plans/go-notebook-skill/coverage.md` and `dot_pi/agent/exact_skills/go-best-practices/SOURCES.md` initialized.
 **Blocked by:** None (`13d2330` is merged on `main`).
 **Traces to:** R1, R2, R4.
 **Files:** `plans/go-notebook-skill/plan.md`, `plans/go-notebook-skill/coverage.md`, `dot_pi/agent/exact_skills/go-best-practices/SOURCES.md`.
-- [ ] Run the focused red check: `test -f plans/go-notebook-skill/coverage.md && test -f dot_pi/agent/exact_skills/go-best-practices/SOURCES.md`; expect exit status 1 before implementation.
-- [ ] Rebase or merge `origin/main` (`13d2330` or later) into `maruina/go-notebook-skill`, and verify `shasum -a 256 "$HOME/Downloads/Ultimate Go Notebook.pdf"` matches `12068570744faf03d4bf1e4c8880655e0baff281013a0c944a7b8d7505c66b13` and `go version` reports the active toolchain.
-- [ ] Create `plans/go-notebook-skill/coverage.md` with subsection-level rows for Chapters 2–12 from the TOC (marking walkthrough sections `7.3–7.4`, `10.2`, `11.1`, `11.3`, `11.5–11.6`, `12.1`, `12.6`, `12.8` as `omit` with reason) and explicit chapter-level `omit` rows for Chapters 1, 13, and 14. Do not mark in-scope content chapters reviewed from the TOC.
-- [ ] Create `dot_pi/agent/exact_skills/go-best-practices/SOURCES.md` recording the book edition/hash, pinned Uber (`1d60a91aa5e87d443002e23c21903c49489dbde5`) and marketplace (`b937ce451cf47154af8566b6ad7776a7749fc810`) revisions, source precedence, and the rule that no `VENDOR.md` or extracted book text is stored.
-- [ ] Run `test -f plans/go-notebook-skill/coverage.md && test -f dot_pi/agent/exact_skills/go-best-practices/SOURCES.md && test ! -e dot_pi/agent/exact_skills/go-best-practices/VENDOR.md && git diff --check`; expect exit status 0.
+- [x] Run the focused red check: `test -f plans/go-notebook-skill/coverage.md && test -f dot_pi/agent/exact_skills/go-best-practices/SOURCES.md`; expect exit status 1 before implementation.
+- [x] Rebase or merge `origin/main` (`13d2330` or later) into `maruina/go-notebook-skill`, and verify `shasum -a 256 "$HOME/Downloads/Ultimate Go Notebook.pdf"` matches `12068570744faf03d4bf1e4c8880655e0baff281013a0c944a7b8d7505c66b13` and `go version` reports the active toolchain.
+- [x] Create `plans/go-notebook-skill/coverage.md` with subsection-level rows for Chapters 2–12 from the TOC (marking walkthrough sections `7.3–7.4`, `10.2`, `11.1`, `11.3`, `11.5–11.6`, `12.1`, `12.6`, `12.8` as `omit` with reason) and explicit chapter-level `omit` rows for Chapters 1, 13, and 14. Do not mark in-scope content chapters reviewed from the TOC.
+- [x] Create `dot_pi/agent/exact_skills/go-best-practices/SOURCES.md` recording the book edition/hash, pinned Uber (`1d60a91aa5e87d443002e23c21903c49489dbde5`) and marketplace (`b937ce451cf47154af8566b6ad7776a7749fc810`) revisions, source precedence, and the rule that no `VENDOR.md` or extracted book text is stored.
+- [x] Run `test -f plans/go-notebook-skill/coverage.md && test -f dot_pi/agent/exact_skills/go-best-practices/SOURCES.md && test ! -e dot_pi/agent/exact_skills/go-best-practices/VENDOR.md && git diff --check`; expect exit status 0.
 - [ ] Commit with `docs: track Go notebook source coverage`.
 
 #### Task 2: Process Chapter 2 (`Language Mechanics`, printed 25–40 / PDF 26–41)

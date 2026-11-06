@@ -83,7 +83,7 @@ Rule IDs refer to `dot_pi/agent/exact_skills/go-best-practices/SOURCES.md`. Each
 | 6.8 Mutexes | 133–134 / 134–135 | — | — | undecided | TOC navigation only; content not reviewed | pending | Review in chapter slice |
 | 6.9 Read/Write Mutexes | 135–136 / 136–137 | — | — | undecided | TOC navigation only; content not reviewed | pending | Review in chapter slice |
 | 6.10 Channel Semantics | 137–138 / 138–139 | — | — | undecided | TOC navigation only; content not reviewed | pending | Review in chapter slice |
-| 6.11 Channel Patterns | 139–139 / 140–140 | — | — | undecided | TOC navigation only; content not reviewed | pending | Review in chapter slice |
+| 6.11 Channel Patterns | 139–150 / 140–151 | — | — | undecided | TOC navigation only; content not reviewed | pending | Review in chapter slice |
 | 6.11.1 Wait For Result | 139–139 / 140–140 | — | — | undecided | TOC navigation only; content not reviewed | pending | Review in chapter slice |
 | 6.11.2 Fan Out/In | 140–140 / 141–141 | — | — | undecided | TOC navigation only; content not reviewed | pending | Review in chapter slice |
 | 6.11.3 Wait For Task | 141–141 / 142–142 | — | — | undecided | TOC navigation only; content not reviewed | pending | Review in chapter slice |
@@ -112,7 +112,7 @@ Rule IDs refer to `dot_pi/agent/exact_skills/go-best-practices/SOURCES.md`. Each
 | 9.8 Slice Constraints | 186–188 / 187–189 | — | — | undecided | TOC navigation only; content not reviewed | pending | Review in chapter slice |
 | 9.9 Channels | 189–191 / 190–192 | — | — | undecided | TOC navigation only; content not reviewed | pending | Review in chapter slice |
 | 9.10 Hash Tables | 192–199 / 193–200 | — | — | undecided | TOC navigation only; content not reviewed | pending | Review in chapter slice |
-| 10.1 Introduction | 200–200 / 201–201 | — | — | undecided | TOC navigation only; content not reviewed | pending | Review in chapter slice |
+| 10.1 Introduction | 200–202 / 201–203 | — | — | undecided | TOC navigation only; content not reviewed | pending | Review in chapter slice |
 | 10.1.1 The Basics of Profiling | 200–200 / 201–201 | — | — | undecided | TOC navigation only; content not reviewed | pending | Review in chapter slice |
 | 10.1.2 Types of Profiling | 200–200 / 201–201 | — | — | undecided | TOC navigation only; content not reviewed | pending | Review in chapter slice |
 | 10.1.3 Hints to interpret what I see in the profile | 201–201 / 202–202 | — | — | undecided | TOC navigation only; content not reviewed | pending | Review in chapter slice |

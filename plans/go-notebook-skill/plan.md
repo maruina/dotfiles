@@ -190,7 +190,7 @@ Execution status: complete. Recovered the reviewed lifecycle update in `8fad246`
 - [x] Commit with `docs: track Go notebook source coverage`. (`76bd51e`)
 
 #### Task 2: Process Chapter 2 (`Language Mechanics`, printed 25–40 / PDF 26–41)
-Execution status: implementation checks passed; content commit pending. Missing-reference red check returned 1. Extracted and read PDF 26–41 in two bounded reads; no unreadable code needed inference.
+Execution status: complete; content committed as `cf7329f`. Missing-reference red check returned 1. Extracted and read PDF 26–41 in two bounded reads; no unreadable code needed inference.
 **Delivers:** Initial `references/ownership-and-memory.md` and `SKILL.md` routing for value/pointer semantics, escape analysis, constants/iota, and struct layout.
 **Blocked by:** Task 1.
 **Traces to:** R1–R4.
@@ -200,7 +200,7 @@ Execution status: implementation checks passed; content commit pending. Missing-
 - [x] Add the `## References` routing table entry for `references/ownership-and-memory.md` and `SOURCES.md` in `dot_pi/agent/exact_skills/go-best-practices/SKILL.md`, preserving all three opening paragraphs (updating the third paragraph to reference `SOURCES.md` while keeping the Uber Apache-2.0 attribution) and `## Version baseline`.
 - [x] Update Chapter 2 rows in `plans/go-notebook-skill/coverage.md`, dated evidence in `dot_pi/agent/exact_skills/go-best-practices/SOURCES.md`, and `## Resume checkpoint` in `plans/go-notebook-skill/plan.md` (next slice: Chapter 3, printed 41–66 / PDF 42–67).
 - [x] Run `(cd dot_pi/agent && npm run test:skills && npm run test:skills:profiles)` and verify structure/budgets with `test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/SKILL.md) -le 250 && test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/references/ownership-and-memory.md) -le 200 && rg -q '^## Version baseline$' dot_pi/agent/exact_skills/go-best-practices/SKILL.md && ! rg -q '^## Merge decisions$' dot_pi/agent/exact_skills/go-best-practices/SKILL.md && git diff --check`; expect exit status 0.
-- [ ] Preview target diff with `chezmoi --source "$PWD" diff ~/.pi/agent/skills/go-best-practices` (do not run `chezmoi apply`) and commit with `docs(skills): add Go language mechanics ownership guidance`.
+- [x] Preview target diff with `chezmoi --source "$PWD" diff ~/.pi/agent/skills/go-best-practices` (do not run `chezmoi apply`) and commit with `docs(skills): add Go language mechanics ownership guidance`. (`cf7329f`)
 
 ### Slice 2: Chapter 3 (`Data Structures`, printed 41–66 / PDF 42–67)
 #### Task 3: Extend `ownership-and-memory.md` with Chapter 3 slice, array, string, and map mechanics
@@ -343,13 +343,13 @@ Run only after independent `/verify` returns `VERIFIED`:
 ## Resume checkpoint
 - Planning status: plan reviewed and updated; no implementation started. `plans/go-notebook-skill/plan.md` is the only file created in planning; `plans/go-notebook-skill/coverage.md` is created in Slice 1 Task 1.
 ## Resume checkpoint
-- Slice 1 implementation checks passed; Task 1 committed as `76bd51e`; Chapter 2 content commit pending. This work started directly from a plan; no sibling design artifact exists.
+- Slice 1 implementation checks passed; Task 1 committed as `76bd51e`; Chapter 2 content committed as `cf7329f`. This work started directly from a plan; no sibling design artifact exists.
 - Independent verification must cover Slice 1 only. Do not apply targets until VERIFIED.
 - Next implementation slice: Slice 2, Chapter 3, printed 41–66 / PDF 42–67 (`3.1`–`3.24`). Read the plan, core, Chapter 3 ledger rows, ownership reference, and SOURCES.md; verify the source hash before extraction.
 - All 15 Chapter 2 dispositions are recorded with LM1–LM5 evidence; no unresolved claims. Chapters 3–12 remain pending except approved exclusions. No mutable learning store was queried.
 - Tests passed: `npm ci --ignore-scripts`, `npm test`, `npm run test:all`, `npm run test:skills`, `npm run test:skills:profiles`. Smoke prints offline model/provider warnings; no extension-issue failure. Leave dependencies installed for read-only verification.
 - Go 1.27.3 darwin/arm64: original tests/vet/escape build passed; two invalid programs failed as expected. Reproduction inputs and commands are in SOURCES.md and the reference; no scratch files are resume dependencies.
-- Structure: core 226 lines; reference 59 lines; version heading preserved; no merge-decisions heading or VENDOR.md. Check local links and opening-paragraph preservation before commit.
+- Structure: core 226 lines; reference 59 lines; version heading preserved; no merge-decisions heading or VENDOR.md. Local links and the first two opening paragraphs match the baseline; the third retains attribution and adds SOURCES.md. The initial paragraph-check command accidentally included the intentionally updated third paragraph; the corrected check targets the required unchanged paragraphs.
 - Preview: directory diff was empty despite changes; explicit SKILL.md diff showed intended changes. Empty directory output is not parity. No apply ran.
 - Root AGENTS.md and dot_pi/agent/AGENTS.md inspected: no change required. Existing guidance covers source-only edits, explicit-file drift checks, test dependencies, and rollout.
 - Operational completion: content only; source ledger/test evidence provide observability, no service telemetry needed. Matteo owns verified rollout and content-revert rollback. No new technology or dependencies added.

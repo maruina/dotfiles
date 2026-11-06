@@ -663,10 +663,10 @@ const showActionSelector = async (
 > => {
   const actions: SelectItem[] = [
     ...(options.canDiff ? [{ value: "diff", label: `Diff in ${filesSettings.diffEditor ?? "Zed"}` }] : []),
-    { value: "reveal", label: "Reveal in Finder" },
-    { value: "open", label: "Open" },
-    { value: "openGoland", label: options.hasGitRoot ? "Open Worktree as GoLand Project" : "Open with GoLand" },
+    { value: "openGoland", label: "Open in GoLand" },
     { value: "addToPrompt", label: "Add to prompt" },
+    { value: "open", label: "Open" },
+    { value: "reveal", label: "Reveal in Finder" },
   ];
 
   return ctx.ui.custom<
@@ -737,7 +737,7 @@ const openPath = async (
   }
 };
 
-const openWithGoLand = async (
+export const openWithGoLand = async (
   pi: ExtensionAPI,
   ctx: ExtensionContext,
   target: FileEntry,
@@ -751,10 +751,12 @@ const openWithGoLand = async (
   const targetStats = statSync(targetPath);
   const gitCwd = targetStats.isDirectory() ? targetPath : path.dirname(targetPath);
   const selectedGitRoot = await getGitRoot(pi, gitCwd);
-  const golandPath = selectedGitRoot ?? targetPath;
+  const golandPaths = selectedGitRoot && !targetStats.isDirectory()
+    ? [selectedGitRoot, targetPath]
+    : [selectedGitRoot ?? targetPath];
   const result = process.platform === "darwin"
-    ? await pi.exec("open", ["-na", "GoLand.app", "--args", golandPath])
-    : await pi.exec("goland", [golandPath]);
+    ? await pi.exec("open", ["-na", "GoLand.app", "--args", ...golandPaths])
+    : await pi.exec("goland", golandPaths);
   if (result.code !== 0) {
     const errorMessage =
       result.stderr?.trim() || `Failed to open ${target.displayPath} in GoLand`;

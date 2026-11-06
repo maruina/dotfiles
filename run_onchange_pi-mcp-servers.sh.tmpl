@@ -14,6 +14,10 @@ pi mcp add ddci-mcp-prod --url "https://ddci-mcp.mcp.us1.ddbuild.io/internal/mcp
   --exposure deferred \
   --description 'Query and control DDCI (GitLab CI) pipelines: status, AI error summaries, job logs, retry failed jobs, trigger auto/on-demand runs, local build impact analysis. Sign in once with: pi mcp login ddci-mcp-prod.'
 
+pi mcp add config-mcp --url "https://config-mcp.mcp.us1.ddbuild.io/internal/mcp" \
+  --exposure deferred \
+  --description 'Search and read internal feature flags, revisions, and Balto configurations. Create flag drafts or Balto reviews only on explicit request; show proposed arguments and ask for confirmation before writing. Sign in once with: pi mcp login config-mcp.'
+
 pi mcp add datadog-google-workspace \
   --url "https://google-workspace-mcp-server-834963730936.us-central1.run.app/mcp" \
   --exposure deferred \
@@ -27,6 +31,7 @@ pi mcp add slack \
 pi mcp remove datadog-prod >/dev/null 2>&1 || true
 pi mcp remove datadog-staging >/dev/null 2>&1 || true
 pi mcp remove ddci-mcp-prod >/dev/null 2>&1 || true
+pi mcp remove config-mcp >/dev/null 2>&1 || true
 pi mcp remove datadog-google-workspace >/dev/null 2>&1 || true
 pi mcp remove slack >/dev/null 2>&1 || true
 

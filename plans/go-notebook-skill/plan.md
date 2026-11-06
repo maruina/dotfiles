@@ -20,6 +20,19 @@
 | `obsidian-cli` | agent-selected | Required learning lookup mechanism | Read the advisory store through the CLI without modifying notes. |
 | `k8s-controller-dev` | user-requested | Existing progressive-disclosure example | Reused explicit task-to-reference routing; did not adopt controller-specific rules for ordinary Go. |
 
+### Execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| skill-loader | prompt-required | Execution routing | Loaded relevant guidance before editing. |
+| resolve-worktree | prompt-required | Plan path | Resolved the owning worktree. |
+| feature-worktree | prompt-required | Safe branch | Continued on the feature branch; main unchanged. |
+| chezmoi | skill-loader | Managed skill | Source-only edits; explicit-file preview; no apply. |
+| codebase-research | skill-loader | Reference organization | Inspected core, controller routing, package tests, and prerequisite PR. |
+| write | skill-loader | Prose | Concise original guidance and precise limitations. |
+| diataxis | skill-loader | Documentation | Task guidance separate from audit evidence. |
+| go-best-practices | agent-selected | Go examples in Markdown | Idiomatic examples, invalid cases, no portable layout promises. |
+| reviewable-pr-workflow | skill-loader | Draft PR | Checked split signals and coherent scope. |
+
 ## Confirmed framing and repository state
 The user approved a durable, resumable plan with a coverage ledger. The book supplies additional design reasoning and technical depth; Uber wins style conflicts. The user explicitly requires internet verification when 2021 advice may be outdated, using Go 1.27 as the review baseline rather than treating the book as current guidance.
 
@@ -174,18 +187,19 @@ Execution status: complete. Recovered the reviewed lifecycle update in `8fad246`
 - [x] Create `plans/go-notebook-skill/coverage.md` with subsection-level rows for Chapters 2–12 from the TOC (marking walkthrough sections `7.3–7.4`, `10.2`, `11.1`, `11.3`, `11.5–11.6`, `12.1`, `12.6`, `12.8` as `omit` with reason) and explicit chapter-level `omit` rows for Chapters 1, 13, and 14. Do not mark in-scope content chapters reviewed from the TOC.
 - [x] Create `dot_pi/agent/exact_skills/go-best-practices/SOURCES.md` recording the book edition/hash, pinned Uber (`1d60a91aa5e87d443002e23c21903c49489dbde5`) and marketplace (`b937ce451cf47154af8566b6ad7776a7749fc810`) revisions, source precedence, and the rule that no `VENDOR.md` or extracted book text is stored.
 - [x] Run `test -f plans/go-notebook-skill/coverage.md && test -f dot_pi/agent/exact_skills/go-best-practices/SOURCES.md && test ! -e dot_pi/agent/exact_skills/go-best-practices/VENDOR.md && git diff --check`; expect exit status 0.
-- [ ] Commit with `docs: track Go notebook source coverage`.
+- [x] Commit with `docs: track Go notebook source coverage`. (`76bd51e`)
 
 #### Task 2: Process Chapter 2 (`Language Mechanics`, printed 25–40 / PDF 26–41)
+Execution status: implementation checks passed; content commit pending. Missing-reference red check returned 1. Extracted and read PDF 26–41 in two bounded reads; no unreadable code needed inference.
 **Delivers:** Initial `references/ownership-and-memory.md` and `SKILL.md` routing for value/pointer semantics, escape analysis, constants/iota, and struct layout.
 **Blocked by:** Task 1.
 **Traces to:** R1–R4.
 **Files:** `dot_pi/agent/exact_skills/go-best-practices/references/ownership-and-memory.md`, `dot_pi/agent/exact_skills/go-best-practices/SKILL.md`, `dot_pi/agent/exact_skills/go-best-practices/SOURCES.md`, `plans/go-notebook-skill/coverage.md`, `plans/go-notebook-skill/plan.md`.
-- [ ] Run the focused red check: `test -f dot_pi/agent/exact_skills/go-best-practices/references/ownership-and-memory.md`; expect exit status 1.
-- [ ] Extract PDF pages 26–41 (`2.1`–`2.15`) to a disposable `/tmp` file, apply the modernization gate, validate original examples in a disposable `mktemp -d` Go module outside the repository, and write verified rules to `dot_pi/agent/exact_skills/go-best-practices/references/ownership-and-memory.md` while deduplicating `SKILL.md`.
-- [ ] Add the `## References` routing table entry for `references/ownership-and-memory.md` and `SOURCES.md` in `dot_pi/agent/exact_skills/go-best-practices/SKILL.md`, preserving all three opening paragraphs (updating the third paragraph to reference `SOURCES.md` while keeping the Uber Apache-2.0 attribution) and `## Version baseline`.
-- [ ] Update Chapter 2 rows in `plans/go-notebook-skill/coverage.md`, dated evidence in `dot_pi/agent/exact_skills/go-best-practices/SOURCES.md`, and `## Resume checkpoint` in `plans/go-notebook-skill/plan.md` (next slice: Chapter 3, printed 41–66 / PDF 42–67).
-- [ ] Run `(cd dot_pi/agent && npm run test:skills && npm run test:skills:profiles)` and verify structure/budgets with `test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/SKILL.md) -le 250 && test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/references/ownership-and-memory.md) -le 200 && rg -q '^## Version baseline$' dot_pi/agent/exact_skills/go-best-practices/SKILL.md && ! rg -q '^## Merge decisions$' dot_pi/agent/exact_skills/go-best-practices/SKILL.md && git diff --check`; expect exit status 0.
+- [x] Run the focused red check: `test -f dot_pi/agent/exact_skills/go-best-practices/references/ownership-and-memory.md`; expect exit status 1.
+- [x] Extract PDF pages 26–41 (`2.1`–`2.15`) to a disposable `/tmp` file, apply the modernization gate, validate original examples in a disposable `mktemp -d` Go module outside the repository, and write verified rules to `dot_pi/agent/exact_skills/go-best-practices/references/ownership-and-memory.md` while deduplicating `SKILL.md`.
+- [x] Add the `## References` routing table entry for `references/ownership-and-memory.md` and `SOURCES.md` in `dot_pi/agent/exact_skills/go-best-practices/SKILL.md`, preserving all three opening paragraphs (updating the third paragraph to reference `SOURCES.md` while keeping the Uber Apache-2.0 attribution) and `## Version baseline`.
+- [x] Update Chapter 2 rows in `plans/go-notebook-skill/coverage.md`, dated evidence in `dot_pi/agent/exact_skills/go-best-practices/SOURCES.md`, and `## Resume checkpoint` in `plans/go-notebook-skill/plan.md` (next slice: Chapter 3, printed 41–66 / PDF 42–67).
+- [x] Run `(cd dot_pi/agent && npm run test:skills && npm run test:skills:profiles)` and verify structure/budgets with `test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/SKILL.md) -le 250 && test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/references/ownership-and-memory.md) -le 200 && rg -q '^## Version baseline$' dot_pi/agent/exact_skills/go-best-practices/SKILL.md && ! rg -q '^## Merge decisions$' dot_pi/agent/exact_skills/go-best-practices/SKILL.md && git diff --check`; expect exit status 0.
 - [ ] Preview target diff with `chezmoi --source "$PWD" diff ~/.pi/agent/skills/go-best-practices` (do not run `chezmoi apply`) and commit with `docs(skills): add Go language mechanics ownership guidance`.
 
 ### Slice 2: Chapter 3 (`Data Structures`, printed 41–66 / PDF 42–67)
@@ -328,8 +342,16 @@ Run only after independent `/verify` returns `VERIFIED`:
 
 ## Resume checkpoint
 - Planning status: plan reviewed and updated; no implementation started. `plans/go-notebook-skill/plan.md` is the only file created in planning; `plans/go-notebook-skill/coverage.md` is created in Slice 1 Task 1.
-- Next action: run `/execute plans/go-notebook-skill/plan.md` to execute Slice 1 (Task 1 ledger + Task 2 Chapter 2 `Language Mechanics`).
-- Prerequisite status: PR #125 is merged on `main` (`13d2330`). Task 1 rebases/merges `origin/main` (`13d2330` or later) into `maruina/go-notebook-skill` before creating `SOURCES.md` and `coverage.md`.
-- First source batch in Slice 1 Task 2: printed Chapter 2 pages 25–40 / PDF 26–41 → `dot_pi/agent/exact_skills/go-best-practices/references/ownership-and-memory.md`. Chapters 1, 13, and 14 are excluded by user decision; Chapters 2–12 execute one chapter per `/execute` slice.
-- Unresolved policy choices: none within the agreed framing. Escalate a genuine modern-guidance/Uber conflict rather than silently changing precedence.
-- Resume inputs: this tracked plan, relevant rows in `plans/go-notebook-skill/coverage.md`, source PDF with matching hash, `dot_pi/agent/exact_skills/go-best-practices/SKILL.md`, and the target reference file. No transcript or `/tmp` file is required.
+## Resume checkpoint
+- Slice 1 implementation checks passed; Task 1 committed as `76bd51e`; Chapter 2 content commit pending. This work started directly from a plan; no sibling design artifact exists.
+- Independent verification must cover Slice 1 only. Do not apply targets until VERIFIED.
+- Next implementation slice: Slice 2, Chapter 3, printed 41–66 / PDF 42–67 (`3.1`–`3.24`). Read the plan, core, Chapter 3 ledger rows, ownership reference, and SOURCES.md; verify the source hash before extraction.
+- All 15 Chapter 2 dispositions are recorded with LM1–LM5 evidence; no unresolved claims. Chapters 3–12 remain pending except approved exclusions. No mutable learning store was queried.
+- Tests passed: `npm ci --ignore-scripts`, `npm test`, `npm run test:all`, `npm run test:skills`, `npm run test:skills:profiles`. Smoke prints offline model/provider warnings; no extension-issue failure. Leave dependencies installed for read-only verification.
+- Go 1.27.3 darwin/arm64: original tests/vet/escape build passed; two invalid programs failed as expected. Reproduction inputs and commands are in SOURCES.md and the reference; no scratch files are resume dependencies.
+- Structure: core 226 lines; reference 59 lines; version heading preserved; no merge-decisions heading or VENDOR.md. Check local links and opening-paragraph preservation before commit.
+- Preview: directory diff was empty despite changes; explicit SKILL.md diff showed intended changes. Empty directory output is not parity. No apply ran.
+- Root AGENTS.md and dot_pi/agent/AGENTS.md inspected: no change required. Existing guidance covers source-only edits, explicit-file drift checks, test dependencies, and rollout.
+- Operational completion: content only; source ledger/test evidence provide observability, no service telemetry needed. Matteo owns verified rollout and content-revert rollback. No new technology or dependencies added.
+- Example-name and whitespace errors were corrected within scope; checks rerun. The negative overflow diagnostic contained “overflows” without a destination type; inspection confirmed the expected rejection.
+- Stack-split check: five Markdown files in one skill/coverage unit, no application code or independent subsystems. No strong signal or pair of soft signals; one draft PR is appropriate.

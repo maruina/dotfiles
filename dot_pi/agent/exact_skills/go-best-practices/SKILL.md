@@ -7,11 +7,19 @@ Use for general Go changes. For controller-runtime, reconcilers, CRDs, watches, 
 
 Default to repository conventions and make small, idiomatic changes because consistency reduces review cost and avoids unrelated risk. Do not rewrite working code for style alone because style churn obscures behavior-bearing changes.
 
-This skill merges the [Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md) (revision `1d60a91aa5e87d443002e23c21903c49489dbde5`) and `atom/skills/go-best-practices/SKILL.md` from the Claude marketplace (revision `b937ce451cf47154af8566b6ad7776a7749fc810`). **Uber wins when the two sources conflict.** The rules below consolidate both sources rather than requiring either source at runtime. The Uber guide is [Apache-2.0 licensed](https://github.com/uber-go/guide/blob/1d60a91aa5e87d443002e23c21903c49489dbde5/LICENSE). The Uber guide was originally created by Prashant Varanasi and Simon Newton and expanded by its contributors; this skill condenses, reorganizes, and supplements their guidance.
+This skill merges the [Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md) (revision `1d60a91aa5e87d443002e23c21903c49489dbde5`) and `atom/skills/go-best-practices/SKILL.md` from the Claude marketplace (revision `b937ce451cf47154af8566b6ad7776a7749fc810`). **Uber wins when the two sources conflict.** The rules below consolidate both sources rather than requiring either source at runtime. The Uber guide is [Apache-2.0 licensed](https://github.com/uber-go/guide/blob/1d60a91aa5e87d443002e23c21903c49489dbde5/LICENSE). The Uber guide was originally created by Prashant Varanasi and Simon Newton and expanded by its contributors; this skill condenses, reorganizes, and supplements their guidance. The task references also incorporate verified notebook guidance; see [SOURCES.md](SOURCES.md) for edition, precedence, and modernization evidence.
 
 ## Version baseline
 - Check the module's `go` directive and supported development and CI toolchains before adopting a language feature, standard-library API, or runtime behavior introduced in a later Go version.
 - If the project supports an earlier version, use a compatible alternative. Do not raise the minimum Go version as an incidental style change. Run tests and `go vet` with the supported toolchain to check compatibility.
+
+## References
+Load only the reference required by the task. Keep simple error-wrapping work in this core skill; it does not require a topic reference.
+
+| Task | Read |
+|---|---|
+| Value/pointer semantics, shared state, escape analysis, numeric conversions/constants, or struct layout | [Ownership and memory](references/ownership-and-memory.md) |
+| Source provenance or verification of a source-derived claim | [Sources and evidence](SOURCES.md) |
 
 ## Contracts and nil values
 - Validate external input and public API arguments where required by the contract. Trust internal constructors and functions that guarantee valid results on success; do not add redundant nil checks after every call.
@@ -186,7 +194,7 @@ Validate the resulting configuration before constructing the resource.
 - `net/http/pprof` registers diagnostic handlers on the default mux. Do not expose them on an unprotected public listener. Restrict access and profile for bounded windows; collection itself can affect the workload.
 - Compare heap profiles over time to investigate retention. Escape-analysis and inlining reports explain compiler decisions; stack placement and inlining are not source-level guarantees.
 - Consider buffer reuse or `sync.Pool` only for measured allocation pressure. A pool is an opportunistic cache, not guaranteed storage or a concurrency limit.
-- Profile before reordering struct fields, adding cache-line padding, batching, or restructuring arithmetic. Cache-line size and performance effects are hardware-dependent; do not apply fixed padding as a universal rule.
+- Profile before changing layout, batching, or restructuring arithmetic. For field alignment and padding, load `references/ownership-and-memory.md`; cache-line effects are hardware-dependent.
 - Tune `GOGC` and `GOMEMLIMIT` only with measured memory headroom. `GOMEMLIMIT` is a soft runtime limit, not a hard process-memory cap. Use explicit cleanup instead of finalizers for resource lifetime.
 
 ## Validation commands

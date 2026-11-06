@@ -7,21 +7,21 @@ Rule IDs refer to `dot_pi/agent/exact_skills/go-best-practices/SOURCES.md`. Each
 | Section | Printed / PDF pages | Rule IDs | Destination | Disposition | Evidence / test | Status | Unresolved question |
 |---|---|---|---|---|---|---|---|
 | 1 Introduction | 10–24 / 11–25 | — | — | omit: philosophy/previews outside scope | Approved plan exclusion | omit | None |
-| 2.1 Built-in Types | 25–25 / 26–26 | — | — | undecided | TOC navigation only; content not reviewed | pending | Review in chapter slice |
-| 2.2 Word Size | 25–25 / 26–26 | — | — | undecided | TOC navigation only; content not reviewed | pending | Review in chapter slice |
-| 2.3 Zero Value Concept | 25–25 / 26–26 | — | — | undecided | TOC navigation only; content not reviewed | pending | Review in chapter slice |
-| 2.4 Declare and Initialize | 26–26 / 27–27 | — | — | undecided | TOC navigation only; content not reviewed | pending | Review in chapter slice |
-| 2.5 Conversion vs Casting | 27–27 / 28–28 | — | — | undecided | TOC navigation only; content not reviewed | pending | Review in chapter slice |
-| 2.6 Struct and Construction Mechanics | 27–28 / 28–29 | — | — | undecided | TOC navigation only; content not reviewed | pending | Review in chapter slice |
-| 2.7 Padding and Alignment | 29–30 / 30–31 | — | — | undecided | TOC navigation only; content not reviewed | pending | Review in chapter slice |
-| 2.8 Assigning Values | 31–31 / 32–32 | — | — | undecided | TOC navigation only; content not reviewed | pending | Review in chapter slice |
-| 2.9 Pointers | 32–32 / 33–33 | — | — | undecided | TOC navigation only; content not reviewed | pending | Review in chapter slice |
-| 2.10 Pass By Value | 33–33 / 34–34 | — | — | undecided | TOC navigation only; content not reviewed | pending | Review in chapter slice |
-| 2.11 Escape Analysis | 34–36 / 35–37 | — | — | undecided | TOC navigation only; content not reviewed | pending | Review in chapter slice |
-| 2.12 Stack Growth | 37–37 / 38–38 | — | — | undecided | TOC navigation only; content not reviewed | pending | Review in chapter slice |
-| 2.13 Garbage Collection | 37–37 / 38–38 | — | — | undecided | TOC navigation only; content not reviewed | pending | Review in chapter slice |
-| 2.14 Constants | 37–38 / 38–39 | — | — | undecided | TOC navigation only; content not reviewed | pending | Review in chapter slice |
-| 2.15 IOTA | 39–40 / 40–41 | — | — | undecided | TOC navigation only; content not reviewed | pending | Review in chapter slice |
+| 2.1 Built-in Types | 25–25 / 26–26 | LM1 | references/ownership-and-memory.md / SOURCES.md | add | SOURCES.md LM1; checked 2026-11-06; Go 1.27.3 tests/vet and negative compilation checks where applicable | integrated | None |
+| 2.2 Word Size | 25–25 / 26–26 | LM1 | references/ownership-and-memory.md / SOURCES.md | add: portable widths; omit fixed word layouts | SOURCES.md LM1; checked 2026-11-06; Go 1.27.3 tests/vet and negative compilation checks where applicable | integrated | None |
+| 2.3 Zero Value Concept | 25–25 / 26–26 | LM1 | SKILL.md | already-covered: core nil/zero rules; omit bit-layout promise | SOURCES.md LM1; checked 2026-11-06; Go 1.27.3 tests/vet and negative compilation checks where applicable | already-covered | None |
+| 2.4 Declare and Initialize | 26–26 / 27–27 | LM1 | SKILL.md | already-covered: core declarations and byte-oriented strings | SOURCES.md LM1; checked 2026-11-06; Go 1.27.3 tests/vet and negative compilation checks where applicable | already-covered | None |
+| 2.5 Conversion vs Casting | 27–27 / 28–28 | LM1 | references/ownership-and-memory.md / SOURCES.md | add: conversion is not an allocation contract | SOURCES.md LM1; checked 2026-11-06; Go 1.27.3 tests/vet and negative compilation checks where applicable | integrated | None |
+| 2.6 Struct and Construction Mechanics | 27–28 / 28–29 | LM1 | SKILL.md | already-covered: keyed literals and zero-value declarations | SOURCES.md LM1; checked 2026-11-06; Go 1.27.3 tests/vet and negative compilation checks where applicable | already-covered | None |
+| 2.7 Padding and Alignment | 29–30 / 30–31 | LM2 | references/ownership-and-memory.md / SOURCES.md | add: alignment requirements and measured layout | SOURCES.md LM2; checked 2026-11-06; Go 1.27.3 tests/vet and negative compilation checks where applicable | integrated | None |
+| 2.8 Assigning Values | 31–31 / 32–32 | LM1 | references/ownership-and-memory.md / SOURCES.md | omit: assignment syntax lesson; defined-type distinction validated in evidence | SOURCES.md LM1; checked 2026-11-06; Go 1.27.3 tests/vet and negative compilation checks where applicable | omit | None |
+| 2.9 Pointers | 32–32 / 33–33 | LM3, LM4 | references/ownership-and-memory.md / SOURCES.md | add: sharing and lifetime; omit fixed stacks | SOURCES.md LM3, LM4; checked 2026-11-06; Go 1.27.3 tests/vet and negative compilation checks where applicable | integrated | None |
+| 2.10 Pass By Value | 33–33 / 34–34 | LM3 | references/ownership-and-memory.md / SOURCES.md | add: copied pointers and shallow values | SOURCES.md LM3; checked 2026-11-06; Go 1.27.3 tests/vet and negative compilation checks where applicable | integrated | None |
+| 2.11 Escape Analysis | 34–36 / 35–37 | LM4 | references/ownership-and-memory.md / SOURCES.md | add: safe lifetime without heap promises | SOURCES.md LM4; checked 2026-11-06; Go 1.27.3 tests/vet and negative compilation checks where applicable | integrated | None |
+| 2.12 Stack Growth | 37–37 / 38–38 | LM4 | references/ownership-and-memory.md / SOURCES.md | omit: runtime stack mechanics and unconditional variable-size heap claim | SOURCES.md LM4; checked 2026-11-06; Go 1.27.3 tests/vet and negative compilation checks where applicable | omit | None |
+| 2.13 Garbage Collection | 37–37 / 38–38 | LM4 | references/ownership-and-memory.md / SOURCES.md | omit: pacing introduction; GC tuning deferred to Slice 11 | SOURCES.md LM4; checked 2026-11-06; Go 1.27.3 tests/vet and negative compilation checks where applicable | omit | None |
+| 2.14 Constants | 37–38 / 38–39 | LM5 | references/ownership-and-memory.md / SOURCES.md | add: constant precision and representability corrections | SOURCES.md LM5; checked 2026-11-06; Go 1.27.3 tests/vet and negative compilation checks where applicable | integrated | None |
+| 2.15 IOTA | 39–40 / 40–41 | LM5 | references/ownership-and-memory.md / SOURCES.md | add: specification indexing; enum policy already in core | SOURCES.md LM5; checked 2026-11-06; Go 1.27.3 tests/vet and negative compilation checks where applicable | integrated | None |
 | 3.1 CPU Caches | 41–43 / 42–44 | — | — | undecided | TOC navigation only; content not reviewed | pending | Review in chapter slice |
 | 3.2 Translation Lookaside Buffer (TLB) | 44–44 / 45–45 | — | — | undecided | TOC navigation only; content not reviewed | pending | Review in chapter slice |
 | 3.3 Declaring and Initializing Values | 45–45 / 46–46 | — | — | undecided | TOC navigation only; content not reviewed | pending | Review in chapter slice |
@@ -142,5 +142,18 @@ Rule IDs refer to `dot_pi/agent/exact_skills/go-best-practices/SOURCES.md`. Each
 | 13 Stack Traces / Core Dumps | 258–265 / 259–266 | — | — | omit: historical ABI walkthrough | Approved plan exclusion | omit | None |
 | 14 Blog Posts | 266–350 / 267–351 | — | — | omit: essay reprints overlap scoped chapters | Approved plan exclusion | omit | None |
 
+## Slice 1 routing and validation
+| Scenario | Expected loading | Inspection result |
+|---|---|---|
+| Pointer/value choice or shallow struct copy | Core + ownership reference | Explicit task match and existing link |
+| Escape report, struct layout, constants or narrowing conversion | Core + ownership reference | Explicit task matches; LM1–LM5 evidence links |
+| Source provenance check | Core + SOURCES.md | Explicit audit route |
+| Simple error wrapping | Core only | Explicit no-topic-reference instruction |
+| Concurrency design, generics, profiling, benchmarking | Core safeguards; no not-yet-created topic files | No links to missing future references |
+
+Manual inspection checks routing text and link existence, not deterministic model compliance. No application runtime, service telemetry, or rollout experiment is involved. The source ledger and test evidence provide observability. Matteo owns rollout after independent verification; reverting the content commit rolls it back.
+
+Validation: missing-file red checks returned 1; PDF hash matched; Go 1.27.3 example/mechanics tests, vet, and escape build passed; invalid constant and defined-type assignment failed as expected. The overflow diagnostic said “overflows” without the destination type; matched the actual diagnostic after inspecting it, without changing the expected rejection. Skill validators passed for shared/work/personal profiles. Source dependency install completed with scripts disabled.
+
 ## Resume
-Next content review: Chapter 2, printed 25–40 / PDF 26–41. No in-scope content is integrated yet. Recheck the PDF hash from the plan before extraction. Front matter establishes edition and navigation only; PDF 352 is the blank back cover.
+Chapter 2 review complete. Next content review: Chapter 3, printed 41–66 / PDF 42–67. Chapters 3–12 remain pending except approved walkthrough exclusions. Recheck the PDF hash from the plan before extraction. Front matter establishes edition and navigation only; PDF 352 is the blank back cover.

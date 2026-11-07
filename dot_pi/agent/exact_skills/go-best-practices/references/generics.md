@@ -1,26 +1,22 @@
 # Generics and collection contracts
-Read this for constraints, named collections, generic APIs, or generic methods. Follow the core skill's module/toolchain gate. Type parameters require Go 1.18+; `cmp` and the `slices`/`maps` packages require Go 1.21+; methods with their own type parameters require Go 1.27+.
+Use with the core skill for type parameters, type-set constraints, generic containers, slice type preservation, and generic methods. Check the module's `go` directive first: generics require Go 1.18+, `cmp`/`slices`/`maps` require Go 1.21+, and methods with their own type parameters require Go 1.27+.
 
-## Choose the abstraction
-- Use generics when the same algorithm or storage contract applies across types. Use a concrete type for one domain and an ordinary interface for behavior that does not need a type relationship across arguments or results.
-- Prefer standard maps, slices, and their standard-library algorithms to a custom container. Introduce a generic wrapper only for a real invariant or operation, not to reproduce built-in storage.
-- Multiple type parameters can express independent key/value or input/output types. They do not prove runtime relationships such as equal slice lengths; validate those separately.
-- Generic code is not a promise of specialization, inlining, zero allocations, or faster execution. Measure the actual workload before making a performance claim.
+## When to use type parameters
+- Use type parameters when the exact same algorithm or container logic operates across multiple types, or when a function must preserve a caller's concrete or defined type across arguments and return values.
+- Do not replace a simple interface parameter (such as `func Read(r io.Reader)`) with a generic type parameter (`func Read[R io.Reader](r R)`) unless preserving the concrete type avoids a measured escape/allocation on a hot path or is required by the return signature.
+- Prefer standard-library generic helpers (`slices`, `maps`, `cmp`) and built-in `map[K]V` / `[]T` over custom generic containers unless you are enforcing a domain invariant (such as a bounded ring buffer or thread-safe queue).
 
-## Constraints define permitted operations
-- `any` is an alias for `interface{}` and permits all types. It does not permit arbitrary operations on a value of type `T`. A constraint must justify each operation in the body.
-- Use `interface{ ~int | ~int64 }` for a union of underlying integer types; the pre-release `interface{ type int, int64 }` syntax is invalid. `int` alone accepts that exact type, not a defined `type Count int`; `~int` includes such defined types.
-- Separate interface elements intersect their type sets; alternatives within one union use `|`. Keep constraints no stronger than the operations require. Declare required methods explicitly; common fields or methods on every union member do not supply an implicit selector contract.
-- Type-set constraints such as `interface{ ~int | ~string }` are not runtime value types. Use them as constraints, not as the type of a variable or struct field. Use an ordinary behavior interface when runtime polymorphism is the goal.
-- Use `cmp.Ordered` (Go 1.21+) for ordered built-in types and defined types with those underlying types. Ordering is not numeric addition: it includes strings and excludes complex numbers. State the NaN policy for floating-point ordering; `cmp.Compare` supplies a consistent order where raw `<` does not.
-- Use `comparable` for `==`, `!=`, or map keys, not for ordering. Since Go 1.20, interface types such as `any` can satisfy it. Comparing or hashing interface values with uncomparable dynamic values can still panic. A `comparable` constraint does not validate heterogeneous input.
+## Type-set constraints and `comparable`
+- `any` (`interface{}`) permits any type argument but supports only assignment, passing, taking an address, and reflection. Every other operation in a generic body must be justified by the constraint.
+- Express underlying-type unions with `~` and `|`: `interface{ ~int | ~int64 }`. Without `~`, `int` matches only `int` and rejects `type UserID int`. Separate lines inside an interface intersect their type sets; `|` unions them.
+- Type-set interfaces containing `~` or type unions can be used only as type constraints, not as the type of variables, parameters, or struct fields.
+- Use `cmp.Ordered` (Go 1.21+) for `<`, `<=`, `>`, `>=`. For floating-point values that may contain `NaN`, use `cmp.Compare(a, b)` or `cmp.Less(a, b)` so `NaN` sorts deterministically before non-`NaN` values.
+- Use `comparable` when the function uses `==`, `!=`, or `map[K]V` keys. Since Go 1.20, non-type-parameter interfaces (such as `any` or `io.Reader`) satisfy `comparable` at compile time, but comparing or hashing an interface value whose dynamic type is uncomparable (slice, map, function) still panics at runtime.
 
-## Instantiate and preserve type identity
-- Instantiate generic types explicitly, including composite literals: `Queue[int]{}` rather than `Queue{}`. Generic function calls can infer arguments from inputs and constraints; supply explicit arguments when inference lacks enough information. Do not assume an expected return type supplies inference.
-- Use `var zero T` for a zero result valid for any `T`. `T{}` does not work for arbitrary scalar types, and `nil` cannot represent every type's zero value.
-- A receiver such as `func (q *Queue[T]) Pop() (T, bool)` declares receiver type parameters with constraints inherited from `Queue`. These names are not a specialization for one concrete type. A generic struct's fields must use instantiated types, such as `next *node[T]`.
-- Use `S ~[]E` and return `S` when a collection operation must preserve a caller's defined slice type and methods. Returning `[]E` loses that identity. Preserving the type does not establish independent storage or a deep copy.
-- State nil, empty, aliasing, mutation, and callback contracts. This shallow clone preserves nil and named type identity, and allocates independent element storage for non-empty inputs; referenced element data remains shared:
+## Instantiation, zero values, and defined slice types
+- Generic types must always provide explicit type arguments when instantiated (`var q Queue[int]`), whereas generic functions infer type arguments from value arguments when unambiguous. Type inference never infers a type parameter solely from how the caller uses the return value.
+- Return or clear a generic zero value with `var zero T` (or `**new(T)`). `T{}` fails to compile for primitive/interface types, and `nil` is invalid for value types.
+- Use `S ~[]E` when a slice helper should return the caller's defined slice type `S` (preserving methods attached to `type IDs []int`) rather than decaying the return type to `[]E`:
 
 ```go
 package generics
@@ -45,25 +41,23 @@ func (q *Queue[T]) Pop() (T, bool) {
 	}
 	value := q.items[0]
 	var zero T
-	q.items[0] = zero
+	q.items[0] = zero // clear slot so popped pointers are not retained by backing array
 	q.items = q.items[1:]
 	return value, true
 }
 ```
 
-Prefer `slices.Clone` when its nil/empty contract fits. The queue fragment illustrates generic zero values, not a complete queue API: it has no enqueue operation or concurrency protection. Clearing removed elements releases references, but reslicing can retain the backing allocation; use the ownership reference for measured retention decisions.
-
-## Fields, methods, and version gates
-- A union of structs with a common `ID` field does not permit `value.ID` on a type parameter. Keep field access in concrete code, or pass a typed accessor/update callback. Require a method only when it belongs in the domain contract; do not add meaningless setters only to make a generic helper compile.
-- Before Go 1.27, a method can use its receiver's type parameters but cannot introduce independent ones. Use a package-level generic function for that operation on older baselines.
-- Go 1.27 permits independent method type parameters. Interface methods still cannot declare type parameters, and generic methods do not implement interface methods. Do not add an unsupported generic-method requirement to an interface.
-- This Go 1.27-only example maps to an independent output type; use explicit instantiation when passing a generic method as a value if inference cannot determine its parameters:
+## Struct fields and generic methods (Go 1.27+)
+- Go does not support structural field access through type-set unions: even if both `A` and `B` have an `ID int` field, `func getID[T A | B](v T) int { return v.ID }` does not compile. Access fields in concrete code, pass an accessor function `func(T) int`, or use a behavioral interface method when it fits the domain.
+- In Go 1.18–1.26, methods can use their receiver's type parameters (`func (b Batch[T]) Len() int`) but cannot declare additional type parameters of their own; use a package-level function `func Map[T, U any](b Batch[T], fn func(T) U) Batch[U]` when supporting Go 1.26 or earlier.
+- Go 1.27 allows methods to declare their own type parameters. Interface definitions still cannot contain generic methods, and a generic method cannot satisfy an interface method:
 
 ```go
 package generics
 
 type Batch[T any] []T
 
+// Go 1.27+: method declares independent type parameter U.
 func (input Batch[T]) Map[U any](transform func(T) U) Batch[U] {
 	if input == nil {
 		return nil
@@ -75,12 +69,3 @@ func (input Batch[T]) Map[U any](transform func(T) U) Batch[U] {
 	return output
 }
 ```
-
-The callback runs synchronously once per element; callers supply a non-nil callback for non-empty inputs. Allocation and callback work scale with input length. Type parameters do not add cancellation or bounds to a workload.
-
-## Channels and keyed collections
-- `chan T` can carry typed results, but generics do not change send/close ownership, backpressure, cancellation, or join requirements. A capacity-one result channel can release a completed sender; it cannot terminate work that ignores cancellation. Read [Concurrency](concurrency.md) when designing a generic worker API rather than copying a sample pool.
-- Prefer `map[K]V` with `K comparable` to a custom hash table. Test overwrite, absent-key zero/false results, and key restrictions. A custom table additionally needs hash/equality consistency, validated bucket bounds and size, collision behavior, growth policy, and synchronization ownership. Omit fixed-bucket teaching implementations unless the measured requirement justifies maintaining those contracts.
-
-## Validation
-Test named and unnamed input types, nil and non-nil empty collections, aliasing, zero values, and independent input/output types. Keep compile-negative checks for invalid constraints, missing explicit type arguments, forbidden field access, and unsupported interface methods separate from the passing package. Test the repository's supported versions; a Go 1.27 run alone does not establish older-version compatibility.

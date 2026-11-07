@@ -7,6 +7,9 @@
 **Architecture:** Preserve a short core skill and load focused references only for relevant tasks. Track source coverage and verification in separate planning artifacts so a new session does not need earlier conversations. References consolidate the existing Uber/marketplace guidance with book insights instead of creating parallel rule sets.
 **Tech Stack:** Markdown, chezmoi, Pi skills, Poppler `pdfinfo`/`pdftotext`, supported Go toolchains, and public authoritative documentation.
 
+## User-approved execution override
+The user approved deferring commits until the end of the agent workflow because signing requires an interactive 1Password unlock. Per-slice commit, push, and PR-update steps are deferred publication tasks, not prerequisites for independent verification. Do not attempt signing or bypass it during the loop. Verify the full committed, staged, and unstaged candidate; preserve attributable work between sessions. Record each slice's implementation/check status separately from publication. The user subsequently authorized completing all remaining slices (3–12), each in a fresh execution session followed by fresh independent baseten/glm-5-3-flash verification. Continue sequentially only after VERIFIED. Carry attributable staged/unstaged changes between slices; deferred publication checkboxes do not select an already verified slice again. Stop for real blockers or scope decisions. Do not apply targets until the final slice passes cumulative independent verification. Final signed publication remains pending until the user is available; do not attempt intermediate signing.
+
 ## Skills loaded and used
 | Skill | Source | Why loaded | How used |
 |---|---|---|---|
@@ -204,135 +207,147 @@ Execution status: complete; content committed as `cf7329f`. Missing-reference re
 
 ### Slice 2: Chapter 3 (`Data Structures`, printed 41–66 / PDF 42–67)
 #### Task 3: Extend `ownership-and-memory.md` with Chapter 3 slice, array, string, and map mechanics
+Execution status: implementation checks complete; publication deferred by the user-approved override. Approved recovery resumed the five attributable draft files from `fd681009`. The candidate is ready for independent Slice 2 verification, including staged and unstaged changes. No further signing attempts during the loop.
 **Delivers:** Complete `references/ownership-and-memory.md` covering CPU caches/data locality caveats, slice aliasing/capacity/append/retention, UTF-8 byte vs. rune iteration, and map semantics.
 **Blocked by:** Task 2.
 **Traces to:** R1–R4.
 **Files:** `dot_pi/agent/exact_skills/go-best-practices/references/ownership-and-memory.md`, `dot_pi/agent/exact_skills/go-best-practices/SKILL.md`, `dot_pi/agent/exact_skills/go-best-practices/SOURCES.md`, `plans/go-notebook-skill/coverage.md`, `plans/go-notebook-skill/plan.md`.
-- [ ] Run the focused red check: `rg -q '^\| 3\.[0-9]+ .* \| integrated \|' plans/go-notebook-skill/coverage.md`; expect exit status 1.
-- [ ] Extract PDF pages 42–67 (`3.1`–`3.24`) to `/tmp`, apply the modernization gate (checking `slices`, `maps`, `strings.Clone`, `bytes.CutLast`/`strings.CutLast`), test original examples in a `mktemp -d` module, and integrate verified rules into `references/ownership-and-memory.md` and `SKILL.md`.
-- [ ] Update Chapter 3 rows in `coverage.md`, evidence in `SOURCES.md`, and `## Resume checkpoint` in `plan.md`.
-- [ ] Run `(cd dot_pi/agent && npm run test:skills && npm run test:skills:profiles)` and verify `test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/SKILL.md) -le 250 && test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/references/ownership-and-memory.md) -le 200 && git diff --check`; expect exit status 0.
-- [ ] Preview with `chezmoi --source "$PWD" diff ~/.pi/agent/skills/go-best-practices` and commit with `docs(skills): add Go data structure ownership guidance`.
+- [x] Run the focused red check: `rg -q '^\| 3\.[0-9]+ .* \| integrated \|' plans/go-notebook-skill/coverage.md`; expect exit status 1.
+- [x] Extract PDF pages 42–67 (`3.1`–`3.24`) to `/tmp`, apply the modernization gate (checking `slices`, `maps`, `strings.Clone`, `bytes.CutLast`/`strings.CutLast`), test original examples in a `mktemp -d` module, and integrate verified rules into `references/ownership-and-memory.md` and `SKILL.md`.
+- [x] Update Chapter 3 rows in `coverage.md`, evidence in `SOURCES.md`, and `## Resume checkpoint` in `plan.md`.
+- [x] Run `(cd dot_pi/agent && npm run test:skills && npm run test:skills:profiles)` and verify `test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/SKILL.md) -le 250 && test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/references/ownership-and-memory.md) -le 200 && git diff --check`; expect exit status 0.
+- [ ] Preview with `chezmoi --source "$PWD" diff ~/.pi/agent/skills/go-best-practices` and commit with `docs(skills): add Go data structure ownership guidance`. Preview passed (including explicit files); commit/push/PR update deferred until final publication by user approval.
 
 ### Slice 3: Chapter 4 (`Decoupling`, printed 67–89 / PDF 68–90)
 #### Task 4: Create `interfaces-and-design.md` with Chapter 4 receiver, method-set, interface, and embedding rules
+Execution status: implementation and required checks complete; independent Slice 3 verification pending. Slice 2 independently VERIFIED per coordinator; source identity matched and missing-file red check returned 1. Publication remains deferred.
 **Delivers:** Initial `references/interfaces-and-design.md` and `SKILL.md` routing for receivers, method sets, method values, interfaces, embedding, and exporting.
 **Blocked by:** Task 3.
 **Traces to:** R1–R4.
 **Files:** `dot_pi/agent/exact_skills/go-best-practices/references/interfaces-and-design.md`, `dot_pi/agent/exact_skills/go-best-practices/SKILL.md`, `dot_pi/agent/exact_skills/go-best-practices/SOURCES.md`, `plans/go-notebook-skill/coverage.md`, `plans/go-notebook-skill/plan.md`.
-- [ ] Run the focused red check: `test -f dot_pi/agent/exact_skills/go-best-practices/references/interfaces-and-design.md`; expect exit status 1.
-- [ ] Extract PDF pages 68–90 (`4.1`–`4.14`) to `/tmp`, apply the modernization gate, test original examples in a `mktemp -d` module, write `references/interfaces-and-design.md`, and add its routing entry in `SKILL.md`.
-- [ ] Update Chapter 4 rows in `coverage.md`, evidence in `SOURCES.md`, and `## Resume checkpoint` in `plan.md`.
-- [ ] Run `(cd dot_pi/agent && npm run test:skills && npm run test:skills:profiles)` and verify `test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/SKILL.md) -le 250 && test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/references/interfaces-and-design.md) -le 200 && git diff --check`; expect exit status 0.
-- [ ] Preview with `chezmoi --source "$PWD" diff ~/.pi/agent/skills/go-best-practices` and commit with `docs(skills): add Go decoupling and receiver guidance`.
+- [x] Run the focused red check: `test -f dot_pi/agent/exact_skills/go-best-practices/references/interfaces-and-design.md`; expect exit status 1.
+- [x] Extract PDF pages 68–90 (`4.1`–`4.14`) to `/tmp`, apply the modernization gate, test original examples in a `mktemp -d` module, write `references/interfaces-and-design.md`, and add its routing entry in `SKILL.md`.
+- [x] Update Chapter 4 rows in `coverage.md`, evidence in `SOURCES.md`, and `## Resume checkpoint` in `plan.md`.
+- [x] Run `(cd dot_pi/agent && npm run test:skills && npm run test:skills:profiles)` and verify `test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/SKILL.md) -le 250 && test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/references/interfaces-and-design.md) -le 200 && git diff --check`; expect exit status 0.
+- [ ] Preview with `chezmoi --source "$PWD" diff ~/.pi/agent/skills/go-best-practices` and commit with `docs(skills): add Go decoupling and receiver guidance`. Directory and explicit-file previews passed; commit/push/PR update deferred by user approval.
 
 ### Slice 4: Chapter 5 (`Software Design`, printed 90–118 / PDF 91–119)
 #### Task 5: Extend `interfaces-and-design.md` with Chapter 5 composition, interface ownership, and error-handling rules
+Execution status: implementation and required checks complete; independent Slice 4 verification pending. Slice 3 VERIFIED per coordinator. PDF identity and Go 1.27.3 confirmed; focused red check returned 1. Publication remains deferred.
 **Delivers:** Complete `references/interfaces-and-design.md` covering composition vs. inheritance, consumer-owned interfaces, typed-nil interface hazards, and error wrapping/inspection.
 **Blocked by:** Task 4.
 **Traces to:** R1–R4.
 **Files:** `dot_pi/agent/exact_skills/go-best-practices/references/interfaces-and-design.md`, `dot_pi/agent/exact_skills/go-best-practices/SKILL.md`, `dot_pi/agent/exact_skills/go-best-practices/SOURCES.md`, `plans/go-notebook-skill/coverage.md`, `plans/go-notebook-skill/plan.md`.
-- [ ] Run the focused red check: `rg -q '^\| 5\.[0-9]+ .* \| (integrated|already-covered|omit) \|' plans/go-notebook-skill/coverage.md`; expect exit status 1.
-- [ ] Extract PDF pages 91–119 (`5.1`–`5.13`) to `/tmp`, apply the modernization gate (`errors.Is`/`errors.As`/`errors.Join`), test original examples in a `mktemp -d` module, and update `references/interfaces-and-design.md`, `SKILL.md`, `SOURCES.md`, `coverage.md`, and `plan.md`.
-- [ ] Run `(cd dot_pi/agent && npm run test:skills && npm run test:skills:profiles)` and verify `test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/SKILL.md) -le 250 && test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/references/interfaces-and-design.md) -le 200 && git diff --check`; expect exit status 0.
-- [ ] Preview with `chezmoi --source "$PWD" diff ~/.pi/agent/skills/go-best-practices` and commit with `docs(skills): add Go interface composition and error design guidance`.
+- [x] Run the focused red check: `rg -q '^\| 5\.[0-9]+ .* \| (integrated|already-covered|omit) \|' plans/go-notebook-skill/coverage.md`; expect exit status 1.
+- [x] Extract PDF pages 91–119 (`5.1`–`5.13`) to `/tmp`, apply the modernization gate (`errors.Is`/`errors.As`/`errors.Join`), test original examples in a `mktemp -d` module, and update `references/interfaces-and-design.md`, `SKILL.md`, `SOURCES.md`, `coverage.md`, and `plan.md`.
+- [x] Run `(cd dot_pi/agent && npm run test:skills && npm run test:skills:profiles)` and verify `test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/SKILL.md) -le 250 && test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/references/interfaces-and-design.md) -le 200 && git diff --check`; expect exit status 0.
+- [ ] Preview with `chezmoi --source "$PWD" diff ~/.pi/agent/skills/go-best-practices` and commit with `docs(skills): add Go interface composition and error design guidance`. Preview completed for directory and explicit files; publication deferred by user approval.
 
 ### Slice 5: Chapter 6 (`Concurrency`, printed 119–150 / PDF 120–151)
 #### Task 6: Create `concurrency.md` with Chapter 6 scheduler, race, mutex/atomic, and channel patterns
+Execution status: implementation and required checks complete; independent Slice 5 verification pending. Slice 4 VERIFIED per coordinator. PDF hash matched; Go 1.27.3 confirmed; focused missing-reference red check returned 1. Publication deferred.
 **Delivers:** `references/concurrency.md` and `SKILL.md` routing covering goroutine lifetime ownership, race detection, atomics vs. mutexes, channel buffering/signaling, and bounded fan-out/pooling/cancellation patterns (`6.1`–`6.11.10`).
 **Blocked by:** Task 5.
 **Traces to:** R1–R4.
 **Files:** `dot_pi/agent/exact_skills/go-best-practices/references/concurrency.md`, `dot_pi/agent/exact_skills/go-best-practices/SKILL.md`, `dot_pi/agent/exact_skills/go-best-practices/SOURCES.md`, `plans/go-notebook-skill/coverage.md`, `plans/go-notebook-skill/plan.md`.
-- [ ] Run the focused red check: `test -f dot_pi/agent/exact_skills/go-best-practices/references/concurrency.md`; expect exit status 1.
-- [ ] Extract PDF pages 120–151 (`6.1`–`6.11.10`) in two bounded sub-reads (`6.1`–`6.9` and `6.10`–`6.11.10`), apply the modernization gate (checking Go 1.23+ timer GC/unbuffered channels, Go 1.27 `asynctimerchan` removal, `sync.WaitGroup.Go`, and Uber `go.uber.org/atomic` vs. `sync/atomic`), test original examples in a `mktemp -d` module, write `references/concurrency.md`, and add its routing entry in `SKILL.md`.
-- [ ] Update Chapter 6 rows in `coverage.md`, evidence in `SOURCES.md`, and `## Resume checkpoint` in `plan.md`.
-- [ ] Run `(cd dot_pi/agent && npm run test:skills && npm run test:skills:profiles)` and verify `test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/SKILL.md) -le 250 && test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/references/concurrency.md) -le 200 && git diff --check`; expect exit status 0.
-- [ ] Preview with `chezmoi --source "$PWD" diff ~/.pi/agent/skills/go-best-practices` and commit with `docs(skills): add Go concurrency and channel pattern guidance`.
+- [x] Run the focused red check: `test -f dot_pi/agent/exact_skills/go-best-practices/references/concurrency.md`; expect exit status 1.
+- [x] Extract PDF pages 120–151 (`6.1`–`6.11.10`) in two bounded sub-reads (`6.1`–`6.9` and `6.10`–`6.11.10`), apply the modernization gate (checking Go 1.23+ timer GC/unbuffered channels, Go 1.27 `asynctimerchan` removal, `sync.WaitGroup.Go`, and Uber `go.uber.org/atomic` vs. `sync/atomic`), test original examples in a `mktemp -d` module, write `references/concurrency.md`, and add its routing entry in `SKILL.md`.
+- [x] Update Chapter 6 rows in `coverage.md`, evidence in `SOURCES.md`, and `## Resume checkpoint` in `plan.md`.
+- [x] Run `(cd dot_pi/agent && npm run test:skills && npm run test:skills:profiles)` and verify `test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/SKILL.md) -le 250 && test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/references/concurrency.md) -le 200 && git diff --check`; expect exit status 0.
+- [ ] Preview with `chezmoi --source "$PWD" diff ~/.pi/agent/skills/go-best-practices` and commit with `docs(skills): add Go concurrency and channel pattern guidance`. Directory and explicit-file previews completed; publication deferred by user approval.
 
 ### Slice 6: Chapter 7 (`Testing`, printed 151–162 / PDF 152–163)
 #### Task 7: Create `testing-and-benchmarking.md` with Chapter 7 unit, table, `httptest`, and subtest guidance
+Execution status: implementation and required checks complete; independent Slice 6 verification pending. Slice 5 VERIFIED per coordinator; PDF hash and Go 1.27.3 confirmed. Focused missing-reference red check returned 1. Publication deferred.
 **Delivers:** Initial `references/testing-and-benchmarking.md` and `SKILL.md` routing for unit tests, table tests, `httptest` isolation, and parallel subtest isolation (`7.1`–`7.5`).
 **Blocked by:** Task 6.
 **Traces to:** R1–R4.
 **Files:** `dot_pi/agent/exact_skills/go-best-practices/references/testing-and-benchmarking.md`, `dot_pi/agent/exact_skills/go-best-practices/SKILL.md`, `dot_pi/agent/exact_skills/go-best-practices/SOURCES.md`, `plans/go-notebook-skill/coverage.md`, `plans/go-notebook-skill/plan.md`.
-- [ ] Run the focused red check: `test -f dot_pi/agent/exact_skills/go-best-practices/references/testing-and-benchmarking.md`; expect exit status 1.
-- [ ] Extract PDF pages 152–163 (`7.1`–`7.5`), apply the modernization gate (Go 1.22+ loop-variable capture vs. earlier baselines, Uber table-test conventions), test original examples in a `mktemp -d` module, write `references/testing-and-benchmarking.md`, and add its routing entry in `SKILL.md`.
-- [ ] Update Chapter 7 rows in `coverage.md`, evidence in `SOURCES.md`, and `## Resume checkpoint` in `plan.md`.
-- [ ] Run `(cd dot_pi/agent && npm run test:skills && npm run test:skills:profiles)` and verify `test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/SKILL.md) -le 250 && test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/references/testing-and-benchmarking.md) -le 200 && git diff --check`; expect exit status 0.
-- [ ] Preview with `chezmoi --source "$PWD" diff ~/.pi/agent/skills/go-best-practices` and commit with `docs(skills): add Go testing guidance`.
+- [x] Run the focused red check: `test -f dot_pi/agent/exact_skills/go-best-practices/references/testing-and-benchmarking.md`; expect exit status 1.
+- [x] Extract PDF pages 152–163 (`7.1`–`7.5`), apply the modernization gate (Go 1.22+ loop-variable capture vs. earlier baselines, Uber table-test conventions), test original examples in a `mktemp -d` module, write `references/testing-and-benchmarking.md`, and add its routing entry in `SKILL.md`.
+- [x] Update Chapter 7 rows in `coverage.md`, evidence in `SOURCES.md`, and `## Resume checkpoint` in `plan.md`.
+- [x] Run `(cd dot_pi/agent && npm run test:skills && npm run test:skills:profiles)` and verify `test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/SKILL.md) -le 250 && test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/references/testing-and-benchmarking.md) -le 200 && git diff --check`; expect exit status 0.
+- [ ] Preview with `chezmoi --source "$PWD" diff ~/.pi/agent/skills/go-best-practices` and commit with `docs(skills): add Go testing guidance`. Directory and explicit-file previews complete; publication deferred by user approval.
 
 ### Slice 7: Chapter 8 (`Benchmarking`, printed 163–173 / PDF 164–174)
 #### Task 8: Extend `testing-and-benchmarking.md` with Chapter 8 benchmark construction and validation rules
+Execution status: implementation and required checks complete; independent Slice 7 verification pending. Slice 6 VERIFIED per coordinator; source hash and Go 1.27.3 confirmed. Focused red check returned 1. Publication deferred.
 **Delivers:** Complete `references/testing-and-benchmarking.md` covering benchmark accuracy, sub-benchmarks, compiler dead-code/inlining traps, `testing.B.Loop` (Go 1.24+), and `benchstat`.
 **Blocked by:** Task 7.
 **Traces to:** R1–R4.
 **Files:** `dot_pi/agent/exact_skills/go-best-practices/references/testing-and-benchmarking.md`, `dot_pi/agent/exact_skills/go-best-practices/SKILL.md`, `dot_pi/agent/exact_skills/go-best-practices/SOURCES.md`, `plans/go-notebook-skill/coverage.md`, `plans/go-notebook-skill/plan.md`.
-- [ ] Run the focused red check: `rg -q '^\| 8\.[0-9]+ .* \| (integrated|already-covered|omit) \|' plans/go-notebook-skill/coverage.md`; expect exit status 1.
-- [ ] Extract PDF pages 164–174 (`8.1`–`8.3`), apply the modernization gate (`testing.B.Loop` vs. `b.N`), test original examples in a `mktemp -d` module, and update `references/testing-and-benchmarking.md`, `SKILL.md`, `SOURCES.md`, `coverage.md`, and `plan.md`.
-- [ ] Run `(cd dot_pi/agent && npm run test:skills && npm run test:skills:profiles)` and verify `test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/SKILL.md) -le 250 && test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/references/testing-and-benchmarking.md) -le 200 && git diff --check`; expect exit status 0.
-- [ ] Preview with `chezmoi --source "$PWD" diff ~/.pi/agent/skills/go-best-practices` and commit with `docs(skills): add Go benchmarking guidance`.
+- [x] Run the focused red check: `rg -q '^\| 8\.[0-9]+ .* \| (integrated|already-covered|omit) \|' plans/go-notebook-skill/coverage.md`; expect exit status 1.
+- [x] Extract PDF pages 164–174 (`8.1`–`8.3`), apply the modernization gate (`testing.B.Loop` vs. `b.N`), test original examples in a `mktemp -d` module, and update `references/testing-and-benchmarking.md`, `SKILL.md`, `SOURCES.md`, `coverage.md`, and `plan.md`.
+- [x] Run `(cd dot_pi/agent && npm run test:skills && npm run test:skills:profiles)` and verify `test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/SKILL.md) -le 250 && test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/references/testing-and-benchmarking.md) -le 200 && git diff --check`; expect exit status 0.
+- [ ] Preview with `chezmoi --source "$PWD" diff ~/.pi/agent/skills/go-best-practices` and commit with `docs(skills): add Go benchmarking guidance`. Directory and explicit-file previews complete; publication deferred by user approval.
 
 ### Slice 8: Chapter 9 (`Generics`, printed 174–199 / PDF 175–200)
 #### Task 9: Create `generics.md` with modernized Chapter 9 constraint and collection guidance
+Execution status: implementation and required checks complete; independent Slice 8 verification pending. Slice 7 VERIFIED per coordinator. PDF hash and Go 1.27.3 confirmed; focused missing-file check returned 1. Publication deferred.
 **Delivers:** `references/generics.md` and `SKILL.md` routing with pre-release 2021 draft syntax replaced by verified Go 1.18–1.27 semantics (`~T`, `S ~[]E`, `var zero T`, `cmp.Ordered`, generic methods in Go 1.27).
 **Blocked by:** Task 8.
 **Traces to:** R1–R4.
 **Files:** `dot_pi/agent/exact_skills/go-best-practices/references/generics.md`, `dot_pi/agent/exact_skills/go-best-practices/SKILL.md`, `dot_pi/agent/exact_skills/go-best-practices/SOURCES.md`, `plans/go-notebook-skill/coverage.md`, `plans/go-notebook-skill/plan.md`.
-- [ ] Run the focused red check: `test -f dot_pi/agent/exact_skills/go-best-practices/references/generics.md`; expect exit status 1.
-- [ ] Extract PDF pages 175–200 (`9.1`–`9.10`), apply the modernization gate against the Go language specification (replacing any pre-1.18 draft `type` list syntax or obsolete restrictions), test original examples in a `mktemp -d` module, write `references/generics.md`, and add its routing entry in `SKILL.md`.
-- [ ] Update Chapter 9 rows in `coverage.md`, evidence in `SOURCES.md`, and `## Resume checkpoint` in `plan.md`.
-- [ ] Run `(cd dot_pi/agent && npm run test:skills && npm run test:skills:profiles)` and verify `test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/SKILL.md) -le 250 && test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/references/generics.md) -le 200 && git diff --check`; expect exit status 0.
-- [ ] Preview with `chezmoi --source "$PWD" diff ~/.pi/agent/skills/go-best-practices` and commit with `docs(skills): add Go generics guidance`.
+- [x] Run the focused red check: `test -f dot_pi/agent/exact_skills/go-best-practices/references/generics.md`; expect exit status 1.
+- [x] Extract PDF pages 175–200 (`9.1`–`9.10`), apply the modernization gate against the Go language specification (replacing any pre-1.18 draft `type` list syntax or obsolete restrictions), test original examples in a `mktemp -d` module, write `references/generics.md`, and add its routing entry in `SKILL.md`.
+- [x] Update Chapter 9 rows in `coverage.md`, evidence in `SOURCES.md`, and `## Resume checkpoint` in `plan.md`.
+- [x] Run `(cd dot_pi/agent && npm run test:skills && npm run test:skills:profiles)` and verify `test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/SKILL.md) -le 250 && test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/references/generics.md) -le 200 && git diff --check`; expect exit status 0.
+- [ ] Preview with `chezmoi --source "$PWD" diff ~/.pi/agent/skills/go-best-practices` and commit with `docs(skills): add Go generics guidance`. Directory and explicit core/source/reference previews completed; publication deferred by user approval.
 
 ### Slice 9: Chapter 10 (`Profiling`, printed 200–219 / PDF 201–220)
 #### Task 10: Create `profiling-and-tracing.md` with Chapter 10 profiling, inlining, and escape-analysis diagnosis rules
+Execution status: implemented and implementation-checked; independent Slice 9 verification pending. Slice 8 VERIFIED per coordinator. PDF hash and Go 1.27.3 confirmed; missing-reference red check returned 1. Publication deferred.
 **Delivers:** Initial `references/profiling-and-tracing.md` and `SKILL.md` routing for profile types, flat vs. cumulative cost, allocation vs. live heap profiles, and `-gcflags='-m'` interpretation (`10.1`–`10.6`).
 **Blocked by:** Task 9.
 **Traces to:** R1–R4.
 **Files:** `dot_pi/agent/exact_skills/go-best-practices/references/profiling-and-tracing.md`, `dot_pi/agent/exact_skills/go-best-practices/SKILL.md`, `dot_pi/agent/exact_skills/go-best-practices/SOURCES.md`, `plans/go-notebook-skill/coverage.md`, `plans/go-notebook-skill/plan.md`.
-- [ ] Run the focused red check: `test -f dot_pi/agent/exact_skills/go-best-practices/references/profiling-and-tracing.md`; expect exit status 1.
-- [ ] Extract PDF pages 201–220 (`10.1`–`10.6`), apply the modernization gate, test original examples in a `mktemp -d` module, write `references/profiling-and-tracing.md`, and add its routing entry in `SKILL.md`.
-- [ ] Update Chapter 10 rows in `coverage.md`, evidence in `SOURCES.md`, and `## Resume checkpoint` in `plan.md`.
-- [ ] Run `(cd dot_pi/agent && npm run test:skills && npm run test:skills:profiles)` and verify `test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/SKILL.md) -le 250 && test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/references/profiling-and-tracing.md) -le 200 && git diff --check`; expect exit status 0.
-- [ ] Preview with `chezmoi --source "$PWD" diff ~/.pi/agent/skills/go-best-practices` and commit with `docs(skills): add Go profiling guidance`.
+- [x] Run the focused red check: `test -f dot_pi/agent/exact_skills/go-best-practices/references/profiling-and-tracing.md`; expect exit status 1.
+- [x] Extract PDF pages 201–220 (`10.1`–`10.6`), apply the modernization gate, test original examples in a `mktemp -d` module, write `references/profiling-and-tracing.md`, and add its routing entry in `SKILL.md`.
+- [x] Update Chapter 10 rows in `coverage.md`, evidence in `SOURCES.md`, and `## Resume checkpoint` in `plan.md`.
+- [x] Run `(cd dot_pi/agent && npm run test:skills && npm run test:skills:profiles)` and verify `test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/SKILL.md) -le 250 && test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/references/profiling-and-tracing.md) -le 200 && git diff --check`; expect exit status 0.
+- [ ] Preview with `chezmoi --source "$PWD" diff ~/.pi/agent/skills/go-best-practices` and commit with `docs(skills): add Go profiling guidance`. Directory and explicit-file previews complete; publication deferred by user approval.
 
 ### Slice 10: Chapter 11 (`Profiling Live Code`, printed 220–232 / PDF 221–233)
 #### Task 11: Extend `profiling-and-tracing.md` with Chapter 11 `gctrace` and live HTTP profiling rules
+Execution status: implemented and implementation-checked; independent Slice 10 verification pending. Slice 9 VERIFIED per coordinator. PDF hash and Go 1.27.3 confirmed. The specified red check returned 0 because approved omit rows already match; the 11.2/11.4 integrated-only check returned 1. Publication deferred.
 **Delivers:** Live-service `GODEBUG=gctrace=1` and `net/http/pprof` endpoint safety and memory-profile comparison guidance in `references/profiling-and-tracing.md` (`11.1`–`11.6`).
 **Blocked by:** Task 10.
 **Traces to:** R1–R4.
 **Files:** `dot_pi/agent/exact_skills/go-best-practices/references/profiling-and-tracing.md`, `dot_pi/agent/exact_skills/go-best-practices/SKILL.md`, `dot_pi/agent/exact_skills/go-best-practices/SOURCES.md`, `plans/go-notebook-skill/coverage.md`, `plans/go-notebook-skill/plan.md`.
-- [ ] Run the focused red check: `rg -q '^\| 11\.[0-9]+ .* \| (integrated|already-covered|omit) \|' plans/go-notebook-skill/coverage.md`; expect exit status 1.
-- [ ] Extract PDF pages 221–233 (`11.1`–`11.6`), apply the modernization gate, update `references/profiling-and-tracing.md`, `SKILL.md`, `SOURCES.md`, `coverage.md`, and `plan.md`.
-- [ ] Run `(cd dot_pi/agent && npm run test:skills && npm run test:skills:profiles)` and verify `test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/SKILL.md) -le 250 && test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/references/profiling-and-tracing.md) -le 200 && git diff --check`; expect exit status 0.
-- [ ] Preview with `chezmoi --source "$PWD" diff ~/.pi/agent/skills/go-best-practices` and commit with `docs(skills): add Go live profiling and gctrace guidance`.
+- [x] Run the focused red check: `rg -q '^\| 11\.[0-9]+ .* \| (integrated|already-covered|omit) \|' plans/go-notebook-skill/coverage.md`; expected 1, actual 0 from existing omit rows; focused 11.2/11.4 integrated-only check returned 1.
+- [x] Extract PDF pages 221–233 (`11.1`–`11.6`), apply the modernization gate, update `references/profiling-and-tracing.md`, `SKILL.md`, `SOURCES.md`, `coverage.md`, and `plan.md`.
+- [x] Run `(cd dot_pi/agent && npm run test:skills && npm run test:skills:profiles)` and verify `test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/SKILL.md) -le 250 && test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/references/profiling-and-tracing.md) -le 200 && git diff --check`; expect exit status 0.
+- [ ] Preview with `chezmoi --source "$PWD" diff ~/.pi/agent/skills/go-best-practices` and commit with `docs(skills): add Go live profiling and gctrace guidance`. Directory and explicit-file previews completed; publication deferred by user approval.
 
 ### Slice 11: Chapter 12 (`Tracing`, printed 233–257 / PDF 234–258)
 #### Task 12: Extend `profiling-and-tracing.md` with Chapter 12 execution tracing, fan-out/pooling, and GC tuning rules
+Execution status: implemented and implementation-checked; independent Slice 11 verification pending. Slice 10 VERIFIED per coordinator; source hash and Go 1.27.3 confirmed. Specified red check returned 0 from existing omit rows; focused 12.2 integrated-only check returned 1. Publication deferred.
 **Delivers:** Complete `references/profiling-and-tracing.md` covering `runtime/trace` tasks/regions, trace interpretation, `sync.Pool` caveats, and `GOGC`/`GOMEMLIMIT` tuning (`12.1`–`12.10`).
 **Blocked by:** Task 11.
 **Traces to:** R1–R4.
 **Files:** `dot_pi/agent/exact_skills/go-best-practices/references/profiling-and-tracing.md`, `dot_pi/agent/exact_skills/go-best-practices/SKILL.md`, `dot_pi/agent/exact_skills/go-best-practices/SOURCES.md`, `plans/go-notebook-skill/coverage.md`, `plans/go-notebook-skill/plan.md`.
-- [ ] Run the focused red check: `rg -q '^\| 12\.[0-9]+ .* \| (integrated|already-covered|omit) \|' plans/go-notebook-skill/coverage.md`; expect exit status 1.
-- [ ] Extract PDF pages 234–258 (`12.1`–`12.10`), apply the modernization gate (`GOMEMLIMIT` in Go 1.19+, modern `go tool trace`), test original examples in a `mktemp -d` module, and update `references/profiling-and-tracing.md`, `SKILL.md`, `SOURCES.md`, `coverage.md`, and `plan.md`.
-- [ ] Run `(cd dot_pi/agent && npm run test:skills && npm run test:skills:profiles)` and verify `test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/SKILL.md) -le 250 && test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/references/profiling-and-tracing.md) -le 200 && git diff --check`; expect exit status 0.
-- [ ] Preview with `chezmoi --source "$PWD" diff ~/.pi/agent/skills/go-best-practices` and commit with `docs(skills): add Go runtime tracing and GC tuning guidance`.
+- [x] Run the focused red check: `rg -q '^\| 12\.[0-9]+ .* \| (integrated|already-covered|omit) \|' plans/go-notebook-skill/coverage.md`; actual 0 due to existing omit rows; focused 12.2 integrated-only check returned 1.
+- [x] Extract PDF pages 234–258 (`12.1`–`12.10`), apply the modernization gate (`GOMEMLIMIT` in Go 1.19+, modern `go tool trace`), test original examples in a `mktemp -d` module, and update `references/profiling-and-tracing.md`, `SKILL.md`, `SOURCES.md`, `coverage.md`, and `plan.md`.
+- [x] Run `(cd dot_pi/agent && npm run test:skills && npm run test:skills:profiles)` and verify `test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/SKILL.md) -le 250 && test $(wc -l < dot_pi/agent/exact_skills/go-best-practices/references/profiling-and-tracing.md) -le 200 && git diff --check`; expect exit status 0.
+- [ ] Preview with `chezmoi --source "$PWD" diff ~/.pi/agent/skills/go-best-practices` and commit with `docs(skills): add Go runtime tracing and GC tuning guidance`. Directory and explicit-file previews completed; publication deferred by user approval.
 
 ### Slice 12: Final integration, cross-reference deduplication, and fresh-session validation
 #### Task 13: Verify full coverage, routing, test suites, and future-agent guidance
+Execution status: implemented and implementation-checked; final cumulative independent verification pending. The user resolved the cumulative stack-split gate with an explicit SINGLE PR exception: retain PR #126 and this branch; do not split or restructure. Slices 1–11 VERIFIED per coordinator. Publication remains deferred.
 **Delivers:** A compact, deduplicated `go-best-practices` skill whose six references and `SOURCES.md` are traceable and verified across all profiles.
 **Blocked by:** Tasks 1–12.
 **Traces to:** R1–R4.
 **Files:** `dot_pi/agent/exact_skills/go-best-practices/SKILL.md`, `dot_pi/agent/exact_skills/go-best-practices/SOURCES.md`, `dot_pi/agent/exact_skills/go-best-practices/references/ownership-and-memory.md`, `dot_pi/agent/exact_skills/go-best-practices/references/interfaces-and-design.md`, `dot_pi/agent/exact_skills/go-best-practices/references/concurrency.md`, `dot_pi/agent/exact_skills/go-best-practices/references/testing-and-benchmarking.md`, `dot_pi/agent/exact_skills/go-best-practices/references/generics.md`, `dot_pi/agent/exact_skills/go-best-practices/references/profiling-and-tracing.md`, `plans/go-notebook-skill/coverage.md`, `plans/go-notebook-skill/plan.md`, `AGENTS.md`, `dot_pi/agent/AGENTS.md`.
-- [ ] Run the focused red check for any unresolved `pending` or `drafted` row in `plans/go-notebook-skill/coverage.md`: `! rg -q '\| (pending|drafted) \|' plans/go-notebook-skill/coverage.md`; resolve or explicitly document any `blocked` row before proceeding.
-- [ ] Deduplicate across `SKILL.md` and all six `references/*.md` files, and run the structural assertion:
+- [x] Run the focused red check for any unresolved `pending` or `drafted` row in `plans/go-notebook-skill/coverage.md`: `! rg -q '\| (pending|drafted) \|' plans/go-notebook-skill/coverage.md`; resolve or explicitly document any `blocked` row before proceeding.
+- [x] Deduplicate across `SKILL.md` and all six `references/*.md` files, and run the structural assertion:
   `set skill_dir dot_pi/agent/exact_skills/go-best-practices; test $(wc -l < "$skill_dir/SKILL.md") -le 250; and test ! -e "$skill_dir/VENDOR.md"; and rg -q '^## Version baseline$' "$skill_dir/SKILL.md"; and not rg -q '^## Merge decisions$' "$skill_dir/SKILL.md"; and for f in SOURCES.md references/ownership-and-memory.md references/interfaces-and-design.md references/concurrency.md references/testing-and-benchmarking.md references/generics.md references/profiling-and-tracing.md; test -f "$skill_dir/$f"; and rg -q "$f" "$skill_dir/SKILL.md"; or exit 1; end; and for f in $skill_dir/references/*.md; test $(wc -l < "$f") -le 200; or exit 1; end`
   Expect exit status 0.
-- [ ] Record manual routing cases in `plans/go-notebook-skill/coverage.md` for all six topic references plus simple error-only work; check both positive and unnecessary-loading cases.
-- [ ] Install locked source test dependencies with `(cd dot_pi/agent && npm ci --ignore-scripts)` and run `(cd dot_pi/agent && npm test && npm run test:all && npm run test:skills:profiles)`; expect exit status 0. Leave `dot_pi/agent/node_modules` present in the worktree so independent read-only `/verify` can rerun `npm test` and `npm run test:all`.
-- [ ] Preview target diff with `chezmoi --source "$PWD" diff ~/.pi/agent/skills/go-best-practices` (do not run `chezmoi apply` during `/execute`) and run `git diff --check`; expect exit status 0.
-- [ ] Inspect `AGENTS.md` and `dot_pi/agent/AGENTS.md` for documentation impact. Change `AGENTS.md` only for a demonstrated durable command or trap; otherwise record no change required.
-- [ ] Final verification: demonstrate R1–R4 together, including source completeness for Chapters 2–12, explicit exclusion rows for Chapters 1/13/14, blocked-claim handling, routing table completeness, and clean `chezmoi diff`. Commit with `docs(skills): verify Go notebook reference integration`.
+- [x] Record manual routing cases in `plans/go-notebook-skill/coverage.md` for all six topic references plus simple error-only work; check both positive and unnecessary-loading cases.
+- [x] Install locked source test dependencies with `(cd dot_pi/agent && npm ci --ignore-scripts)` and run `(cd dot_pi/agent && npm test && npm run test:all && npm run test:skills:profiles)`; expect exit status 0. Leave `dot_pi/agent/node_modules` present in the worktree so independent read-only `/verify` can rerun `npm test` and `npm run test:all`.
+- [x] Preview target diff with `chezmoi --source "$PWD" diff ~/.pi/agent/skills/go-best-practices` (do not run `chezmoi apply` during `/execute`) and run `git diff --check`; expect exit status 0. Explicit-file previews also passed with expected drift; directory output was empty.
+- [x] Inspect `AGENTS.md` and `dot_pi/agent/AGENTS.md` for documentation impact. Change `AGENTS.md` only for a demonstrated durable command or trap; otherwise record no change required.
+- [x] Final implementation checks: demonstrate R1–R4 together, including source completeness for Chapters 2–12, explicit exclusion rows for Chapters 1/13/14, blocked-claim handling, routing table completeness, and successful `chezmoi diff` previews. Target parity is deferred until approved apply, not claimed from empty directory output. Evidence: coverage.md Slice 12 cumulative acceptance. Independent cumulative verification remains pending.
+- [ ] Deferred publication: commit with `docs(skills): verify Go notebook reference integration` only at the attended final publication step.
 
 ## Post-Verification Rollout
 Run only after independent `/verify` returns `VERIFIED`:
@@ -341,17 +356,31 @@ Run only after independent `/verify` returns `VERIFIED`:
 - [ ] Remove disposable source dependencies after `/verify` is complete: `rm -rf dot_pi/agent/node_modules`.
 
 ## Resume checkpoint
-- Planning status: plan reviewed and updated; no implementation started. `plans/go-notebook-skill/plan.md` is the only file created in planning; `plans/go-notebook-skill/coverage.md` is created in Slice 1 Task 1.
-## Resume checkpoint
-- Slice 1 implementation checks passed; Task 1 committed as `76bd51e`; Chapter 2 content committed as `cf7329f`. This work started directly from a plan; no sibling design artifact exists.
-- Independent verification must cover Slice 1 only. Do not apply targets until VERIFIED.
-- Next implementation slice: Slice 2, Chapter 3, printed 41–66 / PDF 42–67 (`3.1`–`3.24`). Read the plan, core, Chapter 3 ledger rows, ownership reference, and SOURCES.md; verify the source hash before extraction.
-- All 15 Chapter 2 dispositions are recorded with LM1–LM5 evidence; no unresolved claims. Chapters 3–12 remain pending except approved exclusions. No mutable learning store was queried.
-- Tests passed: `npm ci --ignore-scripts`, `npm test`, `npm run test:all`, `npm run test:skills`, `npm run test:skills:profiles`. Smoke prints offline model/provider warnings; no extension-issue failure. Leave dependencies installed for read-only verification.
-- Go 1.27.3 darwin/arm64: original tests/vet/escape build passed; two invalid programs failed as expected. Reproduction inputs and commands are in SOURCES.md and the reference; no scratch files are resume dependencies.
-- Structure: core 226 lines; reference 59 lines; version heading preserved; no merge-decisions heading or VENDOR.md. Local links and the first two opening paragraphs match the baseline; the third retains attribution and adds SOURCES.md. The initial paragraph-check command accidentally included the intentionally updated third paragraph; the corrected check targets the required unchanged paragraphs.
-- Preview: directory diff was empty despite changes; explicit SKILL.md diff showed intended changes. Empty directory output is not parity. No apply ran.
-- Root AGENTS.md and dot_pi/agent/AGENTS.md inspected: no change required. Existing guidance covers source-only edits, explicit-file drift checks, test dependencies, and rollout.
-- Operational completion: content only; source ledger/test evidence provide observability, no service telemetry needed. Matteo owns verified rollout and content-revert rollback. No new technology or dependencies added.
-- Example-name and whitespace errors were corrected within scope; checks rerun. The negative overflow diagnostic contained “overflows” without a destination type; inspection confirmed the expected rejection.
-- Stack-split check: five Markdown files in one skill/coverage unit, no application code or independent subsystems. No strong signal or pair of soft signals; one draft PR is appropriate.
+- Slice 12 / Task 13 implemented and implementation-checked. No next implementation slice remains. Next: coordinator launches fresh baseten/glm-5-3-flash cumulative independent verification of the complete committed/staged/unstaged/intended-untracked candidate, implemented by openai/gpt-6.1-sol.
+- User-approved SINGLE PR exception resolves the earlier cumulative split blocker. Keep PR #126 and branch maruina/go-notebook-skill; no branch restructuring. All publication/application tasks remain separate and deferred to an attended final step after VERIFIED.
+- Fresh cumulative checks: matching PDF hash, exact 132-section TOC/ledger ID comparison, final row dispositions/exclusions, core/reference deduplication review and seven routing cases, Fish structural assertion, prose links, protected opening and attribution. Core 229 lines; six references within 200. Root/agent AGENTS.md inspected; no changes needed.
+- Reproduced all tracked original Go fixtures from SOURCES.md/reference blocks in disposable modules. Tests/vet/shuffled race checks, compile/runtime negatives, deliberate DATA RACE, HTTP wrong-status/early-cleanup controls, sort no-op rejection and restored checks passed. Bounded 1x/10x benchmark samples and pinned benchstat are smoke checks only. Complete Chapter 10–12 reproduction scripts passed profile/trace parsing and negative cases; no UI/production/performance or older-toolchain claim.
+- npm ci --ignore-scripts, npm test, npm run test:all and npm run test:skills:profiles passed; dependencies retained and pre-existing vulnerabilities unchanged. Directory plus eight explicit-file chezmoi previews succeeded; explicit files show expected unapplied drift. git diff --check passed. Two initial link-scanner attempts falsely interpreted Go call syntax as Markdown links; excluding fenced/inline code corrected the harness and the prose-link check passed without content changes.
+- This resume changes only plan.md and coverage.md; all earlier skill edits retained. Baseline fd681009adbf7cf66dce0d515391f68bf375a32b; index SHA-256 remains 8ee5eb26aff27579c56ed9b29442d5d01d528fb3783c5c976cabd282b5170b02. No apply, stage, commit/sign, push, PR update, dependency removal, service, or credential change.
+- Existing nine-skill execution provenance applies: safe worktree/source-only operations, Go contract checks, bounded references and original prose, durable evidence and cumulative split assessment. Markdown-only repository edits; no LSP needed. Command: `/verify /Users/matteo.ruina/src/.worktrees/dotfiles/maruina-go-notebook-skill/plans/go-notebook-skill/plan.md --implemented-by openai/gpt-6.1-sol`. Do not reuse implementation reports as independent evidence.
+
+### Prior blocked checkpoint (resolved by the single-PR decision)
+- Slice 12 / Task 13 BLOCKED during initial cumulative review. Slice 11 VERIFIED per coordinator; Slices 1–11 are complete independently. No final acceptance or independent final verification is claimed.
+- Cumulative split assessment includes committed, staged, unstaged, and intended untracked skill references: six topic groups (ownership, interfaces/design, concurrency, testing/benchmarking, generics, profiling/tracing) can ship as independent increments. More than five explanation topics and independent commit groups trip two soft signals in reviewable-pr-workflow. Documentation lines are not counted as production code. Prior per-slice assessments do not waive this cumulative gate.
+- Proposed decision for coordinator/user: split into two dependent branches, first foundation plus Slices 1–7 (provenance, ownership, interfaces, concurrency, testing), then Slices 8–12 (generics, profiling/tracing, final integration), with evidence/ledger and routing introduced alongside their files. Alternatively approve an explicit single-PR exception. No restructuring was performed.
+- Initial coverage scan found no pending, drafted, or blocked table disposition (`! rg -q '\| (pending|drafted|blocked) \|' plans/go-notebook-skill/coverage.md` returned 0). This is not semantic coverage verification. No original-example reproduction, npm install, package suite, structural assertion, target preview, or final R1–R4 validation ran in Slice 12 before the blocker. All Task 13 checkboxes remain open.
+- Only this plan ledger changed in Slice 12. Baseline remains fd681009adbf7cf66dce0d515391f68bf375a32b; prior staged/unstaged/untracked work preserved. Index snapshot SHA-256 before editing: 8ee5eb26aff27579c56ed9b29442d5d01d528fb3783c5c976cabd282b5170b02 (`git diff --cached --binary | shasum -a 256`). No apply, commit/sign, push, PR update, dependency removal, service or credential changes.
+- Execution provenance: existing execution table applies; loaded skill-loader, resolve-worktree, feature-worktree, chezmoi, codebase-research, write, diataxis, go-best-practices, and reviewable-pr-workflow for source/worktree safety, plan/reference inspection, evidence boundaries, and cumulative split assessment. Markdown ledger only; no LSP needed.
+- Exact next action: coordinator obtains the split decision, then resumes Slice 12 / Task 13 under openai/gpt-6.1-sol. After implementation checks complete, preserve the fresh baseten/glm-5-3-flash final independent verification handoff: `/verify /Users/matteo.ruina/src/.worktrees/dotfiles/maruina-go-notebook-skill/plans/go-notebook-skill/plan.md --implemented-by openai/gpt-6.1-sol`. Do not run final verification as though Task 13 were complete. Publication remains separately deferred.
+
+### Prior Slice 11 evidence
+- Slice 11 / Task 12 implemented and implementation-checked; independent verification pending. Slices 1–10 VERIFIED per coordinator. Baseline fd681009adbf7cf66dce0d515391f68bf375a32b and Git index unchanged; attributable carryover preserved. Direct /plan start; no design.md expected.
+- PDF hash matched; Chapter 12 retained sections read from printed 233–257 / PDF 234–258. Approved 12.1/12.6/12.8 omissions retained; all Chapter 12 rows have final dispositions. TR1–TR5 primary evidence and reproducible original checks in SOURCES.md; no scratch resume dependency or unresolved claim/Uber policy conflict.
+- Extended profiling-and-tracing.md with bounded traces, task/region lifetime, measured worker/local aggregation choices, sync.Pool ownership/miss caveats and GOGC/GOMEMLIMIT budgets. Core routing updated; existing concurrency mechanics reused. No Slice 12 integration work.
+- Go 1.27.3 tests/vet/two shuffled race runs passed. Owned/testing traces decoded, annotations found, four derived profile types parsed by pprof. Duplicate Start, invalid input, invalid trace and unsupported profile negatives passed; pool reset/miss and restored global GC settings passed. No browser UI, older toolchain, production integration, performance or hard memory bound claimed.
+- npm ci --ignore-scripts, test:skills, test:skills:profiles, npm test and npm run test:all passed; validators rerun after content/evidence edits. Dependencies retained; existing 10 vulnerabilities unchanged. Core/reference 229/118 lines; local links, line bounds and whitespace passed.
+- Directory preview empty; explicit core/source/reference previews succeeded with expected drift. No apply. Root/agent AGENTS.md inspected; no new durable command/trap, no changes. Existing nine-skill execution provenance applies to safe worktree/source-only editing, task-focused original prose, Go contracts, source/API research and split assessment. Markdown-only repository edits; no LSP needed.
+- Routing inspection: trace/task/region/GC-tuning/sync.Pool selects profiling-and-tracing.md; worker protocols select concurrency.md; simple wrapping stays core-only. This is not proof of model compliance.
+- Stack-split: five Slice 11 Markdown paths, one diagnostic-guidance increment, 32 added reference lines and one routing replacement; below 400 production lines/15 files, no independent subsystem or two soft signals. No slice split needed; publication deferred separately.
+- Exact next action: coordinator launches fresh baseten/glm-5-3-flash independent Slice 11 verification, implemented by openai/gpt-6.1-sol. After VERIFIED, execute only Slice 12 / Task 13: cumulative coverage, deduplication, routing, package suites and future-agent guidance validation.
+- Documentation-only scope; Matteo owns final rollout/content-revert rollback. No targets, services, credentials, signing, commits, pushes, merges or PR #126 updates changed.

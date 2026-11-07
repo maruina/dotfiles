@@ -1,5 +1,5 @@
 # Generics and collection contracts
-Use with the core skill for type parameters, type-set constraints, generic containers, slice type preservation, and generic methods. Check the module's `go` directive first: generics require Go 1.18+, `cmp`/`slices`/`maps` require Go 1.21+, and methods with their own type parameters require Go 1.27+.
+Use with the core skill for type parameters, type-set constraints, generic containers, slice type preservation, `iter.Seq` iterators, and generic methods. Check the module's `go` directive first: generics require Go 1.18+, `cmp`/`slices`/`maps` require Go 1.21+, `iter.Seq` requires Go 1.23+, and methods with their own type parameters require Go 1.27+.
 
 ## When to use type parameters
 - Use type parameters when the exact same algorithm or container logic operates across multiple types, or when a function must preserve a caller's concrete or defined type across arguments and return values.
@@ -69,3 +69,8 @@ func (input Batch[T]) Map[U any](transform func(T) U) Batch[U] {
 	return output
 }
 ```
+
+## Range-over-function iterators (`iter.Seq`, Go 1.23+)
+- Use `iter.Seq[V]` and `iter.Seq2[K, V]` for lazy sequences, filtered views, or streaming traversal (for example `slices.Sorted(maps.Keys(m))` instead of manually allocating and sorting a key slice). Prefer returning a plain `[]T` when all elements are already in memory and callers need `len` or random indexing.
+- Inside an iterator implementation, always check the `bool` returned by `yield(v)` and return immediately when it is `false`; calling `yield` again after it returns `false` panics.
+- When converting a push iterator to a pull iterator with `next, stop := iter.Pull(seq)`, always `defer stop()` so the iterator goroutine is cleaned up if iteration ends early.

@@ -19,8 +19,8 @@ Load only the reference required by the task. Keep simple error-wrapping work in
 | Value/pointer semantics, slice aliasing/append/retention, array or map iteration, UTF-8, escape analysis, numeric conversions/constants, or data locality/layout | [Ownership and memory](references/ownership-and-memory.md) |
 | Receiver/method sets, saved callbacks, consumer-owned interfaces, composition/embedding, exported construction, custom error contracts, typed-nil errors, or joined-error inspection | [Interfaces and API design](references/interfaces-and-design.md) |
 | Goroutine lifetime, worker/queue limits, races, mutex/atomic invariants, channel protocols, cancellation, retries, or timer compatibility | [Concurrency and channel patterns](references/concurrency.md) |
-| Unit/table tests, HTTP boundaries, subtest isolation, benchmark construction, compiler elimination, or benchmark comparison | [Testing and benchmarking](references/testing-and-benchmarking.md) |
-| Constraints/type sets, named generic collections, generic API inference, comparable keys, or generic methods | [Generics and collection contracts](references/generics.md) |
+| Unit/table tests, HTTP boundaries, subtest isolation, `synctest`, benchmark construction, compiler elimination, or benchmark comparison | [Testing and benchmarking](references/testing-and-benchmarking.md) |
+| Constraints/type sets, named generic collections, generic API inference, comparable keys, `iter.Seq` iterators, or generic methods | [Generics and collection contracts](references/generics.md) |
 | CPU/heap/allocation profiles, live HTTP profiling, execution traces/tasks/regions, GC trace interpretation or tuning, sync.Pool, memory-profile comparison, synchronization waits, flat/cumulative attribution, or compiler inlining/escape diagnosis | [Profiling and live-service diagnosis](references/profiling-and-tracing.md) |
 
 ## Contracts and nil values
@@ -145,13 +145,14 @@ Validate the resulting configuration before constructing the resource.
 - Configure HTTP client timeouts and server `ReadHeaderTimeout`, `ReadTimeout`, `WriteTimeout`, and `IdleTimeout`. Close non-nil HTTP response bodies and return after `http.Error`.
 - `sql.Open` does not verify connectivity; call `PingContext` when startup must validate the connection. Always `defer rows.Close()` and check `rows.Err()` after iteration.
 - Pass untrusted SQL values as query parameters, never via string concatenation or `fmt.Sprintf`. Configure pool limits (`SetMaxOpenConns`, `SetMaxIdleConns`, `SetConnMaxLifetime`).
+- Use `os.OpenRoot` (Go 1.24+) when opening untrusted relative file paths within a directory so the OS rejects symlink or `..` traversal outside that root.
 
 ## Formatting and naming
 - Run `gofmt` or `goimports` with two import groups (standard library, then third-party/internal).
 - Use short, lowercase, singular package names without underscores. Avoid generic package names (`common`, `util`, `shared`, `lib`).
 - Alias imports only when package names collide or differ from the directory name. Do not shadow built-in identifiers (`error`, `string`, `len`).
 - Prefix unexported package-level variables and constants with `_` (except `errFoo` error variables) when following Uber package conventions.
-- Use `var v T` for zero-value variables, `:=` for initialized locals, keyed struct literals, and `&T{}` instead of `new(T)` for struct pointers. Give `Printf`-style helpers an `f` suffix so `go vet` checks format verbs.
+- Use `var v T` for zero-value variables, `:=` for initialized locals, keyed struct literals, and `&T{}` instead of `new(T)` for struct pointers. On Go 1.26+, `new(expr)` creates a pointer initialized to `expr` (such as `new(42)` or `new("ok")`) without a temporary variable or generic pointer helper. Give `Printf`-style helpers an `f` suffix so `go vet` checks format verbs.
 
 ## Tests, benchmarks, and validation
 - Prefer table-driven subtests (`tests`, `tt`, `give`/`want` fields) when cases share setup and assertion logic; split tables when conditionals obscure individual test contracts.

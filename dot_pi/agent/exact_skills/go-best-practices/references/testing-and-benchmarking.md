@@ -1,9 +1,11 @@
 # Testing and benchmarking
-Use with the core skill for table tests, HTTP boundary tests, parallel subtest isolation, benchmark construction (`testing.B.Loop` vs. `b.N`), and `benchstat` comparisons.
+Use with the core skill for table tests, HTTP boundary tests, parallel subtest isolation, `testing/synctest`, benchmark construction (`testing.B.Loop` vs. `b.N`), and `benchstat` comparisons.
 
-## Table tests and parallel subtests
+## Table tests, test contexts, and parallel subtests
 - Use a slice named `tests`, loop variable `tt`, descriptive subtest names, and `give`/`want` struct fields. Include boundary and error cases alongside happy paths; split tables when setup or assertions diverge enough to require complex branching inside the loop.
 - Call `t.Fatal`/`t.Fatalf` only from the goroutine running that test or subtest (`t.Fatal` calls `runtime.Goexit`, which terminates only the current goroutine and causes a panic or hang if called in a spawned worker goroutine).
+- On Go 1.24+, use `t.Context()` (or `b.Context()`) for a test-scoped `context.Context` that cancels automatically just before `t.Cleanup` functions run, so `t.Cleanup` callbacks can wait for background workers to exit after cancellation. Use `t.TempDir()` for scratch files and `t.ArtifactDir()` (Go 1.26+) for persisted test output artifacts.
+- On Go 1.25+, use `synctest.Test(t, func(t *testing.T) { ... })` (`testing/synctest`) to test concurrent code and timeouts deterministically in an isolated bubble with a synthetic clock: `synctest.Wait()` blocks until all goroutines in the bubble are durably blocked (on in-bubble channels, timers, `time.Sleep`, `sync.Cond.Wait`, or `sync.WaitGroup.Wait`), and synthetic time advances automatically when all goroutines are blocked on timers. Do not use loopback network sockets inside a `synctest` bubble (use `net.Pipe()` instead, because OS network I/O is not durably blocking).
 - Parallel subtests (`t.Parallel()`) pause when `t.Parallel()` is called and resume concurrently after the enclosing test function returns:
   - Any `defer` in the parent test function runs **before** parallel subtests execute. Register shared teardown with `t.Cleanup(...)`, which runs only after the test and all of its subtests complete.
   - Never call `t.Setenv`, `os.Chdir`, or mutate package globals inside a test that uses `t.Parallel()`.

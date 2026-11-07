@@ -1,5 +1,5 @@
 # Interfaces and API design
-Use with the core skill for receiver choice, callbacks, interface boundaries, embedding, and exported APIs. Evidence and source corrections are in [SOURCES.md](../SOURCES.md), rules DC1–DC6 and SD1–SD5.
+Use with the core skill for receiver choice, callbacks, interface boundaries, embedding, and exported APIs.
 
 ## Choose receivers by ownership
 - A value receiver copies the receiver; it does not deep-copy slices, maps, pointers, or other referenced state. A pointer receiver shares identity, not synchronization.

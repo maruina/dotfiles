@@ -1,5 +1,5 @@
 # Concurrency and channel patterns
-Load for goroutine ownership, worker limits, channels, cancellation, synchronization, or race diagnosis. The core skill retains the general safety rules; this reference supplies decisions and failure cases. Evidence: [Chapter 6 in SOURCES.md](../SOURCES.md#chapter-6-evidence).
+Load for goroutine ownership, worker limits, channels, cancellation, synchronization, or race diagnosis. The core skill retains the general safety rules; this reference supplies decisions and failure cases.
 
 ## Scheduling is not synchronization
 - Concurrency permits overlapping progress; parallelism permits simultaneous execution. Neither requires results to arrive out of order. Tag and reorder results when the API needs stable order.
@@ -20,7 +20,7 @@ Load for goroutine ownership, worker limits, channels, cancellation, synchroniza
 - A clean race run is not a proof of correctness. Reading under one lock and writing under a later lock can lose an update without a data race. Hold the lock across the complete read-modify-write invariant.
 - Start with a named `sync.Mutex` field. Keep the critical section small but complete; avoid slow I/O or callbacks under the lock. Do not assume FIFO acquisition. Use `RWMutex` only when measured reader concurrency justifies it; pair `RLock/RUnlock` and `Lock/Unlock`, and do not upgrade, downgrade, or recursively read-lock it.
 - Use an atomic operation for an independent scalar transition, not for a multi-field invariant. Separate atomic loads and stores do not make an increment atomic. Never mix ordinary and atomic access during concurrent use, or copy atomic wrappers after first use.
-- The core retains Uber's `go.uber.org/atomic` policy. Go 1.19+ also has standard-library typed atomics, including `Bool` and `Int64`; the pinned Uber claim that `sync/atomic` only exposes raw types is historical. Their existence does not silently replace the project's wrapper policy or authorize a new dependency. Escalate a requested policy change.
+- Prefer typed atomics (`sync/atomic.Bool`, `sync/atomic.Int64`, `sync/atomic.Pointer[T]` on Go 1.19+, or `go.uber.org/atomic` when a repository already standardizes on it) over raw primitive atomics; the pinned Uber claim that `sync/atomic` only exposes raw types is pre-Go 1.19. Do not add a third-party atomic dependency when standard-library typed atomics satisfy the module's Go baseline.
 - Race reports identify conflicting accesses and goroutine creation stacks. They are diagnostics, not a recoverable Go panic. Do not budget detector overhead from the book's fixed percentage; measure instrumented workloads separately.
 
 ## Channel contracts

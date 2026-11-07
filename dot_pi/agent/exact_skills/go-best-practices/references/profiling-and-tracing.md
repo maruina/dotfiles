@@ -115,4 +115,4 @@ go test -run='^$' -gcflags='-m=2' .
 - Use `-gcflags='-l'` only as a controlled diagnostic comparison, not as the release performance baseline. Removing optimizations changes the program being measured.
 - Rerun correctness tests and representative unprofiled benchmarks after a change. Preserve new compiler/profile evidence for the actual candidate build; do not copy allocation counts or timing ratios from another compiler or workload.
 
-For copy/lifetime contracts rather than diagnostic attribution, use [Ownership and memory](ownership-and-memory.md). Source ranges, modernization decisions, and reproducible checks are in [SOURCES.md](../SOURCES.md).
+For copy/lifetime contracts rather than diagnostic attribution, use [Ownership and memory](ownership-and-memory.md).

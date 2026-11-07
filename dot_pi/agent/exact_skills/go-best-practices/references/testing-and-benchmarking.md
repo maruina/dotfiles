@@ -1,5 +1,5 @@
 # Testing, isolation, and benchmarking
-Use with the core skill for test structure, HTTP boundaries, parallel subtests, and benchmark construction and comparison. Check the module's `go` directive before relying on loop-variable semantics. Source mapping and validation are in [SOURCES.md](../SOURCES.md).
+Use with the core skill for test structure, HTTP boundaries, parallel subtests, and benchmark construction and comparison. Check the module's `go` directive before relying on loop-variable semantics.
 
 ## Test contracts and diagnostics
 - Test observable behavior through supported interfaces. An external `package_name_test` package checks the exported API as a caller sees it; use internal tests when unexported behavior needs direct access.

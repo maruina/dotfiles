@@ -7,11 +7,24 @@ Use for general Go changes. For controller-runtime, reconcilers, CRDs, watches, 
 
 Default to repository conventions and make small, idiomatic changes because consistency reduces review cost and avoids unrelated risk. Do not rewrite working code for style alone because style churn obscures behavior-bearing changes.
 
-This skill merges the [Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md) (revision `1d60a91aa5e87d443002e23c21903c49489dbde5`) and `atom/skills/go-best-practices/SKILL.md` from the Claude marketplace (revision `b937ce451cf47154af8566b6ad7776a7749fc810`). **Uber wins when the two sources conflict.** The rules below consolidate both sources rather than requiring either source at runtime. The Uber guide is [Apache-2.0 licensed](https://github.com/uber-go/guide/blob/1d60a91aa5e87d443002e23c21903c49489dbde5/LICENSE). The Uber guide was originally created by Prashant Varanasi and Simon Newton and expanded by its contributors; this skill condenses, reorganizes, and supplements their guidance.
+This skill merges the [Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md) (revision `1d60a91aa5e87d443002e23c21903c49489dbde5`) and `atom/skills/go-best-practices/SKILL.md` from the Claude marketplace (revision `b937ce451cf47154af8566b6ad7776a7749fc810`). **Uber wins when the two sources conflict.** The rules below consolidate both sources rather than requiring either source at runtime. The Uber guide is [Apache-2.0 licensed](https://github.com/uber-go/guide/blob/1d60a91aa5e87d443002e23c21903c49489dbde5/LICENSE). The Uber guide was originally created by Prashant Varanasi and Simon Newton and expanded by its contributors; this skill condenses, reorganizes, and supplements their guidance. The task references also incorporate verified notebook guidance; see [SOURCES.md](SOURCES.md) for edition, precedence, and modernization evidence.
 
 ## Version baseline
 - Check the module's `go` directive and supported development and CI toolchains before adopting a language feature, standard-library API, or runtime behavior introduced in a later Go version.
 - If the project supports an earlier version, use a compatible alternative. Do not raise the minimum Go version as an incidental style change. Run tests and `go vet` with the supported toolchain to check compatibility.
+
+## References
+Load only the reference required by the task. Keep simple error-wrapping work in this core skill; it does not require a topic reference.
+
+| Task | Read |
+|---|---|
+| Value/pointer semantics, slice aliasing/append/retention, array or map iteration, UTF-8, escape analysis, numeric conversions/constants, or data locality/layout | [Ownership and memory](references/ownership-and-memory.md) |
+| Receiver/method sets, saved callbacks, consumer-owned interfaces, composition/embedding, exported construction, custom error contracts, typed-nil errors, or joined-error inspection | [Interfaces and API design](references/interfaces-and-design.md) |
+| Goroutine lifetime, worker/queue limits, races, mutex/atomic invariants, channel protocols, cancellation, retries, or timer compatibility | [Concurrency and channel patterns](references/concurrency.md) |
+| Unit/table tests, HTTP boundaries, subtest isolation, benchmark construction, compiler elimination, or benchmark comparison | [Testing and benchmarking](references/testing-and-benchmarking.md) |
+| Constraints/type sets, named generic collections, generic API inference, comparable keys, or generic methods | [Generics and collection contracts](references/generics.md) |
+| CPU/heap/allocation profiles, live HTTP profiling, execution traces/tasks/regions, GC trace interpretation or tuning, sync.Pool, memory-profile comparison, synchronization waits, flat/cumulative attribution, or compiler inlining/escape diagnosis | [Profiling and live-service diagnosis](references/profiling-and-tracing.md) |
+| Source provenance or verification of a source-derived claim | [Sources and evidence](SOURCES.md) |
 
 ## Contracts and nil values
 - Validate external input and public API arguments where required by the contract. Trust internal constructors and functions that guarantee valid results on success; do not add redundant nil checks after every call.
@@ -92,9 +105,7 @@ Validate the resulting configuration before constructing the resource.
 ## Ownership and collections
 - Copy slices and maps at ownership boundaries when retaining caller data or returning internal mutable state. Copy while holding the lock when taking a snapshot of protected state; the original mutex does not protect a returned alias.
 - `maps.Clone` and `slices.Clone` make shallow copies. Pointers, maps, slices, and other references inside the copied elements still share their referenced data; copy deeper only when the ownership contract requires it.
-- Slice assignment and slicing share a backing array. `append` can overwrite another view's elements when capacity permits. `s[:len(s):len(s)]` prevents reuse of spare capacity by append, but does not isolate writes to existing elements.
-- `len` counts accessible elements; `cap` describes available backing-array capacity from the slice's start. Use `make([]T, 0, capacity)` when appending a known number of elements.
-- Copy small retained subslices or substrings when they would otherwise keep a large allocation alive. Use `strings.Clone` for strings. Clear discarded pointer-containing elements in a still-live backing array when they would retain unwanted objects.
+- Slice assignment and slicing share a backing array; append can overwrite shared storage. Capacity limits do not isolate element writes. Use the ownership reference for growth, iteration, and measured retention decisions.
 - Map iteration order is unspecified. Sort keys when order matters. Do not rely on deletion to reduce a map's backing allocation; rebuild a long-lived map if measured retention warrants it.
 - Use `make(map[K]V, sizeHint)` for empty or programmatically populated maps, and literals for a fixed initial set. A map size hint is not a guarantee of allocation-free insertion.
 - Slices, maps, and functions cannot be compared to each other with `==`; they can be compared to nil. Prefer `slices.Equal`, `maps.Equal`, or `bytes.Equal` for suitable element types. Use reflection-based comparison only when its semantics are intended.
@@ -103,7 +114,7 @@ Validate the resulting configuration before constructing the resource.
 - Use explicit octal such as `0o600` rather than ambiguous leading-zero notation, and separators such as `1_000_000` where useful.
 - Runtime integer overflow does not panic. Check bounds before arithmetic when overflow would violate the contract.
 - Choose floating-point comparisons for the domain. Approximate comparisons need appropriate absolute or relative tolerances; do not assume exact equality after rounded calculations.
-- `len(string)` and string indexing count bytes. Use `range` or `utf8.RuneCountInString` for Unicode code points. Code points are not necessarily user-visible characters.
+- `len(string)` and string indexing count bytes; range decodes code points, not user-visible characters. Use the ownership reference for UTF-8 validation and byte-boundary handling.
 - `strings.TrimRight` removes a set of trailing characters; use `strings.TrimSuffix` to remove one suffix.
 - Prefer raw string literals when they remove distracting escaping. Use `strings.Builder` or `bytes.Buffer` for repeated concatenation; preallocate when the final size is known and meaningful.
 - Avoid repeated conversions between strings and byte slices. Use the `bytes` package for byte-oriented I/O, and convert fixed strings once when reusing the bytes.
@@ -179,14 +190,13 @@ Validate the resulting configuration before constructing the resource.
 
 ## Benchmarks, profiling, and optimization
 - Measure a representative workload before changing allocation, data layout, or concurrency. Validate benchmark results so an incorrect or optimized-away operation is not mistaken for an improvement.
-- Keep setup outside the measured operation. Use `testing.B.Loop` when supported by the module baseline; otherwise use `b.N` with appropriate timer control and result consumption.
-- Run repeated benchmarks with allocation measurements and compare with `benchstat`. Consider CPU state, cache behavior, background work, and cross-benchmark interference.
+- For benchmark loops, input reset, compiler-elimination safeguards, isolated measurements, and `benchstat` comparisons, load `references/testing-and-benchmarking.md`. Use `testing.B.Loop` only with a supported Go 1.24+ baseline; preserve a compatible `b.N` path otherwise.
 - In hot paths, prefer `strconv` to general `fmt` formatting for primitive conversions and avoid repeated fixed string-to-byte conversions. Supply realistic collection capacities when known.
 - Use CPU profiles for execution cost, heap/allocation profiles for retained memory or allocation churn, goroutine profiles for leaks, and block/mutex profiles for waiting and contention. Use runtime traces for scheduling, goroutine lifetimes, and critical paths.
 - `net/http/pprof` registers diagnostic handlers on the default mux. Do not expose them on an unprotected public listener. Restrict access and profile for bounded windows; collection itself can affect the workload.
 - Compare heap profiles over time to investigate retention. Escape-analysis and inlining reports explain compiler decisions; stack placement and inlining are not source-level guarantees.
 - Consider buffer reuse or `sync.Pool` only for measured allocation pressure. A pool is an opportunistic cache, not guaranteed storage or a concurrency limit.
-- Profile before reordering struct fields, adding cache-line padding, batching, or restructuring arithmetic. Cache-line size and performance effects are hardware-dependent; do not apply fixed padding as a universal rule.
+- Profile before changing layout, batching, or restructuring arithmetic. For field alignment and padding, load `references/ownership-and-memory.md`; cache-line effects are hardware-dependent.
 - Tune `GOGC` and `GOMEMLIMIT` only with measured memory headroom. `GOMEMLIMIT` is a soft runtime limit, not a hard process-memory cap. Use explicit cleanup instead of finalizers for resource lifetime.
 
 ## Validation commands
@@ -210,7 +220,8 @@ Use these commands for focused performance work:
 ```sh
 go test -run='^$' -bench=. -benchmem -count=10 > bench.txt
 benchstat bench.txt
-go test -run='^$' -bench=. -cpuprofile=cpu.out -memprofile=mem.out
+go test -run='^$' -bench=. -cpuprofile=cpu.out
+go test -run='^$' -bench=. -memprofile=mem.out
 go tool pprof -http=127.0.0.1:8080 cpu.out
 go test -run='^$' -bench=. -trace=trace.out
 go tool trace trace.out

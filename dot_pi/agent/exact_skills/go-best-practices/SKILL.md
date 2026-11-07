@@ -9,7 +9,7 @@ Default to repository conventions and make small, idiomatic changes. Do not rewr
 
 ## Version baseline
 - Check the module's `go` directive and supported development and CI toolchains before adopting a language feature, standard-library API, or runtime behavior introduced in a later Go version.
-- If the project supports an earlier version, use a compatible alternative. Do not raise the minimum Go version as an incidental style change. Run tests and `go vet` with the supported toolchain to check compatibility.
+- If the project supports an earlier version, use a compatible alternative. Do not raise the minimum Go version as an incidental style change. Run `go test` and `go vet` (which in Go 1.27+ runs the `stdversion` analyzer by default to reject standard-library symbols newer than the file's `go.mod` or `//go:build` version).
 
 ## References
 Load only the reference required by the task. Keep simple error-wrapping work in this core skill.
@@ -21,12 +21,12 @@ Load only the reference required by the task. Keep simple error-wrapping work in
 | Goroutine lifetime, worker/queue limits, races, mutex/atomic invariants, channel protocols, cancellation, retries, or timer compatibility | [Concurrency and channel patterns](references/concurrency.md) |
 | Unit/table tests, HTTP boundaries, subtest isolation, `synctest`, benchmark construction, compiler elimination, or benchmark comparison | [Testing and benchmarking](references/testing-and-benchmarking.md) |
 | Constraints/type sets, named generic collections, generic API inference, comparable keys, `iter.Seq` iterators, or generic methods | [Generics and collection contracts](references/generics.md) |
-| CPU/heap/allocation profiles, live HTTP profiling, execution traces/tasks/regions, GC trace interpretation or tuning, sync.Pool, memory-profile comparison, synchronization waits, flat/cumulative attribution, or compiler inlining/escape diagnosis | [Profiling and live-service diagnosis](references/profiling-and-tracing.md) |
+| CPU/heap/allocation/goroutineleak profiles, live HTTP profiling, execution traces/tasks/regions, GC trace interpretation or tuning, sync.Pool, memory-profile comparison, synchronization waits, flat/cumulative attribution, or compiler inlining/escape diagnosis | [Profiling and live-service diagnosis](references/profiling-and-tracing.md) |
 
 ## Contracts and nil values
 - Validate external input and public API arguments where required by the contract. Trust internal constructors and functions that guarantee valid results on success; do not add redundant nil checks after every call.
 - A nil result with a nil error is valid only when the API contract permits it.
-- A nil slice has length zero and supports `append` and iteration. Prefer `var items []T` and return `nil` for an empty result unless the serialization contract requires a non-nil empty slice. Test emptiness with `len(items) == 0`.
+- A nil slice has length zero and supports `append` and iteration. Prefer `var items []T` and return `nil` for an empty result unless `encoding/json` (v1) serialization requires `[]` instead of `null` (`encoding/json/v2` in Go 1.27+ marshals `nil` slices and maps as `[]` and `{}` by default). Test emptiness with `len(items) == 0`.
 - A nil map supports reads, `len`, `range`, and `delete`, but panics on writes. A nil channel blocks on send and receive; in a `select`, it disables that case. Calling a nil function panics.
 - An interface containing a typed nil pointer is not nil. Return a literal `nil` when returning no error or no interface value.
 - Use the comma-ok form for type assertions and handle failure instead of allowing an unchecked assertion to panic.
@@ -93,13 +93,13 @@ Validate the resulting configuration before constructing the resource.
   - Dynamic message, matching needed: a custom error type (`SomethingError` / `somethingError`).
 - Match wrapped errors with `errors.Is` and `errors.As` (or `errors.AsType[E]` on Go 1.26+), not string comparison or direct equality.
 - Return an error unchanged when it already has sufficient context. Otherwise add concise context with `fmt.Errorf("get user %q: %w", id, err)`. Avoid repetitive phrases such as `failed to` at every layer.
-- Use `%w` when callers inspect the cause; document and test that contract. Use `%v` when hiding the underlying error from matching.
+- Use `%w` when callers inspect the cause; document and test that contract. Do not pass `*E` to `%w` when `E` implements `error` with a value receiver (flagged by `go vet` in Go 1.27+ because it breaks `errors.Is` and type assertions for `E`). Use `%v` when hiding the underlying error from matching.
 - Handle each error once: recover and continue, translate it, or return it with context. Do not log and return the same error.
 - Return errors for operational failures. Do not use `panic`/`recover` as normal error handling. Irrecoverable faults or startup validation such as `template.Must` are exceptions.
 - Call `os.Exit` or `log.Fatal` only in `main`, preferably at one exit point. Put fallible work in a testable function that returns an error or exit code because immediate exit skips deferred cleanup.
 
 ## Ownership and collections
-- Copy slices and maps at ownership boundaries when retaining caller data or returning internal mutable state. Copy while holding the lock when taking a snapshot of protected state.
+- Copy slices, maps, and mutable descriptors (including `(*url.URL).Clone()` and `url.Values.Clone()` in Go 1.27+) at ownership boundaries when retaining caller data or returning internal mutable state. Copy while holding the lock when taking a snapshot of protected state.
 - `maps.Clone` and `slices.Clone` make shallow copies. Pointers, maps, slices, and other references inside the copied elements still share their referenced data; copy deeper when the ownership contract requires it.
 - Slice assignment and slicing share a backing array; `append` can overwrite shared storage. Capacity limits (`s[:len(s):len(s)]` or `slices.Clip`) force reallocation on `append` but do not isolate element writes.
 - Map iteration order is unspecified. Sort keys when order matters. Deleting keys does not shrink a map's backing allocation; rebuild a long-lived map if measured retention warrants it.
@@ -131,18 +131,23 @@ Validate the resulting configuration before constructing the resource.
 - Use `sync.Cond` for condition-based waiting; always check the condition in a `for` loop around `Wait()`.
 - Use typed atomic state (`sync/atomic.Bool`, `sync/atomic.Int64`, `sync/atomic.Pointer[T]` on Go 1.19+, or `go.uber.org/atomic` in repositories that standardize on it) rather than raw integer primitives. Never mix atomic and non-atomic access to the same variable.
 - Watch for re-entrant lock acquisition when methods such as `String()` acquire the same non-reentrant mutex while formatting under lock.
-- Test packages that spawn goroutines for leaks (for example with `go.uber.org/goleak` when available in the repository).
+- Test packages that spawn goroutines for leaks (using `runtime/pprof`'s `goroutineleak` profile on Go 1.27+ or `go.uber.org/goleak`).
 
 ## Context and time
 - Pass `context.Context` as the first parameter of request-scoped functions. Always call the `cancel` function returned by `WithCancel`, `WithTimeout`, or `WithDeadline`.
 - An incoming `http.Request` context is canceled when the client connection closes, an HTTP/2 stream is canceled, or `ServeHTTP` returns. If detached work must outlive the request, use `context.WithoutCancel` with a new deadline and a service-owned wait path.
-- Use `time.Time` for instants and `time.Duration` for elapsed periods. Include unit suffixes in untyped numeric config fields (such as `TimeoutMillis`) and use RFC 3339 for serialized timestamps.
+- Use `time.Time` for instants and `time.Duration` for elapsed periods. Include unit suffixes in untyped numeric config fields (such as `TimeoutMillis`) and use RFC 3339 for serialized timestamps. Note that `encoding/json` (v1) encodes `time.Duration` as integer nanoseconds, whereas `encoding/json/v2` (Go 1.27+) rejects `time.Duration` unless a format or custom marshaler is specified.
 - Compare `time.Time` instants with `Equal`, `Before`, and `After`, not `==`, which also compares location and monotonic clock readings. Use `AddDate` for calendar shifts and `Add` for durations.
 
 ## HTTP, SQL, and serialization
-- Add explicit struct tags (`json`, `yaml`) on serialized types. Do not embed `time.Time` in serialized structs because its promoted marshaling methods alter the outer type's wire format.
-- Use `json.Decoder.UseNumber` when decoding arbitrary JSON numbers where `float64` conversion would lose integer precision.
-- Configure HTTP client timeouts and server `ReadHeaderTimeout`, `ReadTimeout`, `WriteTimeout`, and `IdleTimeout`. Close non-nil HTTP response bodies and return after `http.Error`.
+- Add explicit struct tags (`json`, `yaml`) on serialized types. Prefer `omitzero` (Go 1.24+) over `omitempty` when omitting zero-value structs such as `time.Time`. Do not embed `time.Time` in serialized structs because its promoted marshaling methods alter the outer type's wire format.
+- On Go 1.27+, `encoding/json/v2` and `encoding/json/jsontext` are in the standard library (and back `encoding/json` v1):
+  - `json/v2` defaults are stricter and more interoperable than v1: it rejects invalid UTF-8 and duplicate object keys, matches struct field names case-sensitively, marshals `nil` slices/maps as `[]`/`{}`, and defines `omitempty` by empty JSON output (`null`, `""`, `[]`, `{}`).
+  - Prefer `json.UnmarshalRead(r, &v)` and `json.MarshalWrite(w, v)` in `json/v2` over `json.NewDecoder(r).Decode(&v)` (which in v1 does not reject trailing data after the root JSON value).
+  - For custom JSON types on Go 1.27+, implement `json.MarshalerTo` (`MarshalJSONTo(*jsontext.Encoder) error`) and `json.UnmarshalerFrom` (`UnmarshalJSONFrom(*jsontext.Decoder) error`) alongside or instead of `MarshalJSON`/`UnmarshalJSON` to stream tokens without intermediate `[]byte` allocations or quadratic reparsing (supported by both v1 and v2).
+- In `encoding/json` (v1), use `Decoder.UseNumber` when decoding arbitrary JSON numbers into `any` where `float64` would lose integer precision.
+- On Go 1.27+, use the standard-library `uuid` package (`uuid.New()`, `uuid.NewV4()`, `uuid.NewV7()`, `uuid.Parse()`) instead of adding a third-party UUID dependency when the module targets Go 1.27+.
+- Configure HTTP client timeouts and server `ReadHeaderTimeout`, `ReadTimeout`, `WriteTimeout`, and `IdleTimeout`. Close non-nil HTTP response bodies (Go 1.27+ automatically drains small unread HTTP/1 response bodies on `Close`, but explicit `Close` is still required) and return after `http.Error`.
 - `sql.Open` does not verify connectivity; call `PingContext` when startup must validate the connection. Always `defer rows.Close()` and check `rows.Err()` after iteration.
 - Pass untrusted SQL values as query parameters, never via string concatenation or `fmt.Sprintf`. Configure pool limits (`SetMaxOpenConns`, `SetMaxIdleConns`, `SetConnMaxLifetime`).
 - Use `os.OpenRoot` (Go 1.24+) when opening untrusted relative file paths within a directory so the OS rejects symlink or `..` traversal outside that root.

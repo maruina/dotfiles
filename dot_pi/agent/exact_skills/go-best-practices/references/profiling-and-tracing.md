@@ -11,6 +11,7 @@ Collect one profile type at a time on a representative workload; concurrent prof
 | What heap memory is still retained? | Memory profile, `-inuse_space` / `-inuse_objects` | Bytes or objects still live as of the most recent GC cycle, attributed to the stack that allocated them—not the pointer currently keeping them reachable and not total process RSS. |
 | Where do goroutines wait on synchronization? | Block profile (`-blockprofile`) | Time spent blocked on channel operations, mutexes, `select`, and `Cond.Wait` (requires `runtime.SetBlockProfileRate`). |
 | Which locks cause the most contention? | Mutex profile (`-mutexprofile`) | Contention attributed to the `Unlock` call site holding the contended lock (requires `runtime.SetMutexProfileFraction`). |
+| Which goroutines are permanently leaked? | Goroutine leak profile (`goroutineleak`, Go 1.27+) | Uses GC reachability to report goroutines blocked on concurrency primitives (channels, mutexes, `Cond`) that are unreachable from any runnable goroutine and can never unblock. (Does not detect leaks blocked on primitives still reachable via globals.) |
 | Why is tail latency high or CPU underutilized? | Execution trace (`-trace`, `runtime/trace`) | Timeline of goroutine scheduling, runnable queue delays, syscalls, network waits, and GC phases. |
 
 ## Profile a focused benchmark
@@ -42,6 +43,7 @@ Run `GODEBUG=gctrace=1 ./service 2>gc.log` to emit one stderr line per GC cycle 
   debugMux := http.NewServeMux()
   debugMux.Handle("GET /debug/pprof/heap", pprof.Handler("heap"))
   debugMux.Handle("GET /debug/pprof/allocs", pprof.Handler("allocs"))
+  debugMux.Handle("GET /debug/pprof/goroutineleak", pprof.Handler("goroutineleak")) // Go 1.27+
   ```
 - Compare live retention or windowed allocation deltas with `-base`:
   ```sh

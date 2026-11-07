@@ -14,7 +14,7 @@ Use with the core skill for type parameters, type-set constraints, generic conta
 - Use `comparable` when the function uses `==`, `!=`, or `map[K]V` keys. Since Go 1.20, non-type-parameter interfaces (such as `any` or `io.Reader`) satisfy `comparable` at compile time, but comparing or hashing an interface value whose dynamic type is uncomparable (slice, map, function) still panics at runtime.
 
 ## Instantiation, zero values, and defined slice types
-- Generic types must always provide explicit type arguments when instantiated (`var q Queue[int]`), whereas generic functions infer type arguments from value arguments when unambiguous. Type inference never infers a type parameter solely from how the caller uses the return value.
+- Generic types must always provide explicit type arguments when instantiated (`var q Queue[int]`), whereas generic functions infer type arguments from value arguments when unambiguous. On Go 1.27+, function type inference also infers type arguments in all assignment contexts where a generic function is assigned or converted to a typed function (including variable assignments, slice/struct composite literals, function-type conversions, and channel sends). A call expression still cannot infer a type parameter that appears only in the function's return type unless the function itself is being assigned to a typed function variable.
 - Return or clear a generic zero value with `var zero T` (or `**new(T)`). `T{}` fails to compile for primitive/interface types, and `nil` is invalid for value types.
 - Use `S ~[]E` when a slice helper should return the caller's defined slice type `S` (preserving methods attached to `type IDs []int`) rather than decaying the return type to `[]E`:
 

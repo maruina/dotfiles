@@ -404,6 +404,34 @@ test("writable stages record learning candidates; read-only stages capture nothi
   }
 });
 
+test("simplify requires complete evidence and applicable skill references", () => {
+  requireMarkers(prompt("simplify.md"), [
+    /Follow each loaded skill's reference-selection instructions/i,
+    /core skill is not a substitute for reading an applicable reference/i,
+    /Read changed code and relevant tests in bounded sections/i,
+    /response is truncated, retrieve the missing sections before drawing conclusions/i,
+  ]);
+});
+
+test("simplify reviews production code and test execution separately", () => {
+  requireMarkers(prompt("simplify.md"), [
+    /two bounded review passes/i,
+    /Production code.*state, control flow, ownership, and repeated work/is,
+    /Tests.*distinct contracts.*overlapping cases.*independent dimensions.*repeated setup.*expensive scenarios/is,
+    /Sharing a helper does not establish that test execution or coverage is nonredundant/i,
+    /For a pass with no applicable files, record it as inapplicable/i,
+  ]);
+});
+
+test("simplify preserves test contracts and behavior when reducing coverage", () => {
+  requireMarkers(prompt("simplify.md"), [
+    /For each removed or merged test.*contract.*retained test.*no distinct interaction coverage/is,
+    /unchanged statement coverage do not prove equivalent protection/i,
+    /Do not change behavior/,
+    /alter sequencing, atomicity, error behavior, security, accessibility, or observability/,
+  ]);
+});
+
 test("simplify and PR validation report skill provenance", () => {
   for (const file of ["simplify.md", "pr-validate.md"]) {
     const text = prompt(file);

@@ -31,9 +31,23 @@ Before changing files, use the `feature-worktree` skill to continue in the resol
 ## Delegate the "how"
 Do not restate style rules here. Before proposing or making simplifications, use the `skill-loader` skill to determine which language and domain skills to read based on the touched files. Load those skills and defer to them, plus the repository's `AGENTS.md`.
 
+Follow each loaded skill's reference-selection instructions for each review area. Loading a core skill is not a substitute for reading an applicable reference.
+
 If the touched code is in an unfamiliar area, also load `codebase-research` before changing it. Match the repository's existing conventions over any general preference.
 
 Keep a provenance record per the `## Provenance record` section of the `skill-loader` skill.
+
+## Review Procedure
+Read changed code and relevant tests in bounded sections. If a tool response is truncated, retrieve the missing sections before drawing conclusions; if they cannot be retrieved, report the evidence gap and stop rather than declaring that nothing needs simplification.
+
+Complete two bounded review passes before editing or concluding that no simplification is needed:
+
+1. **Production code:** inspect state, control flow, ownership, and repeated work.
+2. **Tests:** inspect distinct contracts, overlapping cases, independent dimensions multiplied together, repeated setup, and repeated expensive scenarios. Sharing a helper does not establish that test execution or coverage is nonredundant.
+
+For a pass with no applicable files, record it as inapplicable. Keep both passes within the resolved scope and use the loaded skills for language-specific techniques.
+
+For each removed or merged test, name the contract it covered, the retained test that covers that contract, and why the removed combination adds no distinct interaction coverage. Fewer cases and unchanged statement coverage do not prove equivalent protection. Keep interaction cases unless their redundancy is established.
 
 ## Simplification Lens
 Understand the affected behavior before minimizing its implementation. Apply the decision ladder from the active instructions and stop at the first option that fully preserves behavior.

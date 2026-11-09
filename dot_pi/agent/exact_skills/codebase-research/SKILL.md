@@ -54,7 +54,7 @@ Use text search for broad discovery, then use LSP for semantic navigation when t
 Do not analyze deeply in this phase. The goal is navigation.
 
 ### 2. Analyze
-Read the most relevant files and trace how the system works.
+Read the most relevant files in bounded sections and trace how the system works. If a tool response is truncated, retrieve the missing sections before drawing conclusions.
 
 Start from entry points, then follow calls across boundaries. For Go, TypeScript, JavaScript, YAML, and Helm, prefer LSP tools for semantic relationships: definitions, references, implementations, type definitions, hover/type information, and diagnostics. Use LSP evidence before claiming where a symbol is defined, how broadly it is used, or which implementations satisfy an interface.
 

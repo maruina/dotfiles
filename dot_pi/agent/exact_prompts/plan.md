@@ -25,21 +25,18 @@ Use, in order, an explicit artifact or issue, the conversation's agreed framing,
 
 Classify the work before planning:
 
-- **Small/direct:** Use direct planning for clear, low-risk work or an explicit one-shot/fast/no-questions request. Discovery, feasibility checks, skill loading, and self-review still apply. For trivial or ephemeral work, offer a chat-only plan.
-- **Medium or Large/Risky/interactive:** Research first. Ask one question at a time only for material implementation choices evidence cannot settle. Include a recommended answer, finish that branch as accepted, rejected, deferred, blocked, or split, and present the alignment brief below even when discovery finds no open question.
+- **Small/direct:** Use direct planning for clear, low-risk work or an explicit one-shot/fast/no-questions request. Discovery, feasibility checks, skill loading, and self-review still apply. Offer a chat-only plan for trivial work.
+- **Medium or Large/Risky/interactive:** Research first. Ask one question at a time only for material implementation choices evidence cannot settle, include a recommended answer, finish each branch as accepted, rejected, deferred, blocked, or split, and present the alignment brief below before writing a durable plan.
 
-Treat bounded work that needs discovery or tradeoffs as Medium. Treat multi-component changes, migrations, broad refactors, compatibility or security changes, production infrastructure, unclear ownership, or unclear validation as Large/Risky.
-
-A recommendation is a strawman, not a decision. Wait for user confirmation before writing a durable plan in interactive mode.
+Treat bounded work that needs discovery or tradeoffs as Medium; treat multi-component changes, migrations, broad refactors, compatibility or security changes, production infrastructure, or unclear ownership/validation as Large/Risky.
 
 ## Sources and discovery
-Use the upstream design, alignment brief, issue, PR feedback, or request as the source of truth for WHAT. Use the current repository, available tools, and validated command behavior as the source of truth for HOW.
+Use the upstream design, brief, issue, PR feedback, or request as the source of truth for WHAT, and the repository and validated tool behavior for HOW.
 
-- Read the input completely, then inspect relevant guidance, code, tests, build commands, package boundaries, existing patterns, tickets, prior plans, architecture decision records (ADRs), domain glossaries, and review threads.
-- Use established repository vocabulary. Treat applicable ADRs as constraints and surface conflicts instead of silently overriding them.
-- Load the `skill-loader` skill before implementation recommendations, then read every matching language and domain skill. Prefer specific guidance over general guidance.
-- Investigate discoverable facts yourself. Ask the user only for decisions, priorities, unavailable context, or source-of-truth material you cannot access.
-- Every task must trace to a goal, requirement, or explicit instruction. Carry source-defined non-goals and deliberate deferrals into the alignment brief and plan; do not silently add, drop, or reinterpret scope.
+- Read the input completely, then inspect relevant guidance, code, tests, build commands, package boundaries, existing patterns, tickets, prior plans, ADRs, and review threads. Surface ADR conflicts instead of overriding them.
+- Load the `skill-loader` skill before implementation recommendations, then read every matching language and domain skill and its applicable references.
+- Investigate discoverable facts yourself; ask the user only for decisions, priorities, or unavailable context.
+- Every task must trace to a goal, requirement, or explicit instruction. Carry source-defined non-goals and deliberate deferrals into the brief and plan without adding, dropping, or reinterpreting scope.
 
 ### Advisory learning lookup
 After resolving the input and repository context, but before feasibility decisions or recommendations, use the `learning-lookup` skill. Record skipped sources and material guidance in `plan.md`, or in the chat plan for chat-only planning. Do not retrieve the mutable store during `/execute` or `/verify`.
@@ -55,21 +52,11 @@ For each acceptance behavior, choose the highest supported interface that observ
 
 When the change modifies a shared type, schema, configuration key, or public API, find every consumer with `rg` or `lsp_find_references`, including tests, fixtures, and generated code. Map each consumer to a task or to evidence that it needs no change.
 
-If a required mechanism is unavailable, either add and validate the enabling work, narrow or defer the requirement with user approval, or stop on the blocker. Never use placeholders such as “requires proof” or validate only a nearby subsystem.
+If a required mechanism is unavailable, add and validate the enabling work, narrow or defer the requirement with user approval, or stop on the blocker; never use placeholders such as “requires proof.”
 
-Ask a planning question when multiple reasonable approaches materially change compatibility, failure behavior, authorization or data handling, operability, public interfaces, test evidence, or review boundaries. Explain options, recommend one, and do not ask about mechanics established by repository evidence.
+Ask a planning question when multiple reasonable approaches materially change compatibility, failure behavior, authorization, data handling, operability, public interfaces, test evidence, or review boundaries. When a changed shared component has consumers outside the request, ask whether to limit the change to the requested consumer or apply it to every consumer, state the cost of each option, and recommend one.
 
-A scope-narrowing choice on a shared component is a planning question, not an assumption. When a changed component has consumers outside the request, offer two options: limit the change to the requested consumer, or apply it to every consumer. The narrower behavior change can need a larger mechanism, such as a new API, option, flag, or state. In that case, state the cost of each option, then recommend one.
-
-Pressure-test only material risks:
-
-- untrusted inputs, invalid states, permissions, sensitive data, and partial failure
-- bounded growth, cancellation, timeouts, retries, idempotency, and rollback
-- expected scale and whether the path is hot, control-plane, batch, or one-off
-- dependency slowness or unavailability and data loss, duplication, corruption, or exposure
-- ownership plus required logs, metrics, traces, alerts, dashboards, runbooks, rollout, and rollback
-
-Prefer boring existing technology and APIs. Avoid speculative abstractions or ceremony. If the owning team would not accept being paged for the result, revise or narrow the plan.
+Pressure-test material risks: untrusted inputs, invalid states, permissions, sensitive data, partial failure, bounded growth, cancellation, timeouts, retries, idempotency, scale, dependency unavailability, data integrity, ownership, observability, rollout, and rollback. Prefer boring existing technology and APIs. If the owning team would not accept being paged for the result, revise or narrow the plan.
 
 ## Planning alignment gate
 The planning alignment brief and durable plan must include `Skills loaded and used`; use the exact durable-plan heading `## Skills loaded and used`. Fill it per the `## Provenance record` section of the `skill-loader` skill.
@@ -101,10 +88,7 @@ Alternatives considered:
 - [option] — benefit: ... — cost: ... — [recommended / rejected because ...]
 
 Skills loaded and used:
-
-| Skill | Source | Why loaded | How used |
-|---|---|---|---|
-| `skill-name` | `skill-loader` / `prompt-required` / `user-requested` / `agent-selected` | [trigger] | [guidance applied] |
+[table per `skill-loader` `## Provenance record`]
 
 Proposed vertical slices:
 1. [title] — **Blocked by:** [slice numbers or None] — **Delivers:** [independently verifiable behavior]
@@ -142,28 +126,15 @@ Start every durable plan with:
 ---
 
 ## Skills loaded and used
-| Skill | Source | Why loaded | How used |
-|---|---|---|---|
-| `skill-name` | `skill-loader` / `prompt-required` / `user-requested` / `agent-selected` | [trigger] | [guidance applied] |
+[table per `skill-loader` `## Provenance record`]
 ```
 
-Preserve the confirmed planning provenance and add skills used while writing or self-reviewing the plan. Do not copy skills from `design.md` unless they were also loaded and used during planning.
+Preserve the confirmed planning provenance and add skills used while writing or self-reviewing the plan; do not copy skills from `design.md` unless loaded and used during planning.
 
 Right-size the remainder:
 
-- **Small:** concise `## Scope` and `## Validation`, exact files, ordered tasks, success criteria, documentation impact, and commit message when applicable.
-- **Medium:** components, decisions, task sequence, acceptance scenarios, tests, documentation, and operational impact.
-- **Large/Risky:** the Medium contract plus explicit security, observability, failure modes, rollout/rollback, ownership, and migration requirements.
-
-For Medium and Large/Risky plans, add `## Implementation Contract` containing:
-
-- **Components Affected:** `Component | Files | Responsibility | Verification`
-- **Key Decisions:** decision and rationale, including the rejected alternative and its benefit when the user chose between options
-- **Implementation Constraints:** applicable ADRs and patterns, assumptions, stop conditions, and material safety/performance/developer-experience requirements or why they are inapplicable
-- **Security Requirements** and **Observability Requirements**, including an explicit reason when none apply
-- **Failure Modes to Handle:** expected behavior and verification
-- **Rollout and Rollback:** smallest safe rollout, fastest safe rollback, and owner
-- **Test Strategy:** each requirement mapped to its highest deterministic supported interface, existing or justified new seams, system boundaries to mock, and the narrow command expected to fail before implementation
+- **Small:** concise `## Scope` and `## Validation`, exact files, ordered tasks, success criteria, documentation impact, and commit message.
+- **Medium / Large/Risky:** add `## Implementation Contract` containing **Components Affected** (`Component | Files | Responsibility | Verification`), **Key Decisions** (decision, rationale, and rejected alternative's benefit), **Implementation Constraints** (ADRs, assumptions, stop conditions, and safety/performance/DX requirements or why inapplicable), **Security and Observability Requirements** (or why none apply), **Failure Modes to Handle**, **Rollout and Rollback** (with owner), and **Test Strategy** (highest deterministic supported interface, seams, system boundaries to mock, and narrow failing command).
 
 For integration, reliability, performance, or cost checks, define comparable baseline and candidate workloads where applicable. Specify telemetry selectors for the exact instance, version, traffic cohort, and observation window. Define isolation for mutable state, queues, background jobs, and downstream effects, not only ports or incoming traffic. Record mock limitations and which claims require real dependencies. If required traffic, telemetry, or isolation is unavailable, name the gap and do not plan to infer success from absent errors.
 
@@ -185,7 +156,7 @@ The system SHALL <normative statement>.
 - THEN <observable outcome>
 ```
 
-Every requirement needs a scenario through a supported interface and must map to a task. Each behavior requirement also needs a negative scenario in which the system must not act or produce output, or a one-line reason why none applies; every behavior task maps back to a requirement. Prefer a focused automated test. When automation is impractical, specify reproducible setup, invocation, expected result, cleanup, and why automation is impractical. Small plans may inline one or two scenarios under `## Validation`.
+Every requirement needs a scenario through a supported interface and must map to a task. Each behavior requirement also needs a negative scenario in which the system must not act or produce output, or a one-line reason why none applies; every behavior task maps back to a requirement. Prefer a focused automated test; tests must cover distinct contracts without multiplying independent dimensions or repeating expensive integration scenarios. When automation is impractical, specify reproducible setup, invocation, expected result, cleanup, and why automation is impractical. Small plans may inline one or two scenarios under `## Validation`.
 
 ### Task contract
 Each task must be understandable and executable by a fresh agent from the plan and repository alone. Use:
@@ -208,26 +179,12 @@ Order blockers before dependents so `/execute` can proceed sequentially. Default
 
 A preparatory refactor may precede a slice only when it removes a concrete blocker; keep it minimal, behavior-preserving, independently green, and name what it blocks. For a wide mechanical refactor that cannot land as green vertical slices, use expand–migrate–contract: add the compatible new form, migrate callers in green batches sized by blast radius, then remove the old form after every migration. If batches cannot remain green alone, state the integration exception and plan a final integrate-and-verify task.
 
-Prefer public behavior over private helpers, and mock system boundaries rather than internal collaborators. Prefer a script over long inline CI YAML when logic contains branching, retries, cleanup, or multi-line errors. Reuse repository or platform CLIs rather than raw HTTP.
+Prefer a script over long inline CI YAML when logic contains branching, retries, cleanup, or multi-line errors, and reuse repository or platform CLIs rather than raw HTTP.
 
-For Medium and Large/Risky work, end with a documentation and future-agent guidance task covering user/developer docs, READMEs, runbooks, examples or generated references, and every relevant `AGENTS.md`; update each or record why not. Add to `AGENTS.md` only durable commands, generation steps, traps, source-of-truth rules, and testing or rollout procedures. Small plans must state documentation impact.
+For Medium and Large/Risky work, end with a documentation and future-agent guidance task covering user/developer docs, READMEs, runbooks, examples or generated references, and every relevant `AGENTS.md` (adding only durable commands, generation steps, traps, source-of-truth rules, and testing/rollout procedures); update each or record why not. Small plans must state documentation impact.
 
 ## Final review
-Before committing, confirm:
-
-- interactive Medium/Large work has a user-confirmed alignment brief
-- every shared-component scope choice was asked as a question with the narrow and broad options, not recorded only as an assumption
-- scope, non-goals, requirements, tasks, and validation are bidirectionally traceable
-- paths, commands, types, dependencies, mechanisms, and expected results exist
-- behavior tasks are complete vertical slices; genuine blockers appear first; any integration exception is explicit
-- acceptance scenarios cover material happy, edge, failure, and integration paths at supported seams
-- security, operability, failure behavior, rollout, rollback, ownership, and docs match risk
-- slice grouping is used only when the plan needs it; Small/direct plans stay ungrouped
-- scope beyond the smallest user-feedback slice is explicitly deferred as a follow-up or a later slice
-- skill provenance is accurate and loaded guidance is reflected
-- the plan is right-sized and contains no contradictions, duplicated work, vague placeholders, or invented behavior
-
-Self-review as a skeptical implementer and fix issues inline. Do not pre-write implementation code or shell-command choreography; use snippets only to pin an interface, schema, command, or invariant. Honor user-named resources rather than silently substituting them.
+Before committing, self-review as a skeptical implementer and fix issues inline: confirm the interactive alignment brief was approved, shared-component scope choices were asked, scope/requirements/tasks/validation trace bidirectionally, referenced paths/commands/types exist, tasks form ordered vertical slices, scenarios cover material happy/edge/failure/negative paths without redundant dimensions, slice grouping is used only when the plan needs it, scope beyond the smallest user-feedback slice is explicitly deferred, skill provenance is accurate, and no contradictions, placeholders, or pre-written implementation choreography remain.
 
 ## Learning candidates
 When `/systematic-review` findings or reviewer feedback disprove an initial approach and change the design or plan, record a learning candidate in the plan with the `learning-candidates` skill.

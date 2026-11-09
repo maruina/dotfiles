@@ -23,29 +23,13 @@ Use the `codebase-research` skill before critique. First document current behavi
 
 For code targets, look for:
 
-- Duplicative code that should be common
-- Abstractions that are too much or too little, including thin wrappers, identity layers, and unclear type boundaries
-- Structural complexity that should be deleted rather than rearranged: ad-hoc branching, special cases, misplaced feature logic, giant files, or spaghetti control flow
-- Race conditions and concurrency issues, especially CRDT/sync behavior
-- Edge cases and off-by-one errors
-- Error handling gaps
-- Null/undefined safety
-- Architecture and coupling concerns
-- Maintainability issues: naming, dead code, unnecessary complexity
-- Security issues: input validation, injection, auth boundaries, CLI access control, and anything security-funky
-- Performance issues: N+1 behavior, hot paths, scale blow-ups
-- Tests that assert implementation details instead of meaningful behavior
-- Code that is inordinately complicated for what it does
+- Duplicative code, dead code, or structural complexity that should be deleted rather than rearranged (thin wrappers, identity layers, ad-hoc branching, special cases, giant files, or unclear type/ownership boundaries)
+- Race conditions, concurrency issues, edge cases, off-by-one errors, null/undefined hazards, and error-handling gaps
+- Security issues: input validation, injection, auth boundaries, and CLI access control
+- Performance issues: N+1 behavior, hot paths, and scale blow-ups
+- Tests that assert implementation details instead of meaningful behavior, or fail to cover distinct contracts without multiplying independent dimensions or repeating expensive integration scenarios (sharing a helper does not establish nonredundant execution)
 
-For behavior-bearing code, also check that:
-
-- resource growth is bounded or intentionally constrained: loops, queues, goroutines, retries, polling, fan-out, memory, and disk
-- failure behavior is explicit for invalid input, partial failure, cancellation, timeout, retries, and corrupt or inconsistent data
-- performance-sensitive paths have a stated scale assumption or measured evidence appropriate to the risk
-- names and APIs are hard to misuse, include units or qualifiers when useful, and avoid needless dependencies, wrappers, or clever abstractions
-- language-specific style guidance is applied idiomatically; do not reject idiomatic Go, Kubernetes, Terraform, or repository patterns because they differ from another ecosystem
-
-Also argue against the design: explain what you would do differently, why, and the trade-offs.
+For behavior-bearing code, also check that resource growth is bounded (loops, queues, goroutines, retries, polling, fan-out, memory, disk), failure behavior is explicit (invalid input, partial failure, cancellation, timeout, corrupt data), performance-sensitive paths have scale assumptions or evidence, APIs are hard to misuse, and loaded language/domain skills are applied idiomatically. Also argue against the design: explain what you would do differently, why, and the trade-offs.
 
 ## Plan review checklist
 
@@ -58,6 +42,7 @@ For `plan.md` targets, check that:
 - the plan carries enough feature-level criteria for the final verification
 - acceptance requirements are expressed as testable scenarios, each mapped to at least one task
 - each behavior requirement has a negative scenario, or a reason why none applies
+- planned tests cover distinct contracts without multiplying independent dimensions or repeating expensive integration scenarios
 - a changed shared type, schema, configuration key, or public API has every consumer mapped to a task or to evidence that it needs no change
 - tasks are vertical, ordered safely, and independently verifiable
 - each task includes a focused failing test or an explicit reason one is not practical
@@ -75,8 +60,8 @@ Challenge scope against the smallest user-feedback slice, not only against the d
 
 ## Method
 
-1. Use `codebase-research` to locate the target area, analyze current behavior, and find similar patterns.
-2. Use the `skill-loader` skill to determine which language and domain skills to read based on the target files. Load them before evaluating findings. Keep a provenance record per the `## Provenance record` section of the `skill-loader` skill.
+1. Use `codebase-research` to locate the target area, analyze current behavior, and find similar patterns. Read files, diffs, and tests in bounded sections; if a tool response is truncated, retrieve the missing sections before drawing conclusions.
+2. Use the `skill-loader` skill to determine which language and domain skills to read based on the target files. Load them and their applicable references before evaluating findings. Keep a provenance record per the `## Provenance record` section of the `skill-loader` skill.
 3. Identify the project shape: language, package boundaries, test/build commands, entry points, and relevant guidance files.
 4. Map the target area: core files, tests, dependencies, callers, and ownership boundaries. For plans, also read the sibling `design.md`.
 5. Review from multiple angles: correctness, concurrency, security, performance, API/UX, tests, and maintainability.
@@ -91,7 +76,7 @@ Return a concise review with these sections:
 
 1. **Scope reviewed** — target, extra context used, files/components inspected.
 2. **Discovery summary** — current behavior, existing patterns, and key assumptions from `codebase-research`.
-3. **Skills loaded and used** — a `Skill | Source | Why loaded | How used` table for every skill read and applied during this review; explicitly state when none were needed.
+3. **Skills loaded and used** — recorded per the `## Provenance record` section of the `skill-loader` skill; explicitly state when none were needed.
 4. **Executive summary** — highest-risk themes in 3-5 bullets.
 5. **Findings** — sorted by severity. For each finding include:
    - Severity: Critical / High / Medium / Low
@@ -113,7 +98,7 @@ After the report, propose fixes instead of leaving them entirely to the user:
 2. Ask the user which findings to apply. Do not edit before an explicit confirmation.
 3. For each confirmed fix, stay in the resolved target worktree, use the `skill-loader` skill for touched files, make the smallest change that satisfies the finding, and run the narrow relevant tests or checks.
 4. Stop and ask when a fix is ambiguous, changes behavior beyond the finding, needs a design decision, or would touch unrelated code.
-5. For a `plan.md` target, check that the worktree was clean before editing. If it was not clean, stop before editing and ask. After applying confirmed fixes, rerun the plan review checklist against the updated plan, then commit only the plan file with a Conventional Commit message such as `docs: update <feature> implementation plan`. Do not include pre-existing changes or unconfirmed fixes. For other targets, leave confirmed changes uncommitted. Summarize what was fixed, committed, skipped, and why.
+5. For a `plan.md` target, check that the worktree was clean before editing. If it was not clean, stop before editing and ask. When a confirmed fix disproves an initial planned approach, record a learning candidate in the plan with the `learning-candidates` skill. After applying confirmed fixes, rerun the plan review checklist against the updated plan, then commit only the plan file with a Conventional Commit message such as `docs: update <feature> implementation plan`. Do not include pre-existing changes or unconfirmed fixes. For other targets, leave confirmed changes uncommitted. Summarize what was fixed, committed, skipped, and why.
 
 ## Handoff
 Close with the recommended next step:

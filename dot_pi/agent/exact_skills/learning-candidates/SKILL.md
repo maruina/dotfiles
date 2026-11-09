@@ -1,6 +1,6 @@
 ---
 name: learning-candidates
-description: Record learning candidates in a plan's `## Learning candidates` ledger for a later /learn run. Use from /plan, /execute, /simplify, and /pr-address-feedback when the calling prompt's trigger occurs. Read-only stages such as /systematic-review and /verify do not record candidates.
+description: Record learning candidates in a plan's `## Learning candidates` ledger for a later /learn run. Use from /plan, /systematic-review (when applying confirmed plan fixes), /execute, /simplify, and /pr-address-feedback when the calling prompt's trigger occurs. Read-only verification (/verify) does not record candidates.
 ---
 # Learning Candidates
 Record surprises from lifecycle work so that a later plain `/learn` run can adjudicate them. The calling prompt names the trigger that makes an event a candidate. This skill defines the ledger format and the filter.

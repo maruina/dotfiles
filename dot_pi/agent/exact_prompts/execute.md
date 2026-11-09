@@ -46,38 +46,23 @@ Do not leave the work 80% done. Complete the current approved slice, including t
 ## Slice execution
 A plan with no slice grouping executes all tasks as today and hands off once.
 
-For a plan with `### Slice N` headings, read the plan, find the first slice with incomplete tasks, and execute only that slice. After the slice's verification passes and you update the ledger, stop and hand off; do not auto-run the remaining slices. A later `/execute` on the same plan resumes at the next incomplete slice. If the user names a slice in the extra instructions, execute that slice when it has no incomplete blockers. A slice ships as one or more pull requests with the existing stack-split check applied to the slice. For a multi-slice plan, the terminal state is one verified slice increment with the plan updated as the ledger.
+For a plan with `### Slice N` headings, read the plan, find the first slice with incomplete tasks, and execute only that slice. After the slice's verification passes and you update the ledger, stop and hand off; do not auto-run the remaining slices. A later `/execute` on the same plan resumes at the next incomplete slice. If the user names a slice in the extra instructions, execute that slice when it has no incomplete blockers. For a multi-slice plan, the terminal state is one verified slice increment with the plan updated as the ledger.
 
 ## Workflow
 1. **Setup —** Resolve and read the plan completely, or classify the bare prompt as trivial before editing.
 2. Satisfy the worktree policy before changing files.
 3. **Review —** Inspect relevant guidance, git branch/status, files named by the plan or prompt, tests, build commands, package boundaries, and current repository state.
-4. Load execution skills before editing. Use the `skill-loader` skill to determine which language and domain skills to read based on affected files. Also read any skills explicitly named by the plan. Prefer specific skills over general ones. Keep an execution-stage provenance record per the `## Provenance record` section of the `skill-loader` skill.
+4. Load execution skills before editing. Use the `skill-loader` skill to determine which language and domain skills to read based on affected files, plus any skills explicitly named by the plan, and read their applicable references. Keep an execution-stage provenance record per the `## Provenance record` section of the `skill-loader` skill.
 5. Inspect referenced tickets, PRs, reviews, or discussion threads. If recent actionable feedback is missing from the plan, stop and ask whether to update it.
-6. Review the plan or trivial prompt before implementation. `/systematic-review` is the authoritative plan-validation gate; here, re-check at the depth the change needs:
-   - Are files, commands, types, functions, tests, and dependencies present and consistent?
-   - Does the plan or prompt match the current codebase?
-   - Do repository instructions or loaded skills conflict with the plan or prompt?
-   - Is the branch safe for implementation?
-   - Are there blockers, risky assumptions, or ambiguities?
-   - What scope boundaries, non-goals, implementation-time unknowns, execution notes, requirements traceability, references, or patterns must guide execution?
-   - What operational requirements apply: logs, metrics, traces, alerts, dashboards, runbooks, rollout, rollback, and ownership?
-7. For plan-based execution, verify the worktree starts with committed lifecycle docs:
-   - `plans/<ticket-or-feature>/plan.md` exists and is committed.
-   - If a sibling `design.md` exists, it is committed, ideally in a separate commit.
-   - For plan-based work that came from `/brainstorm`, expect a sibling `design.md`; if it is missing, continue only when the plan clearly documents that the work was intentionally lightweight or started directly from `/plan`.
-8. If lifecycle docs are uncommitted or untracked, recover only when all of these are true: the only uncommitted changes are under `plans/<ticket-or-feature>/`, the files are present, and the docs are new or modified only as expected lifecycle artifacts. Commit the design first when present, then the plan, staging only the relevant file per commit. If recovery cannot safely create separate commits, stop and ask.
-9. Stop and ask if there are any uncommitted changes after recovery. The plan ledger starts committed; execution may update it once work begins.
-10. Report any concerns and ask for direction before modifying files unless the work is clearly trivial and unambiguous.
-11. **Execute —** Execute tasks in order. For a grouped plan, execute only the first slice with incomplete tasks and stop after it, per Slice execution. For bare-prompt trivial work, execute the single approved change.
-12. For each task, update plan checkboxes as work progresses, run the specified verification, and mark steps complete only after verification passes. For plan-based work, maintain an `### Execution` subsection under `## Skills loaded and used` with a `Skill | Source | Why loaded | How used` table, preserving the planning record. If no execution skill was needed, record that explicitly. For trivial bare prompts, track progress and the same skill provenance in chat instead of a plan file.
-13. Complete the plan's documentation and future-agent guidance task, including every required `AGENTS.md` inspection. For trivial bare prompts, explicitly decide whether docs are unnecessary.
-14. **Prepare verification handoff —** Run the final implementation-evidence commands and inspect `git status`.
-15. Review plan fidelity: every task in the current execution unit is complete and its requirements are met, no unapproved scope added, and deviations documented in the plan ledger.
-16. Before opening a PR, apply the stack-split check from the `reviewable-pr-workflow` skill to the completed work. If it trips, **stop and propose a stack plan** and ask whether to split before opening any PR. Do not proceed past this point until the user responds.
-   If no split is needed, use `/pr-create --draft` to open a draft PR unless the user explicitly says not to.
-17. Optionally suggest `/simplify` for a behavior-preserving cleanup pass over the diff before review: `/simplify <absolute-plan-path>` for plan-based work, or `/simplify` in-session for trivial work. `/simplify` commits its own changes and hands off to a fresh `/verify`. This is opt-in; do not run it automatically.
-18. Report the exact handoff phrase below.
+6. Re-check the plan or trivial prompt against the current codebase, repository instructions, loaded skills, and operational requirements (logs, metrics, traces, alerts, dashboards, runbooks, rollout, rollback, and ownership).
+7. For plan-based execution, verify the worktree starts with committed `plans/<ticket-or-feature>/plan.md` (and sibling `design.md` when expected). If lifecycle docs are uncommitted or untracked, recover only when the sole uncommitted changes are expected lifecycle artifacts under `plans/<ticket-or-feature>/`, committing `design.md` first and `plan.md` second.
+8. Stop and ask if any uncommitted changes remain after recovery, or if concerns, blockers, or ambiguities exist before modifying files.
+9. **Execute —** Execute tasks in order (the first slice with incomplete tasks for a grouped plan, or the single approved change for bare-prompt trivial work).
+10. For each task, update plan checkboxes as work progresses, run the specified verification, and mark steps complete only after verification passes. For plan-based work, maintain an `### Execution` subsection under `## Skills loaded and used`, preserving the planning record; if no execution skill was needed, record that explicitly. For trivial bare prompts, track progress and skill provenance in chat.
+11. Complete the plan's documentation and future-agent guidance task, including every required `AGENTS.md` inspection (or decide whether docs are unnecessary for trivial bare prompts).
+12. **Prepare verification handoff —** Run the final implementation-evidence commands, inspect `git status`, and confirm plan fidelity (every task in the current execution unit is complete, requirements and operational checks match the plan's risk level, no unapproved scope added, and deviations documented in the plan ledger).
+13. Optionally suggest `/simplify` for a behavior-preserving cleanup pass over the diff before review: `/simplify <absolute-plan-path>` for plan-based work, or `/simplify` in-session for trivial work. `/simplify` commits its own changes and hands off to a fresh `/verify`. This is opt-in; do not run it automatically.
+14. Report the exact handoff phrase below.
 
 The terminal state is implemented, verified changes with the plan updated as the progress ledger when a plan exists.
 
@@ -99,71 +84,20 @@ Do not batch unrelated tasks or skip narrow tests because later tasks run broade
 Keep tests on observable behavior through public or supported interfaces. Mock system boundaries (external APIs, time, randomness, databases, filesystems) when needed; do not mock internal collaborators unless the repository already treats that seam as public.
 
 ## Test Discovery
-Before changing behavior-bearing code, find existing tests for the affected files or public interfaces.
+Before changing behavior-bearing code, find existing tests for the affected files or public interfaces (tests named in the plan, nearby test files, package importers, and integration/end-to-end suites). Add tests for new behavior, update tests for changed behavior, remove or update tests for deleted behavior, or justify explicitly if no tests are added.
 
-Start with tests named in the plan, then search for:
-
-- nearby test files
-- tests importing or referencing the affected package/module
-- tests sharing implementation file names
-- integration or end-to-end tests for the public behavior
-
-When changing behavior:
-
-- add tests for new behavior
-- update tests for changed behavior
-- remove or update tests for deleted behavior
-- justify explicitly if no tests are added
-
-Before writing tests, check whether the plan's test scenarios cover applicable happy paths, edge cases, failure paths, and integration paths. If coverage is missing but clearly required by the current task, add it within scope. If adding it changes scope, stop and ask.
+Ensure tests cover distinct contracts without multiplying independent dimensions or repeating expensive integration scenarios (sharing a helper does not establish nonredundant test execution). Check whether the plan's scenarios cover applicable happy, edge, failure, and integration paths; add missing in-scope coverage or stop and ask if it changes scope.
 
 ## Integration and operational evidence
 For integration, reliability, performance, or cost checks, use the plan's comparable baseline and candidate workloads where applicable. Confirm isolation of mutable state, queues, background jobs, and downstream effects before exercising the candidate. Record mock limitations; mocked behavior alone cannot establish that a real integration works.
 
-Query telemetry for the exact instance, version, traffic cohort, and observation window. Record the workload, candidate configuration, queries, and observed results separately from the interpretation. Insufficient traffic or telemetry makes the result inconclusive and cannot satisfy a required check; an empty error query alone is not evidence of success. If required isolation is missing, stop rather than run the experiment.
+Query telemetry using the plan's selectors and observation window, and record the workload, candidate configuration, queries, and observed results separately from the interpretation. Insufficient traffic or telemetry makes the result inconclusive and cannot satisfy a required check; an empty error query alone is not evidence of success. If required isolation is missing, stop rather than run the experiment.
 
 ## System-Wide Check
-Before marking a behavior task complete, ask:
-
-- What else runs when this change runs: callbacks, reconcilers, hooks, middleware, jobs, event handlers, generated code, or controllers?
-- Are there alternate entrypoints or APIs that should behave consistently?
-- Can partial failure leave durable state inconsistent?
-- Are retry, idempotency, timeout, and error-handling strategies aligned across layers?
-- Do tests exercise the real integration path where needed, not only mocked internals?
-
-Skip only for leaf-node changes with no behavioral or integration impact.
-
-## Operational Completion Check
-Before preparing the verification handoff, confirm:
-
-- The implementation follows existing patterns and avoids unnecessary new technology.
-- The implementation reuses existing platform capabilities instead of reimplementing them.
-- Logs, metrics, traces, alerts, dashboards, and runbooks match the plan's risk level, or the absence is justified.
-- Rollout and rollback are understood.
-- Ownership is clear.
-- The owning team would be comfortable being paged for the new or changed component.
-
-If any answer is no, stop and ask whether to update the plan or make an additional scoped change.
+Before marking a behavior task complete, check what else runs (callbacks, reconcilers, hooks, middleware, jobs, controllers, generated code), whether alternate entrypoints behave consistently, whether partial failure can leave durable state inconsistent, whether retry/idempotency/timeout strategies align across layers, and whether tests exercise the real integration path where needed. Skip only for leaf-node changes with no behavioral or integration impact.
 
 ## Stop Conditions
-Stop and ask when:
-
-- bare-prompt execution is non-trivial and needs `/plan`
-- the completed implementation trips the stack-split check (see workflow step 16) and the user has not approved a split or single-PR decision
-- the branch is `main` or `master` without explicit user approval
-- lifecycle docs cannot be committed or recovered safely before implementation begins
-- there are uncommitted changes after lifecycle doc recovery
-- the plan has gaps that prevent safe execution
-- a plan instruction conflicts with repository guidance or a loaded skill
-- an instruction is unclear
-- a required dependency, credential, service, or generated artifact is missing
-- verification still fails after 3 focused debugging attempts on the same failure
-- implementation needs a scope, behavior, API, schema, rollout, or rollback change beyond the committed plan
-- the plan requires an unavailable skill
-- the current codebase materially differs from the plan assumptions
-- a loaded skill shows the planned approach is unsafe or non-idiomatic
-
-Return to plan review after the blocker is resolved or the user approves a plan change.
+Stop and ask when the plan has gaps, conflicts with repository guidance or a loaded skill, requires an unavailable skill or missing dependency/credential/service/generated artifact, differs materially from the current codebase, or needs a scope, behavior, API, schema, rollout, or rollback change beyond the committed plan. Return to plan review after the blocker is resolved or the user approves a plan change.
 
 ## Plan Updates
 Use the plan file as the progress ledger:
@@ -177,7 +111,7 @@ Use the plan file as the progress ledger:
 For bare-prompt trivial work, report progress in chat and do not create a plan ledger.
 
 ## Handoff
-After the current execution unit is complete (all tasks, or the current slice for a grouped plan), implementation-evidence commands pass, `git status` has been inspected, and the draft PR is opened, summarize changed files, commands and outcomes, skills loaded and used with their source, loading reason, and effect on execution, and follow-up items. Do not claim final independent verification.
+After the current execution unit is complete (all tasks, or the current slice for a grouped plan), implementation-evidence commands pass, and `git status` has been inspected, summarize changed files, commands and outcomes, skills loaded and used with their source, loading reason, and effect on execution, and follow-up items. Do not claim final independent verification.
 
 Then emit this copy-paste handoff, naming the implementation model from the injected `## Current Model` context. Carry its stable model ID in the `/verify` command so it survives `/new`. If the context is absent, state that no implementation model was available; do not invent one.
 

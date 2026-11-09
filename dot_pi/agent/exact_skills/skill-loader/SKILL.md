@@ -6,7 +6,9 @@ description: Load relevant domain and best-practice skills before template-drive
 
 Use this skill at the start of every template prompt, before task-specific work. For investigations, select domain skills from explicit identifiers or confirmed evidence. For planning, editing, or review, select skills based on the affected files. Read matching skills now — do not defer.
 
-Prefer specific skills over general ones. When multiple skills apply, read all of them; note any conflicts and follow the more specific skill.
+Prefer specific skills over general ones. When multiple skills apply, read all of them; note any conflicts and follow the more specific skill. Follow each loaded skill's reference-selection instructions for each task or review area. Loading a core skill is not a substitute for reading an applicable reference.
+
+Read inspected or changed code, diffs, and tests in bounded sections. If a tool response is truncated, retrieve the missing sections before drawing conclusions; if they cannot be retrieved, report the evidence gap and stop.
 
 ## Language skills
 
@@ -83,6 +85,7 @@ Before domain work, planning, or editing, confirm each of these:
 - [ ] Identified all file extensions and paths affected by the task, when the task changes files.
 - [ ] For investigations, matched explicit identifiers or confirmed evidence to domain-skill triggers.
 - [ ] Loaded every skill whose trigger matches.
+- [ ] Followed each loaded skill's reference-selection instructions and read every applicable reference file for the active task or review area.
 - [ ] For Atlas: determined whether affected Go, proto, or deployment files define or invoke Atlas workflows; loaded `atlas-best-practices` when they do.
 - [ ] For Go: confirmed whether any Kubernetes interaction is involved (controller-runtime, webhooks, `client-go`, `k8s.io/*`, `sigs.k8s.io/*`); loaded `k8s-controller-dev` if available, otherwise noted the missing skill and continued with `go-best-practices`.
 - [ ] For Go CRD types: confirmed whether API type evolution is involved; loaded `k8s-api-design` if available, otherwise noted the missing skill and continued with `go-best-practices`.

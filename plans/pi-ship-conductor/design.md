@@ -1,166 +1,278 @@
-# /ship Conductor — Design Spec
+# Pi lifecycle coordinator design
+## Status and approval
+Approved through `/brainstorm`. Design only; implementation is not authorized by this document.
 
-> Status: brainstorm → design committed, awaiting `/plan`. First slice: 2-stage skeleton (`execute → verify`).
+This design supersedes the two-stage `/ship` design in this file. The user approved `/implement <plan-path>`, an extension-controlled coordinator, three model selections, one execute → simplify → verify round, approvals in the coordinating session, and structured stage outcomes. The user also approved replacing the existing `/ship` work rather than maintaining two coordinators.
 
-## Problem
-After a design and plan are approved, the back half of the lifecycle — `execute → verify` — is a manual chore: type `/execute <plan>`, read the handoff, run `/model` to pick a different model, `/new`, paste `/verify <plan> --implemented-by <id>`. `/ship <plan.md>` automates the mechanics — spawn each stage in a fresh isolated context window under a distinct model, capture completion, hand off the implementation model id — while preserving every hard gate.
+The sibling `plan.md` describes the superseded implementation. Its completed tasks remain historical evidence, not an implementation plan for this design. Run `/plan` against this design before further execution. In particular, do not follow its prohibition on template changes, fixed model pools, or prose-marker completion contract.
 
-## User / audience
-Matteo, solo, on the `maruina/dotfiles` chezmoi repo (personal profile).
+## Alignment brief
+### Problem and audience
+Matteo uses Pi lifecycle templates to execute approved plans, optionally simplify the result, and independently verify the candidate. Manual handoffs can lose the original requirements and the identities of models that changed the candidate. Fresh stage contexts also need explicit approval routing and completion signals.
 
-## Goal
-A `/ship <plan.md>` extension that runs `execute` then `verify`, each in a separate `pi` subprocess (`--mode json -p --no-session`) under a distinct model, surfacing the final `VERIFIED`/`BLOCKED` verdict.
+### Goal
+One `/implement <plan-path>` invocation selects models and runs one approved execution unit through execute, simplify, and verify. Each stage has a fresh context. The coordinating session displays progress, asks approval questions, and reports the result. Repairs remain manual.
 
-## Non-goals
-- The `simplify` middle stage (deferred — this is the 2-stage skeleton; adding it is a localized insert, not a redesign).
-- Auto-repair on `BLOCKED` (a repair invalidates all prior evidence; the conductor stops and hands back).
-- Overriding any hard gate: stack-split proposals, stop-and-ask, main/master refusal.
-- A new model-config source of truth (reuse model pools declared in the extension).
-- Changing the `/execute` or `/verify` prompts.
-- Interactive model selection UX (hardcoded pools for the first slice).
+### Non-goals
+- Automatic repair, lifecycle-stage retry loops, or automatic execution of later plan slices.
+- A fourth model-driven coordinator or a second simplification agent.
+- A general-purpose agent framework, agent discovery system, or parallel stage execution.
+- Planless orchestration, saved model presets, or resuming orchestration after a coordinator restart.
+- A `/ship` compatibility alias or two maintained coordinator implementations.
+- Treating prompt instructions or tool annotations as a security sandbox.
 
-## Context reviewed
-- Pi extension docs (`docs/extensions.md`): `pi.registerCommand`, `pi.setModel`, `ctx.modelRegistry.find`, `ctx.waitForIdle`, `ctx.newSession`, `ctx.ui.notify`/`setEditorText`, `ctx.signal`.
-- Built-in `examples/extensions/subagent/index.ts`: subprocess-per-task pattern — `spawn` of `pi --mode json -p --no-session --model <m>`, JSON event stream parsing (`message_end` → assistant message with `stopReason`/`model`/`usage`), `getPiInvocation` (resolve the `pi` binary), abort propagation. Example is not exported; conductor needs its own small equivalent.
-- `examples/extensions/handoff.ts`: `ctx.newSession` + `withSession` replacement-session pattern (rejected for this design — see Alternatives).
-- Existing `dot_pi/agent/exact_extensions/lifecycle-model-recommender/`: owns `LIFECYCLE_POLICY` per phase; intercepts `/execute` and `/verify` inputs. Both recommend the same model (GLM-5.2 xhigh), so naively reusing `recommended` for both stages would make `/verify` BLOCK on model-match. The conductor uses its own pools, not the recommender.
-- `plans/pi-verification-contract/plan.md`: `/verify` reads the implementation model from `--implemented-by` and BLOCKs if it matches the verifier's own model; requires a fresh `/new` session under a different model; mandates exactly one top-level `VERIFIED`/`BLOCKED` verdict.
-- `dot_pi/agent/exact_prompts/execute.md` and `verify.md`: terminal markers (see Completion Detection).
-- `dot_pi/agent/exact_skills/resolve-worktree/SKILL.md`: worktree resolution via `git worktree list --porcelain` + `git -C <dir> rev-parse --show-toplevel`.
-- `dot_pi/agent/package.json`: `test:unit` enumerates test files explicitly and must be updated; `test:all` includes smoke.
-- `dot_pi/agent/models.json.tmpl`: model catalog (work profile). Verified thinking-level support per model (see Model Pools).
-- pi-ai `google-shared.js` (`resolveGoogleThinkingLevel`), `google-generative-ai.js` (`getThinkingLevel`, `isGemini3FlashModel`, `getDisabledThinkingConfig`), `models.js` (`getSupportedThinkingLevels`, `clampThinkingLevel`, `EXTENDED_THINKING_LEVELS`): how pi maps and clamps thinking levels per provider/model.
+### Confirmed decisions
+- Replace the existing `/ship` coordinator contract with `/implement`; reuse suitable code and tests.
+- Keep direct `/execute`, `/simplify`, and `/verify` invocations and the execute → verify path.
+- Invoking `/implement` is explicit opt-in to simplification, not approval of later scope decisions.
+- Execute and simplify may share a model. The selected verifier differs from both selected writer models, even if simplification later makes no changes.
+- Route approval requests to the user in the coordinating session. The extension never answers for the user.
+- Stop after one round, or earlier on a blocker, process/protocol failure, or cancellation.
 
-### Model catalog findings (discovery)
-- AI Gateway `/v1/models` returns only `{"id": "..."}` for all 675 entries — no `reasoning`, no `capabilities`, no thinking levels. The gateway is **not** a source of truth for thinking support; it only confirms which ids are advertised. Thinking levels come from the refresh-models curation (`curated-models.json`), with Confluence (page 7052100418) and vendor behavior as the authoritative sources.
-- `databricks/system.ai.kimi-k3`: previously a catalog bug (`reasoning: false`, no `thinkingLevelMap`, contextWindow 128000, maxTokens 16384 — uncurated fallback). Fixed upstream (datadog-pi-packages `curated-models.json`) and reconciled in the dotfiles template (PR #64). Now correctly curated: `reasoning: true`, `thinkingLevelMap` with `low`/`high`/`max`, context 1048576, maxTokens 65536, input text+image — matching Confluence. Kimi-k3 joins the impl pool from day one.
-- `gemini-3.8-flash`: already correctly curated. `thinkingLevelMap: { "off": null }` with `reasoning: true` means **off is not supported** (Gemini 3 Flash cannot disable thinking — confirmed by `getDisabledThinkingConfig`), and `minimal`/`low`/`medium`/`high` are supported (null-mapped entries are excluded; undefined-mapped non-xhigh/max entries are included per `getSupportedThinkingLevels`). Empirical probe confirmed: 63 thinking tokens by default; `thinkingBudget: 0` still yields a `thoughtSignature`. Max supported level is `high`; `--thinking max` clamps to `high` via `clampThinkingLevel`. No upstream fix needed.
+## Context reviewed and evidence
+### Repository baseline
+Discovery of the requested templates used `main` at `b346344d8e50b40dfa056e2bbddf9262bf010a60`. Existing coordinator discovery used `maruina/pi-ship-conductor` at `1028ded`. The existing feature worktree is `/Users/matteo.ruina/.worktrees/dotfiles-pi-ship-conductor`.
 
-## Skills loaded and used
+Relevant sources:
+- `dot_pi/agent/exact_prompts/execute.md`: plan and trivial-prompt input, committed lifecycle documents, approval gates, execution slices, draft PR preparation, and model-bearing verification handoff.
+- `dot_pi/agent/exact_prompts/simplify.md`: behavior preservation, test prerequisites, target resolution, clean-start commit policy, push policy, and requirements-source discovery.
+- `dot_pi/agent/exact_prompts/verify.md`: requirements baseline, fresh evidence, different-model semantic review, read-only checks, candidate snapshots, and `VERIFIED`/`BLOCKED` verdicts.
+- Existing `dot_pi/agent/exact_extensions/ship-conductor/index.ts`, `_conductor.ts`, `_spawn.ts`, `_prompts.ts`, and associated tests: two-stage execution, fixed pools, one-shot JSON subprocesses, handoff-marker parsing, and injected test seams.
+- Root `AGENTS.md` and Pi-specific guidance: source-only chezmoi edits, feature worktrees, template ownership of lifecycle policy, and extension placement and validation conventions.
 
-| Skill | Source | Why loaded | How used |
-|---|---|---|---|
-| `codebase-research` | `prompt-required` | Brainstorm requires discovery before design for Medium work; correctness depends on existing extension patterns and the model-recommender interaction. | Located `lifecycle-model-recommender`, `pi-verification-contract` plan, `subagent` example, completion markers, repo test/worktree conventions, and the model-catalog/thinking-level bugs. |
-| `resolve-worktree` | `agent-selected` | Conductor must resolve a plan path to its owning worktree to set subprocess `cwd`. | Confirmed `git worktree list --porcelain` enumeration and `git -C <dir> rev-parse --show-toplevel` as the worktree-root resolution the conductor replicates. |
-| `atlassian-mcp` | `user-requested` | User asked to check Confluence for gemini thinking levels. | Confirmed kimi-k3 reasoning levels (low/high/max) on page 7052100418; confirmed gemini-3.8-flash absent from the OSS-models table; cross-checked the "Models testing status" page (no thinking-level data). |
+The feature branch contains older lifecycle guidance and an older implementation plan. Planning must reconcile the replacement with the main-branch baseline; this brainstorm does not merge, rebase, or change implementation files.
+
+### Native Pi evidence
+Reviewed installed Pi 1.5.0 material under `@earendil-works/pi-coding-agent`:
+- `docs/sdk.md`: explicit model and session configuration, native template expansion through `prompt()`, events, disposal, and SDK-specific MCP setup.
+- `docs/extensions.md`: session replacement lifecycle, stale-context restrictions, command/template dispatch precedence, and UI modes.
+- `docs/cli-integration.md`: one-shot JSON versus bidirectional RPC, and the distinction between prompt acceptance and completion.
+- `docs/rpc-extension-ui.md`: blocking dialogs and correlated `extension_ui_response` messages.
+- `docs/prompt-templates.md`: shell-like argument quoting and command-name shadowing.
+- `examples/extensions/subagent/README.md` and the dispatch implementation in `index.ts`: subprocess isolation, explicit models, progress, and cancellation. Its generic agent chains are not lifecycle policy.
+- `examples/rpc-client.ts`, `examples/rpc-extension-ui.ts`, and `dist/modes/rpc/rpc-client.d.ts`: exported client operations and the separate UI protocol example.
+- `docs/json.md`: `tool_execution_end` carries structured tool results; `agent_settled` identifies completion of automatic work, unlike a low-level `agent_end`.
+
+The exported `RpcClient` has model, prompt, state, and abort operations but no public UI-response operation. Do not assume it forwards approval dialogs. A small adapter over native RPC, based on the shipped UI protocol example, is required unless a supported interface is verified during planning.
 
 ### Advisory learning lookup
-`Datadog/Learnings.md` returned 0 matching sections for terms `pi extension`, `subprocess`, `print mode`, `slash command`, `session isolation`, `pi-coding-agent`. No advisory guidance applies. Obsidian was available; the store simply had no matching content. No learning is cited in this spec.
+The Obsidian learning lookup returned no matching sections for Pi, lifecycle, subagent, and provenance. No advisory guidance was used. Runtime integration has not been prototyped; source inspection establishes available mechanisms, not end-to-end success.
 
-## Assumptions
-- Prompt delivery: the conductor reads the *rendered* `~/.pi/agent/prompts/{execute,verify}.md`, substitutes `$ARGUMENTS`, and passes the expanded text as the subprocess task. This decouples from unverified print-mode `/` expansion (the subagent example passes free-text tasks, not `/commands`; docs only document `/template` expansion in the interactive editor).
-- `--implemented-by` carries execute's concrete `--model` id (the conductor sets `--model <provider/id>`, so it knows the id). The conductor also confirms execute completed by parsing its handoff marker before proceeding to verify.
-- Shared state across stages is the git worktree on disk (commits/staged changes persist); sessions are isolated via `--no-session`.
-- "Automatic" = no manual command-typing/model-picking; still stops on every gate.
-- The conductor runs in the user's interactive session and spawns/awaits children; it is never replaced, so the `ctx.newSession()` stale-context footgun does not apply.
+## Smallest user-feedback slice
+Implement plan-backed `/implement` with interactive model selection, sequential fresh RPC sessions, structured approvals and outcomes, clean simplification transitions, and a final report.
+
+The user sees the selected models, stage progress, approval questions, and a final summary with a PR link when available. This establishes whether native RPC can preserve the actual approval and commit workflow without duplicating lifecycle policy.
+
+A template-only change is smaller and useful for manual work, but cannot validate the selected experience: isolated child sessions with interaction in the coordinator. A two-stage coordinator already exists; building another two-stage skeleton would not resolve the missing simplification and approval behavior.
+
+Defer automatic repair, restart recovery, planless orchestration, model presets, and aliases. Revisit only after the single-round workflow has passed live validation and the user requests additional scope.
 
 ## Design overview
+### Ownership boundary
+The extension owns model selection, stage transport, progress, user interaction, run records, and transition checks. Templates own lifecycle requirements, review depth, test selection, commit policy, approval gates, slice boundaries, and stop conditions.
 
-### Command surface
-`/ship <plan.md>` — single positional argument, a path to a committed `plan.md` (relative to cwd, absolute, or worktree-relative). Resolves to the owning worktree (resolve-worktree algorithm); all subprocesses run with `cwd` = that worktree's toplevel.
+The coordinator must not decide whether a code change is correct or whether a human gate can be skipped. It must not repair, commit, push, or open a PR itself. Stage agents can perform operations authorized by their templates; verification cannot perform repairs.
 
-### Architecture: subprocess-per-stage
-Reuse the proven `subagent` pattern. The conductor:
-1. Resolves the plan path → worktree root.
-2. Pre-flights: refuse if the resolved worktree is on `main`/`master`; refuse if either pool is empty; refuse if the plan file is missing/uncommitted.
-3. Picks implementer model from the impl pool; picks verifier model from the verify pool, excluding the implementer's model; fails if no distinct verifier is available.
-4. Spawns execute subprocess, awaits, parses completion.
-5. On clean execute completion, spawns verify subprocess with `--implemented-by <execute-model-id>`, awaits, parses verdict.
-6. Surfaces the verdict (or the failing stage's last assistant message on a hard stop).
+### Command contract and preflight
+`/implement <plan-path>` accepts exactly one required plan path, with normal quoting for spaces. It does not shadow `/execute`, `/simplify`, or `/verify`.
 
-Each subprocess: `pi --mode json -p --no-session --model <provider/id> --thinking max --cwd <worktree-root> <expanded-prompt-text>`. The conductor parses the JSON event stream line-by-line (`message_end` events → assistant messages), captures the final assistant message, and extracts the stage's terminal marker.
+Before a writer starts:
+1. Resolve the absolute committed plan path and its owning feature worktree. Refuse missing or ambiguous targets and unsafe branches.
+2. Resolve the approved execution unit from the plan. For grouped plans, select only the eligible current slice. Unresolved prerequisites stop the run.
+3. Confirm a clean candidate worktree and committed lifecycle documents. Leave recovery of unexpected state to the user or direct lifecycle commands; do not invent commits.
+4. Confirm the required templates and stage bridge are loadable, with no command shadowing.
+5. Ask for execution, simplification, and verification models from the configured registry. Validate model identities and required authentication configuration. Registry presence cannot guarantee a later provider request will succeed.
+6. Acquire exclusive coordinator ownership for the selected worktree before dispatch. Recheck relevant state after acquisition.
 
-### Model pools
-Declared as data in the extension. All stages pass `--thinking max`; pi's `clampThinkingLevel` clamps per model.
+Unavailable models, missing provenance, or invalid selections stop before execution. Never substitute another model silently. Record configured and observed model identities, including provider identity; use stable model IDs for manual handoffs and check known equivalent identities conservatively. Unknown provider aliases cannot establish independence between underlying model services.
 
-- **Implementation pool:** `baseten/zai-org/GLM-5.3`, `baseten/zai-org/GLM-5.3-Flash`, `baseten/deepseek-ai/DeepSeek-V4-Flash-0731`, `databricks/system.ai.kimi-k3`.
-- **Verification pool:** `baseten/zai-org/GLM-5.3-Flash`, `baseten/deepseek-ai/DeepSeek-V4-Flash-0731`, `gemini-3.8-flash`.
-- Conductor picks implementer from impl pool, verifier from verify pool minus implementer, enforces verifier ≠ implementer. `deliberate:` first-slice selection rule is round-robin or first-available; a smarter selection is a follow-up.
+### Sequential stage execution
+Start one RPC child for execute, then one for simplify, then one for verify. Each child starts with fresh conversation history and the correct worktree as its working directory. Retain normal configured extensions, skills, and MCP capabilities required by the task; do not use blanket extension disabling that breaks model access or required tools.
 
-### Completion detection
-The stages signal completion via natural-language markers in the final assistant message, not structured events. The conductor parses the final assistant message:
+Dispatch the existing stage command through Pi's native template expansion. Resolve commands to the intended templates and fail on shadowing or unavailable templates rather than silently invoking another command. Do not maintain a parallel copy of template text or lifecycle rules in the extension.
 
-- **Execute:** regex `^Implementation model: `(.+?) \((.+?)\)`$` (line 180 of `execute.md`). Extracts model name and id. If the conductor set `--model <provider/id>`, it cross-checks the parsed id against the set id; mismatch is a hard stop (marker present but inconsistent). If the marker is absent → hard stop (execute did not reach its handoff).
-- **Verify:** the final assistant message is a 7-section report (Target and scope, Risk and review, Fresh evidence, Skills loaded and used, Findings, State comparison, Next action) **ending with** exactly one top-level verdict line. The conductor finds the last line matching `^(VERIFIED|BLOCKED)\s*$` (trimmed, case-sensitive). Absent → hard stop (verify did not reach its verdict).
+Each child receives only durable references, approved user decisions relevant to its stage, and stage metadata. No previous conversation transcript is copied. The verifier receives requirements and candidate references plus provenance, not the execute or simplify narrative as evidence.
 
-The conductor proceeds execute → verify only when execute's marker is present and consistent. It reports the verify verdict as the terminal state.
+The approved execution unit stays fixed. A successful slice does not authorize the next slice. Simplification is limited to that unit and its immediate context; the branch diff is inspection context, not authorization to modify previous or future slices. If the allowed scope cannot be determined, stop instead of selecting a convenient diff base.
 
-### Hard stops
-"Automatic" automates mechanics, not gates. The conductor stops and hands back to the user (via `ctx.ui.notify` + `ctx.ui.setEditorText` with the failing stage's last assistant message) on:
-- Resolved worktree on `main`/`master`.
-- Missing or uncommitted plan file.
-- Empty pool or no distinct verifier available.
-- Execute marker absent or inconsistent with the set `--model`.
-- Verify verdict absent.
-- Verify verdict `BLOCKED` — **no auto-repair** (a repair invalidates all prior evidence; the verify prompt mandates a fresh re-run).
-- Any stop-and-ask emitted by a stage (detected via the stage not reaching its terminal marker, or a non-zero exit with an incomplete final message).
-- Subprocess non-zero exit, abort, or error.
+### Structured stage bridge
+Expose two narrow capabilities only in orchestrated children:
+- Request a user decision, with the stage, question, relevant evidence or proposal, and decision context.
+- Submit a final lifecycle outcome with a versioned schema.
 
-The conductor never edits, commits, pushes, opens/updates PRs, switches branches, or repairs. It only spawns read-only-ish subprocesses that themselves obey their prompt hard gates.
+Templates conditionally use these capabilities when orchestrated. Direct invocation retains ordinary conversational approvals and manual handoffs. The bridge routes signals; it does not duplicate simplify rules, acceptance criteria, or code-review policy.
 
-### `--implemented-by` handoff
-The conductor sets `--model <provider/id>` for the execute subprocess, so it knows the implementation model id. It passes that id as `--implemented-by <id>` to the verify subprocess. The verify prompt reads `--implemented-by` and BLOCKs if it matches the verifier's own model; the conductor additionally guarantees `model_verify ≠ model_execute` by pool construction, so the model-separation guard passes by construction.
+Approval requests use Pi's RPC UI request/response mechanism. The coordinator displays the complete decision context, waits for the user, and returns the correlated answer to the requesting child. Rejected approval is not success; the stage must stop or take only the explicitly authorized path. Dismissing an approval dialog cancels the run. A missing decision response never implies approval. Scope or requirements changes that require `/plan` remain blockers, not inline permission to rewrite the baseline.
 
-### Prompt delivery
-The conductor reads `~/.pi/agent/prompts/execute.md` and `verify.md` (the rendered templates), substitutes `$ARGUMENTS` with the plan path (execute) or `<plan-path> --implemented-by <id>` (verify), and passes the expanded text as the subprocess task argument. This makes the exact prompt per stage deterministic from the template + args, and decouples from print-mode `/` expansion behavior.
+Final results include run and stage identity, schema version, lifecycle outcome, candidate reference, change/no-change classification when applicable, report reference, and PR/commit references when applicable. The bridge derives observed model and Git identity from runtime state rather than accepting arbitrary identity assertions from the model.
 
-### getPiInvocation equivalent
-`getPiInvocation` from the subagent example is not exported. The conductor needs its own small equivalent: resolve the `pi` binary (prefer `process.execPath` + current script when run under a non-generic runtime, else `pi` on PATH). `deliberate:` copied from the subagent example; revisit if pi exports it in a future version.
+Results are transported through structured tool results or an equivalent supported typed RPC mechanism. Do not parse verdict prose, completion markers, or persisted session logs to drive transitions. Reports remain readable to the user but are not the control protocol.
 
-## Alternatives considered
+A schema-valid result is an agent assertion, not proof of correctness. Template compliance and independent verification remain necessary.
 
-### A — `ctx.newSession()` per stage (rejected)
-Use the session-replacement API to chain stages in-process. Rejected because the docs document a real footgun: after replacement, captured old `pi`/`ctx`/`sessionManager` objects are stale and throw if used, and `withSession` runs in the old closure after the old instance's shutdown. Chaining three replacements (or even two) in one command handler would require careful state-machine discipline and re-establishing extension state across each replacement. The subprocess approach sidesteps this entirely: the conductor is never replaced, and each stage gets a genuinely clean context window. Merit of A: no subprocess spawn overhead; in-process model switch via `pi.setModel`. But the isolation guarantee is weaker and the footgun risk is real.
+### Completion and failure states
+Track lifecycle outcome separately from transport state:
 
-### B — Reuse `lifecycle-model-recommender` policy (rejected)
-The existing recommender maps each phase to recommended/lowerCost/increaseQuality, but `/execute` and `/verify` both recommend the same model (GLM-5.2 xhigh), so naively using `recommended` for both stages would make `/verify` BLOCK on model-match. The conductor needs distinct models per stage by construction, which the recommender's single-model-per-phase policy doesn't provide. Merit of B: one source of truth for lifecycle model choices. But it doesn't solve the distinct-model requirement, and the pools here are deliberately different (flash-tier models for cost/speed at max thinking). The recommender remains useful for its own interactive purpose; the conductor doesn't displace it.
+| State | Meaning | Action |
+|---|---|---|
+| Running | Stage has active work | Show progress; do not start another stage |
+| Waiting for user | A correlated decision is outstanding | Relay the request; keep the stage paused |
+| Success | Valid final result and transition checks passed | Advance to the next stage, or finish |
+| Blocked | A lifecycle prerequisite or verification criterion is unmet | Stop and report the blocker |
+| Process/protocol failure | Crash, provider error, invalid/missing result, contradictory results, or failed transport | Stop and show bounded diagnostics |
+| Cancelled | User cancellation or aborted stage | Stop all progression and report retained state |
 
-### C — Rely on print-mode `/` expansion (rejected)
-Pass `/execute <plan>` as the subprocess task and rely on pi expanding the slash command in print mode. Rejected because docs only document `/template` expansion in the interactive editor, and the subagent example passes free-text tasks, not `/commands`. The expansion behavior in print mode is unverified. Reading and expanding the template in the conductor is deterministic and reviewable. Merit of C: zero template-reading code in the conductor. But it depends on unverified behavior; the explicit expansion is safer.
+Wait for `agent_settled`, not merely prompt acceptance or `agent_end`. Successful process exit is insufficient. Require an unambiguous valid final result, no pending approval, no error or cancellation, and applicable state checks. Revalidate the candidate at the transition; a result submitted before later repository changes cannot authorize the next stage. A run that settles without a result is a protocol failure, not inferred success.
 
-## Risks and mitigations
+Native provider retries may still occur inside a stage. They do not authorize restarting a lifecycle stage, repairing findings, or advancing while the run remains unsettled.
 
-- **Completion-marker parsing fragility.** Markers are natural-language; a stage could emit a near-marker or omit it. Mitigation: strict regex on the final assistant message; absent/inconsistent marker is a hard stop (never guess). Test the parser against positive and negative fixtures.
-- **Stage hangs or rate-limits.** Subprocess could hang or hit 429s. Mitigation: abort propagation via `ctx.signal`/child process kill; the conductor does not retry (retry is the stage's own responsibility per its prompt). A configurable timeout is a follow-up, not first-slice.
-- **Model unavailable/unauthenticated.** A pooled model may lack auth. Mitigation: pre-flight `ctx.modelRegistry.find` + auth check before spawning; fail fast with a clear message.
-- **Stale plan path / wrong worktree.** Mitigation: resolve-worktree algorithm; refuse if the plan is missing or uncommitted.
-- **`--implemented-by` id mismatch.** The conductor sets `--model` so it knows the id, but execute's handoff marker names a model from the injected `## Current Model` context. Mitigation: cross-check the parsed id against the set id; mismatch is a hard stop.
+### Run record and requirements baseline
+Keep a small versioned run record outside the candidate worktree in Pi's local state area. It contains:
+- Run ID, coordinating session, stage session references, and template identities.
+- Absolute worktree and plan paths, branch, starting HEAD, requirements revision, relevant design reference, and selected execution unit.
+- Requested and observed models, final candidate commits, stage outcomes, decision records, and report references.
+- PR URL when available and verification-attempt count.
 
-## Operability
-- No background resources; subprocesses are awaited and abort-propagated (Ctrl+C kills children, per subagent pattern).
-- No new runtime dependencies (reuse `node:child_process`, `typebox`, package types already in devDeps).
-- Ownership: Matteo. Not paged. Failures are surfaced via `notify` + editor text, not silent.
-- Observability: the conductor logs each stage's spawn (model, cwd), the parsed marker/verdict, and any hard stop to the chat. No metrics/traces (dev tool, not paged).
+Write updates atomically. Bound retained progress, diagnostics, and record storage; choose explicit limits during planning. Do not build a transcript database. Local session/report files support manual investigation, not automated log scraping or restart recovery.
+
+Pin the original requirements reference even though execution and simplification update the plan ledger. Ledger progress does not authorize changing scope or acceptance criteria. Record approved decisions without replacing the requirements baseline with a stage summary.
+
+### Simplification and commit handling
+Require a clean worktree before starting orchestrated simplification. `/simplify` itself selects and performs the behavior-preserving changes, runs the required before/after checks, updates the plan ledger when required, commits, and follows its existing push policy.
+
+Before verification:
+- A changed simplification must have a successful commit and no remaining candidate worktree changes.
+- A no-change simplification succeeds with an unchanged candidate; no empty commit or artificial ledger commit is required.
+- Commit failure, required push failure, or unexplained remaining changes stops progression. Report any commit already made; do not roll it back.
+- The coordinator does not commit on the stage's behalf or weaken tests to obtain success.
+
+Run fresh verification after a no-change simplification too: execution has not yet received independent closeout verification. Direct `/simplify` may retain its existing statement that an earlier verdict remains valid when the candidate is unchanged; this does not skip verification in `/implement`.
+
+### Manual template handoffs
+Update the templates without requiring orchestration:
+- `/execute` preserves its direct `/verify` handoff and adds an optional `/simplify` handoff containing the absolute plan path and execution model ID.
+- `/simplify` accepts and retains the execution model ID, records its own model ID, and emits `/verify` metadata containing both. Strip metadata before positional target resolution; preserve `--base` behavior.
+- Retain `--implemented-by` for existing execute → verify callers. Add explicit simplification provenance, such as `--simplified-by`, rather than overwriting the implementer's identity. Final syntax and quoting are tested in planning and implementation.
+- `/verify` rejects matching writer/verifier identities and missing provenance required by the selected path. A simplify handoff cannot silently omit known execution provenance.
+- For supported direct planless work, preserve the exact original task as a quoted requirement argument through simplify and verify. Do not reconstruct intent from the diff or a later summary. Ask for missing task or provenance instead of inventing it.
+
+Direct simplify targets such as files, directories, and PRs remain supported. Missing history may require a user-supplied baseline or model identity before an independent verification handoff can be issued.
+
+### Verification independence
+Accept either a fresh manual `/new` session or a newly created orchestration verification session with no preceding stage transcript. A linked session reference does not authorize copying history.
+
+Keep `/verify` read-only. It independently reads the baseline, resolves the complete candidate, gathers fresh deterministic evidence, performs semantic review under the distinct model, and compares before/after state. Previous execution output, plan checkboxes, and simplification test reports are not fresh verification evidence.
+
+A verifier result is `VERIFIED` or `BLOCKED`. A process failure or cancellation before a verdict is reported separately. Repairs require manual execution and a completely new verification run.
+
+### Concurrency and cancellation
+Use exclusive ownership keyed by the canonical selected worktree. A second orchestration run must not start writers there. The coordinating session must not perform repository work while the child owns the worktree. This is a cooperative ownership rule, not protection from other editors or arbitrary processes.
+
+On cancellation, stop dispatch, abort the active child, terminate it if graceful shutdown does not complete within a bounded grace period, and confirm termination before releasing ownership. Never release ownership solely because a signal was sent. Do not reset, discard changes, or undo commits. Report retained repository state and manual recovery instructions.
+
+Unexpected external changes stop progression. Do not automatically take over a stale ownership record after a crash; require investigation before another writer starts.
+
+### Final report
+Report the overall outcome, per-stage state and model, selected execution unit, candidate and simplification commits, approval decisions, concise changes/findings, and the PR link when available. Absence of a PR is explicit, not replaced with an invented URL.
+
+Show verification attempts as zero or one and blocked verification verdicts as zero or one. Process failures before a verdict are separate from verification blockers. Link durable reports and provide the existing manual lifecycle follow-up when blocked. Do not imply that verified work was merged, deployed, or repaired.
+
+## Reuse and alternatives
+| Approach | Coverage and merit | Safety, delivery, cost, and validation | Decision |
+|---|---|---|---|
+| Keep existing two-stage `/ship` | Already has worktree resolution, test seams, model separation, and process helpers | Lowest implementation cost, but fixed pools, no simplify, no approval round-trip, and prose parsing miss approved requirements | Superseded; reuse suitable helpers and tests |
+| Template-only changes | Improves manual provenance with little runtime machinery | Smallest delivery surface and easy handoff tests; no coordinated interaction | Included as required template support, not a substitute coordinator |
+| Native session replacement | Full native interactive experience with little transport code | Replaces coordinator; extensions and captured contexts are torn down and must be rebound | Deferred; revisit if persistent coordinator is no longer required |
+| In-process SDK sessions | Direct typed model/session control | More explicit CLI/MCP capability setup and UI binding; requires integration validation | Deferred; revisit if a supported host makes this simpler than RPC |
+| One-shot JSON subprocesses | Existing implementation and shipped subagent pattern | Isolated and easy to dispatch, but no approval answer channel and insufficient lifecycle result contract | Replace transport rather than retain as another mode |
+| RPC child sessions | Fresh context, models, progress, cancellation, and user interaction | Selected; adds a bounded adapter and stage protocol with live integration tests | Approved |
+
+Reuse `_worktree.ts` and its tests only after checking them against the supported path and Git contracts. Reuse invocation resolution, dependency injection, and failure-test patterns where correct. Replace marker parsing, fixed pools, and one-shot transport; do not preserve them as parallel policies. Do not extend known cancellation or buffer behavior without validating process termination and bounds.
+
+Accepted downside: the adapter and structured bridge require maintenance across Pi upgrades. This is narrower than an agent framework and avoids a fourth model's cost and judgment. No claim is made that RPC startup or provider latency is negligible.
+
+## Risks, operability, and security
+- **Agent omits a structured signal:** stop as a protocol failure; expose the report instead of guessing.
+- **Agent requests an approval only in prose:** it cannot authorize advancement. Require structured routing and test real approval behavior.
+- **Model changes during a stage:** record observed identity and stop on unapproved changes; do not continue with stale provenance.
+- **Dirty or partially committed simplification:** stop before verify and preserve evidence for manual repair.
+- **Verification mutates the candidate:** block and report the delta. Prompt instructions are not a security boundary; arbitrary shell access is not sandboxed.
+- **Unavailable tools, credentials, or provider:** report the failing prerequisite; do not install packages, refresh credentials, or change requirements automatically.
+- **Protocol mismatch or unsupported RPC UI:** fail closed and identify the unsupported operation; no silent approval or default success.
+- **Unbounded output or orphan processes:** bound buffers and diagnostics, unsubscribe listeners, stop children, and test shutdown escalation and failure paths.
+- **Local privacy:** inherit existing authentication without logging credentials. Launch without shell interpolation. Use stdin RPC messages for task data. Keep local records private; store references rather than duplicate full logs or secrets. Treat child outputs as untrusted data.
+
+Matteo owns this local development tool; no production pager is introduced. Observability consists of stage/model progress, waiting-for-user state, structured outcomes, report references, bounded errors, and a final summary. No new telemetry service or network dependency is required beyond Pi's existing integrations.
 
 ## Rollout and rollback
-- Rollout: add the extension file + tests; update `test:unit` enumeration; `/reload` picks it up. No migration.
-- Rollback: delete the extension file + tests; revert `test:unit`. No state to clean up (subprocesses are `--no-session`).
+1. Refresh the sibling implementation plan against this design and the supported Pi version. Resolve older main/feature-branch differences before modifying implementation.
+2. Replace the existing coordinator, not add a second one. Remove obsolete marker-coupling guidance as part of implementation, with matching tests.
+3. Validate pure protocol/state tests, extension integration, template handoffs, and a live disposable-worktree run.
+4. Preview and apply only the changed explicit chezmoi targets after implementation verification. Keep the design-only commit separate.
 
-## Security / data-handling
-- The conductor spawns `pi` subprocesses with the user's environment (inherits auth). It does not handle credentials directly.
-- Prompt expansion reads `~/.pi/agent/prompts/*.md` (rendered templates); no secrets in templates.
-- No new network calls; the subprocesses make their own gateway calls via the user's existing auth.
-- `--implemented-by` carries a model id, not a secret.
+Rollback by reverting the replacement code/template changes and applying the reviewed explicit targets. First stop active orchestration. Keep run records for manual diagnosis; do not reset candidate worktrees. Direct lifecycle commands remain the fallback. The design artifact itself is not a rendered runtime target.
 
-## Testing strategy
-- **Unit tests** (added to `test:unit` enumeration):
-  - Prompt expansion: `$ARGUMENTS` substitution for execute and verify; correct arg shape per stage.
-  - Execute marker parsing: positive (extract name + id), negative (absent, malformed, inconsistent id).
-  - Verify verdict parsing: positive (`VERIFIED` and `BLOCKED` as last line within a 7-section report fixture), negative (absent, mid-message false positive, lowercase).
-  - Model-difference enforcement: verifier picked from verify pool minus implementer; fail when no distinct verifier.
-  - Main/master refusal: resolved worktree branch check.
-  - Pool construction: all four impl models and all three verify models resolve with `max` support (gemini-flash clamps to `high`).
-- **Smoke test** (`test:smoke` already runs `pi --list-models`): the extension loads without errors.
-- **Manual validation**: run `/ship` against a real committed plan in a feature worktree; confirm `VERIFIED`; then run against a plan whose execute hits a stop condition; confirm the conductor stops and surfaces the message. Redact credentials; delete disposable worktrees afterward.
+## Testing strategy and observable success
+### Handoffs and models
+- Execute emits working direct verify and optional simplify commands with an absolute plan path and stable identity.
+- Simplify preserves execution identity and adds its own; no metadata is mistaken for a path or base flag.
+- Quoted paths and the original planless task survive handoffs without summary-based replacement.
+- Verify rejects either writer match, missing required provenance, unknown verifier identity, and unapproved runtime model changes.
+- Equal execute/simplify selections work; unavailable selections do not silently fall back.
 
-## Open questions
-1. **Implementer selection rule** — round-robin, first-available, or cheapest-first? First-slice: first-available. Confirm in `/plan`.
-2. **Timeout** — should the conductor impose a per-stage timeout, or rely on the stage's own behavior + manual Ctrl+C? First-slice: rely on stage + manual abort; timeout is a follow-up. Confirm in `/plan`.
-3. **Thinking level source** — pass `--thinking max` uniformly (pi clamps), or read each model's max supported level and pass per-model? First-slice: uniform `max` (simpler; pi clamps correctly per discovery). Confirm in `/plan`.
+### Stage protocol and approvals
+- Stage results arrive through typed structured data, not prose or session-log parsing.
+- Process exit zero, prompt acceptance, and `agent_end` without valid settled completion do not advance.
+- Missing, malformed, duplicate/conflicting, stale, and wrong-stage results stop safely.
+- Approvals display their context in the coordinator; the answer returns only to the requesting child. Rejection, dismissal, and transport loss cannot authorize continuation.
+- A scope-change blocker stays blocked even if the user supplies an answer that belongs in `/plan`.
 
-## Self-review (skeptical staff engineer)
-- **Downside of the chosen direction (explicit):** subprocess-per-stage spawns two `pi` processes per `/ship`, adding startup overhead and making the conductor's output less integrated than an in-process chain. This is the cost of genuine context isolation and avoiding the `ctx.newSession()` footgun. Acceptable for a dev tool run a few times a day.
-- **Alternative merits (genuine):** A (in-process) avoids spawn overhead and gives tighter UX integration; B (recommender policy) offers one source of truth; C (print-mode expansion) avoids template-reading code. Each was rejected for a concrete reason, not dismissed.
-- **Rejected finding — "parse the full verify report for structured findings":** considered extracting the Findings section programmatically. Rejected: the verdict line is the only signal the conductor needs to act on; structured findings are for the human reader, surfaced via the editor text. Adding report parsing is unrequested scope.
-- **Rejected finding — "auto-retry verify on BLOCKED":** rejected outright; it violates the verify prompt's "a repair invalidates all prior evidence" and the no-auto-repair gate. Recorded here so a future reader doesn't reintroduce it.
-- **Verified:** the design reuses the proven subagent pattern rather than reimplementing; paths are repo-relative inside the spec; no placeholders; the model-separation guarantee is by construction; hard stops are explicit.
+### Git, slices, and simplification
+- Committed clean execution can enter simplify; dirty state cannot.
+- Changed simplify passes tests and commits; commit/push failure stops before verification.
+- No-change simplify makes no empty commit and still enters fresh verification.
+- Only the selected execution unit is processed; prior and later slices are not silently simplified or executed.
+- Verification snapshots detect tracked and untracked candidate mutation.
+
+### Freshness, ownership, and cancellation
+- Every stage has distinct fresh session history and the intended model/worktree.
+- Verification receives durable references but no predecessor narrative; it executes fresh checks.
+- A second coordinator cannot acquire the same worktree; the parent does not write concurrently.
+- Cancellation before dispatch, during work, while waiting for approval, and between stages starts no later stage.
+- Graceful abort, forced termination, crash, and stale ownership behavior preserve candidate state and do not release ownership before child termination.
+- Progress buffers, diagnostic output, listeners, and record retention have explicit tested bounds.
+
+### Validation layers
+Use the existing injected-dependency test style for the state machine and fake RPC processes for transport and failure cases. Adapt useful existing tests rather than copying a second test suite. Test template contracts alongside coordinator behavior.
+
+Run the repository-required focused tests, `npm test`, and `npm run test:all` after implementation. Follow the repository dependency-install and cleanup rules. No runtime tests are claimed for this design-only change.
+
+A live smoke test must use a small committed plan in a disposable feature worktree, all three selected models, an actual approval request, a no-change or committed simplification, fresh verification, and cancellation validation. Mocked transport tests alone cannot establish success. If the live approval round-trip fails, the first slice is blocked; do not fall back to prose parsing.
+
+## Open implementation details
+No product decision blocks writing this approved design. Planning must specify exact schema/tool names, provenance flag parsing, supported Pi API calls, thinking-level handling, bounded storage and shutdown limits, and the ownership mechanism. These details must preserve the contracts above. Reopen alignment if evidence requires changing interaction, stage policy, verification independence, or the selected RPC approach.
+
+## Skeptical review
+The selected downside is maintenance of a small RPC adapter and explicit lifecycle protocol. Existing-code-only delivery has real merit, but its one-shot transport and prose parsing cannot meet approval routing and structured outcomes. Native replacement and SDK sessions remain useful alternatives, not features to combine into this slice.
+
+Rejected findings:
+- Keep `/ship` as a second coordinator or alias: adds an unrequested command contract; the user approved superseding it.
+- Let coordinator create a missing simplification commit: violates template ownership and hides stage failure.
+- Skip verification after no-change simplify: execution still requires independent closeout.
+- Infer lifecycle success from exit code or final text: violates the outcome contract.
+- Automatically repair a blocked verification: explicitly deferred by the user; repair remains manual.
+- Claim a worktree lease or read-only prompt prevents arbitrary writes: unsupported security claim; ownership is cooperative and verification must detect state changes.
+
+## Skills loaded and used
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `skill-loader` | prompt-required | Lifecycle brainstorming | Selected relevant domain and workflow guidance |
+| `learning-opportunities` | prompt-required | Brainstorm coaching | Clarified coordination and approval interaction before recommending mechanisms |
+| `learning-lookup` | prompt-required | Advisory design lookup | Checked narrow lifecycle terms; recorded no matches |
+| `obsidian-cli` | agent-selected | Required access to advisory learning source | Read learning content through Obsidian without modifying the vault |
+| `codebase-research` | skill-loader | Existing behavior and unfamiliar extension area | Compared templates, native APIs, and existing coordinator implementation |
+| `cli-best-practices` | skill-loader | Command inputs, interaction, and outcomes | Defined explicit input, structured signals, and failure behavior |
+| `chezmoi` | skill-loader | Managed source repository | Kept changes in source and avoided broad target application |
+| `write` | skill-loader | Design prose | Used precise claims, explicit uncertainty, and concise US English |
+| `feature-worktree` | prompt-required | Durable design artifact | Located and reused the owning clean feature worktree; kept main unchanged |
+| `diataxis` | skill-loader | Durable design explanation | Separated design rationale, contract reference, and validation strategy |

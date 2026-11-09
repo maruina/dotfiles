@@ -1,309 +1,396 @@
-# /ship Conductor Implementation Plan
-
+# Pi Lifecycle Coordinator Implementation Plan
 > Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add a `/ship <plan.md>` extension that runs `execute` then `verify` as separate `pi` subprocesses under distinct models, surfacing the final `VERIFIED`/`BLOCKED` verdict while preserving every hard gate.
-**Out of Scope:** the `simplify` stage, auto-repair on `BLOCKED`, interactive model selection, smarter-than-first-available pool selection, per-stage timeouts, overriding any hard gate, changing the `/execute` or `/verify` prompts, and a new model-config source of truth.
-**Architecture:** A directory extension `dot_pi/agent/exact_extensions/ship-conductor/` registers `/ship`. It resolves the plan to its owning worktree, expands the rendered `execute.md`/`verify.md` prompt templates, and spawns one `pi --mode json -p --no-session` subprocess per stage with `cwd` set to the worktree root. Pure helper modules hold all parsing and selection logic; a thin orchestrator wires them to `child_process.spawn` and `ctx.ui`.
-**Tech Stack:** TypeScript on Node.js 25 (`--experimental-strip-types`), `node:test`, Pi 0.80.6 extension API, `node:child_process`, chezmoi `exact_extensions`.
+**Goal:** Replace `/ship` with `/implement <plan-path>` to run one approved execution unit through fresh execute, simplify, and independent verify sessions with user approvals in the coordinator.
+**Smallest user-feedback slice:** Complete one real three-stage run, including an approval round-trip, committed or no-change simplification, and a fresh verification verdict.
+**Out of Scope:** Automatic repair, lifecycle retries, later-slice execution, parallel stages, restart recovery, planless orchestration, saved presets, command aliases, a fourth model, an agent framework, and security-sandbox claims. Direct planless lifecycle commands remain supported.
+**Architecture:** The extension owns model selection, RPC transport, approval routing, local records, and transition checks. Existing templates own lifecycle policy and are dispatched through native Pi expansion. Fresh children share the selected candidate worktree, not conversation history; the verifier receives pinned requirements and candidate references, not predecessor narratives.
+**Tech Stack:** TypeScript, Node.js built-ins, existing Pi extension interfaces, Pi 1.5.0 RPC, Git, Markdown templates, node:test, and chezmoi.
 
 ---
 
 ## Skills loaded and used
 | Skill | Source | Why loaded | How used |
 |---|---|---|---|
-| `skill-loader` | `prompt-required` | `/plan` mandates loading before implementation recommendations | Selected the four skills below from the affected files (TS extension, chezmoi source, new command, plan prose). |
-| `codebase-research` | `skill-loader` | Planning in an unfamiliar area (pi extension internals) where correctness depends on existing patterns | Ran staged discovery against the pi package and this repository; verified every design claim and found four corrections (D4-D7 in Key Decisions). |
-| `chezmoi` | `skill-loader` | Files under the chezmoi source tree are created and modified | Applied `exact_extensions` entrypoint contract (directory with `index.ts` default export), the diff → apply → commit → push completion workflow, and the `dot_pi/agent` npm validation commands. |
-| `cli-best-practices` | `skill-loader` | New `/ship` command with arguments, output, and errors | Single explicit required argument with a usage error, structured hard-stop messages naming stage and reason, no mid-run interactivity. |
-| `write` | `skill-loader` | Drafting this plan | Clarity, concision, US English. |
+| `skill-loader` | prompt-required | Planning workflow | Selected domain and workflow guidance |
+| `resolve-worktree` | prompt-required | Explicit design path | Resolved and used the owning feature worktree |
+| `feature-worktree` | prompt-required | Durable plan | Reused the feature branch and kept main unchanged |
+| `codebase-research` | skill-loader | Cross-component replacement | Inspected coordinator, hooks, templates, tests, and installed interfaces |
+| `chezmoi` | skill-loader | Managed source | Required source-only edits and explicit target application |
+| `cli-best-practices` | skill-loader | Command and protocol | Required explicit inputs, structured outcomes, and bounded diagnostics |
+| `learning-lookup` | prompt-required | Advisory lookup | Queried Pi, RPC, lifecycle, and provenance; no matching sections |
+| `obsidian-cli` | agent-selected | Advisory source access | Read learning content without vault changes |
+| `write` | skill-loader | Plan prose | Kept contracts, uncertainty, and stop conditions explicit |
+| `diataxis` | skill-loader | Documentation | Separated usage/recovery guidance from protocol reference |
 
-### Advisory learning lookup
-`Datadog/Learnings.md` (9 H2 sections, read via `obsidian-cli read` piped to `learn-evidence.mjs learning-sections`) returned **0 matching sections** for `pi extension`, `subprocess`, `child_process`, `node test runner`, `prompt template`, `model pool`, `JSON event stream`. Obsidian was available; the store had no relevant content. No advisory guidance applies to this plan.
-
-### Execution
-| Skill | Source | Why loaded | How used |
-|---|---|---|---|
-| `skill-loader` | `prompt-required` | `/execute` workflow mandates loading it before editing | Determined the affected-file skills: `chezmoi` (chezmoi source tree) and `cli-best-practices` (new `/ship` command); no TS-specific skill exists in the catalog. |
-| `chezmoi` | `skill-loader` | Files under the chezmoi source tree are created and modified | Applied the `exact_extensions` entrypoint contract (directory with `index.ts` default export), the `npm ci --ignore-scripts` / `npm test` / `npm run test:all` validation commands, the `chezmoi diff` → `chezmoi apply` preview/apply flow, and the `node_modules` cleanup rule. |
-| `cli-best-practices` | `skill-loader` | New `/ship` command with arguments, output, and errors | Single explicit required argument with a usage error; structured hard-stop messages naming stage and reason; no mid-run interactivity. |
-| `resolve-worktree` | `prompt-required` | `/execute` workflow step 1 resolves plan paths to their owning worktree | Resolved `/Users/matteo.ruina/.worktrees/dotfiles-pi-ship-conductor/plans/pi-ship-conductor/plan.md` and switched context to that worktree; its algorithm is also the one `_worktree.ts` replicates. |
-
-## Goal and Scope
-Implement the behavior approved in `plans/pi-ship-conductor/design.md` and the confirmed planning alignment brief:
-
-- `/ship <plan.md>` resolves the plan to its owning worktree and refuses `main`/`master`, missing, or uncommitted plans before spawning anything.
-- Each stage runs in a fresh `pi --mode json -p --no-session` subprocess under a distinct model with `--thinking max`.
-- The conductor expands the rendered prompt templates deterministically and passes the expanded text as the subprocess task.
-- The conductor proceeds to verify only when execute reaches its `Implementation model` handoff marker with a consistent model id, and passes that id as `--implemented-by`.
-- The conductor surfaces exactly one terminal state: the verify verdict, or a hard stop naming the failing stage and reason.
-- The conductor never edits, commits, pushes, opens PRs, switches branches, retries, or repairs.
-
-## Feasibility Gate
-| Requirement | Mechanism | Evidence it exists | Validation | If unavailable |
-|---|---|---|---|---|
-| Spawn stage subprocesses | `node:child_process.spawn` of the `pi` binary via a `getPiInvocation` copy; line-buffered JSON parsing of `message_end` events | `examples/extensions/subagent/index.ts` lines 249-265 (`getPiInvocation`), 300-307 (args), 345-380 (spawn + parse) | `_spawn.test.ts` covers invocation resolution and event parsing; manual end-to-end run | Not applicable — mechanism is present and proven in the same pi version |
-| Deterministic prompt delivery | Read rendered `~/.pi/agent/prompts/{execute,verify}.md`, strip YAML frontmatter, substitute only `$ARGUMENTS` | Rendered files confirmed present; source frontmatter confirmed in `dot_pi/agent/exact_prompts/execute.md` and `verify.md`; both contain exactly one `$ARGUMENTS` | `_prompts.test.ts` fixtures: frontmatter stripped, `$ARGUMENTS` replaced, `$GLOB` untouched | Hard stop before spawning when a prompt file is unreadable |
-| Execute completion marker | Last line in the final assistant message matching `` ^Implementation model: `(.+) \(([^()`]+)\)`$ `` | `dot_pi/agent/exact_prompts/execute.md:180` emits the marker; model names contain parentheses (e.g. `GLM-5.3 (Baseten)`), so the greedy-name/last-group form is required | `_markers.test.ts`: positive with parenthesized name, absent, malformed, id-mismatch | Hard stop by design (marker absent or inconsistent) |
-| Verify terminal verdict | Last line of the final assistant message matching `^(VERIFIED\|BLOCKED)$` after trimming | `dot_pi/agent/exact_prompts/verify.md:74-75` mandates exactly one top-level verdict ending a 7-section report | `_markers.test.ts`: `VERIFIED`, `BLOCKED`, absent, lowercase, mid-message false positive | Hard stop by design (verdict absent) |
-| Model pools resolve and are authenticated | `ctx.modelRegistry.find(provider, modelId)` plus `ctx.modelRegistry.getProviderAuthStatus(provider).configured` | `dist/core/model-registry.d.ts`: `find(provider, modelId)` (two arguments), `getProviderAuthStatus` returning `{ configured: boolean, ... }`; all five unique catalog ids confirmed in `dot_pi/agent/models.json.tmpl` under `ai-gw-baseten`, `ai-gw-databricks`, `ai-gw-google` | `_pools.test.ts` with an injected registry; pre-flight in the manual run | Fail fast naming the unavailable model/provider; never spawn with an unauthenticated pooled model |
-| Verifier differs from implementer | Pool construction: verifier = first verify-pool entry available and not equal to the implementer; verify's own `--implemented-by` check is the backstop | `verify.md:50-51` BLOCKs when the two ids match | `_pools.test.ts`: exclusion, pool exhaustion | Hard stop before spawning when no distinct verifier is available |
-| Working directory per stage | `spawn` `cwd` option (pi has no `--cwd` flag) | `pi --help` lists no `--cwd`; subagent uses the spawn option | Manual run observes stage operating in the target worktree | Not applicable |
-| Abort propagation | Conductor-owned `AbortController` + `SIGINT` handler killing the active child; `ctx.signal` used only when defined | `dist/core/extensions/types.d.ts`: `signal: AbortSignal \| undefined`, undefined when the agent is not streaming (command handlers run idle) | `_conductor.test.ts` abort path kills the injected child and yields a cancelled outcome | Not applicable |
+## Approval and source ledger
+- Source of truth: `plans/pi-ship-conductor/design.md`, approved design at `07716f7`.
+- The user accepted child-specific recommender suppression (Option 1), then confirmed the planning alignment brief, single-slice boundary, and proposed limits. This authorizes this plan, not implementation before `/systematic-review`.
+- Scope classification: Large/Risky because transport, shared templates, approvals, provenance, and local state change together.
+- This replaces the historical two-stage plan. Completed historical tasks and evidence remain in Git at `07716f7:plans/pi-ship-conductor/plan.md`; do not treat those checkboxes as completion of this replacement.
+- Research baseline: feature branch `maruina/pi-ship-conductor`, clean at `07716f7`; reviewed main baseline `b346344d8e50b40dfa056e2bbddf9262bf010a60`.
+- Existing coordinator focused tests passed 56/56 during planning. This is old-behavior evidence only.
+- Installed Pi 1.5.0 docs reviewed: RPC lifecycle, commands, UI protocol, native prompt expansion, command provenance, custom tools, structured output example, and RPC UI example. Installed source confirms `parseCommandArgs` and `substituteArgs` behavior.
+- Advisory lookup returned zero matching sections. No learning guidance changed this plan.
+- LSP initialization failed because the worktree has no TypeScript installation. Install repository development dependencies before semantic implementation inspection. No semantic-reference completeness is claimed from planning.
+- No external issue, PR feedback, or applicable ADR was identified. The explicit design and repository guidance constrain implementation.
 
 ## Implementation Contract
-**Components Affected**
+### Components Affected
+Paths below are repo-relative. Retain `ship-conductor/` as the implementation directory; rename the command, not the directory.
+
 | Component | Files | Responsibility | Verification |
 |---|---|---|---|
-| Model pools | `dot_pi/agent/exact_extensions/ship-conductor/_pools.ts`, `_pools.test.ts` | Declare impl/verify pools as `{ provider, id }` data; first-available implementer; first distinct verifier; availability via injected registry | `node --experimental-strip-types --test "exact_extensions/ship-conductor/*.test.ts"` from `dot_pi/agent` |
-| Prompt expansion | `_prompts.ts`, `_prompts.test.ts` | Strip frontmatter; substitute only `$ARGUMENTS`; build per-stage arguments (plan path; plan path + `--implemented-by <id>`) | Same focused test command |
-| Completion markers | `_markers.ts`, `_markers.test.ts` | Parse execute `Implementation model` marker (last matching line, greedy name, paren-free id) and verify verdict (last trimmed `VERIFIED`/`BLOCKED` line) | Same focused test command |
-| Worktree resolution | `_worktree.ts`, `_worktree.test.ts` | Resolve plan path (cwd-relative, absolute, worktree-relative) via `git worktree list --porcelain`; refuse `main`/`master`, missing, uncommitted, or ambiguous targets | Same focused test command with an injected git runner |
-| Subprocess plumbing | `_spawn.ts`, `_spawn.test.ts` | `getPiInvocation` copy; stage argv builder (`--mode json -p --no-session --model <id> --thinking max <prompt>`); `message_end` accumulator capturing final assistant text, `stopReason`, `errorMessage`, exit code | Same focused test command |
-| Orchestrator | `_conductor.ts`, `_conductor.test.ts` | Pre-flight → execute → verify state machine with injected spawner/registry/ui; every hard stop; abort path | Same focused test command |
-| Command entrypoint | `index.ts` | `pi.registerCommand("ship", …)`; build real dependencies; guard `ctx.hasUI`; wire `SIGINT` to the abort controller | `npm run test:smoke` (extension loads); manual `/ship` run |
-| Test registration | `dot_pi/agent/package.json` | Add `"$ext"/ship-conductor/*.test.ts` to `test:unit` | `npm run test:unit` after `npm ci --ignore-scripts` |
-| Agent guidance | `dot_pi/agent/AGENTS.md` | Record the prompt-marker coupling trap | Diff inspection |
+| Command and state machine | `dot_pi/agent/exact_extensions/ship-conductor/index.ts`, `_conductor.ts`, `_conductor.test.ts` | `/implement`, three model selections, one round, progress and final report | Orchestration tests and live TUI run |
+| RPC transport | Same directory: `_spawn.ts`, `_spawn.test.ts` | Native RPC startup, framing, correlation, events, shutdown | Fake processes plus real Pi contract test |
+| Child bridge and schema | Same directory: `_bridge.ts`, `_protocol.ts`, `_protocol.test.ts` | Child-only decision/result tools and validated envelopes | Tool-result and approval contract tests |
+| Runtime integration tests | Same directory: `_rpc.test.ts`, `_fixtures/rpc-driver.ts` | Drive the real child bridge deterministically without provider calls | Real Pi 1.5.0 RPC invocation |
+| Target and selected unit | Same directory: `_worktree.ts`, `_worktree.test.ts`, `_unit.ts`, `_unit.test.ts` | Canonical path, Git preflight, eligible execution unit | Temporary real repositories and plan fixtures |
+| Model and invocation helpers | Same directory: replace `_pools.ts`/`_pools.test.ts` with `_models.ts`/`_models.test.ts`; replace `_prompts.ts`/`_prompts.test.ts` behavior | Interactive choices, identities, native invocation argument encoding and command provenance | Selection and native-expansion tests |
+| Local state | Same directory: `_state.ts`, `_state.test.ts` | Atomic records, reports, worktree ownership, retention | Real filesystem and competing-process tests |
+| Obsolete parser | Same directory: remove `_markers.ts`, `_markers.test.ts` | Remove prose control protocol | Consumer search and negative protocol tests |
+| Shared recommender | `dot_pi/agent/exact_extensions/lifecycle-model-recommender/index.ts`, `_adapter.test.ts` | Skip only marked orchestration children | Preserve ordinary RPC/TUI tests |
+| Lifecycle templates | `dot_pi/agent/exact_prompts/execute.md`, `simplify.md`, `verify.md` | Conditional bridge use, fixed unit, manual provenance, fresh verification | Prompt contracts and native-expansion tests |
+| Test wiring and guidance | `dot_pi/agent/package.json`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`, `AGENTS.md`, `dot_pi/agent/exact_extensions/ship-conductor/README.md` | Enumerate tests; document runtime, protocol coupling and recovery | Full test gates, explicit target diff |
 
-**Key Decisions**
-- **D1 — First-available selection.** The implementer is the first impl-pool entry that resolves and is authenticated; the verifier is the first verify-pool entry that resolves, is authenticated, and differs from the implementer. Annotate with `deliberate:` naming round-robin/cost-aware selection as the upgrade path.
-- **D2 — No per-stage timeout.** Stages rely on their own behavior plus user interrupt. Annotate `deliberate:`; a configurable timeout is a follow-up.
-- **D3 — Uniform `--thinking max`.** pi clamps per model (`clampThinkingLevel`); `gemini-3.8-flash` clamps to `high`. The `--thinking` flag accepts `max` per `pi --help`.
-- **D4 — Corrected execute-marker regex.** The design's lazy `(.+?) \((.+?)\)` misparses names containing parentheses (yields id `Baseten) (baseten/zai-org/GLM-5.3`). Use `` ^Implementation model: `(.+) \(([^()`]+)\)`$ `` on the last matching line; the parsed id must equal the catalog id passed to `--model`.
-- **D5 — Conductor-owned abort.** `ctx.signal` is `undefined` when the agent is idle, so the command handler cannot rely on it. The conductor owns an `AbortController` wired to `SIGINT`; it kills the active child and stops.
-- **D6 — Spawn `cwd`, not a flag.** pi has no `--cwd` flag; each subprocess gets `cwd: <worktree-root>` via spawn options, matching the subagent example.
-- **D7 — Frontmatter stripped, only `$ARGUMENTS` substituted.** `$GLOB` and other literals in prompt bodies pass through untouched.
-- **D8 — Helpers avoid runtime package imports.** Type-only imports from `@earendil-works/pi-coding-agent` are stripped; helper modules import only `node:*` and relative `.ts` files so focused tests run without `node_modules`.
-- **Pools are declared data** (provider + catalog id): impl = `ai-gw-baseten/baseten/zai-org/GLM-5.3`, `ai-gw-baseten/baseten/zai-org/GLM-5.3-Flash`, `ai-gw-baseten/baseten/deepseek-ai/DeepSeek-V4-Flash-0731`, `ai-gw-databricks/databricks/system.ai.kimi-k3`; verify = `ai-gw-baseten/baseten/zai-org/GLM-5.3-Flash`, `ai-gw-baseten/baseten/deepseek-ai/DeepSeek-V4-Flash-0731`, `ai-gw-google/gemini-3.8-flash`. The subprocess `--model` receives the bare catalog id (unique in the catalog); distinctness is enforced on catalog id. Annotate the `getPiInvocation` copy with `deliberate:` (revisit if pi exports it).
+Inspect `dot_pi/agent/AGENTS.md` too; change it only if required durable guidance is not correctly owned by root `AGENTS.md` or the extension README. No generated code or external API consumers were found. Before exported-symbol changes, use LSP references and repeat `rg` for `ship-conductor`, `/ship`, model/provenance flags, and template names. Map additional consumers before editing; stop if their behavior would expand approved scope.
 
-**Implementation Constraints**
-- Do not modify `execute.md` or `verify.md`; the conductor consumes their existing contracts.
-- Follow the `lifecycle-model-recommender` directory layout: `index.ts` default-export factory, `_`-prefixed helpers, colocated `*.test.ts`.
-- Repository rule (`AGENTS.md`): before verification of `dot_pi/agent` changes run `npm ci --ignore-scripts` in `dot_pi/agent`, keep dependencies until `npm test` and `npm run test:all` complete, then remove `node_modules`.
-- The conductor never calls `pi.setModel`, never edits repository state, and never retries a stage.
-- Stop conditions: a pooled model missing from the registry, ambiguous worktree matches, or a marker/verdict contract that no longer parses — hard stop, do not loosen parsers to make a run pass.
+### Key Decisions
+1. Replace `/ship`; no alias. Reuse worktree and injected-boundary patterns, not marker parsing, automatic pools, or one-shot transport.
+2. Use a narrow adapter over documented native RPC. Exported `RpcClient` offers less code but lacks a public UI-response operation. Do not access its private internals.
+3. Templates remain policy owners. Reconcile only relevant main-branch lifecycle sections: slice execution, simplify plan resolution and commit/push policy, verification evidence and handoffs. Preserve current safeguards; do not wholesale restore stale feature-branch templates or merge unrelated main changes.
+4. Model recommender suppression is limited to marked `/implement` children. Disabling it for all RPC sessions is simpler but changes unrelated consumers and was rejected by the user.
+5. Use `PI_LIFECYCLE_CHILD_CONFIG` as a child-only environment pointer to a private immutable stage configuration. The recommender checks the marker only in RPC mode. The bridge validates its file, run/stage IDs, expected worktree, and protocol version before registration. The parent does not set this marker in its own environment. Invalid child configuration fails preflight, not ordinary manual behavior. The marker is coordination metadata, not an authentication boundary.
+6. Keep existing dependency versions. Installed runtime 1.5.0 is the supported integration target; development types at 0.80.6 are insufficient proof. Use compatible existing registration APIs and schema facilities; require real-runtime tests. Do not add newer APIs such as terminating tool results merely for convenience. If compatible registration is impossible, stop for an approved enabling dependency change.
+7. Execute and simplify may share a model; verify differs from both selections, including no-change simplify. Use provider-qualified IDs, plus conservative known alias normalization. Unknown cross-provider equivalence requires clarification before claiming independence; provider labels alone do not prove different underlying models.
+8. Inherit coordinator thinking level, let native Pi apply supported limits, and display/record effective settings. Never silently substitute a model.
+9. One complete shippable slice is required. Protocol and manual handoff work can have green commits but are not sufficient to declare the feature delivered.
 
-**Security Requirements**
-- Subprocesses inherit the user's environment and existing gateway auth; the conductor handles no credentials and prints none. `--implemented-by` carries only a catalog model id.
-- Stage output surfaced via `setEditorText` may contain repository content; that is the user's own session and matches interactive `/execute` behavior. No new network calls originate from the conductor itself.
+### Requirement mechanisms and feasibility
+| Requirement | Mechanism | Evidence it exists | Validation | If unavailable |
+|---|---|---|---|---|
+| Native dispatch and shadow detection | RPC `get_commands`, `sourceInfo`, `prompt` | Installed RPC and extensions docs | Real child template expansion and shadowing tests | Block; no copied prompt implementation |
+| Approvals in coordinator | Bridge tool uses RPC UI dialog; parent returns matching `extension_ui_response` | Installed RPC UI docs and shipped example | Actual bridge dialog in real RPC, then live TUI | Block; no prose approval fallback |
+| Structured final outcome | `registerTool` result `details`; `tool_execution_end` | Custom-tool docs and structured-output example | Real tool event plus malformed-result cases | Block; no marker/verdict text parser |
+| Settled completion | `agent_settled`, error events, `get_state` | RPC lifecycle and command docs | Fast completion, recovery, abort and absent-result cases | Stop without advancing |
+| Model selection/authentication | Registry lookup/availability and provider auth status; child observed state | Installed model registry declarations | Selection fixtures and runtime state | Stop without fallback or credential refresh |
+| Exclusive worktree ownership | Atomic lock directory keyed by canonical worktree | Node filesystem primitives | Competing processes and stale ownership tests | Refuse writers |
+| Candidate integrity | Git revision/status/content snapshots at bridge result and transitions | Git CLI and existing helper | Real temporary repos, tracked/untracked mutation cases | Stop and retain state |
+| Local persistence | Private directory, atomic rename, bounded records | Node filesystem primitives | Write failure and retention tests | Stop; do not dispatch an unrecorded writer |
 
-**Observability Requirements**
-- Dev tool, not paged: `ctx.ui.notify` announces each stage spawn (stage, model id, worktree), the parsed marker/verdict, and every hard stop with stage and reason; the failing stage's final assistant message goes to `setEditorText`. No metrics, traces, or runbooks apply.
+### Protocol and handoff interfaces
+- `_bridge.ts` exports an extension factory but is not auto-discovered as an entrypoint. Load it explicitly in children with `-e`; keep ordinary configured extensions, skills, context, and MCP capabilities enabled. Do not disable the client-session header extension or other required integrations.
+- Launch fresh RPC processes with the resolved Pi executable, provider/model, supported thinking settings, correct `cwd`, `--no-session`, and explicit bridge path. Never resume or fork predecessor history. Record the runtime session ID; no persisted child transcript is required. Reports and run records remain durable.
+- `lifecycle_request_decision` accepts a question and complete evidence/proposal/context. Run and stage identity come from validated child configuration. Use a non-expiring RPC dialog carrying full context and an explicit approve/reject or free-text response. Dismissal cancels; rejection is recorded as rejection, never approval. Resolve only the matching active request. Template-owned decisions that require `/plan` remain blockers regardless of an inline answer.
+- `lifecycle_submit_outcome` accepts protocol version 1, lifecycle outcome, change classification, bounded report text, and optional PR/commit references. Execute/simplify outcomes are `success` or `blocked`; verify outcomes are `VERIFIED` or `BLOCKED`. Stage/outcome combinations are validated. Bridge adds runtime-derived run/stage/session/model identity and Git candidate snapshot; the model cannot supply authoritative identity fields.
+- Outcome envelope fields: `schemaVersion`, `runId`, `stage`, `sessionId`, `model` (provider and ID), `outcome`, `change` (`changed`, `unchanged`, or not applicable), `candidate` (branch, HEAD and state digest), `reportRef`, and optional `prUrl`/`commitRefs`. Validate commit references against Git and PR URLs as untrusted references. An agent assertion is not verification proof.
+- Submit the result only after stage-owned work is complete. Exactly one successful final submission is permitted. Duplicate, conflicting, wrong-run, wrong-stage, invalid, or stale results fail closed. A tool error does not count as submission. Wait for `agent_settled` and recheck Git and model state before progression. No pending decision or queued work may remain.
+- Child result writes a private report through the bridge; verification does not write candidate files. The parent records the structured result, not session logs or prose. A normal assistant report can remain readable but cannot drive transitions.
+- Direct handoffs retain `--implemented-by <provider-qualified-id>` and add `--simplified-by <provider-qualified-id>`. `/simplify` accepts execution provenance; `/verify` compares itself against both known writers. Do not relabel simplifier identity as implementer identity.
+- Preserve optional direct execute-to-verify and execute-to-simplify paths. Preserve PR/file/directory/no-positional simplify targets and `--base`. A plan path selects plan scope, not the plan file alone. Missing original task or required model history blocks a complete independent handoff.
+- For planless manual handoffs put `--task <quoted-original-task>` last; preserve the exact original string, including whitespace and literal quotes. Use native argument rules, not shell escaping assumptions. Installed `parseCommandArgs` removes quote delimiters and does not interpret backslash escapes; `substituteArgs` joins arguments for `$ARGUMENTS`. Test paths via a separate `$1` target field and preserve the final task value without reparsing it as flags. Test both quote characters, embedded flag-looking text, newlines, and substitution-looking literals. If native expansion cannot retain the required data with this interface, stop for alignment; do not add a hidden shared input-rewrite mechanism.
 
-**Failure Modes to Handle**
+### Execution unit and requirements baseline
+- Preflight resolves exactly one plan argument with strict quoting validation; reject extra positionals, missing files, symlink ambiguity, detached/default branches, unreadable Git state, and uncommitted lifecycle documents. Discover the repository default branch rather than assuming only `main`/`master`.
+- Canonicalize the owning worktree with `realpath`; ensure the plan is a tracked regular file in it. Git command failures are errors, not clean-state results (the existing helper must be corrected).
+- For grouped plans use the first slice containing incomplete task checkboxes, or the explicitly approved current unit if the plan defines it. Validate numbered blocking edges against completed prerequisites. Reject malformed/ambiguous headings, unresolved blockers, no remaining work, and conflicting scope. For ungrouped plans the execution unit is all remaining approved tasks.
+- Pin starting HEAD, original plan/design Git blob IDs and paths, selected slice heading/task numbers, and baseline comparison reference in immutable run metadata before writers. Templates independently read the baseline and validate unit interpretation before acting. A disagreement is blocked, not resolved by the coordinator choosing more scope.
+- Plan progress may change checkboxes and append stage ledger/provenance notes. It does not replace the pinned requirements. Scope or acceptance changes require planning, not approval inside this run.
+- Execute must finish the fixed unit and leave clean committed candidate state. Record its candidate commit as the simplification start. Simplify inspects the broader diff only as context and edits only the selected unit and immediate context; use the selected unit's starting reference, not a convenient whole-branch base, for authorization.
+- Changed simplify must pass its required tests, commit successfully, and satisfy its existing conditional push policy. Unchanged simplify preserves HEAD, creates no empty or ledger-only commit, and still enters fresh verify. Required push/commit failure blocks even when a local commit exists.
+- Verification reads original requirements from pinned Git objects plus candidate references and writer provenance. Do not pass predecessor reports or narrative as evidence. Verify gathers fresh tests/review and compares complete tracked/untracked state before and after.
+
+### Implementation Constraints
+- The coordinator never edits candidate files, commits, pushes, opens PRs, repairs, retries a lifecycle stage, or executes the next slice. Stage agents can perform only template-authorized work.
+- Parent session must remain available for decisions. Guard its model-driven work and nested coordinator dispatch while a run is active; reject new lifecycle orchestration from children. This is cooperative ownership, not shell/editor isolation.
+- Explicit run states: preflight, running, waiting-for-user, lifecycle blocked, process/protocol failure, cancelled, verified. Separate transport state from lifecycle verdict.
+- Cooperative lock uses exclusive directory creation under Pi local state, keyed by a hash of canonical worktree path. Owner record contains run ID and coordinator identity. Release only the owned lock and only after confirmed child termination. Never automatically steal a stale lock after a crash.
+- Stop on unsupported protocol/version, missing required capability/authentication, unavailable tool, model drift, unexplained candidate changes, storage failure, or scope ambiguity. Do not refresh credentials, install production tools, or weaken tests automatically.
+- Use LSP references before public-symbol behavior/signature changes, diagnostics after nontrivial TypeScript changes, and focused failing tests before implementation. Add `deliberate:` comments only for non-obvious intentional limits, such as no crash recovery and the version-bound RPC adapter.
+
+### Bounds, Security Requirements, and Observability Requirements
+- One active child and one outstanding lifecycle decision. Control/startup calls have a 30-second deadline; model work and human response time have no coordinator deadline.
+- RPC records are at most 1 MiB. Decode UTF-8 incrementally and frame only on LF, accepting CRLF. Reject malformed/oversized protocol records, honor stdin backpressure, continuously drain stdout/stderr, and bound pending requests/listeners.
+- Retain at most 16 KiB stderr and 100 progress entries. Decision context is at most 16 KiB; reject oversize context instead of hiding part. Bound displayed progress strings too, so entry count alone cannot bypass memory limits.
+- Run state lives under `getAgentDir()/lifecycle-coordinator/`: private directories (0700), files (0600), immutable child config, `runs/<run-id>/record.json`, stage reports, and separate worktree locks. Atomic rename updates records. Maximum record size is 256 KiB; stage reports are at most 64 KiB each. Bound cumulative decisions by the record limit and stop visibly before overflow.
+- Retain at most 100 completed run bundles, pruning oldest completed records/reports only. Never prune active, unresolved, or locked state. Refuse new runs if safe retention cannot maintain capacity; do not delete evidence for a potentially active writer. Existing Pi session retention is not extended by this feature (`--no-session`).
+- Abort cancellation immediately stops dispatch. Send RPC abort, wait up to 5 seconds, then SIGTERM; after another 5 seconds send SIGKILL. Confirm process exit/close, clean timers/listeners, then release ownership. If termination cannot be confirmed, retain the lock and report manual recovery. Close stdin for orderly successful shutdown too. `proc.killed` is not evidence of exit.
+- Launch without a shell. Task data travels over stdin, not argv. Inherit existing credentials without reading, logging, or persisting them. Store references rather than transcript copies; decisions may contain private repository information, so keep records local and private. Do not claim automatic secret redaction can make arbitrary output safe.
+- Treat child output and references as untrusted. No child-supplied command is executed by the coordinator. No sandbox or hard read-only guarantee is introduced; verification detects mutations and reports them.
+- Show stage, model, effective thinking, selected unit, waiting state, outcomes, report references, bounded errors, and manual next action. Final summary includes candidate/simplification commits, decisions, PR link or explicit absence, verification attempts (0/1), and blocked verdicts (0/1). A process failure before verdict is not a blocked verification verdict.
+- Owner is Matteo. This is a local development tool, not a production service; no new telemetry, dashboard, alert, or pager is required. Reports and local run state supply diagnosis.
+
+### Failure Modes to Handle
 | Failure | Expected behavior | Verification |
 |---|---|---|
-| Target on `main`/`master`, plan missing/uncommitted, ambiguous match | Hard stop before any spawn; notify names the reason | `_conductor.test.ts` + `_worktree.test.ts` |
-| Pool exhausted or no distinct verifier | Hard stop before any spawn | `_pools.test.ts`, `_conductor.test.ts` |
-| Prompt file unreadable | Hard stop naming the path | `_conductor.test.ts` |
-| Execute marker absent or id-inconsistent | Hard stop; verify is never spawned | `_markers.test.ts`, `_conductor.test.ts` |
-| Verify verdict absent | Hard stop with verify's final message | `_markers.test.ts`, `_conductor.test.ts` |
-| Verdict `BLOCKED` | Surface verdict + verify's final message; no auto-repair, no retry | `_conductor.test.ts` |
-| Stage exit non-zero, `stopReason` `error`/`aborted` | Hard stop with stderr tail and final message | `_spawn.test.ts`, `_conductor.test.ts` |
-| User interrupt | Active child killed; conductor reports cancellation; no orphan processes | `_conductor.test.ts` abort path |
+| Missing/ambiguous plan, dirty docs/tree, unsafe branch, failed Git command | Stop before writer dispatch, name reason | Worktree/unit tests with real Git |
+| Unavailable model/auth or uncertain independence | Stop without fallback | Model and conductor tests |
+| Template absent/shadowed or bridge unavailable | Stop before writer action | Real runtime preflight tests |
+| Missing/malformed/duplicate/stale result or early exit | Protocol failure; no next stage | Fake process and bridge tests |
+| Approval rejected, dismissed, disconnected, timed out by another extension, or incorrectly correlated | No implicit approval; stop/cancel as applicable | UI protocol tests and live dismissal |
+| Model changes or external candidate changes | Stop, preserve evidence | Runtime and transition tests |
+| Dirty execute/simplify, failed commit or required push | Stop before next stage; report retained commits | Conductor plus real repository fixtures |
+| No-change simplify | No empty commit; fresh verify still runs | No-change transition test and smoke |
+| Verify mutates tracked/untracked files | BLOCKED, identify delta; no repair | Real Git snapshots |
+| Storage failure, record cap, stale lock | Stop safely; never take over or prune active evidence | Filesystem/process tests |
+| Cancellation/parent shutdown in any state | Stop active child before unlock; no subsequent stage | Graceful/forced termination tests |
 
-**Rollout and Rollback**
-- Rollout: add the extension directory and the `test:unit` entry; `chezmoi apply` the new targets; `/reload` in the interactive session. Smallest safe step is the whole extension — it is inert until `/ship` is invoked. Owner: Matteo.
-- Rollback: delete `dot_pi/agent/exact_extensions/ship-conductor/`, revert the `package.json` line, `chezmoi apply`, `/reload`. No state to clean up (subprocesses run `--no-session`).
+### Rollout and Rollback
+- Keep the existing worktree; do not rebase, merge, or move main as a side effect. Reconcile scoped template sections from the pinned main baseline explicitly.
+- First exercise the candidate extension and prompts through explicit temporary Pi resource paths in a disposable worktree. For test-only prompt isolation, enumerate effective prompt sources, use documented `--no-prompt-templates`, and re-add them with repeated `--prompt-template` paths, replacing only execute/simplify/verify with candidate paths. Retain every other required template and normal configured extensions/MCP capabilities. Validate `get_commands` provenance before dispatch. This avoids duplicate-name precedence assumptions without changing rendered targets. The old installed `/ship` can remain inert during this test; its removal is checked in candidate registration tests and after the reviewed target rollout. No live target application is needed to prove candidate behavior.
+- After `/verify` returns VERIFIED, preview and apply only reviewed explicit targets with `chezmoi --source "$PWD"`. Targets: changed files under `~/.pi/agent/extensions/ship-conductor/`, recommender entrypoint/test, the three prompt files, changed test scripts, `~/.pi/agent/package.json`, and applicable rendered guidance. Include explicit deletion targets for obsolete helpers. Do not trust directory-only diff/verify or apply the whole extension tree from this older branch.
+- Reload Pi and confirm `/implement` exists and `/ship` does not. Owner: Matteo. Commit/push implementation only under the normal lifecycle and repository completion policy; this plan commit does not apply runtime targets.
+- Rollback: stop active runs and confirm child termination; revert replacement code/template changes; preview/apply the corresponding explicit targets and reload. Preserve run records and candidate commits/files. Direct lifecycle commands remain the fallback.
 
-**Test Strategy**
-- All parsing, selection, resolution, and orchestration logic is unit-tested through injected system boundaries: git runner, process spawner, prompt-file reader, model-registry subset (`find`, `getProviderAuthStatus`), and ui sinks. Internal collaborators are not mocked.
-- Narrow command expected to fail before implementation: `cd dot_pi/agent && node --experimental-strip-types --test "exact_extensions/ship-conductor/*.test.ts"` (no matching files).
-- Full gates after `npm ci --ignore-scripts`: `npm test` then `npm run test:all` from `dot_pi/agent`.
-- End-to-end validation is manual (Task 4): spawning real models in CI is impractical and gateway credentials are user-scoped.
+### Test Strategy
+- Existing seams: injected Git/process/registry/UI boundaries, node:test helpers, lifecycle prompt assertions. Add the fewest new seams: the real RPC bridge test driver and filesystem/process lock tests.
+- `_fixtures/rpc-driver.ts` is test-only, explicitly loaded, and cannot be auto-discovered as a production entrypoint. Register a deterministic in-memory test provider using documented `pi.registerProvider` with `streamSimple` and `createAssistantMessageEventStream` (installed custom-provider docs and shipped provider examples). It emits a fixed bridge tool call, then a terminal response after the tool result. This drives the actual agent loop, registered tool, RPC UI request, `tool_execution_end`, and `agent_settled` without network/provider-service calls. Do not invoke a private bridge helper or assume a nonexistent `pi.callTool` command API. Test-provider streaming is a fixture, not a production feature.
+- Compare old 56-test behavior as historical baseline, then add failing tests for new requirements before implementation. Mock providers/process timing for exhaustive failures, not lifecycle policy or internal helpers.
+- Real runtime contract tests must identify Pi 1.5.0 explicitly and fail, not silently skip, when the required integration command is requested without it. They call only the in-memory fixture provider, make no remote model requests, and require no credential refresh.
+- Live testing uses isolated worktree, private temporary run-state directory, explicit candidate resources, no production workload, and a committed tiny plan. A child can push/open a PR only when the smoke plan explicitly authorizes it; otherwise prohibit both in that plan. No shared queues/background jobs are introduced. Confirm no child survives cleanup. Keep evidence outside the candidate.
+- Baseline and candidate live observations use the same smoke plan shape and configured capabilities. The old `/ship` is not expected to satisfy approvals/simplify; compare scope, model/cwd identity, and process cleanup, not model answer quality or latency. No performance/cost improvement is claimed. Record actual model identities, runtime version, run ID, and observation start/end; no remote telemetry query is necessary.
+- Focused commands run from `dot_pi/agent`: `node --experimental-strip-types --test 'exact_extensions/ship-conductor/*.test.ts'`, `node --experimental-strip-types --test 'exact_extensions/lifecycle-model-recommender/*.test.ts'`, and `node --test exact_scripts/lifecycle-prompts.test.mjs`.
+- Full gates: `npm ci --ignore-scripts`, `npm test`, `npm run test:all`. Keep dependencies through both gates, then remove disposable source `node_modules` before the independent verification snapshot. LSP diagnostics supplement tests; they do not replace real-runtime compatibility checks.
 
 ## Acceptance Requirements
-### Requirement R1: Safe target resolution and pre-flight
-The system SHALL resolve the `/ship` argument to an owning worktree and refuse unsafe or ambiguous targets before spawning any stage.
+### Requirement R1: Safe fixed-unit preflight
+The system SHALL resolve one committed plan to a canonical clean feature worktree, pin requirements and one eligible execution unit, and acquire exclusive ownership before writer dispatch.
 
-#### Scenario: Plan relative to the current worktree resolves
-- GIVEN a committed `plans/<feature>/plan.md` in a feature worktree
-- WHEN `/ship` receives the relative path
-- THEN the conductor resolves the owning worktree root and uses it as every stage's spawn `cwd`
+#### Scenario: Eligible grouped unit
+- GIVEN a clean committed grouped plan with completed prerequisites.
+- WHEN `/implement` starts.
+- THEN it selects only the eligible current slice and records immutable baseline references.
 
-#### Scenario: Default-branch target refused
-- GIVEN a plan path that resolves to a worktree whose branch is `main`
-- WHEN `/ship` runs
-- THEN it stops before spawning, naming the refusal reason, and no subprocess starts
+#### Scenario: Unsafe or ambiguous target
+- GIVEN ambiguous paths/units, dirty or untracked candidate state, missing docs, failed Git inspection, default/detached branch, or an existing lock.
+- WHEN invoked.
+- THEN no writer starts and the specific blocker is reported.
 
-#### Scenario: Missing or uncommitted plan refused
-- GIVEN a plan path that does not exist or has uncommitted changes
-- WHEN `/ship` runs
-- THEN it stops before spawning, naming the refusal reason
+#### Scenario: Later slices remain
+- GIVEN one unit completes.
+- WHEN later plan slices remain.
+- THEN no later slice starts.
 
-#### Scenario: Ambiguous worktree match refused
-- GIVEN a plan path matching more than one worktree
-- WHEN `/ship` runs
-- THEN it stops and lists the candidate worktrees without spawning
+### Requirement R2: Native dispatch, fresh contexts, and selected models
+The system SHALL run exactly execute, simplify, and verify in order through native templates in fresh RPC sessions, under the selected models with validated provenance.
 
-### Requirement R2: Deterministic prompt delivery
-The system SHALL build each stage prompt from the rendered template with frontmatter stripped and exactly `$ARGUMENTS` substituted.
+#### Scenario: Fresh sessions and selected models
+- GIVEN valid selections.
+- WHEN dispatched.
+- THEN each stage has the intended cwd/model, a distinct fresh session, and normal required capabilities; verify differs from both selected writers.
 
-#### Scenario: Execute prompt expansion
-- GIVEN the rendered `~/.pi/agent/prompts/execute.md`
-- WHEN the conductor builds the execute task
-- THEN the result contains no frontmatter, substitutes the absolute plan path for `$ARGUMENTS`, and leaves `$GLOB` literals untouched
+#### Scenario: Unavailable or changed prerequisites
+- GIVEN a missing/shadowed template, invalid selection, unavailable authentication, uncertain independence, or unapproved runtime model change.
+- WHEN detected.
+- THEN the run stops without substitution.
 
-#### Scenario: Verify prompt expansion carries the implementer id
-- GIVEN execute completed under catalog id `<impl-id>`
-- WHEN the conductor builds the verify task
-- THEN `$ARGUMENTS` is `<absolute-plan-path> --implemented-by <impl-id>`
+#### Scenario: Scoped recommender suppression
+- GIVEN a marked orchestration child.
+- WHEN its lifecycle input reaches the recommender.
+- THEN no recommendation dialog or model mutation occurs; ordinary RPC and TUI invocations retain their behavior.
 
-#### Scenario: Unreadable prompt file
-- GIVEN a missing rendered prompt file
-- WHEN the conductor pre-flights
-- THEN it stops before spawning, naming the missing path
+### Requirement R3: Structured user decisions
+The system SHALL route complete decision context and the correlated answer between the active child and user without deciding for the user.
 
-### Requirement R3: Distinct-model stage execution
-The system SHALL run execute under the first available impl-pool model and verify under the first available verify-pool model distinct from the implementer, both with `--thinking max`.
+#### Scenario: Correlated user answer
+- GIVEN an approval request.
+- WHEN the coordinator displays it and the user answers.
+- THEN only that child receives the matching decision and the run record records it.
 
-#### Scenario: Distinct pair selected
-- GIVEN all pooled models resolve and are authenticated
-- WHEN `/ship` starts
-- THEN execute spawns with the first impl-pool catalog id and verify spawns with the first verify-pool id different from it
+#### Scenario: Rejected or missing approval
+- GIVEN rejection, dismissal, missing response, wrong correlation, or oversize context.
+- WHEN processed.
+- THEN no approval is inferred and progression stops/cancels as applicable.
 
-#### Scenario: No distinct verifier
-- GIVEN only one catalog id is available across both pools
-- WHEN `/ship` pre-flights
-- THEN it stops before spawning, reporting that no distinct verifier is available
+#### Scenario: Planning-only scope change
+- GIVEN a scope change requiring planning.
+- WHEN an inline answer is supplied.
+- THEN the stage remains blocked pending the planning workflow.
 
-#### Scenario: Unavailable pooled model skipped, exhausted pool refused
-- GIVEN the first impl-pool entry is absent from the registry or unauthenticated
-- WHEN `/ship` pre-flights
-- THEN it tries the next entry; when the pool is exhausted it stops, naming the unavailable providers
+### Requirement R4: Typed settled outcomes
+The system SHALL advance only after one valid typed final outcome, settled completion, and successful transition checks.
 
-### Requirement R4: Execute completion gating
-The system SHALL spawn verify only when execute's final assistant message contains an `Implementation model` marker whose id equals the catalog id passed to `--model`.
+#### Scenario: Valid settled result
+- GIVEN a valid success result and settled unchanged result snapshot.
+- WHEN transition checks pass.
+- THEN only the next authorized stage starts.
 
-#### Scenario: Consistent marker proceeds with parenthesized name parsed
-- GIVEN execute's final message contains `` Implementation model: `GLM-5.3 (Baseten) (baseten/zai-org/GLM-5.3)` `` followed by the numbered handoff steps
-- WHEN the conductor parses it
-- THEN it extracts id `baseten/zai-org/GLM-5.3`, matches it against the spawned `--model` id, and spawns verify with `--implemented-by baseten/zai-org/GLM-5.3`
+#### Scenario: Insufficient or contradictory completion
+- GIVEN exit zero, prompt acceptance, `agent_end`, verdict prose, missing result, duplicate/conflicting result, pending approval, provider failure, or a changed post-result snapshot.
+- WHEN observed.
+- THEN no next stage starts.
 
-#### Scenario: Absent marker hard-stops
-- GIVEN execute's final message contains no marker
-- WHEN the stage ends
-- THEN the conductor stops with execute's final message and never spawns verify
+### Requirement R5: Simplification and independent closeout
+The system SHALL require clean committed execution, enforce simplify commit/push policy, and perform fresh read-only verification after changed or unchanged simplification.
 
-#### Scenario: Id mismatch hard-stops
-- GIVEN a marker whose id differs from the spawned `--model` id
-- WHEN the conductor parses it
-- THEN it stops, reporting the inconsistency
+#### Scenario: Committed simplification
+- GIVEN changed simplification with successful tests/commit/required push and a clean tree.
+- WHEN it settles.
+- THEN fresh verify examines the final candidate and original requirements.
 
-### Requirement R5: Terminal verdict surfacing
-The system SHALL report exactly the verify stage's terminal verdict and SHALL NOT continue past any hard stop.
+#### Scenario: No-change simplification
+- GIVEN no-change simplification.
+- WHEN it succeeds.
+- THEN no empty commit occurs and fresh verify still runs.
 
-#### Scenario: VERIFIED
-- GIVEN verify's final message ends with a lone `VERIFIED` line after the seven report sections
-- WHEN the conductor parses it
-- THEN it notifies `VERIFIED` with the verifier model id
+#### Scenario: Unsafe candidate or failed closeout
+- GIVEN dirty state, failed commit/required push, out-of-unit edits, missing provenance, or verification mutation.
+- WHEN detected.
+- THEN the run stops or returns BLOCKED without repair.
 
-#### Scenario: BLOCKED surfaces without repair
-- GIVEN verify's final message ends with a lone `BLOCKED` line
-- WHEN the conductor parses it
-- THEN it notifies `BLOCKED`, places verify's final message in the editor, and takes no further action
+### Requirement R6: Compatible manual handoffs
+The templates SHALL retain direct lifecycle commands while preserving the exact requirements and both writer identities across optional simplification.
 
-#### Scenario: Verdict absent or malformed
-- GIVEN verify's final message has no trimmed `VERIFIED`/`BLOCKED` line (lowercase or embedded verdicts do not count)
-- WHEN the conductor parses it
-- THEN it hard-stops with verify's final message
+#### Scenario: Execute handoff
+- GIVEN a plan path or original trivial task and known implementer.
+- WHEN execute emits handoffs.
+- THEN direct verify and optional simplify commands preserve that source and stable identity.
 
-### Requirement R6: Failure and abort handling
-The system SHALL stop and surface stage failures, SHALL kill the active child on user interrupt, and SHALL NOT retry, edit, commit, or repair.
+#### Scenario: Simplify handoff
+- GIVEN simplify after execute.
+- WHEN it emits verify metadata.
+- THEN both `--implemented-by` and `--simplified-by` survive native expansion; `--base` and non-plan targets retain their meanings.
 
-#### Scenario: Stage failure stops the pipeline
-- GIVEN a stage subprocess exits non-zero or ends with `stopReason` `error`/`aborted`
-- WHEN the conductor observes it
-- THEN it hard-stops with the stderr tail and the stage's final message; the remaining stage never starts
+#### Scenario: Missing or invalid provenance
+- GIVEN missing task/model history, either writer matching the verifier, or malformed/ambiguous metadata.
+- WHEN resolving the handoff.
+- THEN the template asks/blocks rather than inventing provenance or requirements.
 
-#### Scenario: Interrupt kills the active child
-- GIVEN a stage is running
-- WHEN the user interrupts
-- THEN the active child receives a kill signal, the conductor reports cancellation, and no stage process survives
+### Requirement R7: Cancellation, ownership, and bounded state
+The system SHALL bound protocol/state resources, stop active children before releasing ownership, and preserve candidate changes and commits on failure.
+
+#### Scenario: Cancellation in any state
+- GIVEN cancellation before dispatch, during work, during a dialog, or between stages.
+- WHEN handled.
+- THEN no later stage starts and confirmed child termination precedes unlock.
+
+#### Scenario: Resistant child shutdown
+- GIVEN abort resistance.
+- WHEN grace periods expire.
+- THEN termination escalates; if exit cannot be confirmed, ownership remains unresolved and manual recovery is reported.
+
+#### Scenario: Capacity and stale ownership
+- GIVEN large output, storage failures, retention capacity, crashes, or stale locks.
+- WHEN detected.
+- THEN limits and safe refusal apply without deleting active evidence, resetting files, or retrying the stage.
+
+### Requirement R8: Accurate reporting and operational handoff
+The system SHALL report per-stage state/model, selected unit, candidate commits, decisions, reports, PR presence/absence, and separate verdict/transport counts without claiming merge or deployment.
+
+#### Scenario: Terminal outcome report
+- GIVEN VERIFIED, BLOCKED, process failure, or cancellation.
+- WHEN the run ends.
+- THEN its report accurately names completed and unstarted stages, retained state, zero-or-one verification attempt/verdict counts, and a manual next action.
+
+#### Scenario: Absent PR or verdict
+- GIVEN no PR or no verification verdict.
+- WHEN reporting.
+- THEN no URL or verdict is invented.
 
 ## Implementation Tasks
-### Task 1: Add conductor helper modules with unit tests
-**Delivers:** pools, prompt expansion, marker parsing, worktree resolution, and subprocess plumbing as pure modules, all unit-tested and enumerated in `test:unit`.
+The following tasks form one integration unit, not independently authorized product slices. Every task must be green before its commit. If native protocol feasibility fails in Task 1, stop before building later tasks. Do not orchestrate this replacement with the old `/ship` implementation.
+
+### Task 1: Prove the native child bridge and exact input contract
+**Delivers:** Deterministic real-Pi evidence that registered bridge tools produce structured events, approvals round-trip, and native expansion preserves handoff data.
 **Blocked by:** None
-**Traces to:** R1 (resolution logic), R2, R3 (selection logic), R4, R5 (parsers), R6 (spawn result classification)
-**Files:**
-- `dot_pi/agent/exact_extensions/ship-conductor/_pools.ts` and `_pools.test.ts`
-- `dot_pi/agent/exact_extensions/ship-conductor/_prompts.ts` and `_prompts.test.ts`
-- `dot_pi/agent/exact_extensions/ship-conductor/_markers.ts` and `_markers.test.ts`
-- `dot_pi/agent/exact_extensions/ship-conductor/_worktree.ts` and `_worktree.test.ts`
-- `dot_pi/agent/exact_extensions/ship-conductor/_spawn.ts` and `_spawn.test.ts`
-- `dot_pi/agent/package.json` (`test:unit` enumeration)
+**Traces to:** R2, R3, R4, R6, R7
+**Files:** `dot_pi/agent/exact_extensions/ship-conductor/_bridge.ts`, `_protocol.ts`, `_protocol.test.ts`, `_rpc.test.ts`, `_fixtures/rpc-driver.ts`, `_spawn.ts`, `_spawn.test.ts`, `_prompts.ts`, `_prompts.test.ts`.
 
-- [x] Run `cd dot_pi/agent && npm ci --ignore-scripts` (required once for full gate runs; keep `node_modules` until Task 3 cleanup).
-- [x] Run `node --experimental-strip-types --test "exact_extensions/ship-conductor/*.test.ts"` from `dot_pi/agent`; expect failure (no matching test files).
-- [x] Implement the five helper modules per the Implementation Contract, including the D1/D2/D8 `deliberate:` comments, and their tests covering every Failure Modes row owned by helpers.
-- [x] Add `"$ext"/ship-conductor/*.test.ts` to `test:unit` in `dot_pi/agent/package.json`.
-- [x] Run `node --experimental-strip-types --test "exact_extensions/ship-conductor/*.test.ts"` from `dot_pi/agent`; expect all tests passing.
-- [x] Run `npm run test:unit` from `dot_pi/agent`; expect green with the new files enumerated.
-- [x] Refactor only after green, then rerun both commands. (No implementation refactor needed; two test-assertion bugs fixed during red phase, then both commands rerun green: focused 45 pass, `test:unit` 164 pass.)
-- [x] Commit with `feat(pi): add /ship conductor helper modules`.
+- [ ] Read relevant installed Pi docs/examples in full before harness implementation, including custom-provider streaming and its shipped example. Use the explicitly loaded in-memory fixture provider to drive actual bridge tool calls through the native agent loop. Install development dependencies with `npm ci --ignore-scripts` from `dot_pi/agent`; keep them until full gates finish.
+- [ ] Add focused failing protocol/native-runtime tests before changing production behavior. Run `node --experimental-strip-types --test exact_extensions/ship-conductor/_protocol.test.ts exact_extensions/ship-conductor/_rpc.test.ts`; expect missing bridge/protocol behavior to fail initially.
+- [ ] Implement the versioned child-only bridge, bounded RPC adapter, and test-only explicit driver. Keep old command tests green until the command is replaced; do not add a second maintained coordinator mode.
+- [ ] Test native `/execute`, `/simplify`, and `/verify` expansion with temporary fixture templates and exact argument preservation, including quote characters, whitespace, flag-looking task content, and `$ARGUMENTS` literals. Confirm source provenance and shadowing refusal.
+- [ ] Exercise the real tool event and UI response path using only the in-memory fixture provider, with no remote model calls. Verify `agent_end` alone is insufficient, and actual tool errors cannot count as results. Require the real Pi 1.5.0 test when using the full gate.
+- [ ] Run the narrow command again; expect all cases passing and no surviving child. Refactor only after green, then rerun.
+- [ ] Commit with `feat(pi): add structured lifecycle RPC bridge`.
 
-### Task 2: Add the `/ship` command orchestrator
-**Delivers:** a working `/ship <plan.md>` command running pre-flight → execute → verify with every hard stop and the abort path.
+### Task 2: Preserve manual lifecycle scope, approvals, and writer provenance
+**Delivers:** Direct commands and orchestrated variants share template-owned lifecycle rules and working provenance handoffs.
 **Blocked by:** 1
-**Traces to:** R1, R2, R3, R4, R5, R6 (wiring)
-**Files:**
-- `dot_pi/agent/exact_extensions/ship-conductor/_conductor.ts` and `_conductor.test.ts`
-- `dot_pi/agent/exact_extensions/ship-conductor/index.ts`
+**Traces to:** R1, R2, R3, R5, R6
+**Files:** `dot_pi/agent/exact_prompts/execute.md`, `simplify.md`, `verify.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`, `dot_pi/agent/exact_extensions/ship-conductor/_prompts.ts`, `_prompts.test.ts`, `_rpc.test.ts`.
 
-- [x] Write `_conductor.test.ts` first: refusal paths (R1 scenarios), prompt-file failure, marker gating (verify never spawned on absent/inconsistent marker), verdict surfacing (`VERIFIED`, `BLOCKED`, absent), stage-failure stop, abort kills the injected child. Use injected spawner, registry, prompt reader, and ui sinks.
-- [x] Run the focused test command; expect failures (module missing).
-- [x] Implement `_conductor.ts` (state machine over injected dependencies) and `index.ts` (`pi.registerCommand("ship", …)` building real dependencies, `ctx.hasUI` guards, `SIGINT` wiring, usage error when the argument is missing).
-- [x] Run `node --experimental-strip-types --test "exact_extensions/ship-conductor/*.test.ts"` from `dot_pi/agent`; expect all tests passing.
-- [x] Run `npm run test:unit` from `dot_pi/agent`; expect green.
-- [x] Refactor only after green, then rerun both commands. (No refactor needed; extension load-checked with `pi -e` — loads cleanly, no `[Extension issues]`.)
-- [x] Commit with `feat(pi): add /ship conductor command`.
+- [ ] Compare these three templates with pinned main `b346344`; restore relevant slice, simplify target/commit, and fresh-verification safeguards without unrelated rewrites. Preserve current main behavior when later upstream drift changes those sections; stop on material conflict.
+- [ ] Add failing handoff assertions and native expansion cases. Run `node --test exact_scripts/lifecycle-prompts.test.mjs`; expect failures for missing dual-writer and conditional bridge contracts.
+- [ ] Add optional execute-to-simplify handoff and retain execute-to-verify. Parse handoff metadata before target resolution, preserve exact original tasks and `--base`, and add both writer IDs to simplify-to-verify.
+- [ ] Conditionally use bridge decisions/results only when validated orchestration metadata/tools exist. Preserve conversational approvals otherwise. In orchestrated stages require fixed-unit scope, pinned baseline, and proper blocked outcomes. Accept fresh orchestration verify sessions as independent without requiring a literal manual `/new`.
+- [ ] Preserve simplify clean-start commit/push policy, no-change no-commit behavior, and explicit distinction between manual unchanged-candidate verdict validity and mandatory first verification in `/implement`.
+- [ ] Run `node --test exact_scripts/lifecycle-prompts.test.mjs` and `node --experimental-strip-types --test exact_extensions/ship-conductor/_prompts.test.ts exact_extensions/ship-conductor/_rpc.test.ts`; expect direct and orchestrated cases green.
+- [ ] Refactor only after green, rerun, and commit with `feat(pi): preserve lifecycle handoff provenance through simplify`.
 
-### Task 3: Complete documentation review and full gate validation
-**Delivers:** the marker-coupling trap recorded for future agents, full npm gates green, and dependencies cleaned up.
-**Blocked by:** 2
-**Traces to:** R1-R6 (gate evidence); documentation requirement
-**Files:**
-- `dot_pi/agent/AGENTS.md` (one durable trap line, if absent)
+### Task 3: Replace the command with the complete single-round coordinator
+**Delivers:** `/implement` selects models, locks/pins one clean execution unit, runs all three stages, and reports a typed outcome.
+**Blocked by:** 1, 2
+**Traces to:** R1-R8
+**Files:** `dot_pi/agent/exact_extensions/ship-conductor/index.ts`, `_conductor.ts`, `_conductor.test.ts`, `_worktree.ts`, `_worktree.test.ts`, `_unit.ts`, `_unit.test.ts`, `_models.ts`, `_models.test.ts`, `_state.ts`, `_state.test.ts`, `_spawn.ts`, `_spawn.test.ts`, `_protocol.ts`, `_protocol.test.ts`, `_bridge.ts`, `_prompts.ts`, `_prompts.test.ts`; delete `_markers.ts`, `_markers.test.ts`, `_pools.ts`, `_pools.test.ts`; `dot_pi/agent/exact_extensions/lifecycle-model-recommender/index.ts`, `_adapter.test.ts`; `dot_pi/agent/package.json`.
 
-- [x] Inspect `dot_pi/agent/AGENTS.md` and the repository-root `AGENTS.md`; add or record why not. Expected addition under Pi Agent Development: `exact_prompts/execute.md` and `verify.md` terminal markers are parsed by `exact_extensions/ship-conductor/`; update its fixtures when changing those contracts. No READMEs, runbooks, or generated references exist for extensions — record that. (Added one durable bullet to the repository-root `AGENTS.md` under `## Pi Agent Development`; `dot_pi/agent/AGENTS.md` is the global-instructions file with no Pi Agent Development section. No READMEs, runbooks, or generated references exist for extensions — recorded here.)
-- [x] Run `npm test` from `dot_pi/agent`; expect green.
-- [x] Run `npm run test:all` from `dot_pi/agent`; expect green including smoke.
-- [x] Remove `dot_pi/agent/node_modules` per repository rule.
-- [x] Run `chezmoi diff ~/.pi/agent/extensions ~/.pi/agent/package.json` from the worktree; confirm the preview shows only the new extension directory and the `test:unit` change.
-- [x] Commit any `AGENTS.md` change with `docs: note ship conductor prompt-marker coupling`.
+- [ ] Use LSP definition/reference context for exported helper changes; repeat consumer search and account for tests and guidance before deleting old interfaces.
+- [ ] Add failing public-command/state-machine tests for preflight, selection, selected-unit boundaries, three sequential sessions, structured transitions, clean simplify, fresh verify, and final counts. Use temporary real repositories for Git assertions.
+- [ ] Run `node --experimental-strip-types --test 'exact_extensions/ship-conductor/*.test.ts'`; expect new behavior failures before the replacement.
+- [ ] Implement the smallest coordinator and state helpers meeting the contract. Replace `/ship` registration and obsolete parsers/pools; no aliases or parallel policy. Fail on Git errors, not just nonempty status.
+- [ ] Implement child-scoped recommender suppression using the validated stage-config marker; add tests for marked child, invalid child config, ordinary RPC, TUI, and no leaked parent marker. Do not alter policy recommendations.
+- [ ] Pin original Git objects and selected unit, acquire/recheck ownership before dispatch, validate observed models and candidate state on each transition, and persist records atomically. Reject unknown provenance and model drift conservatively.
+- [ ] Keep approval replies correlated and never automatic. Keep parent repository work/nested orchestration blocked cooperatively while children own the worktree. Verify child context payloads contain no predecessor transcript/report narrative.
+- [ ] Wire tests into existing `test:unit` enumeration, preserving other entries. No dependency or lockfile upgrade is authorized.
+- [ ] Run `node --experimental-strip-types --test 'exact_extensions/ship-conductor/*.test.ts'` and `node --experimental-strip-types --test 'exact_extensions/lifecycle-model-recommender/*.test.ts'`; expect green.
+- [ ] Run LSP diagnostics for changed TypeScript. Refactor only after green, rerun narrow tests, and commit with `feat(pi): replace ship with single-round implement coordinator`.
 
-### Task 4: Apply and run manual end-to-end validation
-**Delivers:** the rendered extension applied, loading cleanly, and `/ship` observed end-to-end against a disposable plan.
+### Task 4: Prove failure containment, resource bounds, and cancellation
+**Delivers:** Failures cannot authorize another stage, leak a child, lose candidate state, or silently release unresolved ownership.
 **Blocked by:** 3
-**Traces to:** R1-R6 (end-to-end evidence)
-**Files:** none (rendered targets only)
+**Traces to:** R1, R3-R5, R7, R8
+**Files:** `dot_pi/agent/exact_extensions/ship-conductor/_conductor.ts`, `_conductor.test.ts`, `_spawn.ts`, `_spawn.test.ts`, `_state.ts`, `_state.test.ts`, `_protocol.ts`, `_protocol.test.ts`, `_rpc.test.ts`.
 
-- [x] Run `chezmoi apply ~/.pi/agent/extensions ~/.pi/agent/package.json`.
-- [x] Run `cd ~/.pi/agent && npm run test:smoke`; expect no `[Extension issues]`.
-- [ ] Run `/reload` in the interactive session; confirm `/ship` appears. (User action in the interactive TUI; cannot be run from this agent session.)
-- [ ] Negative pre-flight checks (spawn no models): `/ship` against a plan on `main` and against an uncommitted plan; expect the R1 refusals. (User action; `/ship` requires `ctx.hasUI`.)
-- [ ] Positive run: create a disposable worktree off `main` (branch `maruina/ship-smoke`) with a trivial committed `plans/ship-smoke/plan.md` (one small file change with an exact verification command); run `/ship <path>`; expect execute under the first impl-pool model, verify under a distinct model, and a terminal verdict. Redact credentials from any captured output. (Worktree prepared at `/Users/matteo.ruina/.worktrees/dotfiles-ship-smoke` with committed `plans/ship-smoke/plan.md`; the `/ship` run itself is a user action in the interactive TUI.)
-- [ ] Delete the disposable worktree and branch. (After the positive run.)
-- [ ] Record the validation outcome in this plan's Execution section; no source commit results from this task. (Partial record below; final outcome to be appended after the interactive run.) Automation is impractical here because stages spawn real gateway models with user-scoped credentials.
+- [ ] Add focused failing cases for malformed/oversized JSONL, split UTF-8/CRLF/Unicode separators, backpressure, bounded stderr/progress, pending requests, write errors and record/report limits.
+- [ ] Add competing-process lock tests, stale-owner refusal, record pruning that preserves active evidence, and candidate tracked/untracked mutation checks.
+- [ ] Test cancellation before dispatch, while writing, while waiting for approval, and between stages; simulate abort resistance and SIGTERM resistance. Assert actual child termination/close before lock release, cleared timers/listeners, and no stage retry. Exercise parent shutdown cleanup.
+- [ ] Test failed commit/required push, duplicate result, post-result edits, model drift, read-only verification mutation, absent PR, absent verdict, and accurate zero/one counters.
+- [ ] Implement only missing containment behavior; do not refactor unrelated transport or add recovery features.
+- [ ] Run `node --experimental-strip-types --test 'exact_extensions/ship-conductor/*.test.ts'`; expect all cases green and no hanging test process. Rerun after any refactor.
+- [ ] Commit with `test(pi): cover lifecycle failure containment and cancellation` (use `fix(pi): contain lifecycle failures and cancellation` if production behavior changes; record why the message changed).
+
+### Task 5: Run the live acceptance workflow in isolation
+**Delivers:** Evidence that actual models, actual approvals, normal capabilities, and the three-stage candidate workflow work together.
+**Blocked by:** 4
+**Traces to:** R1-R8
+**Files:** `plans/pi-ship-conductor/plan.md` (execution evidence only); disposable smoke files outside this feature worktree are test fixtures, not shipped source.
+
+- [ ] Create an isolated disposable feature worktree with a small committed plan, an exact deterministic test command, no external service mutation, and one explicit approval gate. Use explicit candidate extension/prompt resource paths, normal required extensions, and a private temporary coordinator-state directory. Confirm intended templates resolve and old installed extension command conflicts do not hide the candidate.
+- [ ] Record Pi version, selected/observed models, thinking, run ID, unit, baseline/candidate commits and observation window. Invoke `/implement <absolute-smoke-plan-path>` in a real interactive Pi session; this requires the user/TUI and authenticated providers, so automation alone is insufficient.
+- [ ] Complete a real approval round-trip. Observe execute, no-change or committed simplify, and fresh distinct verify. Compare candidate state and deterministic test results, not merely absence of errors. Record PR absence explicitly if prohibited by the smoke plan.
+- [ ] Exercise cancellation in a separate invocation while awaiting approval, and refusal for an owned worktree. Confirm no later stage and no surviving child before removing fixtures. Preserve retained candidate changes until inspected.
+- [ ] If user interaction, credentials, or a provider are unavailable, record a blocker and stop. Do not mark acceptance complete, infer success from mock tests, refresh credentials, or switch to prose parsing.
+- [ ] Record report references and actual outcomes here, clean disposable resources only after confirmed child termination, and commit with `docs(pi): record implement coordinator live acceptance evidence`.
+
+### Task 6: Complete documentation and final feature verification
+**Delivers:** Complete acceptance traceability, passing repository gates, and durable usage/recovery guidance for future agents.
+**Blocked by:** 5
+**Traces to:** R1-R8; explicit documentation and future-agent guidance requirement
+**Files:** `AGENTS.md`, `dot_pi/agent/AGENTS.md` (inspect; modify only if justified), `dot_pi/agent/exact_extensions/ship-conductor/README.md`, `plans/pi-ship-conductor/plan.md` (execution ledger).
+
+- [ ] Replace root marker-parser coupling guidance with the structured bridge/template contract, exact focused tests, Pi 1.5.0 integration requirement, and scoped child-marker trap. Inspect `dot_pi/agent/AGENTS.md`; record why no change is needed if guidance is correctly owned elsewhere. Do not update unrelated obsolete MCP guidance.
+- [ ] Document `/implement`, manual handoff examples, both writer identities, no-change semantics, ownership/cancellation recovery, run-record privacy/retention, required live evidence, and targeted rollout/rollback in the extension README. No generated references or production runbook/dashboard are needed; explain this local-tool scope.
+- [ ] Final verification: map every R1-R8 scenario to passing focused tests or recorded live evidence; require the complete three-stage feature, not only helper tests. Confirm `/ship` removal, no fixed pools/prose transition parsing, no predecessor narrative sent to verify, and no later-unit execution.
+- [ ] Run `npm test` then `npm run test:all` from `dot_pi/agent` while installed dependencies remain; expect all tests and extension smoke green. Runtime integration must run against Pi 1.5.0, not silently skip. Run TypeScript LSP diagnostics after final code changes.
+- [ ] Remove disposable source `node_modules` after both gates. Inspect Git status and ensure test artifacts are outside the candidate. Preview reviewed explicit targets with `chezmoi --source "$PWD" diff <explicit-target-file>` from the worktree; inspect deletions too. Do not apply before the independent `/verify` gate.
+- [ ] Commit guidance with `docs(pi): document implement coordinator operation and recovery`. Record documentation decisions, focused/full results, live report references, and any unresolved blocker in this plan.
+- [ ] Hand off to a new independent `/verify` with stable writer identities and the absolute plan path. Do not claim final independent verification, apply targets, or repair findings in this task.
 
 ## Requirement Traceability
-| Requirement | Tasks | Primary validation |
+| Requirement | Tasks | Highest supported evidence |
 |---|---|---|
-| R1 Safe target resolution | 1, 2, 4 | `_worktree.test.ts`, `_conductor.test.ts`, manual negative checks |
-| R2 Deterministic prompt delivery | 1, 2 | `_prompts.test.ts`, `_conductor.test.ts` |
-| R3 Distinct-model execution | 1, 2, 4 | `_pools.test.ts`, manual positive run |
-| R4 Execute completion gating | 1, 2, 4 | `_markers.test.ts`, `_conductor.test.ts`, manual positive run |
-| R5 Terminal verdict surfacing | 1, 2, 4 | `_markers.test.ts`, `_conductor.test.ts`, manual positive run |
-| R6 Failure and abort handling | 1, 2 | `_spawn.test.ts`, `_conductor.test.ts` |
+| R1 Safe fixed unit | 2, 3, 4, 5, 6 | Real Git/worktree tests, unit fixtures, lock contention, live refusal |
+| R2 Native/fresh/models | 1, 2, 3, 5, 6 | Native RPC dispatch, observed state/session identity, recommender regression tests |
+| R3 Decisions | 1, 2, 3, 4, 5, 6 | Real bridge RPC dialog, correlation failures, live TUI approval/dismissal |
+| R4 Typed settled outcomes | 1, 3, 4, 5, 6 | Actual tool events, fake-process lifecycle tests, live settled outcomes |
+| R5 Simplify/verify | 2, 3, 4, 5, 6 | Real Git transitions, commit/push failure fixtures, live closeout |
+| R6 Manual handoffs | 1, 2, 3, 6 | Native expansion round-trips and template contracts |
+| R7 Bounds/ownership/cancel | 1, 3, 4, 5, 6 | Competing processes, bounded stream tests, actual termination and live cancellation |
+| R8 Reporting | 3, 4, 5, 6 | Structured run records/final reports across terminal outcomes |
 
 ## Execution Notes
-- Run all npm gates from the worktree's `dot_pi/agent`; helper tests import only `node:*` and relative `.ts` files, so the focused command works even before `npm ci`.
-- The plan ledger starts committed; update checkboxes and the `### Execution` skills subsection as work progresses.
-- Open the draft PR per the `/execute` workflow after Task 4; stack-split signals are not expected (one subsystem, well under the line/file thresholds).
-- If a pooled model is unavailable during the manual run, record which and continue with the next available pair; do not edit pools to force a pass.
-
-## Documentation and Operational Impact
-- `dot_pi/agent/AGENTS.md`: one durable trap line (Task 3); no other docs exist for extensions.
-- No user-facing docs, runbooks, dashboards, or alerts: solo dev tool whose only surface is `/ship` output via `notify`/`setEditorText`.
-- Rollout/rollback per the Implementation Contract; owner: Matteo.
+- This is one execution unit: complete all six tasks or stop explicitly blocked. No `### Slice N` headings are used because partial transport/template work cannot establish the approved feedback slice.
+- Preserve this planning provenance and add `### Execution` beneath `## Skills loaded and used` when execution starts. Update checkboxes and append evidence without changing approved requirements.
+- Before implementation, run `/systematic-review` on this plan. If the documented fixture-provider/bridge integration or exact native task preservation fails, return to planning; do not introduce an unapproved interface or weaken evidence.
+- This plan intentionally changes more than fifteen files. Apply the existing stack-split check before a draft PR. Internal protocol/template commits may be reviewed separately, but no partial delivery can claim the complete coordinator; ask before choosing a PR stack or overriding review boundaries.
+- Planning changes only this file. No application, implementation, dependency installation, or runtime rollout is part of the planning commit.

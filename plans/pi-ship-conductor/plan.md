@@ -23,12 +23,32 @@
 | `write` | skill-loader | Plan prose | Kept contracts, uncertainty, and stop conditions explicit |
 | `diataxis` | skill-loader | Documentation | Separated usage/recovery guidance from protocol reference |
 
+### Execution
+Current task: Task 1, rebase onto the user-approved updated `main` baseline. Status: in progress.
+
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `skill-loader` | prompt-required | Execution workflow | Selected execution-stage guidance before repository work |
+| `resolve-worktree` | prompt-required | Explicit plan path | Resolved the plan and switched to its owning worktree |
+| `feature-worktree` | prompt-required | Plan-based code changes | Confirmed the existing feature worktree is the correct target |
+| `codebase-research` | skill-loader | Cross-component coordinator replacement | Mapped the current coordinator, lifecycle templates, tests, and relevant feedback |
+| `chezmoi` | skill-loader | Managed dotfiles source | Kept edits in the source tree and deferred target application |
+| `cli-best-practices` | skill-loader | Command and protocol changes | Reviewed explicit input, structured outcome, and failure contracts |
+| `write` | skill-loader | Plan and README prose | Applied concise, evidence-based wording guidance |
+| `diataxis` | skill-loader | Extension usage and recovery docs | Checked the planned README split between usage/recovery guidance and protocol reference |
+| `reviewable-pr-workflow` | agent-selected | Existing PR history and planned PR handoff | Checked review state, rebase safety, and the stack-split gate |
+
+Execution PR-history check: closed PR #69 has six CodeRabbit bot comments. Comments on default-branch and Git-status failures are covered by Task 3; process-close, escalation, and listener cleanup are covered by Task 4. The two marker-parser comments do not apply to the approved structured-RPC replacement. This corrects the planning note below that no PR feedback was identified; no scope change is needed.
+
+Rebase note: an initial rebase onto `b346344` completed with the expected `dot_pi/agent/package.json` and `AGENTS.md` conflicts resolved. The base checkout and `origin/main` then fast-forwarded to `a00fb7c` (`chore(pi): update agent dependencies to latest stable releases (#128)`). The user approved using this updated main. Rebase onto `a00fb7c23d6ca0aa6ac10175082f8528c037c61d` is pending; no implementation has started.
+
 ## Approval and source ledger
 - Source of truth: `plans/pi-ship-conductor/design.md`, approved design at `07716f7`.
-- The user confirmed the planning alignment brief, single-slice boundary, proposed limits, and `/systematic-review` resolutions: rebase `maruina/pi-ship-conductor` onto `main` (`b346344`) at the start of execution (which drops `lifecycle-model-recommender`, already removed on `main` in `b3a3c35`, and brings in `pi-client-session-id` and current lifecycle skills/templates), and require `--implemented-by` with optional `--simplified-by` on `/verify`.
+- The user confirmed the planning alignment brief, single-slice boundary, proposed limits, and `/systematic-review` resolutions: initially rebase `maruina/pi-ship-conductor` onto `main` (`b346344`) at the start of execution (which drops `lifecycle-model-recommender`, already removed on `main` in `b3a3c35`, and brings in `pi-client-session-id` and current lifecycle skills/templates), and require `--implemented-by` with optional `--simplified-by` on `/verify`.
+- Execution alignment update: after `main` advanced to `a00fb7c23d6ca0aa6ac10175082f8528c037c61d`, the user directed using that updated baseline. This supersedes the original rebase target. The baseline includes its Pi 1.5.0, TypeScript 7.0.2, and lockfile updates; the feature must not add further dependency or lockfile changes without approval.
 - Scope classification: Large/Risky because transport, shared templates, approvals, provenance, and local state change together.
 - This replaces the historical two-stage plan. Completed historical tasks and evidence remain in Git at `07716f7:plans/pi-ship-conductor/plan.md`; do not treat those checkboxes as completion of this replacement.
-- Research baseline: feature branch `maruina/pi-ship-conductor` rebased onto `main` baseline `b346344d8e50b40dfa056e2bbddf9262bf010a60`.
+- Original research baseline: feature branch `maruina/pi-ship-conductor` and `main` at `b346344d8e50b40dfa056e2bbddf9262bf010a60`. Execution uses the user-approved updated baseline recorded above.
 - Existing coordinator focused tests passed 56/56 during planning. This is old-behavior evidence only.
 - Installed Pi 1.5.0 docs reviewed: RPC lifecycle, commands, UI protocol, native prompt expansion, command provenance, custom tools, structured output example, and RPC UI example. Installed source confirms `parseCommandArgs` and `substituteArgs` behavior.
 - Advisory lookup returned zero matching sections. No learning guidance changed this plan.
@@ -57,10 +77,10 @@ Inspect `dot_pi/agent/AGENTS.md` too; change it only if required durable guidanc
 ### Key Decisions
 1. Replace `/ship`; no alias. Reuse worktree and injected-boundary patterns, not marker parsing, automatic pools, or one-shot transport.
 2. Use a narrow adapter over documented native RPC. Exported `RpcClient` offers less code but lacks a public UI-response operation. Do not access its private internals.
-3. Rebase `maruina/pi-ship-conductor` onto `main` (`b346344`) before editing code so the worktree has `pi-client-session-id` (required by work-profile `models.json.tmpl`), current skills (`feature-worktree`, `learning-candidates`, `skill-loader`, `reviewable-pr-workflow`), and the removal of `lifecycle-model-recommender` (`b3a3c35`). Templates remain policy owners; layer the `/implement` bridge and dual-writer provenance directly onto `main`'s templates.
+3. Rebase `maruina/pi-ship-conductor` onto the user-approved `main` baseline (`a00fb7c23d6ca0aa6ac10175082f8528c037c61d`) before editing code. This baseline includes `pi-client-session-id`, current skills and lifecycle templates, the removal of `lifecycle-model-recommender` (`b3a3c35`), and the Pi 1.5.0 / TypeScript 7.0.2 dependency updates from main. Templates remain policy owners; layer the `/implement` bridge and dual-writer provenance directly onto `main`'s templates.
 4. `lifecycle-model-recommender` was removed on `main` (`b3a3c35`), so no recommender file remains after rebase. Child sessions still isolate orchestration config via `PI_LIFECYCLE_CHILD_CONFIG` and validate `get_state` model/thinking before and after each stage so any unexpected model mutation stops the run.
 5. Use `PI_LIFECYCLE_CHILD_CONFIG` as a child-only environment pointer to a private immutable stage configuration. The bridge validates its file, run/stage IDs, expected worktree, and protocol version before registration. The parent does not set this marker in its own environment. Invalid child configuration fails preflight, not ordinary manual behavior. The marker is coordination metadata, not an authentication boundary.
-6. Keep existing dependency versions. Installed runtime 1.5.0 is the supported integration target; development types at 0.80.6 are insufficient proof. Use compatible existing registration APIs and schema facilities; require real-runtime tests. Do not add newer APIs such as terminating tool results merely for convenience. If compatible registration is impossible, stop for an approved enabling dependency change.
+6. Keep the dependency versions from the user-approved updated main baseline; do not add feature-specific dependency or lockfile changes. Installed runtime and declared Pi package APIs are 1.5.0, but type declarations are not proof of runtime behavior. Use compatible existing registration APIs and schema facilities; require real-runtime tests. Do not add newer APIs such as terminating tool results merely for convenience. If compatible registration is impossible, stop for an approved enabling dependency change.
 7. Execute and simplify may share a model; verify differs from both selections, including no-change simplify. Use provider-qualified IDs, plus conservative known alias normalization. Unknown cross-provider equivalence requires clarification before claiming independence; provider labels alone do not prove different underlying models.
 8. Inherit coordinator thinking level, let native Pi apply supported limits, and display/record effective settings. Never silently substitute a model.
 9. One complete shippable slice is required. Protocol and manual handoff work can have green commits but are not sufficient to declare the feature delivered.
@@ -139,7 +159,7 @@ Inspect `dot_pi/agent/AGENTS.md` too; change it only if required durable guidanc
 | Cancellation/parent shutdown in any state | Stop active child before unlock; no subsequent stage | Graceful/forced termination tests |
 
 ### Rollout and Rollback
-- Before Task 1 edits code, rebase `maruina/pi-ship-conductor` onto `main` (`b346344d8e50b40dfa056e2bbddf9262bf010a60`) in this feature worktree, resolving the `AGENTS.md` and `dot_pi/agent/package.json` conflicts so `main`'s current skills, prompts, `pi-client-session-id` extension, and `lifecycle-model-recommender` removal are present without moving the `main` branch ref.
+- Before Task 1 edits code, rebase `maruina/pi-ship-conductor` onto the user-approved `main` baseline (`a00fb7c23d6ca0aa6ac10175082f8528c037c61d`) in this feature worktree. Resolve conflicts so main's current skills, prompts, `pi-client-session-id` extension, dependency manifest, and lockfile are preserved with `ship-conductor/*.test.ts`, without moving the `main` branch ref.
 - First exercise the candidate extension and prompts through explicit temporary Pi resource paths in a disposable worktree. For test-only prompt isolation, enumerate effective prompt sources, use documented `--no-prompt-templates`, and re-add them with repeated `--prompt-template` paths, replacing only execute/simplify/verify with candidate paths. Retain every other required template and normal configured extensions/MCP capabilities. Validate `get_commands` provenance before dispatch. This avoids duplicate-name precedence assumptions without changing rendered targets. The old installed `/ship` can remain inert during this test; its removal is checked in candidate registration tests and after the reviewed target rollout. No live target application is needed to prove candidate behavior.
 - After `/verify` returns VERIFIED, preview and apply only reviewed explicit targets with `chezmoi --source "$PWD"`. Targets: changed files under `~/.pi/agent/extensions/ship-conductor/`, the three prompt files, changed test scripts, `~/.pi/agent/package.json`, and applicable rendered guidance. Include explicit deletion targets for obsolete helpers. Do not trust directory-only diff/verify.
 - Reload Pi and confirm `/implement` exists and `/ship` does not. Owner: Matteo. Commit/push implementation only under the normal lifecycle and repository completion policy; this plan commit does not apply runtime targets.
@@ -294,12 +314,12 @@ The system SHALL report per-stage state/model, selected unit, candidate commits,
 The following tasks form one integration unit, not independently authorized product slices. Every task must be green before its commit. If native protocol feasibility fails in Task 1, stop before building later tasks. Do not orchestrate this replacement with the old `/ship` implementation.
 
 ### Task 1: Rebase onto main and prove the native child bridge and exact input contract
-**Delivers:** Branch rebased onto `main` (`b346344`) plus deterministic real-Pi evidence that registered bridge tools produce structured events, approvals round-trip, and native expansion preserves handoff data.
+**Delivers:** Branch rebased onto the user-approved updated `main` baseline (`a00fb7c`) plus deterministic real-Pi evidence that registered bridge tools produce structured events, approvals round-trip, and native expansion preserves handoff data.
 **Blocked by:** None
 **Traces to:** R2, R3, R4, R6, R7
 **Files:** `dot_pi/agent/exact_extensions/ship-conductor/_bridge.ts`, `_protocol.ts`, `_protocol.test.ts`, `_rpc.test.ts`, `_fixtures/rpc-driver.ts`, `_spawn.ts`, `_spawn.test.ts`, `_prompts.ts`, `_prompts.test.ts`.
 
-- [ ] Rebase `maruina/pi-ship-conductor` onto `main` (`b346344d8e50b40dfa056e2bbddf9262bf010a60`) in this worktree without moving `main`, resolving `AGENTS.md` and `dot_pi/agent/package.json` conflicts so `main`'s current skills, prompts, `pi-client-session-id` extension, and `test:unit` entries are preserved alongside `ship-conductor/*.test.ts`. Confirm `git status` is clean after the rebase.
+- [ ] Rebase `maruina/pi-ship-conductor` onto the user-approved updated `main` baseline (`a00fb7c23d6ca0aa6ac10175082f8528c037c61d`) in this worktree without moving `main`, preserving the updated dependency manifest and lockfile plus `main`'s current skills, prompts, `pi-client-session-id` extension, and `test:unit` entries alongside `ship-conductor/*.test.ts`. Confirm `git status` is clean after the rebase.
 - [ ] Read relevant installed Pi docs/examples in full before harness implementation, including custom-provider streaming and its shipped example. Use the explicitly loaded in-memory fixture provider to drive actual bridge tool calls through the native agent loop. Install development dependencies with `npm ci --ignore-scripts` from `dot_pi/agent`; keep them until full gates finish.
 - [ ] Add focused failing protocol/native-runtime tests before changing production behavior. Run `node --experimental-strip-types --test exact_extensions/ship-conductor/_protocol.test.ts exact_extensions/ship-conductor/_rpc.test.ts`; expect missing bridge/protocol behavior to fail initially.
 - [ ] Implement the versioned child-only bridge (including stage-contract injection and config validation), bounded RPC adapter (including `get_state`/`get_commands` preflight and `disposition === "started"` enforcement), and test-only explicit driver. Keep old command tests green until the command is replaced; do not add a second maintained coordinator mode.
@@ -335,7 +355,7 @@ The following tasks form one integration unit, not independently authorized prod
 - [ ] Validate child stage-config isolation (`PI_LIFECYCLE_CHILD_CONFIG`), add tests for marked child, invalid child config, ordinary RPC/TUI, and no leaked parent marker.
 - [ ] Pin original Git objects and selected unit, acquire/recheck ownership before dispatch, validate observed models and effective thinking via `get_state` plus candidate state on each transition, and persist records atomically. Reject unknown provenance and model drift conservatively.
 - [ ] Keep approval replies correlated and never automatic. Keep parent repository work/nested orchestration blocked cooperatively while children own the worktree. Verify child context payloads contain no predecessor transcript/report narrative.
-- [ ] Wire tests into existing `test:unit` enumeration, preserving other entries. No dependency or lockfile upgrade is authorized.
+- [ ] Wire tests into existing `test:unit` enumeration, preserving other entries. Make no additional dependency or lockfile changes beyond the user-approved updated main baseline.
 - [ ] Run `node --experimental-strip-types --test 'exact_extensions/ship-conductor/*.test.ts'`; expect green.
 - [ ] Run LSP diagnostics for changed TypeScript. Refactor only after green, rerun narrow tests, and commit with `feat(pi): replace ship with single-round implement coordinator`.
 

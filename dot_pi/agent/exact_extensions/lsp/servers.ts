@@ -3,6 +3,20 @@ import { basename, dirname, extname, join, resolve } from "node:path";
 import type { Diagnostic, DocumentSymbol, ServerConfig } from "./protocol";
 import { diagnosticsDetails, findExecutable, flattenSymbols, isInsidePath, relativePath, symbolKindName } from "./utils";
 
+export function typescriptServerConfig(filePath: string, config: ServerConfig): ServerConfig {
+  let dir = dirname(resolve(filePath));
+  while (!existsSync(join(dir, "node_modules/typescript/package.json"))) {
+    const parent = dirname(dir);
+    if (parent === dir) return config;
+    dir = parent;
+  }
+  const packagePath = join(dir, "node_modules/typescript/package.json");
+  const pkg = JSON.parse(readFileSync(packagePath, "utf8")) as { version: string; bin?: { tsc?: string } };
+  if (!/^7\./.test(pkg.version)) return config;
+  if (!pkg.bin?.tsc) throw new Error(`TypeScript ${pkg.version} at ${packagePath} has no tsc executable`);
+  return { ...config, command: resolve(dirname(packagePath), pkg.bin.tsc), args: ["--lsp", "--stdio"] };
+}
+
 const YAML_EXTENSIONS = [".yaml", ".yml"];
 const HELM_TEMPLATE_EXTENSIONS = [".yaml", ".yml", ".tpl", ".txt"];
 

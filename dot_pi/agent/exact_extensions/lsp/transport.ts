@@ -36,7 +36,8 @@ export class LspClient {
     this.process.stderr.on("data", (chunk: Buffer) => this.recordStderr(chunk.toString("utf8")));
     this.process.on("error", (err) => this.failAll(new Error(`${this.config.label} LSP error: ${err.message}`)));
     this.process.on("exit", (code, signal) => { this.exited = true; this.initialized = false; this.failAll(new Error(`${this.config.label} LSP exited with ${signal ?? `code ${code ?? "unknown"}`}${this.stderr ? `\n${this.stderr}` : ""}`)); });
-    return this.initialize();
+    try { return await this.initialize(); }
+    catch (err) { this.process?.kill(); this.process = null; this.initialized = false; throw err; }
   }
 
   private recordStderr(text: string) { this.stderr = (this.stderr + text).slice(-STDERR_LIMIT); }
@@ -105,7 +106,7 @@ export class LspClient {
       processId: process.pid,
       rootUri: pathToFileURL(this.workspaceRoot).href,
       workspaceFolders: [{ uri: pathToFileURL(this.workspaceRoot).href, name: basename(this.workspaceRoot) }],
-      capabilities: { general: { positionEncodings: ["utf-16"] }, textDocument: { synchronization: { didOpen: true, didChange: true, didClose: true }, hover: { contentFormat: ["plaintext", "markdown"] }, definition: { linkSupport: false }, typeDefinition: { linkSupport: false }, implementation: { linkSupport: false }, references: {}, publishDiagnostics: { relatedInformation: true }, documentSymbol: { hierarchicalDocumentSymbolSupport: true }, callHierarchy: { dynamicRegistration: false }, rename: { dynamicRegistration: false, prepareSupport: false }, codeAction: { dynamicRegistration: false, codeActionLiteralSupport: { codeActionKind: { valueSet: ["quickfix", "source", "source.organizeImports", "refactor", "refactor.rewrite"] } } } }, workspace: { workspaceFolders: true, symbol: {}, applyEdit: false } },
+      capabilities: { general: { positionEncodings: ["utf-16"] }, textDocument: { diagnostic: { dynamicRegistration: false }, synchronization: { didOpen: true, didChange: true, didClose: true }, hover: { contentFormat: ["plaintext", "markdown"] }, definition: { linkSupport: false }, typeDefinition: { linkSupport: false }, implementation: { linkSupport: false }, references: {}, publishDiagnostics: { relatedInformation: true }, documentSymbol: { hierarchicalDocumentSymbolSupport: true }, callHierarchy: { dynamicRegistration: false }, rename: { dynamicRegistration: false, prepareSupport: false }, codeAction: { dynamicRegistration: false, codeActionLiteralSupport: { codeActionKind: { valueSet: ["quickfix", "source", "source.organizeImports", "refactor", "refactor.rewrite"] } } } }, workspace: { workspaceFolders: true, symbol: {}, applyEdit: false } },
       initializationOptions: this.config.initializationOptions,
     });
     this.capabilities = result.capabilities ?? {};
@@ -131,14 +132,18 @@ export class LspClient {
     if (!existing) {
       this.diagnosticsByUri.delete(uri);
       this.send({ jsonrpc: "2.0", method: "textDocument/didOpen", params: { textDocument: { uri, languageId: this.config.languageId(filePath), version: 1, text } } });
-      this.openDocuments.set(uri, { version: 1, mtimeMs: stat.mtimeMs, size: stat.size, textHash });
+      this.openDocuments.set(uri, { version: 1, mtimeMs: stat.mtimeMs, size: stat.size, textHash, text });
       return uri;
     }
     if (existing.textHash !== textHash) {
       const version = existing.version + 1;
       this.diagnosticsByUri.delete(uri);
-      this.send({ jsonrpc: "2.0", method: "textDocument/didChange", params: { textDocument: { uri, version }, contentChanges: [{ text }] } });
-      this.openDocuments.set(uri, { version, mtimeMs: stat.mtimeMs, size: stat.size, textHash });
+      const sync = this.capability("textDocumentSync");
+      const change = typeof sync === "number" ? sync : this.capability("textDocumentSync.change");
+      const lines = existing.text.split("\n");
+      const range = change === 2 ? { start: { line: 0, character: 0 }, end: { line: lines.length - 1, character: lines[lines.length - 1].length } } : undefined;
+      this.send({ jsonrpc: "2.0", method: "textDocument/didChange", params: { textDocument: { uri, version }, contentChanges: [range ? { range, text } : { text }] } });
+      this.openDocuments.set(uri, { version, mtimeMs: stat.mtimeMs, size: stat.size, textHash, text });
     } else this.openDocuments.set(uri, { ...existing, mtimeMs: stat.mtimeMs, size: stat.size });
     return uri;
   }
@@ -157,7 +162,13 @@ export class LspClient {
   async outgoingCalls(item: CallHierarchyItem, signal?: AbortSignal): Promise<CallHierarchyOutgoingCall[]> { if (!this.hasCapability("callHierarchyProvider")) return []; return await this.request<CallHierarchyOutgoingCall[] | null>("callHierarchy/outgoingCalls", { item }, signal) ?? []; }
   async codeActions(filePath: string, range: Range, diagnostics: Diagnostic[], signal?: AbortSignal): Promise<CodeAction[]> { if (!this.hasCapability("codeActionProvider")) return []; const uri = await this.syncDocument(filePath); return await this.request<CodeAction[] | null>("textDocument/codeAction", { textDocument: { uri }, range, context: { diagnostics } }, signal) ?? []; }
   async rename(filePath: string, line: number, character: number, newName: string, signal?: AbortSignal): Promise<WorkspaceEdit | null> { if (!this.hasCapability("renameProvider")) return null; const uri = await this.syncDocument(filePath); for (const position of lspPositionCandidates(filePath, line, character)) { const edit = await this.request<WorkspaceEdit | null>("textDocument/rename", { textDocument: { uri }, position, newName }, signal); if (edit && (Object.keys(edit.changes ?? {}).length || edit.documentChanges?.length)) return edit; } return null; }
-  async waitForDiagnostics(filePath: string, timeoutMs = DIAGNOSTICS_WAIT_MS) { const uri = pathToFileURL(filePath).href; if (this.diagnosticsByUri.has(uri)) return; await new Promise<void>((resolve) => { const waiters = this.diagnosticsWaiters.get(uri) ?? new Set<() => void>(); let timer: NodeJS.Timeout; const done = () => { clearTimeout(timer); waiters.delete(done); if (waiters.size === 0 && this.diagnosticsWaiters.get(uri) === waiters) this.diagnosticsWaiters.delete(uri); resolve(); }; timer = setTimeout(done, timeoutMs); waiters.add(done); this.diagnosticsWaiters.set(uri, waiters); }); }
+  async waitForDiagnostics(filePath: string, timeoutMs = DIAGNOSTICS_WAIT_MS) { const uri = pathToFileURL(filePath).href;
+    if (this.hasCapability("diagnosticProvider")) {
+      const result = await this.request<{ kind: string; items?: Diagnostic[] }>("textDocument/diagnostic", { textDocument: { uri }, identifier: this.capability("diagnosticProvider.identifier") });
+      if (result.kind === "full") this.diagnosticsByUri.set(uri, result.items ?? []);
+      return;
+    }
+    if (this.diagnosticsByUri.has(uri)) return; await new Promise<void>((resolve) => { const waiters = this.diagnosticsWaiters.get(uri) ?? new Set<() => void>(); let timer: NodeJS.Timeout; const done = () => { clearTimeout(timer); waiters.delete(done); if (waiters.size === 0 && this.diagnosticsWaiters.get(uri) === waiters) this.diagnosticsWaiters.delete(uri); resolve(); }; timer = setTimeout(done, timeoutMs); waiters.add(done); this.diagnosticsWaiters.set(uri, waiters); }); }
   diagnostics(filePath?: string): Map<string, Diagnostic[]> { const out = new Map<string, Diagnostic[]>(); for (const [uri, diagnostics] of this.diagnosticsByUri) { const path = uriToPath(uri); if (!filePath || path === filePath) out.set(path, diagnostics); } return out; }
   debugState() { return { running: this.isRunning, initialized: this.isInitialized, command: this.config.command, commandPath: this.commandPath, args: this.config.args, activeOverride: this.config.activeOverride, env: this.config.env ?? {}, openDocuments: this.openDocuments.size, diagnostics: [...this.diagnosticsByUri.values()].reduce((sum, items) => sum + items.length, 0), syncingDocuments: this.syncingDocuments.size }; }
   async shutdown() { if (!this.process) return; try { await this.request("shutdown", undefined, undefined, SHUTDOWN_TIMEOUT_MS); this.send({ jsonrpc: "2.0", method: "exit" }); } catch { /* server may already be gone */ } this.process.kill(); this.process = null; this.initialized = false; this.openDocuments.clear(); this.syncingDocuments.clear(); this.failAll(new Error("LSP client shut down")); }

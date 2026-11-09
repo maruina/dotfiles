@@ -237,6 +237,82 @@ test("document sync coalesces concurrent opens for the same URI", async () => {
   assert.equal(calls, 1);
 });
 
+test("TypeScript selection uses the workspace package and preserves the legacy path", () => {
+  const base = servers.SERVER_CONFIGS.find((c) => c.id === "typescript");
+  const root = tempDir();
+  const pkg = join(root, "node_modules/typescript");
+  mkdirSync(pkg, { recursive: true });
+  writeFileSync(join(pkg, "package.json"), JSON.stringify({ version: "7.0.2", bin: { tsc: "bin/tsc" } }));
+  const selected = servers.typescriptServerConfig(join(root, "index.ts"), base);
+  assert.equal(selected.command, join(pkg, "bin/tsc"));
+  assert.deepEqual(selected.args, ["--lsp", "--stdio"]);
+  writeFileSync(join(pkg, "package.json"), JSON.stringify({ version: "6.0.3" }));
+  assert.equal(servers.typescriptServerConfig(join(root, "index.ts"), base), base);
+  assert.equal(servers.typescriptServerConfig(join(tempDir(), "index.ts"), base), base);
+});
+
+test("real TypeScript 7.0.2 initializes, syncs, and serves the registered tools", async () => {
+  const base = servers.SERVER_CONFIGS.find((c) => c.id === "typescript");
+  const file = join(agentRoot, "node_modules/.pi-lsp-integration.ts");
+  const { rmSync } = await import("node:fs");
+  writeFileSync(file, "export const value = 1;\nconst use: string = value;\n");
+  const config = servers.typescriptServerConfig(file, base);
+  const client = new transport.LspClient(agentRoot, config, config.command);
+  const app = fakePi();
+  entry.default(app.pi);
+  try {
+    const info = await client.start();
+    assert.equal(info.serverInfo.version, "7.0.2");
+    assert.equal(info.capabilities.textDocumentSync.change, 2);
+    assert.equal(info.capabilities.diagnosticProvider.identifier, "typescript");
+    await client.openDocument(file);
+    await client.waitForDiagnostics(file);
+    assert.ok(client.diagnostics(file).get(file).some((d) => d.code === 2322));
+    writeFileSync(file, "export const value = 123;\nexport const use: number = value;\n");
+    await client.openDocument(file);
+    await client.waitForDiagnostics(file);
+    assert.deepEqual(client.diagnostics(file).get(file), []);
+    for (const name of ["lsp_go_to_definition", "lsp_find_references"]) {
+      const result = await app.tools.get(name).execute("integration", { file, line: 2, column: 28 }, undefined, undefined, { cwd: agentRoot });
+      assert.ok(result.details.locations.length > 0, JSON.stringify(result));
+    }
+    writeFileSync(file, "export const value = 1;\nconst use: string = value;\n");
+    const result = await app.tools.get("lsp_diagnostics").execute("integration", { file }, undefined, undefined, { cwd: agentRoot });
+    assert.ok(result.details.diagnostics.some((d) => d.code === 2322), JSON.stringify(result));
+  } finally {
+    await client.shutdown();
+    for (const h of app.handlers.filter((h) => h.name === "session_shutdown")) await h.handler();
+    rmSync(file, { force: true });
+  }
+  assert.equal(client.isRunning, false);
+});
+
+test("startup failure rejects and cleans up the process", async () => {
+  const config = { id: "x", label: "X", command: "missing", args: [], languageId: () => "x" };
+  const client = new transport.LspClient(tempDir(), config, "/does-not-exist/pi-lsp");
+  await assert.rejects(client.start(), /ENOENT/);
+  assert.equal(client.isRunning, false);
+});
+
+test("startup exit includes stderr and leaves no running process", async () => {
+  const config = { id: "x", label: "X", command: process.execPath, args: ["-e", "process.stderr.write('startup failed'); process.exit(23)"], languageId: () => "x" };
+  const client = new transport.LspClient(tempDir(), config, process.execPath);
+  await assert.rejects(client.start(), /code 23[\s\S]*startup failed/);
+  assert.equal(client.isRunning, false);
+  assert.equal(client.pending.size, 0);
+});
+
+test("incremental sync replaces the old UTF-16 range", async () => {
+  const file = join(tempDir(), "index.ts");
+  writeFileSync(file, "const value = '😀';\n");
+  const { client, writes } = fakeClient();
+  client.capabilities = { textDocumentSync: { openClose: true, change: 2 } };
+  await client.openDocument(file);
+  writeFileSync(file, "export const value = 2;\n");
+  await client.openDocument(file);
+  assert.deepEqual(rpcBodies(writes)[1].params.contentChanges, [{ range: { start: { line: 0, character: 0 }, end: { line: 1, character: 0 } }, text: "export const value = 2;\n" }]);
+});
+
 test("LspClient debug state is safe before startup", () => {
   const client = new transport.LspClient(process.cwd(), { id: "x", label: "X", command: "x", args: [], extensions: [], rootMarkers: [], languageId: () => "x" }, "/bin/false");
 

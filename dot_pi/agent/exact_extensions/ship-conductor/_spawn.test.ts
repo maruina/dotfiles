@@ -1,17 +1,22 @@
 import { strict as assert } from "node:assert";
 import { existsSync } from "node:fs";
 import { EventEmitter } from "node:events";
-import { Readable } from "node:stream";
+import { PassThrough, Readable, Writable } from "node:stream";
 import { describe, it } from "node:test";
 import {
   buildStageArgs,
+  buildRpcStageArgs,
   describeFailure,
   getPiInvocation,
   isStageFailure,
   runStage,
+  startRpcSession,
+  preflightRpcStage,
+  promptRpcStage,
   stderrTail,
   type Spawner,
   type StageResult,
+  type RpcRecord,
 } from "./_spawn.ts";
 
 class FakeProc extends EventEmitter {
@@ -196,5 +201,209 @@ describe("runStage", () => {
     const result = await runStage(spawner, { command: "pi", args: [] }, "/wt", abortController.signal);
     assert.equal(result.aborted, true);
     assert.ok(proc?.killed);
+  });
+});
+
+class FakeRpcProc extends EventEmitter {
+  stdout = new PassThrough();
+  stderr = new PassThrough();
+  stdin: Writable;
+  requests: RpcRecord[] = [];
+  closed = false;
+  private input = "";
+  private readonly onCommand: (record: RpcRecord) => void;
+
+  constructor(onCommand: (record: RpcRecord) => void) {
+    super();
+    this.onCommand = onCommand;
+    this.stdin = new Writable({
+      write: (chunk, _encoding, callback) => {
+        this.input += chunk.toString("utf8");
+        let newline = this.input.indexOf("\n");
+        while (newline !== -1) {
+          const line = this.input.slice(0, newline).replace(/\r$/, "");
+          this.input = this.input.slice(newline + 1);
+          const record = JSON.parse(line) as RpcRecord;
+          this.requests.push(record);
+          this.onCommand(record);
+          newline = this.input.indexOf("\n");
+        }
+        callback();
+      },
+      final: (callback) => {
+        this.closed = true;
+        this.stdout.end();
+        this.stderr.end();
+        setImmediate(() => this.emit("close", 0, null));
+        callback();
+      },
+    });
+  }
+
+  emitRecord(record: RpcRecord): void {
+    const bytes = Buffer.from(`${JSON.stringify(record)}\r\n`);
+    this.stdout.write(bytes.subarray(0, Math.min(5, bytes.length)));
+    this.stdout.write(bytes.subarray(Math.min(5, bytes.length)));
+  }
+
+  kill(_signal: NodeJS.Signals): boolean {
+    if (this.closed) return false;
+    this.closed = true;
+    this.stdout.end();
+    this.stderr.end();
+    setImmediate(() => this.emit("close", 143, "SIGTERM"));
+    return true;
+  }
+}
+
+type FakeRpcOptions = {
+  disposition?: string;
+  model?: { provider: string; id: string };
+  thinkingLevel?: string;
+  isStreaming?: boolean;
+  commands?: RpcRecord[];
+};
+
+function fakeRpc(options: FakeRpcOptions = {}) {
+  let proc: FakeRpcProc;
+  proc = new FakeRpcProc((request) => {
+    if (request.type === "extension_ui_response") return;
+    const data =
+      request.type === "get_state"
+        ? {
+            model: options.model ?? { provider: "fixture", id: "driver" },
+            thinkingLevel: options.thinkingLevel ?? "minimal",
+            isStreaming: options.isStreaming ?? false,
+            sessionId: "session-fixture",
+          }
+        : request.type === "get_commands"
+          ? {
+              commands:
+                options.commands ?? [
+                  { name: "execute", source: "prompt", sourceInfo: { path: "/wt/prompts/execute.md" } },
+                ],
+            }
+          : request.type === "prompt"
+            ? { disposition: options.disposition ?? "started" }
+            : {};
+    setImmediate(() =>
+      proc.emitRecord({
+        id: request.id,
+        type: "response",
+        command: request.type,
+        success: true,
+        data,
+      }),
+    );
+  });
+  const session = startRpcSession(
+    (_command, _args, spawnOptions) => {
+      assert.equal(spawnOptions.cwd, "/wt");
+      assert.equal(spawnOptions.env.PI_LIFECYCLE_CHILD_CONFIG, "/tmp/stage.json");
+      return proc;
+    },
+    { command: "pi", args: [] },
+    "/wt",
+    { PI_LIFECYCLE_CHILD_CONFIG: "/tmp/stage.json" },
+  );
+  return { session, proc };
+}
+
+const RPC_PREFLIGHT = {
+  commandName: "execute",
+  promptPath: "/wt/prompts/execute.md",
+  model: { provider: "fixture", id: "driver" },
+  thinkingLevel: "minimal",
+};
+
+describe("buildRpcStageArgs", () => {
+  it("starts a fresh RPC child with the selected provider, model, thinking, and bridge", () => {
+    assert.deepEqual(
+      buildRpcStageArgs("fixture", "driver", "minimal", "/agent/ship-conductor/_bridge.ts"),
+      [
+        "--mode",
+        "rpc",
+        "--no-session",
+        "--provider",
+        "fixture",
+        "--model",
+        "driver",
+        "--thinking",
+        "minimal",
+        "-e",
+        "/agent/ship-conductor/_bridge.ts",
+      ],
+    );
+  });
+});
+
+describe("RPC stage preflight and dispatch", () => {
+  it("checks observed model, thinking, session, and native prompt provenance before dispatch", async () => {
+    const { session } = fakeRpc();
+    try {
+      const state = await preflightRpcStage(session, RPC_PREFLIGHT);
+      assert.equal(state.sessionId, "session-fixture");
+      assert.deepEqual(state.model, { provider: "fixture", id: "driver" });
+      assert.equal(state.thinkingLevel, "minimal");
+      const response = await promptRpcStage(session, "# Execute\nfixture input");
+      assert.equal((response.data as RpcRecord).disposition, "started");
+    } finally {
+      await session.close();
+    }
+  });
+
+  it("refuses a model or effective-thinking mismatch", async () => {
+    const wrongModel = fakeRpc({ model: { provider: "other", id: "driver" } });
+    await assert.rejects(preflightRpcStage(wrongModel.session, RPC_PREFLIGHT), /model/i);
+    await wrongModel.session.close();
+
+    const wrongThinking = fakeRpc({ thinkingLevel: "off" });
+    await assert.rejects(preflightRpcStage(wrongThinking.session, RPC_PREFLIGHT), /thinking/i);
+    await wrongThinking.session.close();
+
+    const streaming = fakeRpc({ isStreaming: true });
+    await assert.rejects(preflightRpcStage(streaming.session, RPC_PREFLIGHT), /idle state/i);
+    await streaming.session.close();
+  });
+
+  it("refuses an extension command or a shadowed prompt path", async () => {
+    const extensionCommand = fakeRpc({
+      commands: [{ name: "execute", source: "extension", sourceInfo: { path: "/agent/extension.ts" } }],
+    });
+    await assert.rejects(preflightRpcStage(extensionCommand.session, RPC_PREFLIGHT), /prompt provenance/i);
+    await extensionCommand.session.close();
+
+    const shadowedCommand = fakeRpc({
+      commands: [{ name: "execute", source: "prompt", sourceInfo: { path: "/other/execute.md" } }],
+    });
+    await assert.rejects(preflightRpcStage(shadowedCommand.session, RPC_PREFLIGHT), /prompt provenance/i);
+    await shadowedCommand.session.close();
+  });
+
+  it("rejects handled and queued prompts instead of treating them as started work", async () => {
+    for (const disposition of ["handled", "queued"]) {
+      const { session } = fakeRpc({ disposition });
+      try {
+        await assert.rejects(promptRpcStage(session, "# Execute"), /not started.*disposition/i);
+      } finally {
+        await session.close();
+      }
+    }
+  });
+
+  it("forwards extension UI responses and emits non-response RPC records", async () => {
+    const { session, proc } = fakeRpc();
+    const observed: RpcRecord[] = [];
+    const unsubscribe = session.onRecord((record) => observed.push(record));
+    try {
+      proc.emitRecord({ type: "extension_ui_request", id: "ui-test", method: "select", options: ["Approve", "Reject"] });
+      await new Promise((resolve) => setImmediate(resolve));
+      assert.equal(observed[0]?.type, "extension_ui_request");
+      await session.send({ type: "extension_ui_response", id: "ui-test", value: "Approve" });
+      assert.deepEqual(proc.requests.at(-1), { type: "extension_ui_response", id: "ui-test", value: "Approve" });
+    } finally {
+      unsubscribe();
+      await session.close();
+    }
   });
 });

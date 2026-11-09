@@ -24,7 +24,7 @@
 | `diataxis` | skill-loader | Documentation | Separated usage/recovery guidance from protocol reference |
 
 ### Execution
-Current task: Task 1, align with the latest approved `main` and validate semantic navigation. Status: in progress; TypeScript edits remain blocked until the LSP route is confirmed.
+Current task: Task 1 complete. Continue with Task 2; the required Pi 1.5.0 bridge and native expansion evidence passed.
 
 | Skill | Source | Why loaded | How used |
 |---|---|---|---|
@@ -40,11 +40,15 @@ Current task: Task 1, align with the latest approved `main` and validate semanti
 
 Execution PR-history check: closed PR #69 has six CodeRabbit bot comments. Comments on default-branch and Git-status failures are covered by Task 3; process-close, escalation, and listener cleanup are covered by Task 4. The two marker-parser comments do not apply to the approved structured-RPC replacement. This corrects the planning note below that no PR feedback was identified; no scope change is needed.
 
-Rebase note: the branch was first rebased onto `b346344`, resolving the expected `dot_pi/agent/package.json` and `AGENTS.md` conflicts, then onto `a00fb7c23d6ca0aa6ac10175082f8528c037c61d` after the user approved updated main. Main has since advanced to `fc796d77749b1876fdc1518b8a8a06918fef6a2c`; the user directed using updated main, so the feature branch must rebase onto this current tip before implementation. The branch currently remains based on `a00fb7c` and preserves the Pi 1.5.0 / TypeScript 7.0.2 manifest and lockfile.
+Rebase note: the branch was first rebased onto `b346344`, resolving the expected `dot_pi/agent/package.json` and `AGENTS.md` conflicts, then onto `a00fb7c23d6ca0aa6ac10175082f8528c037c61d`. After the user directed using updated main, the plan was aligned to `fc796d77749b1876fdc1518b8a8a06918fef6a2c` and the feature branch was rebased onto that commit. The rebase completed cleanly, preserved the Pi 1.5.0 / TypeScript 7.0.2 manifest and lockfile plus the native TypeScript 7 LSP changes, and did not move `main`.
 
 Baseline review: changes from `b346344` through `fc796d7` affect the agent dependency manifest/lockfile and the TypeScript LSP extension. They do not change lifecycle templates or the coordinator implementation, so the approved behavior requirements remain applicable.
 
-LSP execution blocker: `npm ci --ignore-scripts` succeeded, and the relevant Pi 1.5.0 custom-provider, SDK, extension, RPC, event, UI, and prompt-template docs/examples were reviewed. `lsp_context` cannot initialize because TypeScript 7.0.2 has no `tsserver.js`; no alternate `tsserver.js` exists under the Pi agent install or global npm root. No implementation code has changed. Current main commit `fc796d7` adds a native TypeScript 7 LSP launch path in the Pi LSP extension; verify whether it can provide the required semantic navigation before requesting approval for another route. Do not edit TypeScript symbols until a compatible route is confirmed.
+Pi runtime review: read the installed Pi 1.5.0 SDK, extension, CLI, RPC, JSON event, prompt-template, message-type, custom-provider, and RPC UI documentation, plus the provider, subagent, RPC client/UI, demo, and structured-output examples. `npm ci --ignore-scripts` succeeded; Pi dependencies remain installed for the required gates.
+
+LSP resolution: after rebasing onto `fc796d7`, `lsp_context` succeeded for `shipConductor` in `dot_pi/agent/exact_extensions/ship-conductor/index.ts:15`. It returned the definition, one reference, and zero diagnostics. The previous TypeScript 7 language-server blocker is resolved; semantic navigation is available.
+
+Task 1 verification: the focused `_protocol`, `_rpc`, and `_spawn` tests passed 28/28; the existing coordinator and prompt tests passed 17/17. The Pi 1.5.0 RPC tests used the in-memory provider and the new adapter, verified approval UI request/response, structured tool outcomes, settled-without-outcome handling, and native expansion/source provenance for all three templates. All changed TypeScript files had zero LSP diagnostics. The temporary Git fixture disables commit signing to avoid inherited host configuration.
 
 ## Approval and source ledger
 - Source of truth: `plans/pi-ship-conductor/design.md`, approved design at `07716f7`.
@@ -323,14 +327,14 @@ The following tasks form one integration unit, not independently authorized prod
 **Traces to:** R2, R3, R4, R6, R7
 **Files:** `dot_pi/agent/exact_extensions/ship-conductor/_bridge.ts`, `_protocol.ts`, `_protocol.test.ts`, `_rpc.test.ts`, `_fixtures/rpc-driver.ts`, `_spawn.ts`, `_spawn.test.ts`, `_prompts.ts`, `_prompts.test.ts`.
 
-- [ ] Rebase `maruina/pi-ship-conductor` onto the user-approved current `main` baseline (`fc796d77749b1876fdc1518b8a8a06918fef6a2c`) in this worktree without moving `main`, preserving the updated dependency manifest and lockfile plus `main`'s current skills, prompts, `pi-client-session-id` extension, TypeScript 7 LSP support, and `test:unit` entries alongside `ship-conductor/*.test.ts`. Confirm `git status` is clean after the rebase.
-- [ ] Read relevant installed Pi docs/examples in full before harness implementation, including custom-provider streaming and its shipped example. Use the explicitly loaded in-memory fixture provider to drive actual bridge tool calls through the native agent loop. Install development dependencies with `npm ci --ignore-scripts` from `dot_pi/agent`; keep them until full gates finish.
-- [ ] Add focused failing protocol/native-runtime tests before changing production behavior. Run `node --experimental-strip-types --test exact_extensions/ship-conductor/_protocol.test.ts exact_extensions/ship-conductor/_rpc.test.ts`; expect missing bridge/protocol behavior to fail initially.
-- [ ] Implement the versioned child-only bridge (including stage-contract injection and config validation), bounded RPC adapter (including `get_state`/`get_commands` preflight and `disposition === "started"` enforcement), and test-only explicit driver. Keep old command tests green until the command is replaced; do not add a second maintained coordinator mode.
-- [ ] Test native `/execute`, `/simplify`, and `/verify` expansion with temporary fixture templates and exact argument preservation, including quote characters, whitespace, flag-looking task content, and `$ARGUMENTS` literals. Confirm source provenance, shadowing refusal, and non-`"started"` prompt disposition failure.
-- [ ] Exercise the real tool event and UI response path using only the in-memory fixture provider, with no remote model calls. Verify `agent_end` alone is insufficient, and actual tool errors cannot count as results. Require the real Pi 1.5.0 test when using the full gate.
-- [ ] Run the narrow command again; expect all cases passing and no surviving child. Refactor only after green, then rerun.
-- [ ] Commit with `feat(pi): add structured lifecycle RPC bridge`.
+- [x] Rebase `maruina/pi-ship-conductor` onto the user-approved current `main` baseline (`fc796d77749b1876fdc1518b8a8a06918fef6a2c`) in this worktree without moving `main`, preserving the updated dependency manifest and lockfile plus `main`'s current skills, prompts, `pi-client-session-id` extension, TypeScript 7 LSP support, and `test:unit` entries alongside `ship-conductor/*.test.ts`. Confirm `git status` is clean after the rebase.
+- [x] Read relevant installed Pi docs/examples in full before harness implementation, including custom-provider streaming and its shipped example. Use the explicitly loaded in-memory fixture provider to drive actual bridge tool calls through the native agent loop. Install development dependencies with `npm ci --ignore-scripts` from `dot_pi/agent`; keep them until full gates finish.
+- [x] Add focused failing protocol/native-runtime tests before changing production behavior. Run `node --experimental-strip-types --test exact_extensions/ship-conductor/_protocol.test.ts exact_extensions/ship-conductor/_rpc.test.ts`; expect missing bridge/protocol behavior to fail initially.
+- [x] Implement the versioned child-only bridge (including stage-contract injection and config validation), bounded RPC adapter (including `get_state`/`get_commands` preflight and `disposition === "started"` enforcement), and test-only explicit driver. Keep old command tests green until the command is replaced; do not add a second maintained coordinator mode.
+- [x] Test native `/execute`, `/simplify`, and `/verify` expansion with temporary fixture templates and exact argument preservation, including quote characters, whitespace, flag-looking task content, and `$ARGUMENTS` literals. Confirm source provenance, shadowing refusal, and non-`"started"` prompt disposition failure.
+- [x] Exercise the real tool event and UI response path using only the in-memory fixture provider, with no remote model calls. Verify `agent_end` alone is insufficient, and actual tool errors cannot count as results. Require the real Pi 1.5.0 test when using the full gate.
+- [x] Run the narrow command again; expect all cases passing and no surviving child. Refactor only after green, then rerun.
+- [x] Commit with `feat(pi): add structured lifecycle RPC bridge`.
 
 ### Task 2: Preserve manual lifecycle scope, approvals, and writer provenance
 **Delivers:** Direct commands and orchestrated variants share template-owned lifecycle rules and working provenance handoffs.

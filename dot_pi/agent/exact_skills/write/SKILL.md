@@ -11,16 +11,17 @@ Say exactly what you mean. Remove every word that does not help the reader.
 3. Do not invent rationale, evidence, risks, or tradeoffs that the request or source does not support. Ask for context or identify the gap.
 4. Cut, clarify, then polish.
 5. Self-audit for stock or templated prose. Remove generic transitions, conclusions, praise, offers to help, and repeated sentence shapes.
+6. Check that an engineer can find each component, step, and error in code or logs from the text alone. If not, restore the exact name.
 
 ## Audience and structure
-- Unless the request says otherwise, assume software-engineering fluency, not subsystem fluency. Do not explain common engineering concepts from first principles; explain what *this* component does and why it matters here.
+- Unless the request says otherwise, assume software-engineering fluency, not subsystem fluency. Do not explain common engineering concepts from first principles; explain what *this* component does and why it matters here. Subsystem fluency is knowledge you supply, not names you remove.
 - Lead with the main point. Give each paragraph a clear purpose that supports the text's goal.
 - Write for readers across cultures and levels of English fluency. Prefer short, literal sentences with a clear subject, verb, and object. Use terminology, capitalization, punctuation, and formatting consistently.
 - Avoid idioms, slang, jokes, culturally specific references, and phrasal verbs when a direct verb says the same thing.
-- When a concept may be unfamiliar, explain behavior the reader can picture before introducing the technical term.
-- Replace unnecessary jargon with precise, familiar words. If a specialized term is necessary, define it on first use and use it consistently. Format a term as code only when referring to the exact code item.
+- Simplify sentence structure, not technical nouns. Name the exact item, then explain its function in a short clause on first use: "`datadog-admission-webhooks`, which injects `VAULT_AUTH_PATH` at pod creation". Do not replace a component, step, field, or error name with a generic description such as "the setup agent" or "a request handler".
+- Replace jargon only when a familiar word is equally precise. Names that a reader can search for in code, logs, or dashboards are not jargon; keep them and format them as code. Define other specialized terms on first use and use them consistently.
 - Expand unfamiliar acronyms on first use and explain their function, not only what the letters mean.
-- Split sentences that carry more than one main idea. Use headings, lists, and tables when they make the text easier to scan.
+- Split sentences that carry more than one main idea. A causal chain joined by `because` or `as a result` is one idea; keep it in one sentence when splitting would hide the cause. Use headings, lists, and tables when they make the text easier to scan.
 - Do not force rhetorical patterns such as `not just X, but Y`, groups of three, or `from X to Y` when the ideas do not form a real range. Let the content determine the structure.
 - If a sentence is generic filler that does not support the request and could appear unchanged in an unrelated project's documentation, replace it with a supported component-specific fact, mechanism, or instruction, or remove it.
 - Do not overcompress. Use complete clauses and necessary articles. Avoid arrows, fragments, and abbreviations when they make the reader reconstruct the meaning.
@@ -52,6 +53,20 @@ Use these checks as prompts, not forbidden forms. Edit only to improve clarity, 
 - When rejecting an alternative, state its benefit before explaining why it does not fit this case.
 - Describe risks as specific failures, not abstract categories. `A caller could reuse a token meant for one cluster against another` is clearer than `Cross-cluster replay risk`.
 - When selecting a default, state what changing it would require or cost. `By default, requests continue when the dependency is unavailable (fail-open). Rejecting them instead (fail-closed) requires an availability target, monitoring, and a tested bypass` explains the decision space.
+
+## Failures and incidents
+- Title: name the component, the failure, and the cause or ordering problem.
+- Problem: write the causal chain in order: normal behavior, what was missing or out of order, and the observed failure. Use `because` and `as a result` to make causation explicit. Quote the exact error string.
+- Fix: state what the change does and when it applies (`falls back to X when Y is unset`), not only that it fixed the problem. Name the actor for manual recovery.
+- Number independent causes when one record has more than one.
+- Give scope with names, counts, and UTC times.
+- Correct a misattributed cause or PR explicitly: `#10620 is the initial US7 Vault Terraform setup, not a labeler fix`.
+
+Weak: `The setup agent needed access settings from a service that was not ready.`
+Strong: `` Parent `computecla-agent` started before `datadog-admission-webhooks` could inject `VAULT_AUTH_PATH` ``
+
+Weak: `Merged dd-source#148300 derives the auth path from the cluster.`
+Strong: `` Merged dd-source#148300 falls back to deriving the Dedicated Vault auth mount path from `cluster.VaultAuthMountPath()` when `VAULT_AUTH_PATH` is unset. ``
 
 ## Output
 Follow the requested delivery format. If none is specified, return the draft or revised text directly. After a substantial rewrite, briefly explain the material changes when the requested or default format permits commentary.

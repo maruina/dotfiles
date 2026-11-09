@@ -16,11 +16,14 @@ function renderedCatalog(): Catalog {
   const extensionDirectory = dirname(fileURLToPath(import.meta.url));
   const repositoryRoot = resolve(extensionDirectory, "../../../..");
   const templatePath = resolve(repositoryRoot, "dot_pi/agent/models.json.tmpl");
-  const rendered = execFileSync("chezmoi", ["--source", repositoryRoot, "execute-template"], {
-    encoding: "utf8",
-    input: readFileSync(templatePath, "utf8"),
-  });
-  return JSON.parse(rendered) as Catalog;
+  if (existsSync(templatePath)) {
+    const rendered = execFileSync("chezmoi", ["--source", repositoryRoot, "execute-template"], {
+      encoding: "utf8",
+      input: readFileSync(templatePath, "utf8"),
+    });
+    return JSON.parse(rendered) as Catalog;
+  }
+  return JSON.parse(readFileSync(resolve(extensionDirectory, "../../models.json"), "utf8")) as Catalog;
 }
 
 async function sessionStartHandler(): Promise<SessionStartHandler> {

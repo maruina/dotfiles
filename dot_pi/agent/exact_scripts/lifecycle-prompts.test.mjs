@@ -45,19 +45,34 @@ const provenancePrompts = [
   "troubleshoot.md",
 ];
 
-test("skill-loader owns the provenance record and prompts reference it", () => {
+test("skill-loader owns the provenance record and reference/evidence contract", () => {
   requireMarkers(skill("skill-loader"), [
     /^## Provenance record$/m,
     ...skillRecordMarkers,
     /Include workflow skills/i,
     /Do not infer use/i,
     /If no skill was used, say so explicitly/i,
+    /Follow each loaded skill's reference-selection instructions/i,
+    /core skill is not a substitute for reading an applicable reference/i,
+    /response is truncated, retrieve the missing sections before drawing conclusions/i,
   ]);
 
   for (const file of provenancePrompts) {
     const text = prompt(file);
     assert.match(text, provenanceReference, `${file} must reference the skill-loader provenance record`);
     assert.doesNotMatch(text, /feedback for improving `skill-loader`/i, `${file} must not restate the provenance contract`);
+  }
+
+  for (const file of ["brainstorm.md", "plan.md", "systematic-review.md", "execute.md", "verify.md", "simplify.md"]) {
+    assert.match(prompt(file), /`skill-loader` skill/, `${file} must load the skill-loader skill`);
+  }
+
+  for (const file of ["systematic-review.md", "verify.md", "simplify.md"]) {
+    assert.match(
+      prompt(file),
+      /response is truncated, retrieve the missing sections before drawing conclusions/i,
+      `${file} must guard against truncated review evidence`,
+    );
   }
 });
 
@@ -87,17 +102,16 @@ test("brainstorm anchors the design to the smallest user-feedback slice", () => 
   ]);
 });
 
-test("brainstorm loads the learning skill for integrated coaching by default", () => {
+test("brainstorm uses integrated coaching by default without vendoring learning-opportunities", () => {
   const text = prompt("brainstorm.md");
 
   requireMarkers(text, [
-    /learning-opportunities/,
     /coaching is the default/i,
     /not a separate exercise/i,
-    /exercise limit does not cap/i,
-    /skill is unavailable.*say so/is,
-    /do not claim the skill was loaded/i,
+    /do not offer standalone exercises/i,
   ]);
+  assert.doesNotMatch(text, /learning-opportunities/);
+  assert.equal(existsSync(path.join(skillsDir, "learning-opportunities")), false);
 });
 
 test("brainstorm asks before explaining and pauses for an attempt", () => {
@@ -181,7 +195,6 @@ test("plan defines attributable evidence for integration and operational checks"
 test("execute requires attributable evidence and rejects inconclusive success", () => {
   requireMarkers(prompt("execute.md"), [
     /comparable baseline and candidate workloads/i,
-    /exact instance, version, traffic cohort, and observation window/i,
     /mutable state, queues, background jobs, and downstream effects/i,
     /mock limitations.*real integration/is,
     /insufficient traffic or telemetry.*inconclusive.*cannot satisfy a required check/is,
@@ -242,14 +255,26 @@ test("lifecycle stages enforce negative scenarios, consumer maps, behavioral che
   ]);
 
   const execute = prompt("execute.md");
-  requireMarkers(execute, [/Stop after 3 focused attempts on the same failure/, /still fails after 3 focused debugging attempts/]);
+  requireMarkers(execute, [/Stop after 3 focused attempts on the same failure/]);
   assert.doesNotMatch(execute, /fails repeatedly/);
+
+  for (const file of ["plan.md", "systematic-review.md", "execute.md", "verify.md"]) {
+    assert.match(
+      prompt(file),
+      /distinct contracts.*independent dimensions|independent dimensions.*expensive/is,
+      `${file} must guard against redundant test dimensions or duplicate expensive scenarios`,
+    );
+  }
 });
 
-test("brainstorm and plan stay within prompt context budgets", () => {
+test("lifecycle prompts stay within prompt context budgets", () => {
   const budgets = new Map([
-    ["brainstorm.md", 14_000],
-    ["plan.md", 18_000],
+    ["brainstorm.md", 12_500],
+    ["plan.md", 16_000],
+    ["systematic-review.md", 10_000],
+    ["execute.md", 14_500],
+    ["verify.md", 13_000],
+    ["simplify.md", 9_500],
   ]);
 
   for (const [file, budgetBytes] of budgets) {
@@ -280,9 +305,9 @@ test("execute runs one incomplete slice per run for grouped plans", () => {
     /do not auto-run the remaining slices/i,
     /resumes at the next incomplete slice/i,
     /user names a slice.*no incomplete blockers/is,
-    /stack-split check applied to the slice/i,
     /one verified slice increment/i,
   ]);
+  assert.doesNotMatch(text, /\/pr-create --draft/);
 });
 
 test("execute does not content-match non-plan arguments against worktree plans", () => {
@@ -309,7 +334,7 @@ test("verify scopes grouped plans to the slice and runs a final feature pass", (
   ]);
 });
 
-test("verify gates the next execution handoff on plan prerequisites and keeps fixes out of verification", () => {
+test("verify gates the next execution handoff on plan prerequisites, keeps fixes out of verification, and opens the PR on VERIFIED", () => {
   const text = prompt("verify.md");
 
   requireMarkers(text, [
@@ -317,7 +342,8 @@ test("verify gates the next execution handoff on plan prerequisites and keeps fi
     /if any prerequisite is unresolved.*recommend resolving it through `\/plan` or a user decision.*do not say to proceed with implementation/is,
     /give the exact `\/execute <absolute-plan-path>` command/i,
     /do not give a worktree root as the plan argument/i,
-    /`\/verify` is read-only and must not fix, commit, or push/i,
+    /`\/verify` is read-only for repository files and must not fix or commit/i,
+    /When the verdict is `VERIFIED`.*stack-split check from the `reviewable-pr-workflow` skill.*`\/pr-create --draft`/is,
     /offer `\/execute` as the follow-up/i,
     /only after the fix is implemented and independently verified/i,
     /\*\*Copy-paste follow-up:\*\* when \*\*Findings\*\* contains any finding/i,
@@ -359,7 +385,6 @@ test("downstream lifecycle stages preserve or report skill provenance", () => {
   const execute = prompt("execute.md");
   requireMarkers(execute, [
     provenanceReference,
-    /Skill \| Source \| Why loaded \| How used/,
     /`### Execution` subsection under `## Skills loaded and used`/,
     /source, loading reason, and effect on execution/i,
   ]);
@@ -368,13 +393,12 @@ test("downstream lifecycle stages preserve or report skill provenance", () => {
     const text = prompt(file);
     requireMarkers(text, [
       provenanceReference,
-      /Skill \| Source \| Why loaded \| How used/,
       /\*\*Skills loaded and used:?\*\*/,
     ]);
   }
 });
 
-test("writable stages record learning candidates; read-only stages capture nothing", () => {
+test("writable stages record learning candidates; read-only verification captures nothing", () => {
   requireMarkers(skill("learning-candidates"), [
     /## Learning candidates/,
     /— evidence: <shareable pointer/,
@@ -386,7 +410,7 @@ test("writable stages record learning candidates; read-only stages capture nothi
     /vault content/i,
   ]);
 
-  for (const file of ["plan.md", "execute.md", "simplify.md", "pr-address-feedback.md"]) {
+  for (const file of ["plan.md", "systematic-review.md", "execute.md", "simplify.md", "pr-address-feedback.md"]) {
     const text = prompt(file);
     assert.match(text, /`learning-candidates` skill/, `${file} must use the learning-candidates skill`);
     assert.doesNotMatch(text, /— evidence: /, `${file} must not restate the ledger format`);
@@ -399,9 +423,7 @@ test("writable stages record learning candidates; read-only stages capture nothi
     /zero or multiple/i,
   ]);
 
-  for (const file of ["systematic-review.md", "verify.md"]) {
-    assert.doesNotMatch(prompt(file), /Learning candidates|learning-candidates/i);
-  }
+  assert.doesNotMatch(prompt("verify.md"), /Learning candidates|learning-candidates/i);
 });
 
 test("simplify requires complete evidence and applicable skill references", () => {
@@ -935,9 +957,10 @@ test("the stack-split check has one owner", () => {
     /any strong signal or two or more soft signals/i,
   ]);
 
-  const execute = prompt("execute.md");
-  assert.match(execute, /stack-split check from the `reviewable-pr-workflow` skill/);
-  assert.doesNotMatch(execute, /~400|~15 non-generated/);
+  const verify = prompt("verify.md");
+  assert.match(verify, /stack-split check from the `reviewable-pr-workflow` skill/);
+  assert.doesNotMatch(verify, /~400|~15 non-generated/);
+  assert.doesNotMatch(prompt("execute.md"), /~400|~15 non-generated/);
 });
 
 test("pr-address-feedback policy overrides pr-comment-triage without step-number references", () => {

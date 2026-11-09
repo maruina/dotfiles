@@ -25,10 +25,10 @@
 
 ## Approval and source ledger
 - Source of truth: `plans/pi-ship-conductor/design.md`, approved design at `07716f7`.
-- The user accepted child-specific recommender suppression (Option 1), then confirmed the planning alignment brief, single-slice boundary, and proposed limits. This authorizes this plan, not implementation before `/systematic-review`.
+- The user confirmed the planning alignment brief, single-slice boundary, proposed limits, and `/systematic-review` resolutions: rebase `maruina/pi-ship-conductor` onto `main` (`b346344`) at the start of execution (which drops `lifecycle-model-recommender`, already removed on `main` in `b3a3c35`, and brings in `pi-client-session-id` and current lifecycle skills/templates), and require `--implemented-by` with optional `--simplified-by` on `/verify`.
 - Scope classification: Large/Risky because transport, shared templates, approvals, provenance, and local state change together.
 - This replaces the historical two-stage plan. Completed historical tasks and evidence remain in Git at `07716f7:plans/pi-ship-conductor/plan.md`; do not treat those checkboxes as completion of this replacement.
-- Research baseline: feature branch `maruina/pi-ship-conductor`, clean at `07716f7`; reviewed main baseline `b346344d8e50b40dfa056e2bbddf9262bf010a60`.
+- Research baseline: feature branch `maruina/pi-ship-conductor` rebased onto `main` baseline `b346344d8e50b40dfa056e2bbddf9262bf010a60`.
 - Existing coordinator focused tests passed 56/56 during planning. This is old-behavior evidence only.
 - Installed Pi 1.5.0 docs reviewed: RPC lifecycle, commands, UI protocol, native prompt expansion, command provenance, custom tools, structured output example, and RPC UI example. Installed source confirms `parseCommandArgs` and `substituteArgs` behavior.
 - Advisory lookup returned zero matching sections. No learning guidance changed this plan.
@@ -49,7 +49,6 @@ Paths below are repo-relative. Retain `ship-conductor/` as the implementation di
 | Model and invocation helpers | Same directory: replace `_pools.ts`/`_pools.test.ts` with `_models.ts`/`_models.test.ts`; replace `_prompts.ts`/`_prompts.test.ts` behavior | Interactive choices, identities, native invocation argument encoding and command provenance | Selection and native-expansion tests |
 | Local state | Same directory: `_state.ts`, `_state.test.ts` | Atomic records, reports, worktree ownership, retention | Real filesystem and competing-process tests |
 | Obsolete parser | Same directory: remove `_markers.ts`, `_markers.test.ts` | Remove prose control protocol | Consumer search and negative protocol tests |
-| Shared recommender | `dot_pi/agent/exact_extensions/lifecycle-model-recommender/index.ts`, `_adapter.test.ts` | Skip only marked orchestration children | Preserve ordinary RPC/TUI tests |
 | Lifecycle templates | `dot_pi/agent/exact_prompts/execute.md`, `simplify.md`, `verify.md` | Conditional bridge use, fixed unit, manual provenance, fresh verification | Prompt contracts and native-expansion tests |
 | Test wiring and guidance | `dot_pi/agent/package.json`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`, `AGENTS.md`, `dot_pi/agent/exact_extensions/ship-conductor/README.md` | Enumerate tests; document runtime, protocol coupling and recovery | Full test gates, explicit target diff |
 
@@ -58,9 +57,9 @@ Inspect `dot_pi/agent/AGENTS.md` too; change it only if required durable guidanc
 ### Key Decisions
 1. Replace `/ship`; no alias. Reuse worktree and injected-boundary patterns, not marker parsing, automatic pools, or one-shot transport.
 2. Use a narrow adapter over documented native RPC. Exported `RpcClient` offers less code but lacks a public UI-response operation. Do not access its private internals.
-3. Templates remain policy owners. Reconcile only relevant main-branch lifecycle sections: slice execution, simplify plan resolution and commit/push policy, verification evidence and handoffs. Preserve current safeguards; do not wholesale restore stale feature-branch templates or merge unrelated main changes.
-4. Model recommender suppression is limited to marked `/implement` children. Disabling it for all RPC sessions is simpler but changes unrelated consumers and was rejected by the user.
-5. Use `PI_LIFECYCLE_CHILD_CONFIG` as a child-only environment pointer to a private immutable stage configuration. The recommender checks the marker only in RPC mode. The bridge validates its file, run/stage IDs, expected worktree, and protocol version before registration. The parent does not set this marker in its own environment. Invalid child configuration fails preflight, not ordinary manual behavior. The marker is coordination metadata, not an authentication boundary.
+3. Rebase `maruina/pi-ship-conductor` onto `main` (`b346344`) before editing code so the worktree has `pi-client-session-id` (required by work-profile `models.json.tmpl`), current skills (`feature-worktree`, `learning-candidates`, `skill-loader`, `reviewable-pr-workflow`), and the removal of `lifecycle-model-recommender` (`b3a3c35`). Templates remain policy owners; layer the `/implement` bridge and dual-writer provenance directly onto `main`'s templates.
+4. `lifecycle-model-recommender` was removed on `main` (`b3a3c35`), so no recommender file remains after rebase. Child sessions still isolate orchestration config via `PI_LIFECYCLE_CHILD_CONFIG` and validate `get_state` model/thinking before and after each stage so any unexpected model mutation stops the run.
+5. Use `PI_LIFECYCLE_CHILD_CONFIG` as a child-only environment pointer to a private immutable stage configuration. The bridge validates its file, run/stage IDs, expected worktree, and protocol version before registration. The parent does not set this marker in its own environment. Invalid child configuration fails preflight, not ordinary manual behavior. The marker is coordination metadata, not an authentication boundary.
 6. Keep existing dependency versions. Installed runtime 1.5.0 is the supported integration target; development types at 0.80.6 are insufficient proof. Use compatible existing registration APIs and schema facilities; require real-runtime tests. Do not add newer APIs such as terminating tool results merely for convenience. If compatible registration is impossible, stop for an approved enabling dependency change.
 7. Execute and simplify may share a model; verify differs from both selections, including no-change simplify. Use provider-qualified IDs, plus conservative known alias normalization. Unknown cross-provider equivalence requires clarification before claiming independence; provider labels alone do not prove different underlying models.
 8. Inherit coordinator thinking level, let native Pi apply supported limits, and display/record effective settings. Never silently substitute a model.
@@ -79,15 +78,19 @@ Inspect `dot_pi/agent/AGENTS.md` too; change it only if required durable guidanc
 | Local persistence | Private directory, atomic rename, bounded records | Node filesystem primitives | Write failure and retention tests | Stop; do not dispatch an unrecorded writer |
 
 ### Protocol and handoff interfaces
-- `_bridge.ts` exports an extension factory but is not auto-discovered as an entrypoint. Load it explicitly in children with `-e`; keep ordinary configured extensions, skills, context, and MCP capabilities enabled. Do not disable the client-session header extension or other required integrations.
-- Launch fresh RPC processes with the resolved Pi executable, provider/model, supported thinking settings, correct `cwd`, `--no-session`, and explicit bridge path. Never resume or fork predecessor history. Record the runtime session ID; no persisted child transcript is required. Reports and run records remain durable.
+- `_bridge.ts` exports an extension factory but is not auto-discovered as an entrypoint. Load it explicitly in children with `-e`; keep ordinary configured extensions (including `pi-client-session-id`), skills, context, and MCP capabilities enabled. `_bridge.ts` injects the validated stage contract (run ID, stage, pinned baseline commit/blob IDs, selected slice/unit, and required tool-call instructions) into the child session via `before_agent_start` and tool `promptGuidelines` so native `/execute <plan-path>`, `/simplify <plan-path>`, and `/verify <plan-path>` invocations keep clean arguments.
+- Before stage 1 starts, `_models.ts` prompts the user in the coordinator via `ctx.ui.select` for `execute`, `simplify`, and `verify` models in order from available authenticated chat models. Default `execute` and `simplify` (by ordering/labeling the current session model first when available); for `verify`, filter out choices equivalent to either selected writer after provider-qualified ID and known-alias normalization.
+- Launch fresh RPC processes with the resolved Pi executable, `--mode rpc`, `--no-session`, `--provider <provider>`, `--model <id>`, `--thinking <level>`, correct `cwd`, and explicit `-e <bridge-path>`. Never resume or fork predecessor history. Before sending `prompt`, call `get_state` and `get_commands` to record the runtime `sessionId`, confirm the observed `model` and effective clamped `thinkingLevel`, and verify the target template command (`source: "prompt"`, unshadowed). Require the `prompt` response to return `data.disposition === "started"`; any `"handled"` or `"queued"` disposition fails closed immediately.
 - `lifecycle_request_decision` accepts a question and complete evidence/proposal/context. Run and stage identity come from validated child configuration. Use a non-expiring RPC dialog carrying full context and an explicit approve/reject or free-text response. Dismissal cancels; rejection is recorded as rejection, never approval. Resolve only the matching active request. Template-owned decisions that require `/plan` remain blockers regardless of an inline answer.
 - `lifecycle_submit_outcome` accepts protocol version 1, lifecycle outcome, change classification, bounded report text, and optional PR/commit references. Execute/simplify outcomes are `success` or `blocked`; verify outcomes are `VERIFIED` or `BLOCKED`. Stage/outcome combinations are validated. Bridge adds runtime-derived run/stage/session/model identity and Git candidate snapshot; the model cannot supply authoritative identity fields.
 - Outcome envelope fields: `schemaVersion`, `runId`, `stage`, `sessionId`, `model` (provider and ID), `outcome`, `change` (`changed`, `unchanged`, or not applicable), `candidate` (branch, HEAD and state digest), `reportRef`, and optional `prUrl`/`commitRefs`. Validate commit references against Git and PR URLs as untrusted references. An agent assertion is not verification proof.
 - Submit the result only after stage-owned work is complete. Exactly one successful final submission is permitted. Duplicate, conflicting, wrong-run, wrong-stage, invalid, or stale results fail closed. A tool error does not count as submission. Wait for `agent_settled` and recheck Git and model state before progression. No pending decision or queued work may remain.
 - Child result writes a private report through the bridge; verification does not write candidate files. The parent records the structured result, not session logs or prose. A normal assistant report can remain readable but cannot drive transitions.
-- Direct handoffs retain `--implemented-by <provider-qualified-id>` and add `--simplified-by <provider-qualified-id>`. `/simplify` accepts execution provenance; `/verify` compares itself against both known writers. Do not relabel simplifier identity as implementer identity.
-- Preserve optional direct execute-to-verify and execute-to-simplify paths. Preserve PR/file/directory/no-positional simplify targets and `--base`. A plan path selects plan scope, not the plan file alone. Missing original task or required model history blocks a complete independent handoff.
+- Direct handoffs use `--implemented-by <provider-qualified-id>` (required by `/verify`) and optional `--simplified-by <provider-qualified-id>`:
+  - `/execute` emits the direct `/verify <absolute-plan-path> --implemented-by <exec-id>` handoff (or `--implemented-by <exec-id> --task <quoted-original-request>`) and an optional `/simplify <absolute-plan-path> --implemented-by <exec-id>` handoff (or `--implemented-by <exec-id> --task <quoted-original-request>`).
+  - `/simplify` accepts `--implemented-by <exec-id>` (and `--task <quoted-original-request>`); if invoked manually without `--implemented-by`, `/simplify` asks the user for the implementation model ID before emitting its `/verify` handoff rather than inventing one or overwriting `--implemented-by` with the simplifier model. Its handoff emits `/verify <absolute-plan-path> --implemented-by <exec-id> --simplified-by <simp-id>` (or with `--task <quoted-original-request>` last).
+  - `/verify` requires `--implemented-by <exec-id>` and accepts optional `--simplified-by <simp-id>`. It compares its own model ID against `--implemented-by` and, when present, `--simplified-by`, returning `BLOCKED` if either writer matches the verifier or if `--implemented-by` is missing.
+- Preserve optional direct execute-to-verify and execute-to-simplify paths. Preserve PR/file/directory/no-positional simplify targets and `--base`. Strip handoff flags (`--implemented-by`, `--simplified-by`, `--task`) and `--base` before positional target resolution. A plan path selects plan scope, not the plan file alone. Missing original task or required model history blocks a complete independent handoff.
 - For planless manual handoffs put `--task <quoted-original-task>` last; preserve the exact original string, including whitespace and literal quotes. Use native argument rules, not shell escaping assumptions. Installed `parseCommandArgs` removes quote delimiters and does not interpret backslash escapes; `substituteArgs` joins arguments for `$ARGUMENTS`. Test paths via a separate `$1` target field and preserve the final task value without reparsing it as flags. Test both quote characters, embedded flag-looking text, newlines, and substitution-looking literals. If native expansion cannot retain the required data with this interface, stop for alignment; do not add a hidden shared input-rewrite mechanism.
 
 ### Execution unit and requirements baseline
@@ -136,9 +139,9 @@ Inspect `dot_pi/agent/AGENTS.md` too; change it only if required durable guidanc
 | Cancellation/parent shutdown in any state | Stop active child before unlock; no subsequent stage | Graceful/forced termination tests |
 
 ### Rollout and Rollback
-- Keep the existing worktree; do not rebase, merge, or move main as a side effect. Reconcile scoped template sections from the pinned main baseline explicitly.
+- Before Task 1 edits code, rebase `maruina/pi-ship-conductor` onto `main` (`b346344d8e50b40dfa056e2bbddf9262bf010a60`) in this feature worktree, resolving the `AGENTS.md` and `dot_pi/agent/package.json` conflicts so `main`'s current skills, prompts, `pi-client-session-id` extension, and `lifecycle-model-recommender` removal are present without moving the `main` branch ref.
 - First exercise the candidate extension and prompts through explicit temporary Pi resource paths in a disposable worktree. For test-only prompt isolation, enumerate effective prompt sources, use documented `--no-prompt-templates`, and re-add them with repeated `--prompt-template` paths, replacing only execute/simplify/verify with candidate paths. Retain every other required template and normal configured extensions/MCP capabilities. Validate `get_commands` provenance before dispatch. This avoids duplicate-name precedence assumptions without changing rendered targets. The old installed `/ship` can remain inert during this test; its removal is checked in candidate registration tests and after the reviewed target rollout. No live target application is needed to prove candidate behavior.
-- After `/verify` returns VERIFIED, preview and apply only reviewed explicit targets with `chezmoi --source "$PWD"`. Targets: changed files under `~/.pi/agent/extensions/ship-conductor/`, recommender entrypoint/test, the three prompt files, changed test scripts, `~/.pi/agent/package.json`, and applicable rendered guidance. Include explicit deletion targets for obsolete helpers. Do not trust directory-only diff/verify or apply the whole extension tree from this older branch.
+- After `/verify` returns VERIFIED, preview and apply only reviewed explicit targets with `chezmoi --source "$PWD"`. Targets: changed files under `~/.pi/agent/extensions/ship-conductor/`, the three prompt files, changed test scripts, `~/.pi/agent/package.json`, and applicable rendered guidance. Include explicit deletion targets for obsolete helpers. Do not trust directory-only diff/verify.
 - Reload Pi and confirm `/implement` exists and `/ship` does not. Owner: Matteo. Commit/push implementation only under the normal lifecycle and repository completion policy; this plan commit does not apply runtime targets.
 - Rollback: stop active runs and confirm child termination; revert replacement code/template changes; preview/apply the corresponding explicit targets and reload. Preserve run records and candidate commits/files. Direct lifecycle commands remain the fallback.
 
@@ -149,7 +152,7 @@ Inspect `dot_pi/agent/AGENTS.md` too; change it only if required durable guidanc
 - Real runtime contract tests must identify Pi 1.5.0 explicitly and fail, not silently skip, when the required integration command is requested without it. They call only the in-memory fixture provider, make no remote model requests, and require no credential refresh.
 - Live testing uses isolated worktree, private temporary run-state directory, explicit candidate resources, no production workload, and a committed tiny plan. A child can push/open a PR only when the smoke plan explicitly authorizes it; otherwise prohibit both in that plan. No shared queues/background jobs are introduced. Confirm no child survives cleanup. Keep evidence outside the candidate.
 - Baseline and candidate live observations use the same smoke plan shape and configured capabilities. The old `/ship` is not expected to satisfy approvals/simplify; compare scope, model/cwd identity, and process cleanup, not model answer quality or latency. No performance/cost improvement is claimed. Record actual model identities, runtime version, run ID, and observation start/end; no remote telemetry query is necessary.
-- Focused commands run from `dot_pi/agent`: `node --experimental-strip-types --test 'exact_extensions/ship-conductor/*.test.ts'`, `node --experimental-strip-types --test 'exact_extensions/lifecycle-model-recommender/*.test.ts'`, and `node --test exact_scripts/lifecycle-prompts.test.mjs`.
+- Focused commands run from `dot_pi/agent`: `node --experimental-strip-types --test 'exact_extensions/ship-conductor/*.test.ts'` and `node --test exact_scripts/lifecycle-prompts.test.mjs`.
 - Full gates: `npm ci --ignore-scripts`, `npm test`, `npm run test:all`. Keep dependencies through both gates, then remove disposable source `node_modules` before the independent verification snapshot. LSP diagnostics supplement tests; they do not replace real-runtime compatibility checks.
 
 ## Acceptance Requirements
@@ -184,10 +187,10 @@ The system SHALL run exactly execute, simplify, and verify in order through nati
 - WHEN detected.
 - THEN the run stops without substitution.
 
-#### Scenario: Scoped recommender suppression
-- GIVEN a marked orchestration child.
-- WHEN its lifecycle input reaches the recommender.
-- THEN no recommendation dialog or model mutation occurs; ordinary RPC and TUI invocations retain their behavior.
+#### Scenario: Isolated child configuration
+- GIVEN a child stage config or an unorchestrated session.
+- WHEN `PI_LIFECYCLE_CHILD_CONFIG` is validated in RPC mode or absent in ordinary sessions.
+- THEN valid child sessions register the bridge tools and verified model/thinking settings, invalid child configs fail preflight, and ordinary RPC/TUI sessions remain unaffected.
 
 ### Requirement R3: Structured user decisions
 The system SHALL route complete decision context and the correlated answer between the active child and user without deciding for the user.
@@ -216,7 +219,7 @@ The system SHALL advance only after one valid typed final outcome, settled compl
 - THEN only the next authorized stage starts.
 
 #### Scenario: Insufficient or contradictory completion
-- GIVEN exit zero, prompt acceptance, `agent_end`, verdict prose, missing result, duplicate/conflicting result, pending approval, provider failure, or a changed post-result snapshot.
+- GIVEN exit zero, prompt acceptance (`disposition !== "started"` or without settled outcome), `agent_end`, verdict prose, missing result, duplicate/conflicting result, pending approval, provider failure, or a changed post-result snapshot.
 - WHEN observed.
 - THEN no next stage starts.
 
@@ -247,12 +250,12 @@ The templates SHALL retain direct lifecycle commands while preserving the exact 
 - THEN direct verify and optional simplify commands preserve that source and stable identity.
 
 #### Scenario: Simplify handoff
-- GIVEN simplify after execute.
+- GIVEN simplify with known `--implemented-by` provenance (passed from execute or supplied by the user when asked).
 - WHEN it emits verify metadata.
 - THEN both `--implemented-by` and `--simplified-by` survive native expansion; `--base` and non-plan targets retain their meanings.
 
 #### Scenario: Missing or invalid provenance
-- GIVEN missing task/model history, either writer matching the verifier, or malformed/ambiguous metadata.
+- GIVEN missing task or `--implemented-by` history, either `--implemented-by` or `--simplified-by` matching the verifier, or malformed/ambiguous metadata.
 - WHEN resolving the handoff.
 - THEN the template asks/blocks rather than inventing provenance or requirements.
 
@@ -290,16 +293,17 @@ The system SHALL report per-stage state/model, selected unit, candidate commits,
 ## Implementation Tasks
 The following tasks form one integration unit, not independently authorized product slices. Every task must be green before its commit. If native protocol feasibility fails in Task 1, stop before building later tasks. Do not orchestrate this replacement with the old `/ship` implementation.
 
-### Task 1: Prove the native child bridge and exact input contract
-**Delivers:** Deterministic real-Pi evidence that registered bridge tools produce structured events, approvals round-trip, and native expansion preserves handoff data.
+### Task 1: Rebase onto main and prove the native child bridge and exact input contract
+**Delivers:** Branch rebased onto `main` (`b346344`) plus deterministic real-Pi evidence that registered bridge tools produce structured events, approvals round-trip, and native expansion preserves handoff data.
 **Blocked by:** None
 **Traces to:** R2, R3, R4, R6, R7
 **Files:** `dot_pi/agent/exact_extensions/ship-conductor/_bridge.ts`, `_protocol.ts`, `_protocol.test.ts`, `_rpc.test.ts`, `_fixtures/rpc-driver.ts`, `_spawn.ts`, `_spawn.test.ts`, `_prompts.ts`, `_prompts.test.ts`.
 
+- [ ] Rebase `maruina/pi-ship-conductor` onto `main` (`b346344d8e50b40dfa056e2bbddf9262bf010a60`) in this worktree without moving `main`, resolving `AGENTS.md` and `dot_pi/agent/package.json` conflicts so `main`'s current skills, prompts, `pi-client-session-id` extension, and `test:unit` entries are preserved alongside `ship-conductor/*.test.ts`. Confirm `git status` is clean after the rebase.
 - [ ] Read relevant installed Pi docs/examples in full before harness implementation, including custom-provider streaming and its shipped example. Use the explicitly loaded in-memory fixture provider to drive actual bridge tool calls through the native agent loop. Install development dependencies with `npm ci --ignore-scripts` from `dot_pi/agent`; keep them until full gates finish.
 - [ ] Add focused failing protocol/native-runtime tests before changing production behavior. Run `node --experimental-strip-types --test exact_extensions/ship-conductor/_protocol.test.ts exact_extensions/ship-conductor/_rpc.test.ts`; expect missing bridge/protocol behavior to fail initially.
-- [ ] Implement the versioned child-only bridge, bounded RPC adapter, and test-only explicit driver. Keep old command tests green until the command is replaced; do not add a second maintained coordinator mode.
-- [ ] Test native `/execute`, `/simplify`, and `/verify` expansion with temporary fixture templates and exact argument preservation, including quote characters, whitespace, flag-looking task content, and `$ARGUMENTS` literals. Confirm source provenance and shadowing refusal.
+- [ ] Implement the versioned child-only bridge (including stage-contract injection and config validation), bounded RPC adapter (including `get_state`/`get_commands` preflight and `disposition === "started"` enforcement), and test-only explicit driver. Keep old command tests green until the command is replaced; do not add a second maintained coordinator mode.
+- [ ] Test native `/execute`, `/simplify`, and `/verify` expansion with temporary fixture templates and exact argument preservation, including quote characters, whitespace, flag-looking task content, and `$ARGUMENTS` literals. Confirm source provenance, shadowing refusal, and non-`"started"` prompt disposition failure.
 - [ ] Exercise the real tool event and UI response path using only the in-memory fixture provider, with no remote model calls. Verify `agent_end` alone is insufficient, and actual tool errors cannot count as results. Require the real Pi 1.5.0 test when using the full gate.
 - [ ] Run the narrow command again; expect all cases passing and no surviving child. Refactor only after green, then rerun.
 - [ ] Commit with `feat(pi): add structured lifecycle RPC bridge`.
@@ -310,10 +314,10 @@ The following tasks form one integration unit, not independently authorized prod
 **Traces to:** R1, R2, R3, R5, R6
 **Files:** `dot_pi/agent/exact_prompts/execute.md`, `simplify.md`, `verify.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`, `dot_pi/agent/exact_extensions/ship-conductor/_prompts.ts`, `_prompts.test.ts`, `_rpc.test.ts`.
 
-- [ ] Compare these three templates with pinned main `b346344`; restore relevant slice, simplify target/commit, and fresh-verification safeguards without unrelated rewrites. Preserve current main behavior when later upstream drift changes those sections; stop on material conflict.
-- [ ] Add failing handoff assertions and native expansion cases. Run `node --test exact_scripts/lifecycle-prompts.test.mjs`; expect failures for missing dual-writer and conditional bridge contracts.
-- [ ] Add optional execute-to-simplify handoff and retain execute-to-verify. Parse handoff metadata before target resolution, preserve exact original tasks and `--base`, and add both writer IDs to simplify-to-verify.
-- [ ] Conditionally use bridge decisions/results only when validated orchestration metadata/tools exist. Preserve conversational approvals otherwise. In orchestrated stages require fixed-unit scope, pinned baseline, and proper blocked outcomes. Accept fresh orchestration verify sessions as independent without requiring a literal manual `/new`.
+- [ ] Starting from `main`'s current `execute.md`, `simplify.md`, `verify.md`, and `lifecycle-prompts.test.mjs`, preserve all existing skill-delegation contracts (`skill-loader` provenance, `feature-worktree`, `reviewable-pr-workflow` stack-split, `learning-candidates`, and slice execution/verification).
+- [ ] Add failing handoff assertions and native expansion cases in `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs` (updating `execute and simplify emit the same /verify handoff contract` for the dual-writer `--implemented-by` + optional `--simplified-by` contract). Run `node --test exact_scripts/lifecycle-prompts.test.mjs`; expect failures for missing dual-writer and conditional bridge contracts.
+- [ ] Add optional execute-to-simplify handoff (`/simplify <absolute-plan-path> --implemented-by <id>` or `--implemented-by <id> --task <quoted-original-request>`) and retain execute-to-verify. In `/simplify`, accept `--implemented-by` (ask the user if missing before emitting `/verify`), strip handoff metadata and `--base` before target resolution, preserve exact original tasks, and emit `/verify ... --implemented-by <exec-id> --simplified-by <simp-id>`. In `/verify`, require `--implemented-by` and accept optional `--simplified-by`, blocking if either matches the verifier model.
+- [ ] Conditionally use bridge decisions/results only when validated orchestration metadata/tools (`lifecycle_request_decision`, `lifecycle_submit_outcome`) exist. Preserve conversational approvals otherwise. In orchestrated stages require fixed-unit scope, pinned baseline, and proper blocked outcomes. Accept fresh orchestration verify sessions as independent without requiring a literal manual `/new`.
 - [ ] Preserve simplify clean-start commit/push policy, no-change no-commit behavior, and explicit distinction between manual unchanged-candidate verdict validity and mandatory first verification in `/implement`.
 - [ ] Run `node --test exact_scripts/lifecycle-prompts.test.mjs` and `node --experimental-strip-types --test exact_extensions/ship-conductor/_prompts.test.ts exact_extensions/ship-conductor/_rpc.test.ts`; expect direct and orchestrated cases green.
 - [ ] Refactor only after green, rerun, and commit with `feat(pi): preserve lifecycle handoff provenance through simplify`.
@@ -322,17 +326,17 @@ The following tasks form one integration unit, not independently authorized prod
 **Delivers:** `/implement` selects models, locks/pins one clean execution unit, runs all three stages, and reports a typed outcome.
 **Blocked by:** 1, 2
 **Traces to:** R1-R8
-**Files:** `dot_pi/agent/exact_extensions/ship-conductor/index.ts`, `_conductor.ts`, `_conductor.test.ts`, `_worktree.ts`, `_worktree.test.ts`, `_unit.ts`, `_unit.test.ts`, `_models.ts`, `_models.test.ts`, `_state.ts`, `_state.test.ts`, `_spawn.ts`, `_spawn.test.ts`, `_protocol.ts`, `_protocol.test.ts`, `_bridge.ts`, `_prompts.ts`, `_prompts.test.ts`; delete `_markers.ts`, `_markers.test.ts`, `_pools.ts`, `_pools.test.ts`; `dot_pi/agent/exact_extensions/lifecycle-model-recommender/index.ts`, `_adapter.test.ts`; `dot_pi/agent/package.json`.
+**Files:** `dot_pi/agent/exact_extensions/ship-conductor/index.ts`, `_conductor.ts`, `_conductor.test.ts`, `_worktree.ts`, `_worktree.test.ts`, `_unit.ts`, `_unit.test.ts`, `_models.ts`, `_models.test.ts`, `_state.ts`, `_state.test.ts`, `_spawn.ts`, `_spawn.test.ts`, `_protocol.ts`, `_protocol.test.ts`, `_bridge.ts`, `_prompts.ts`, `_prompts.test.ts`; delete `_markers.ts`, `_markers.test.ts`, `_pools.ts`, `_pools.test.ts`; `dot_pi/agent/package.json`.
 
 - [ ] Use LSP definition/reference context for exported helper changes; repeat consumer search and account for tests and guidance before deleting old interfaces.
-- [ ] Add failing public-command/state-machine tests for preflight, selection, selected-unit boundaries, three sequential sessions, structured transitions, clean simplify, fresh verify, and final counts. Use temporary real repositories for Git assertions.
+- [ ] Add failing public-command/state-machine tests for preflight, three interactive model selections (defaulting execute/simplify to the current session model and filtering verify to distinct models), selected-unit boundaries, three sequential sessions, structured transitions, clean simplify, fresh verify, and final counts. Use temporary real repositories for Git assertions.
 - [ ] Run `node --experimental-strip-types --test 'exact_extensions/ship-conductor/*.test.ts'`; expect new behavior failures before the replacement.
 - [ ] Implement the smallest coordinator and state helpers meeting the contract. Replace `/ship` registration and obsolete parsers/pools; no aliases or parallel policy. Fail on Git errors, not just nonempty status.
-- [ ] Implement child-scoped recommender suppression using the validated stage-config marker; add tests for marked child, invalid child config, ordinary RPC, TUI, and no leaked parent marker. Do not alter policy recommendations.
-- [ ] Pin original Git objects and selected unit, acquire/recheck ownership before dispatch, validate observed models and candidate state on each transition, and persist records atomically. Reject unknown provenance and model drift conservatively.
+- [ ] Validate child stage-config isolation (`PI_LIFECYCLE_CHILD_CONFIG`), add tests for marked child, invalid child config, ordinary RPC/TUI, and no leaked parent marker.
+- [ ] Pin original Git objects and selected unit, acquire/recheck ownership before dispatch, validate observed models and effective thinking via `get_state` plus candidate state on each transition, and persist records atomically. Reject unknown provenance and model drift conservatively.
 - [ ] Keep approval replies correlated and never automatic. Keep parent repository work/nested orchestration blocked cooperatively while children own the worktree. Verify child context payloads contain no predecessor transcript/report narrative.
 - [ ] Wire tests into existing `test:unit` enumeration, preserving other entries. No dependency or lockfile upgrade is authorized.
-- [ ] Run `node --experimental-strip-types --test 'exact_extensions/ship-conductor/*.test.ts'` and `node --experimental-strip-types --test 'exact_extensions/lifecycle-model-recommender/*.test.ts'`; expect green.
+- [ ] Run `node --experimental-strip-types --test 'exact_extensions/ship-conductor/*.test.ts'`; expect green.
 - [ ] Run LSP diagnostics for changed TypeScript. Refactor only after green, rerun narrow tests, and commit with `feat(pi): replace ship with single-round implement coordinator`.
 
 ### Task 4: Prove failure containment, resource bounds, and cancellation
@@ -341,7 +345,7 @@ The following tasks form one integration unit, not independently authorized prod
 **Traces to:** R1, R3-R5, R7, R8
 **Files:** `dot_pi/agent/exact_extensions/ship-conductor/_conductor.ts`, `_conductor.test.ts`, `_spawn.ts`, `_spawn.test.ts`, `_state.ts`, `_state.test.ts`, `_protocol.ts`, `_protocol.test.ts`, `_rpc.test.ts`.
 
-- [ ] Add focused failing cases for malformed/oversized JSONL, split UTF-8/CRLF/Unicode separators, backpressure, bounded stderr/progress, pending requests, write errors and record/report limits.
+- [ ] Add focused failing cases for malformed/oversized JSONL, split UTF-8/CRLF/Unicode separators, backpressure, bounded stderr/progress, pending requests, non-`"started"` prompt dispositions, write errors and record/report limits.
 - [ ] Add competing-process lock tests, stale-owner refusal, record pruning that preserves active evidence, and candidate tracked/untracked mutation checks.
 - [ ] Test cancellation before dispatch, while writing, while waiting for approval, and between stages; simulate abort resistance and SIGTERM resistance. Assert actual child termination/close before lock release, cleared timers/listeners, and no stage retry. Exercise parent shutdown cleanup.
 - [ ] Test failed commit/required push, duplicate result, post-result edits, model drift, read-only verification mutation, absent PR, absent verdict, and accurate zero/one counters.
@@ -380,7 +384,7 @@ The following tasks form one integration unit, not independently authorized prod
 | Requirement | Tasks | Highest supported evidence |
 |---|---|---|
 | R1 Safe fixed unit | 2, 3, 4, 5, 6 | Real Git/worktree tests, unit fixtures, lock contention, live refusal |
-| R2 Native/fresh/models | 1, 2, 3, 5, 6 | Native RPC dispatch, observed state/session identity, recommender regression tests |
+| R2 Native/fresh/models | 1, 2, 3, 5, 6 | Native RPC dispatch, observed state/session identity, child-config isolation tests |
 | R3 Decisions | 1, 2, 3, 4, 5, 6 | Real bridge RPC dialog, correlation failures, live TUI approval/dismissal |
 | R4 Typed settled outcomes | 1, 3, 4, 5, 6 | Actual tool events, fake-process lifecycle tests, live settled outcomes |
 | R5 Simplify/verify | 2, 3, 4, 5, 6 | Real Git transitions, commit/push failure fixtures, live closeout |

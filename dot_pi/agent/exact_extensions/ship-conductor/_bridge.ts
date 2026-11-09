@@ -73,6 +73,9 @@ function readStageConfig(configPath: string, cwd: string): StageConfig {
   const canonicalWorktree = realpathSync(config.worktree);
   if (canonicalWorktree !== canonicalCwd) throw new Error("Lifecycle stage configuration worktree does not match the child working directory");
 
+  const branch = gitText(canonicalWorktree, ["branch", "--show-current"]);
+  if (branch !== config.branch) throw new Error(`Lifecycle branch ${branch || "<detached>"} does not match pinned branch ${config.branch}`);
+
   const canonicalPlanPath = realpathSync(config.planPath);
   const canonicalDesignPath = realpathSync(config.baseline.design.path);
   if (!isWithin(canonicalWorktree, canonicalPlanPath) || !isWithin(canonicalWorktree, canonicalDesignPath)) {
@@ -90,7 +93,8 @@ function readStageConfig(configPath: string, cwd: string): StageConfig {
 
 function assertRuntimeContext(config: StageConfig, ctx: { cwd: string; model: { provider: string; id: string } | undefined; thinkingLevel?: string; sessionManager: { getSessionId(): string } }): RuntimeIdentity {
   if (realpathSync(ctx.cwd) !== realpathSync(config.worktree)) throw new Error("Lifecycle child working directory changed");
-  if (!ctx.model || ctx.model.provider !== config.model.provider || ctx.model.id !== config.model.id) {
+  const expectedModel = config.models[config.stage];
+  if (!ctx.model || ctx.model.provider !== expectedModel.provider || ctx.model.id !== expectedModel.id) {
     throw new Error("Lifecycle child model does not match the pinned stage configuration");
   }
   if (ctx.thinkingLevel !== undefined && ctx.thinkingLevel !== config.thinkingLevel) {
@@ -107,12 +111,16 @@ function stageContract(config: StageConfig): string {
     `Run ID: ${config.runId}`,
     `Stage: ${config.stage}`,
     `Plan: ${config.planPath}`,
+    `Pinned branch: ${config.branch}`,
     `Pinned baseline commit: ${config.baseline.commit}`,
     `Pinned plan blob: ${config.baseline.plan.blob}`,
     `Pinned design blob: ${config.baseline.design.blob}`,
     `Selected unit: ${config.unit.heading}`,
     `Selected task numbers: ${config.unit.taskNumbers.join(", ")}`,
-    `Selected model: ${config.model.provider}/${config.model.id}`,
+    `Execute model: ${config.models.execute.provider}/${config.models.execute.id}`,
+    `Simplify model: ${config.models.simplify.provider}/${config.models.simplify.id}`,
+    `Verify model: ${config.models.verify.provider}/${config.models.verify.id}`,
+    `Selected model: ${config.models[config.stage].provider}/${config.models[config.stage].id}`,
     `Effective thinking level: ${config.thinkingLevel}`,
     "Use lifecycle_request_decision for user decisions. Submit exactly one final result with lifecycle_submit_outcome after the stage is complete.",
     "Only the bridge's structured tool result controls stage completion. Prose, exit status, and verdict text do not submit an outcome.",
@@ -183,6 +191,7 @@ async function candidateSnapshot(config: StageConfig, signal: AbortSignal | unde
   const branch = gitText(worktree, ["branch", "--show-current"]);
   const head = gitText(worktree, ["rev-parse", "--verify", "HEAD"]);
   if (!branch) throw new Error("Lifecycle candidate is on a detached HEAD");
+  if (branch !== config.branch) throw new Error(`Lifecycle candidate branch changed from ${config.branch} to ${branch}`);
   const statusBefore = gitBuffer(worktree, ["status", "--porcelain=v1", "--untracked-files=all", "-z"]);
   const hash = createHash("sha256");
   hash.update(branch).update("\0").update(head).update("\0").update(statusBefore);

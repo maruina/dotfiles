@@ -1,0 +1,118 @@
+export type LifecycleModel = { provider: string; id: string; name: string };
+export type ModelIdentity = { provider: string; id: string };
+export type LifecycleModels = { execute: LifecycleModel; simplify: LifecycleModel; verify: LifecycleModel };
+
+export type ModelRegistryLike = {
+  getAvailable(): readonly LifecycleModel[];
+  find(provider: string, modelId: string): LifecycleModel | undefined;
+  hasConfiguredAuth(model: LifecycleModel): boolean;
+};
+
+export type ModelSelectionUI = {
+  select(stage: "execute" | "simplify" | "verify", options: string[]): Promise<string | undefined>;
+  confirmIndependent(verifier: ModelIdentity, writer: ModelIdentity): Promise<boolean>;
+};
+
+export type ModelSelectionResult = { ok: true; models: LifecycleModels } | { ok: false; reason: string };
+
+const MAX_MODEL_CHOICES = 1000;
+const MAX_MODEL_LABEL_BYTES = 1024;
+
+function identityKey(model: ModelIdentity): string {
+  return `${model.provider.trim().toLowerCase()}\0${model.id.trim().toLowerCase()}`;
+}
+
+function normalizedModelId(model: ModelIdentity): string {
+  return model.id.trim().toLowerCase();
+}
+
+function sameKnownModel(left: ModelIdentity, right: ModelIdentity): boolean {
+  return identityKey(left) === identityKey(right) || normalizedModelId(left) === normalizedModelId(right);
+}
+
+function formatModel(model: LifecycleModel, current: ModelIdentity | undefined): string {
+  const suffix = `(${model.provider}/${model.id})`;
+  return `${current && identityKey(model) === identityKey(current) ? "Current session model — " : ""}${model.name} ${suffix}`;
+}
+
+function availableModels(registry: ModelRegistryLike): LifecycleModel[] {
+  const unique = new Map<string, LifecycleModel>();
+  for (const model of registry.getAvailable()) {
+    if (!model.provider.trim() || !model.id.trim() || !model.name.trim()) continue;
+    if (!registry.find(model.provider, model.id) || !registry.hasConfiguredAuth(model)) continue;
+    unique.set(identityKey(model), model);
+  }
+  return [...unique.values()].sort((left, right) =>
+    left.provider.localeCompare(right.provider) || left.name.localeCompare(right.name) || left.id.localeCompare(right.id),
+  );
+}
+
+async function selectOne(
+  registry: ModelRegistryLike,
+  ui: ModelSelectionUI,
+  stage: "execute" | "simplify" | "verify",
+  candidates: LifecycleModel[],
+  current: ModelIdentity | undefined,
+): Promise<LifecycleModel | undefined> {
+  const ordered = [...candidates].sort((left, right) => {
+    const leftCurrent = current && identityKey(left) === identityKey(current) ? 0 : 1;
+    const rightCurrent = current && identityKey(right) === identityKey(current) ? 0 : 1;
+    return leftCurrent - rightCurrent || left.provider.localeCompare(right.provider) || left.name.localeCompare(right.name) || left.id.localeCompare(right.id);
+  });
+  if (ordered.length === 0) return undefined;
+  if (ordered.length > MAX_MODEL_CHOICES) throw new Error(`Model selection exceeds ${MAX_MODEL_CHOICES} choices`);
+
+  const labels = ordered.map((model) => formatModel(model, current));
+  if (labels.some((label) => Buffer.byteLength(label, "utf8") > MAX_MODEL_LABEL_BYTES)) {
+    throw new Error(`Model selection contains a label longer than ${MAX_MODEL_LABEL_BYTES} bytes`);
+  }
+  const selected = await ui.select(stage, labels);
+  if (selected === undefined) return undefined;
+  const index = labels.indexOf(selected);
+  if (index < 0) throw new Error(`Selected ${stage} model is not in the available choices`);
+
+  const model = ordered[index];
+  const registered = registry.find(model.provider, model.id);
+  if (!registered || !registry.hasConfiguredAuth(registered)) {
+    throw new Error(`Selected ${stage} model ${model.provider}/${model.id} is not an available authenticated model`);
+  }
+  return registered;
+}
+
+export async function selectModels(
+  registry: ModelRegistryLike,
+  current: ModelIdentity | undefined,
+  ui: ModelSelectionUI,
+): Promise<ModelSelectionResult> {
+  let available: LifecycleModel[];
+  try {
+    available = availableModels(registry);
+  } catch (error) {
+    return { ok: false, reason: `Cannot read authenticated models: ${error instanceof Error ? error.message : String(error)}` };
+  }
+  if (available.length === 0) return { ok: false, reason: "No available authenticated chat models are configured" };
+
+  try {
+    const execute = await selectOne(registry, ui, "execute", available, current);
+    if (!execute) return { ok: false, reason: "Execute model selection was cancelled" };
+    const simplify = await selectOne(registry, ui, "simplify", available, current);
+    if (!simplify) return { ok: false, reason: "Simplify model selection was cancelled" };
+    const writers = [execute, simplify].filter((model, index, all) => all.findIndex((candidate) => identityKey(candidate) === identityKey(model)) === index);
+    const verifyCandidates = available.filter((candidate) => !writers.some((writer) => sameKnownModel(candidate, writer)));
+    if (verifyCandidates.length === 0) return { ok: false, reason: "No distinct verifier model is available" };
+    const verify = await selectOne(registry, ui, "verify", verifyCandidates, current);
+    if (!verify) return { ok: false, reason: "Verify model selection was cancelled" };
+    if (writers.some((writer) => sameKnownModel(verify, writer))) {
+      return { ok: false, reason: "Verify model matches a selected writer after identity normalization" };
+    }
+
+    for (const writer of writers) {
+      if (verify.provider !== writer.provider && !(await ui.confirmIndependent(verify, writer))) {
+        return { ok: false, reason: `Verifier independence was not confirmed for ${verify.provider}/${verify.id} and ${writer.provider}/${writer.id}` };
+      }
+    }
+    return { ok: true, models: { execute, simplify, verify } };
+  } catch (error) {
+    return { ok: false, reason: error instanceof Error ? error.message : String(error) };
+  }
+}

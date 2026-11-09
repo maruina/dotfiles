@@ -1,61 +1,19 @@
 import { strict as assert } from "node:assert";
 import { existsSync } from "node:fs";
 import { EventEmitter } from "node:events";
-import { PassThrough, Readable, Writable } from "node:stream";
+import { PassThrough, Writable } from "node:stream";
 import { describe, it } from "node:test";
 import {
-  buildStageArgs,
+  buildRpcChildEnvironment,
   buildRpcStageArgs,
-  describeFailure,
   getPiInvocation,
-  isStageFailure,
-  runStage,
   startRpcSession,
   preflightRpcStage,
   promptRpcStage,
-  stderrTail,
-  type Spawner,
-  type StageResult,
+  runRpcLifecycleStage,
   type RpcRecord,
+  type RpcStageUI,
 } from "./_spawn.ts";
-
-class FakeProc extends EventEmitter {
-  stdout = new Readable({ read() {} });
-  stderr = new Readable({ read() {} });
-  killed = false;
-  kill(_signal: NodeJS.Signals): boolean {
-    this.killed = true;
-    return true;
-  }
-}
-
-function emitAndClose(proc: FakeProc, stdoutLines: string[], stderrLines: string[], code: number): void {
-  for (const line of stdoutLines) proc.stdout.push(line + "\n");
-  proc.stdout.push(null);
-  for (const line of stderrLines) proc.stderr.push(line + "\n");
-  proc.stderr.push(null);
-  // Let the stream 'data' events be delivered before the child 'close' fires.
-  setTimeout(() => proc.emit("close", code), 10);
-}
-
-const ASSISTANT = (text: string, extra: Record<string, string> = {}) =>
-  JSON.stringify({ type: "message_end", message: { role: "assistant", content: [{ type: "text", text }], ...extra } });
-
-describe("buildStageArgs", () => {
-  it("builds the stage argv with model, thinking, and prompt", () => {
-    assert.deepEqual(buildStageArgs("baseten/zai-org/GLM-5.3", "# Execute\nbody"), [
-      "--mode",
-      "json",
-      "-p",
-      "--no-session",
-      "--model",
-      "baseten/zai-org/GLM-5.3",
-      "--thinking",
-      "max",
-      "# Execute\nbody",
-    ]);
-  });
-});
 
 describe("getPiInvocation", () => {
   it("invokes the current script under the current runtime when one exists", () => {
@@ -77,130 +35,6 @@ describe("getPiInvocation", () => {
     } finally {
       process.argv[1] = original;
     }
-  });
-});
-
-describe("isStageFailure / describeFailure", () => {
-  const base: StageResult = {
-    exitCode: 0,
-    finalMessage: "",
-    stopReason: undefined,
-    errorMessage: undefined,
-    stderr: "",
-    aborted: false,
-  };
-
-  it("classifies non-zero exit, error, and aborted stop reasons as failures", () => {
-    assert.equal(isStageFailure({ ...base, exitCode: 1 }), true);
-    assert.equal(isStageFailure({ ...base, stopReason: "error" }), true);
-    assert.equal(isStageFailure({ ...base, stopReason: "aborted" }), true);
-    assert.equal(isStageFailure(base), false);
-    assert.equal(isStageFailure({ ...base, stopReason: "end" }), false);
-  });
-
-  it("describes the failure reason", () => {
-    assert.equal(describeFailure({ ...base, stopReason: "error", errorMessage: "boom" }), "error");
-    assert.equal(describeFailure({ ...base, errorMessage: "boom" }), "boom");
-    assert.equal(describeFailure({ ...base, exitCode: 3 }), "exit code 3");
-  });
-
-  it("tails stderr beyond the cap", () => {
-    const long = "x".repeat(5000);
-    assert.equal(stderrTail(long).length, 2003);
-    assert.ok(stderrTail(long).startsWith("..."));
-    assert.ok(stderrTail(long).endsWith("x".repeat(2000)));
-    assert.equal(stderrTail("short"), "short");
-  });
-});
-
-describe("runStage", () => {
-  it("captures the final assistant message, stop reason, and exit code", async () => {
-    const spawner: Spawner = (command, args, options) => {
-      assert.equal(command, "pi");
-      assert.deepEqual(args, buildStageArgs("baseten/zai-org/GLM-5.3", "Task text"));
-      assert.equal(options.cwd, "/wt");
-      const proc = new FakeProc();
-      emitAndClose(
-        proc,
-        [
-          ASSISTANT("first message"),
-          ASSISTANT("Implementation model: `GLM-5.3 (Baseten) (baseten/zai-org/GLM-5.3)`", { stopReason: "end" }),
-        ],
-        ["some stderr"],
-        0,
-      );
-      return proc;
-    };
-    const result = await runStage(spawner, { command: "pi", args: buildStageArgs("baseten/zai-org/GLM-5.3", "Task text") }, "/wt", undefined);
-    assert.equal(result.exitCode, 0);
-    assert.equal(result.finalMessage, "Implementation model: `GLM-5.3 (Baseten) (baseten/zai-org/GLM-5.3)`");
-    assert.equal(result.stopReason, "end");
-    assert.equal(result.stderr, "some stderr\n");
-    assert.equal(result.aborted, false);
-  });
-
-  it("ignores non-JSON lines and non-assistant messages", async () => {
-    const spawner: Spawner = () => {
-      const proc = new FakeProc();
-      emitAndClose(
-        proc,
-        [
-          "not json",
-          JSON.stringify({ type: "message_end", message: { role: "user", content: [{ type: "text", text: "ignored" }] } }),
-          ASSISTANT("final"),
-        ],
-        [],
-        0,
-      );
-      return proc;
-    };
-    const result = await runStage(spawner, { command: "pi", args: [] }, "/wt", undefined);
-    assert.equal(result.finalMessage, "final");
-    assert.equal(result.exitCode, 0);
-  });
-
-  it("reports a non-zero exit code", async () => {
-    const spawner: Spawner = () => {
-      const proc = new FakeProc();
-      emitAndClose(proc, [], ["fatal error"], 1);
-      return proc;
-    };
-    const result = await runStage(spawner, { command: "pi", args: [] }, "/wt", undefined);
-    assert.equal(result.exitCode, 1);
-    assert.equal(result.stderr, "fatal error\n");
-  });
-
-  it("kills the child and reports aborted on signal", async () => {
-    const abortController = new AbortController();
-    let proc: FakeProc | undefined;
-    const spawner: Spawner = () => {
-      proc = new FakeProc();
-      setTimeout(() => {
-        proc!.stdout.push(ASSISTANT("partial") + "\n");
-        proc!.stdout.push(null);
-        proc!.emit("close", 143);
-      }, 20);
-      return proc;
-    };
-    const promise = runStage(spawner, { command: "pi", args: [] }, "/wt", abortController.signal);
-    setTimeout(() => abortController.abort(), 5);
-    const result = await promise;
-    assert.equal(result.aborted, true);
-    assert.ok(proc?.killed);
-  });
-
-  it("resolves when the signal is already aborted", async () => {
-    const abortController = new AbortController();
-    abortController.abort();
-    let proc: FakeProc | undefined;
-    const spawner: Spawner = () => {
-      proc = new FakeProc();
-      setTimeout(() => proc!.emit("close", 143), 20);
-      return proc;
-    };
-    const result = await runStage(spawner, { command: "pi", args: [] }, "/wt", abortController.signal);
-    assert.equal(result.aborted, true);
-    assert.ok(proc?.killed);
   });
 });
 
@@ -274,6 +108,8 @@ function fakeRpc(options: FakeRpcOptions = {}) {
             model: options.model ?? { provider: "fixture", id: "driver" },
             thinkingLevel: options.thinkingLevel ?? "minimal",
             isStreaming: options.isStreaming ?? false,
+            pendingMessageCount: 0,
+            messageCount: 0,
             sessionId: "session-fixture",
           }
         : request.type === "get_commands"
@@ -309,12 +145,165 @@ function fakeRpc(options: FakeRpcOptions = {}) {
   return { session, proc };
 }
 
+const STAGE_OPTIONS = {
+  runId: "run-1",
+  stage: "execute" as const,
+  commandName: "execute",
+  promptPath: "/wt/prompts/execute.md",
+  templates: [
+    { commandName: "simplify", promptPath: "/wt/prompts/simplify.md" },
+    { commandName: "verify", promptPath: "/wt/prompts/verify.md" },
+  ],
+  model: { provider: "fixture", id: "driver" },
+  thinkingLevel: "minimal",
+  bridgePath: "/agent/ship-conductor/_bridge.ts",
+  configPath: "/tmp/stage.json",
+  prompt: "# Execute fixture",
+};
+
+function lifecycleOutcome(): RpcRecord {
+  return {
+    schemaVersion: 1,
+    runId: "run-1",
+    stage: "execute",
+    sessionId: "session-fixture",
+    model: { provider: "fixture", id: "driver" },
+    outcome: "success",
+    change: "changed",
+    candidate: { branch: "feature", head: "a".repeat(40), stateDigest: "b".repeat(64) },
+    reportRef: "lifecycle-coordinator/runs/run-1/reports/execute-report.md",
+  };
+}
+
+function decisionResult(decision: "approved" | "rejected" | "cancelled", runId = "run-1"): RpcRecord {
+  return {
+    protocolVersion: 1,
+    runId,
+    stage: "execute",
+    sessionId: "session-fixture",
+    model: { provider: "fixture", id: "driver" },
+    requestId: "decision-call",
+    decision,
+    question: "Run the required focused test?",
+    evidence: "The execute stage changed source files.",
+    proposal: "Run the documented focused test before commit.",
+    context: "This remains within the pinned implementation unit.",
+  };
+}
+
+function lifecycleRpc(options: { outcome?: boolean; wrongRunId?: boolean } = {}) {
+  let proc: FakeRpcProc;
+  let promptCount = 0;
+  const templates = [
+    { name: "execute", source: "prompt", sourceInfo: { path: "/wt/prompts/execute.md" } },
+    { name: "simplify", source: "prompt", sourceInfo: { path: "/wt/prompts/simplify.md" } },
+    { name: "verify", source: "prompt", sourceInfo: { path: "/wt/prompts/verify.md" } },
+  ];
+  const respond = (request: RpcRecord, data: RpcRecord) => {
+    setImmediate(() => proc.emitRecord({ id: request.id, type: "response", command: request.type, success: true, data }));
+  };
+  proc = new FakeRpcProc((request) => {
+    if (request.type === "extension_ui_response") {
+      setTimeout(() => {
+        const answer = request.cancelled === true ? undefined : request.value;
+        const decision = answer === "Approve" ? "approved" : answer === "Reject" ? "rejected" : "cancelled";
+        proc.emitRecord({
+          type: "tool_execution_end",
+          toolCallId: "decision-call",
+          toolName: "lifecycle_request_decision",
+          isError: decision !== "approved",
+          result: { details: decisionResult(decision, options.wrongRunId ? "run-other" : "run-1") },
+        });
+        if (decision === "approved" && options.outcome !== false) {
+          proc.emitRecord({ type: "tool_execution_start", toolCallId: "outcome-call", toolName: "lifecycle_submit_outcome" });
+          proc.emitRecord({
+            type: "tool_execution_end",
+            toolCallId: "outcome-call",
+            toolName: "lifecycle_submit_outcome",
+            isError: false,
+            result: { details: lifecycleOutcome() },
+          });
+        }
+        proc.emitRecord({ type: "agent_settled", aborted: decision !== "approved" });
+      }, 1);
+      return;
+    }
+    if (request.type === "get_state") {
+      respond(request, {
+        model: { provider: "fixture", id: "driver" },
+        thinkingLevel: "minimal",
+        isStreaming: false,
+        pendingMessageCount: 0,
+        messageCount: promptCount,
+        sessionId: "session-fixture",
+      });
+      return;
+    }
+    if (request.type === "get_commands") {
+      respond(request, { commands: templates });
+      return;
+    }
+    if (request.type === "prompt") {
+      promptCount++;
+      respond(request, { disposition: "started" });
+      setTimeout(() => {
+        proc.emitRecord({ type: "agent_start" });
+        proc.emitRecord({ type: "tool_execution_start", toolCallId: "decision-call", toolName: "lifecycle_request_decision" });
+        proc.emitRecord({
+          type: "extension_ui_request",
+          id: "decision-ui",
+          method: "select",
+          title: "execute decision — Run the required focused test?\n\nEvidence: The execute stage changed source files.\n\nProposal: Run the documented focused test before commit.\n\nContext: This remains within the pinned implementation unit.",
+          options: ["Approve", "Reject"],
+        });
+      }, 1);
+      return;
+    }
+    if (request.type === "abort") {
+      respond(request, {});
+      return;
+    }
+    respond(request, {});
+  });
+  const spawner = (_command: string, _args: string[], spawnOptions: { cwd: string; env: NodeJS.ProcessEnv }) => {
+    assert.equal(spawnOptions.cwd, "/wt");
+    assert.equal(spawnOptions.env.PI_LIFECYCLE_CHILD_CONFIG, "/tmp/stage.json");
+    return proc;
+  };
+  return { proc, spawner };
+}
+
+function stageUI(answer: string | undefined): RpcStageUI {
+  return {
+    select: async (_title, options) => {
+      assert.deepEqual(options, ["Approve", "Reject"]);
+      return answer;
+    },
+    confirm: async () => true,
+    input: async () => "fixture",
+    editor: async () => "fixture",
+    notify: () => undefined,
+    setStatus: () => undefined,
+  };
+}
+
 const RPC_PREFLIGHT = {
   commandName: "execute",
   promptPath: "/wt/prompts/execute.md",
   model: { provider: "fixture", id: "driver" },
   thinkingLevel: "minimal",
 };
+
+describe("buildRpcChildEnvironment", () => {
+  it("replaces child-only metadata without mutating the parent environment", () => {
+    const parent = { PATH: "/bin", PI_LIFECYCLE_CHILD_CONFIG: "/parent/stage.json" };
+    const child = buildRpcChildEnvironment(parent, "/child/stage.json");
+    assert.notEqual(child, parent);
+    assert.equal(parent.PI_LIFECYCLE_CHILD_CONFIG, "/parent/stage.json");
+    assert.equal(child.PI_LIFECYCLE_CHILD_CONFIG, "/child/stage.json");
+    assert.equal(child.PATH, parent.PATH);
+  });
+});
 
 describe("buildRpcStageArgs", () => {
   it("starts a fresh RPC child with the selected provider, model, thinking, and bridge", () => {
@@ -366,6 +355,29 @@ describe("RPC stage preflight and dispatch", () => {
     await streaming.session.close();
   });
 
+  it("checks all stage templates and refuses shadowed provenance before dispatch", async () => {
+    const allTemplates = [
+      { commandName: "simplify", promptPath: "/wt/prompts/simplify.md" },
+      { commandName: "verify", promptPath: "/wt/prompts/verify.md" },
+    ];
+    const allCommands = fakeRpc({
+      commands: [
+        { name: "execute", source: "prompt", sourceInfo: { path: "/wt/prompts/execute.md" } },
+        { name: "simplify", source: "prompt", sourceInfo: { path: "/wt/prompts/simplify.md" } },
+        { name: "verify", source: "prompt", sourceInfo: { path: "/wt/prompts/verify.md" } },
+      ],
+    });
+    try {
+      await preflightRpcStage(allCommands.session, { ...RPC_PREFLIGHT, templates: allTemplates });
+    } finally {
+      await allCommands.session.close();
+    }
+
+    const missing = fakeRpc();
+    await assert.rejects(preflightRpcStage(missing.session, { ...RPC_PREFLIGHT, templates: allTemplates }), /simplify.*prompt provenance/);
+    await missing.session.close();
+  });
+
   it("refuses an extension command or a shadowed prompt path", async () => {
     const extensionCommand = fakeRpc({
       commands: [{ name: "execute", source: "extension", sourceInfo: { path: "/agent/extension.ts" } }],
@@ -391,6 +403,14 @@ describe("RPC stage preflight and dispatch", () => {
     }
   });
 
+  it("reports confirmed process termination and exit failure", async () => {
+    const { session, proc } = fakeRpc();
+    const exit = session.waitForExit();
+    await session.close();
+    assert.deepEqual(await exit, { code: 0, signal: null, error: undefined });
+    assert.equal(proc.closed, true);
+  });
+
   it("forwards extension UI responses and emits non-response RPC records", async () => {
     const { session, proc } = fakeRpc();
     const observed: RpcRecord[] = [];
@@ -404,6 +424,81 @@ describe("RPC stage preflight and dispatch", () => {
     } finally {
       unsubscribe();
       await session.close();
+    }
+  });
+});
+
+describe("runRpcLifecycleStage", () => {
+  it("requires a correlated approval, structured outcome, and settled fresh session", async () => {
+    const { proc, spawner } = lifecycleRpc();
+    const observed: unknown[] = [];
+    const result = await runRpcLifecycleStage(
+      spawner,
+      { command: "pi", args: ["--mode", "rpc"] },
+      "/wt",
+      { PI_LIFECYCLE_CHILD_CONFIG: "/tmp/stage.json" },
+      STAGE_OPTIONS,
+      stageUI("Approve"),
+      undefined,
+      {
+        onObserved: (state) => {
+          observed.push(state);
+        },
+        onProgress: (message) => assert.ok(Buffer.byteLength(message, "utf8") <= 512),
+      },
+    );
+    assert.equal(result.status, "settled");
+    assert.equal(result.promptStarted, true);
+    assert.equal(result.terminationConfirmed, true);
+    assert.equal(observed.length, 1);
+    if (result.status !== "settled") return;
+    assert.equal(result.outcome.outcome, "success");
+    assert.equal(result.decisions.length, 1);
+    assert.equal(result.decisions[0]?.decision, "approved");
+    assert.equal(result.decisions[0]?.uiRequestId, "decision-ui");
+    assert.equal(result.decisions[0]?.toolCallId, "decision-call");
+    assert.equal(result.decisions[0]?.question, "Run the required focused test?");
+    assert.deepEqual(proc.requests.find((request) => request.type === "extension_ui_response"), {
+      type: "extension_ui_response",
+      id: "decision-ui",
+      value: "Approve",
+    });
+  });
+
+  it("treats rejection as blocked and dismissal as cancelled, never approved", async () => {
+    for (const [answer, expectedStatus, expectedDecision] of [
+      ["Reject", "blocked", "rejected"],
+      [undefined, "cancelled", "cancelled"],
+    ] as const) {
+      const { spawner } = lifecycleRpc();
+      const result = await runRpcLifecycleStage(
+        spawner,
+        { command: "pi", args: [] },
+        "/wt",
+        { PI_LIFECYCLE_CHILD_CONFIG: "/tmp/stage.json" },
+        STAGE_OPTIONS,
+        stageUI(answer),
+      );
+      assert.equal(result.status, expectedStatus);
+      assert.equal(result.decisions[0]?.decision, expectedDecision);
+      assert.equal(result.promptStarted, true);
+      assert.equal(result.terminationConfirmed, true);
+    }
+  });
+
+  it("rejects missing and wrong-run outcomes after settlement", async () => {
+    for (const options of [{ outcome: false }, { wrongRunId: true }]) {
+      const { spawner } = lifecycleRpc(options);
+      const result = await runRpcLifecycleStage(
+        spawner,
+        { command: "pi", args: [] },
+        "/wt",
+        { PI_LIFECYCLE_CHILD_CONFIG: "/tmp/stage.json" },
+        STAGE_OPTIONS,
+        stageUI("Approve"),
+      );
+      assert.equal(result.status, "failure");
+      assert.equal(result.terminationConfirmed, true);
     }
   });
 });

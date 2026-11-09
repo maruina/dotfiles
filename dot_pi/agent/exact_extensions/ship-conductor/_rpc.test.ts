@@ -6,7 +6,18 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
-import { buildRpcStageArgs, preflightRpcStage, promptRpcStage, startRpcSession, type RpcSession } from "./_spawn.ts";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import lifecycleBridge from "./_bridge.ts";
+import {
+  buildRpcStageArgs,
+  preflightRpcStage,
+  promptRpcStage,
+  runRpcLifecycleStage,
+  startRpcSession,
+  type RpcSession,
+  type RpcSpawner,
+  type RpcStageUI,
+} from "./_spawn.ts";
 
 const TEST_DIR = dirname(fileURLToPath(import.meta.url));
 const BRIDGE_PATH = join(TEST_DIR, "_bridge.ts");
@@ -59,6 +70,7 @@ function createFixture(stage: "execute" | "simplify" | "verify" = "execute"): Fi
           runId: "run-test-123",
           stage,
           worktree,
+          branch: "fixture",
           planPath,
           baseline: {
             commit: baselineCommit,
@@ -66,7 +78,11 @@ function createFixture(stage: "execute" | "simplify" | "verify" = "execute"): Fi
             design: { path: designPath, blob: designBlob },
           },
           unit: { heading: "Fixture task", taskNumbers: [1] },
-          model: { provider: "lifecycle-test", id: "driver" },
+          models: {
+            execute: { provider: "lifecycle-test", id: stage === "execute" ? "driver" : "executor" },
+            simplify: { provider: "lifecycle-test", id: stage === "simplify" ? "driver" : "simplifier" },
+            verify: { provider: "lifecycle-test", id: stage === "verify" ? "driver" : "verifier" },
+          },
           thinkingLevel: "minimal",
         },
         null,
@@ -180,13 +196,18 @@ class RpcProcess {
   }
 }
 
+function assertPi150(): void {
+  const version = execFileSync("pi", ["--version"], { encoding: "utf8" }).trim();
+  assert.equal(version, "1.5.0", `RPC contract test requires Pi 1.5.0, got ${version}`);
+}
+
 function startRpc(
   fixture: Fixture,
   outcomeMode: "success" | "error" | "missing" | "expansion",
   promptTemplatePath?: string,
+  childConfigPath: string | false = fixture.configPath,
 ): RpcProcess {
-  const version = execFileSync("pi", ["--version"], { encoding: "utf8" }).trim();
-  assert.equal(version, "1.5.0", `RPC contract test requires Pi 1.5.0, got ${version}`);
+  assertPi150();
   const args = [
     "--no-extensions",
     "--no-prompt-templates",
@@ -195,13 +216,14 @@ function startRpc(
     DRIVER_PATH,
   ];
   if (promptTemplatePath) args.push("--prompt-template", promptTemplatePath);
-  return new RpcProcess(args, fixture.worktree, {
+  const env: NodeJS.ProcessEnv = {
     ...process.env,
     PI_CODING_AGENT_DIR: fixture.agentDir,
     PI_OFFLINE: "1",
-    PI_LIFECYCLE_CHILD_CONFIG: fixture.configPath,
     PI_LIFECYCLE_TEST_OUTCOME: outcomeMode,
-  });
+  };
+  if (childConfigPath !== false) env.PI_LIFECYCLE_CHILD_CONFIG = childConfigPath;
+  return new RpcProcess(args, fixture.worktree, env);
 }
 
 function messageText(record: RpcRecord): string {
@@ -447,6 +469,111 @@ async function runCandidateTemplateExpansion(): Promise<void> {
 }
 
 describe("Pi 1.5.0 lifecycle bridge RPC contract", () => {
+  it("leaves ordinary RPC sessions unchanged when the child marker is absent", { timeout: 60_000 }, async () => {
+    const fixture = createFixture();
+    const rpc = startRpc(fixture, "success", undefined, false);
+    try {
+      const state = await rpc.request("get_state");
+      assert.equal(state.data.model.provider, "lifecycle-test");
+      assert.equal(state.data.messageCount, 0);
+      assert.equal(rpc.records.some((record) => record.type === "extension_error"), false);
+    } finally {
+      await rpc.close();
+      rmSync(fixture.root, { recursive: true, force: true });
+    }
+  });
+
+  it("does not register child tools or hooks in an ordinary interactive extension context", () => {
+    const previousConfig = process.env.PI_LIFECYCLE_CHILD_CONFIG;
+    delete process.env.PI_LIFECYCLE_CHILD_CONFIG;
+    const registrations = { events: [] as string[], tools: [] as string[], commands: [] as string[] };
+    const pi = {
+      on: (event: string) => {
+        registrations.events.push(event);
+        return () => undefined;
+      },
+      registerTool: (tool: { name: string }) => registrations.tools.push(tool.name),
+      registerCommand: (name: string) => registrations.commands.push(name),
+    } as unknown as ExtensionAPI;
+    try {
+      lifecycleBridge(pi);
+      assert.deepEqual(registrations, { events: [], tools: [], commands: [] });
+    } finally {
+      if (previousConfig === undefined) delete process.env.PI_LIFECYCLE_CHILD_CONFIG;
+      else process.env.PI_LIFECYCLE_CHILD_CONFIG = previousConfig;
+    }
+  });
+
+  it("fails an invalid child configuration before starting the stage prompt", { timeout: 60_000 }, async () => {
+    assertPi150();
+    const fixture = createFixture();
+    writeFileSync(fixture.configPath, "{ invalid json\n", { mode: 0o600 });
+    const promptPath = join(fixture.root, "execute.md");
+    writeFileSync(promptPath, "---\ndescription: Execute fixture\n---\nfixture prompt\n");
+    const args = [
+      "--no-extensions",
+      "--no-prompt-templates",
+      ...buildRpcStageArgs("lifecycle-test", "driver", "minimal", BRIDGE_PATH),
+      "-e",
+      DRIVER_PATH,
+      "--prompt-template",
+      promptPath,
+    ];
+    let child: ChildProcessWithoutNullStreams | undefined;
+    const spawner: RpcSpawner = (command, childArgs, options) => {
+      child = spawn(command, childArgs, { cwd: options.cwd, env: options.env, stdio: ["pipe", "pipe", "pipe"] });
+      return child;
+    };
+    const env = {
+      ...process.env,
+      PI_CODING_AGENT_DIR: fixture.agentDir,
+      PI_OFFLINE: "1",
+      PI_LIFECYCLE_CHILD_CONFIG: fixture.configPath,
+      PI_LIFECYCLE_TEST_OUTCOME: "success",
+    };
+    const ui: RpcStageUI = {
+      select: async () => "Approve",
+      confirm: async () => true,
+      input: async () => "fixture",
+      editor: async () => "fixture",
+      notify: () => undefined,
+      setStatus: () => undefined,
+    };
+    try {
+      const result = await runRpcLifecycleStage(
+        spawner,
+        { command: "pi", args },
+        fixture.worktree,
+        env,
+        {
+          runId: "run-test-123",
+          stage: "execute",
+          commandName: "execute",
+          promptPath,
+          model: { provider: "lifecycle-test", id: "driver" },
+          thinkingLevel: "minimal",
+          bridgePath: BRIDGE_PATH,
+          configPath: fixture.configPath,
+          prompt: "/execute fixture plan",
+        },
+        ui,
+      );
+      assert.equal(result.status, "failure");
+      if (result.status !== "failure") assert.fail("invalid stage configuration must be a protocol failure");
+      assert.match(`${result.reason}\n${result.stderr}`, /extension|config|invalid|json/i);
+      assert.equal(result.promptStarted, false);
+      assert.equal(result.terminationConfirmed, true);
+      assert.ok(child);
+      assert.notEqual(child!.exitCode, null);
+    } finally {
+      if (child && child.exitCode === null && child.signalCode === null) {
+        child.kill("SIGKILL");
+        await new Promise<void>((resolve) => child!.once("close", () => resolve()));
+      }
+      rmSync(fixture.root, { recursive: true, force: true });
+    }
+  });
+
   it("expands the candidate lifecycle templates with exact handoff and task arguments", { timeout: 60_000 }, async () => {
     await runCandidateTemplateExpansion();
   });

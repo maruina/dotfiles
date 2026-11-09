@@ -24,7 +24,7 @@
 | `diataxis` | skill-loader | Documentation | Separated usage/recovery guidance from protocol reference |
 
 ### Execution
-Current task: Task 2 complete; Task 3 is next.
+Current task: Task 3 is complete; Task 4 is next.
 
 | Skill | Source | Why loaded | How used |
 |---|---|---|---|
@@ -52,6 +52,10 @@ LSP resolution: after rebasing onto `fc796d7`, `lsp_context` succeeded for `ship
 Task 1 verification: the focused `_protocol`, `_rpc`, and `_spawn` tests passed 28/28; the existing coordinator and prompt tests passed 17/17. The Pi 1.5.0 RPC tests used the in-memory provider and the new adapter, verified approval UI request/response, structured tool outcomes, settled-without-outcome handling, and native expansion/source provenance for all three templates. All changed TypeScript files had zero LSP diagnostics. The temporary Git fixture disables commit signing to avoid inherited host configuration.
 
 Task 2 verification: `node --test exact_scripts/lifecycle-prompts.test.mjs` passed 52/52; `node --experimental-strip-types --test exact_extensions/ship-conductor/_prompts.test.ts exact_extensions/ship-conductor/_rpc.test.ts` passed 11/11. Real Pi 1.5.0 RPC tests expanded all three candidate templates across six plan/task inputs, preserving `--base`, both writer IDs, whitespace, single and double quotes, flag-looking task text, and literal `$ARGUMENTS`. LSP reported zero diagnostics for `_rpc.test.ts`; `git diff --check` passed and changed sources contain no unexpected control bytes. The initial handoff assertions failed for the missing dual-writer and conditional bridge contracts, then passed after the template changes. Native expansion lives in `_rpc.test.ts`, where the real Pi command parser is exercised; `lifecycle-prompts.test.mjs` checks prompt contracts. `_prompts.ts` and `_prompts.test.ts` remain unchanged because they serve the legacy `/ship` path scheduled for replacement in Task 3; the focused helper tests still pass. No independent `/verify`, target application, or live TUI acceptance has occurred.
+
+Task 3 implementation verification: `node --experimental-strip-types --test 'exact_extensions/ship-conductor/*.test.ts'` passed 85/85, `npm run test:unit` passed 304/304, `npm run test:prompts` passed 81/81, and `npm run test:pi-deps` passed. LSP diagnostics showed no issues in changed TypeScript files, and `git diff --check` passed. Pi 1.5.0 tests cover approval/outcome RPC events, invalid child configuration before prompt dispatch, ordinary marker-free RPC startup, and a no-op bridge in an ordinary extension context. The `test:unit` glob already includes `ship-conductor/*.test.ts`, so `package.json` needed no change. Root `AGENTS.md` now documents the structured bridge contract; `dot_pi/agent/AGENTS.md` had no matching stale guidance. This resumed worktree already contained the coordinator implementation, so no pre-change failing run was recorded for the new public-command and child-marker tests; they passed after addition. No live TUI acceptance or independent `/verify` has occurred.
+
+PR preparation constraint: the user directed that this worktree be rebased onto the latest `main` before raising a PR. Recheck branch, status, latest `main`, and upstream immediately before that rebase; do not move `main`. The most recent reference check found `main` and `origin/main` at `70fa273`, and no rebase for PR preparation has occurred.
 
 ## Approval and source ledger
 - Source of truth: `plans/pi-ship-conductor/design.md`, approved design at `07716f7`.
@@ -359,16 +363,17 @@ The following tasks form one integration unit, not independently authorized prod
 **Traces to:** R1-R8
 **Files:** `dot_pi/agent/exact_extensions/ship-conductor/index.ts`, `_conductor.ts`, `_conductor.test.ts`, `_worktree.ts`, `_worktree.test.ts`, `_unit.ts`, `_unit.test.ts`, `_models.ts`, `_models.test.ts`, `_state.ts`, `_state.test.ts`, `_spawn.ts`, `_spawn.test.ts`, `_protocol.ts`, `_protocol.test.ts`, `_bridge.ts`, `_prompts.ts`, `_prompts.test.ts`; delete `_markers.ts`, `_markers.test.ts`, `_pools.ts`, `_pools.test.ts`; `dot_pi/agent/package.json`.
 
-- [ ] Use LSP definition/reference context for exported helper changes; repeat consumer search and account for tests and guidance before deleting old interfaces.
-- [ ] Add failing public-command/state-machine tests for preflight, three interactive model selections (defaulting execute/simplify to the current session model and filtering verify to distinct models), selected-unit boundaries, three sequential sessions, structured transitions, clean simplify, fresh verify, and final counts. Use temporary real repositories for Git assertions.
-- [ ] Run `node --experimental-strip-types --test 'exact_extensions/ship-conductor/*.test.ts'`; expect new behavior failures before the replacement.
-- [ ] Implement the smallest coordinator and state helpers meeting the contract. Replace `/ship` registration and obsolete parsers/pools; no aliases or parallel policy. Fail on Git errors, not just nonempty status.
-- [ ] Validate child stage-config isolation (`PI_LIFECYCLE_CHILD_CONFIG`), add tests for marked child, invalid child config, ordinary RPC/TUI, and no leaked parent marker.
-- [ ] Pin original Git objects and selected unit, acquire/recheck ownership before dispatch, validate observed models and effective thinking via `get_state` plus candidate state on each transition, and persist records atomically. Reject unknown provenance and model drift conservatively.
-- [ ] Keep approval replies correlated and never automatic. Keep parent repository work/nested orchestration blocked cooperatively while children own the worktree. Verify child context payloads contain no predecessor transcript/report narrative.
-- [ ] Wire tests into existing `test:unit` enumeration, preserving other entries. Make no additional dependency or lockfile changes beyond the user-approved updated main baseline.
-- [ ] Run `node --experimental-strip-types --test 'exact_extensions/ship-conductor/*.test.ts'`; expect green.
-- [ ] Run LSP diagnostics for changed TypeScript. Refactor only after green, rerun narrow tests, and commit with `feat(pi): replace ship with single-round implement coordinator`.
+- [x] Use LSP definition/reference context for exported helper changes; repeat consumer search and account for tests and guidance before deleting old interfaces.
+- [x] Add public-command/state-machine tests for preflight, three interactive model selections (defaulting execute/simplify to the current session model and filtering verify to distinct models), selected-unit boundaries, three sequential sessions, structured transitions, clean simplify, fresh verify, and final counts. Use temporary real repositories for Git assertions.
+- [x] Run `node --experimental-strip-types --test 'exact_extensions/ship-conductor/*.test.ts'`; the new behavior is covered and the suite passes.
+- [x] Implement the smallest coordinator and state helpers meeting the contract. Replace `/ship` registration and obsolete parsers/pools; no aliases or parallel policy. Fail on Git errors, not just nonempty status.
+- [x] Validate child stage-config isolation (`PI_LIFECYCLE_CHILD_CONFIG`), with tests for marked child, invalid child config, ordinary RPC/TUI behavior, and no leaked parent marker.
+- [x] Pin original Git objects and selected unit, acquire/recheck ownership before dispatch, validate observed models and effective thinking via `get_state` plus candidate state on each transition, and persist records atomically. Reject unknown provenance and model drift conservatively.
+- [x] Keep approval replies correlated and never automatic. Keep parent repository work/nested orchestration blocked cooperatively while children own the worktree. Verify child context payloads contain no predecessor transcript/report narrative.
+- [x] Keep tests in the existing `test:unit` enumeration; its glob already includes the extension suite. Make no additional dependency or lockfile changes beyond the user-approved updated main baseline.
+- [x] Run `node --experimental-strip-types --test 'exact_extensions/ship-conductor/*.test.ts'`; all cases pass.
+- [x] Run LSP diagnostics for changed TypeScript. Refactor only after green and rerun the narrow suite.
+- [x] Commit with `feat(pi): replace ship with single-round implement coordinator`.
 
 ### Task 4: Prove failure containment, resource bounds, and cancellation
 **Delivers:** Failures cannot authorize another stage, leak a child, lose candidate state, or silently release unresolved ownership.

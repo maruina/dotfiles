@@ -28,6 +28,6 @@ export interface TextEdit { range: Range; newText: string }
 export interface WorkspaceEdit { changes?: Record<string, TextEdit[]>; documentChanges?: unknown[] }
 export interface LspState { workspaceRoots: Record<string, string>; serverVersions?: Record<string, string> }
 export interface ToolLocation { path: string; line: number; column: number; preview?: string }
-export interface OpenDocumentState { version: number; mtimeMs: number; size: number; textHash: string }
+export interface OpenDocumentState { version: number; mtimeMs: number; size: number; textHash: string; text: string }
 export interface WorkspaceOverride { name?: string; rootMarker: string; command?: string; args?: string[]; env?: Record<string, string>; initializationOptions?: unknown; root?(filePath: string, workspaceRoot: string): string }
 export interface ServerConfig { id: string; label: string; command: string; args: string[]; extensions: string[]; rootMarkers: string[]; initializationOptions?: unknown; settings?: unknown; env?: Record<string, string>; activeOverride?: string; workspaceOverrides?: WorkspaceOverride[]; matches?(filePath: string): boolean; root?(filePath: string): string | null; languageId(filePath: string): string; packageContext?(filePath: string, workspaceRoot: string, symbols: DocumentSymbol[], diagnostics: Map<string, Diagnostic[]>): unknown }

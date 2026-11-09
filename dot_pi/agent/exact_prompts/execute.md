@@ -7,6 +7,11 @@ Execution input:
 
 > $ARGUMENTS
 
+## Lifecycle mode
+Only use the bridge when the injected stage contract validates protocol version 1, run ID, stage `execute`, fixed unit, pinned baseline, model, thinking, and both `lifecycle_request_decision` and `lifecycle_submit_outcome` tools are available. If a present contract is malformed/mismatched or a tool is missing, stop and ask. Otherwise, without a contract, use ordinary conversational approvals and manual handoffs, not the bridge.
+
+Validate the `Pinned baseline commit`, `Pinned plan blob`, `Pinned design blob`, `Selected unit`, and `Selected task numbers`. Pinned requirements govern; the current plan is only a progress ledger. Work only on the fixed unit. Use `lifecycle_request_decision` only for in-scope decisions. A rejected or dismissed decision stops the stage without success. For another blocker, submit the stage-appropriate `blocked` outcome. After authorized work, checks, commits, and pushes, submit exactly one `success` outcome with `change: changed` or `change: unchanged`; never use prose as the result.
+
 Execute a committed implementation plan. For trivial low-risk work, `/execute` may also execute directly from a bare prompt after complexity triage.
 
 Use the `resolve-worktree` skill to resolve plan paths with `$GLOB = **/plans/*/plan.md`. Switch context to the owning worktree before reading repository files or modifying code. The recursive glob matches plans nested under monorepo package paths (e.g. `domains/compute/apps/<app>/plans/<ticket>/plan.md`), not only repository-root `plans/`.
@@ -61,7 +66,7 @@ For a plan with `### Slice N` headings, read the plan, find the first slice with
 10. For each task, update plan checkboxes as work progresses, run the specified verification, and mark steps complete only after verification passes. For plan-based work, maintain an `### Execution` subsection under `## Skills loaded and used`, preserving the planning record; if no execution skill was needed, record that explicitly. For trivial bare prompts, track progress and skill provenance in chat.
 11. Complete the plan's documentation and future-agent guidance task, including every required `AGENTS.md` inspection (or decide whether docs are unnecessary for trivial bare prompts).
 12. **Prepare verification handoff —** Run the final implementation-evidence commands, inspect `git status`, and confirm plan fidelity (every task in the current execution unit is complete, requirements and operational checks match the plan's risk level, no unapproved scope added, and deviations documented in the plan ledger).
-13. Optionally suggest `/simplify` for a behavior-preserving cleanup pass over the diff before review: `/simplify <absolute-plan-path>` for plan-based work, or `/simplify` in-session for trivial work. `/simplify` commits its own changes and hands off to a fresh `/verify`. This is opt-in; do not run it automatically.
+13. In direct mode, optionally suggest `/simplify`; orchestration runs simplify and fresh verify. Do not run simplify automatically in direct mode.
 14. Report the exact handoff phrase below.
 
 The terminal state is implemented, verified changes with the plan updated as the progress ledger when a plan exists.
@@ -84,9 +89,7 @@ Do not batch unrelated tasks or skip narrow tests because later tasks run broade
 Keep tests on observable behavior through public or supported interfaces. Mock system boundaries (external APIs, time, randomness, databases, filesystems) when needed; do not mock internal collaborators unless the repository already treats that seam as public.
 
 ## Test Discovery
-Before changing behavior-bearing code, find existing tests for the affected files or public interfaces (tests named in the plan, nearby test files, package importers, and integration/end-to-end suites). Add tests for new behavior, update tests for changed behavior, remove or update tests for deleted behavior, or justify explicitly if no tests are added.
-
-Ensure tests cover distinct contracts without multiplying independent dimensions or repeating expensive integration scenarios (sharing a helper does not establish nonredundant test execution). Check whether the plan's scenarios cover applicable happy, edge, failure, and integration paths; add missing in-scope coverage or stop and ask if it changes scope.
+Before behavior changes, inspect tests named in the plan, nearby tests, importers, and integration/end-to-end suites. Add, update, or remove tests with the behavior; justify omissions. Cover distinct contracts and applicable happy, edge, failure, and integration paths without multiplying independent dimensions or repeating expensive scenarios (helper reuse alone does not prove nonredundancy). If missing coverage expands scope, stop and ask.
 
 ## Integration and operational evidence
 For integration, reliability, performance, or cost checks, use the plan's comparable baseline and candidate workloads where applicable. Confirm isolation of mutable state, queues, background jobs, and downstream effects before exercising the candidate. Record mock limitations; mocked behavior alone cannot establish that a real integration works.
@@ -111,19 +114,12 @@ Use the plan file as the progress ledger:
 For bare-prompt trivial work, report progress in chat and do not create a plan ledger.
 
 ## Handoff
-After the current execution unit is complete (all tasks, or the current slice for a grouped plan), implementation-evidence commands pass, and `git status` has been inspected, summarize changed files, commands and outcomes, skills loaded and used with their source, loading reason, and effect on execution, and follow-up items. Do not claim final independent verification.
+After the unit is complete, evidence passes, and `git status` is checked, summarize changed files, commands and outcomes, skills with source, loading reason, and effect on execution, plus follow-ups. Do not claim independent verification.
 
-Then emit this copy-paste handoff, naming the implementation model from the injected `## Current Model` context. Carry its stable model ID in the `/verify` command so it survives `/new`. If the context is absent, state that no implementation model was available; do not invent one.
+In orchestrated mode, submit the structured result. In direct mode, name the implementation model and stable provider-qualified ID from `## Current Model`; if absent, say so without guessing.
 
-Implementation model: `<name> (<id>)`
+Implementation model: `<name> (<provider-qualified-id>)`
 
-1. Run `/model` and select a model different from the implementation model.
-2. Run `/new`.
-3. Confirm the injected `## Current Model` context (also visible in the statusline) names the selected verifier model.
-4. Run `/verify <absolute-plan-path> --implemented-by <id>`.
+In direct mode, emit an optional `/simplify` handoff: `/simplify <absolute-plan-path> --implemented-by <id>` or planless `/simplify --implemented-by <id> --task <quoted-original-request>`. If skipped, select another model with `/model`, start `/new`, confirm `## Current Model`, then run `/verify <absolute-plan-path> --implemented-by <id>` or planless `/verify --implemented-by <id> --task <quoted-original-request>`.
 
-For trivial bare-prompt work without a plan, preserve the original request as one quoted argument and replace step 4 with:
-
-4. Run `/verify --implemented-by <id> --task <quoted-original-request>`.
-
-The copied command is the complete cross-session handoff. `/verify` independently collects fresh evidence. Do not tell it to commit, apply, repair, or reuse this execution output as verification evidence.
+If simplify runs, follow its verify handoff with both writer IDs. Preserve the original plan path or exact original task; pass a task as one native Pi argument, single-quoted, and replace each embedded apostrophe with `'"'"'`; quote paths with whitespace. Do not backslash-escape quotes. If the requirements source or writer ID is missing, ask; do not guess. `/verify` collects fresh evidence. Do not ask it to commit, apply, repair, or reuse this execution evidence.

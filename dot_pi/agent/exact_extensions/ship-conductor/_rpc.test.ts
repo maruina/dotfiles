@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { execFileSync, spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { EventEmitter } from "node:events";
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -27,7 +27,7 @@ function run(command: string, args: string[], cwd: string): string {
   return execFileSync(command, args, { cwd, encoding: "utf8" }).trim();
 }
 
-function createFixture(): Fixture {
+function createFixture(stage: "execute" | "simplify" | "verify" = "execute"): Fixture {
   const root = mkdtempSync(join(tmpdir(), "pi-lifecycle-rpc-"));
   chmodSync(root, 0o700);
   const worktree = join(root, "repo");
@@ -57,7 +57,7 @@ function createFixture(): Fixture {
         {
           protocolVersion: 1,
           runId: "run-test-123",
-          stage: "execute",
+          stage,
           worktree,
           planPath,
           baseline: {
@@ -365,8 +365,93 @@ async function runPromptExpansionFixture() {
   }
 }
 
+type CandidateExpansionCase = {
+  stage: "execute" | "simplify" | "verify";
+  input: string;
+  arguments: string;
+};
+
+// Pi switches quote delimiters but does not process backslash escapes inside them.
+function quoteNativeArgument(value: string): string {
+  return `'${value.replaceAll("'", "'\"'\"'")}'`;
+}
+
+function expandTemplateForAssertion(template: string, argumentText: string): string {
+  const end = template.indexOf("\n---\n", 4);
+  assert.notEqual(end, -1, "lifecycle template must have closed frontmatter");
+  return template.slice(end + 5).replaceAll("$ARGUMENTS", argumentText).trim();
+}
+
+async function runCandidateTemplateExpansion(): Promise<void> {
+  const promptDir = join(dirname(dirname(TEST_DIR)), "exact_prompts");
+  const planPath = "/tmp/plans/fixture/plan with spaces.md";
+  const task = `Preserve  whitespace, "double quotes", 'single quotes', --literal-flag --implemented-by nested, and $ARGUMENTS.`;
+  const quotedTask = quoteNativeArgument(task);
+  const cases: CandidateExpansionCase[] = [
+    { stage: "execute", input: `/execute '${planPath}'`, arguments: planPath },
+    { stage: "execute", input: `/execute --task ${quotedTask}`, arguments: `--task ${task}` },
+    {
+      stage: "simplify",
+      input: `/simplify '${planPath}' --implemented-by fixture/executor --base origin/main`,
+      arguments: `${planPath} --implemented-by fixture/executor --base origin/main`,
+    },
+    {
+      stage: "simplify",
+      input: `/simplify --implemented-by fixture/executor --task ${quotedTask}`,
+      arguments: `--implemented-by fixture/executor --task ${task}`,
+    },
+    {
+      stage: "verify",
+      input: `/verify '${planPath}' --implemented-by fixture/executor --simplified-by fixture/simplifier`,
+      arguments: `${planPath} --implemented-by fixture/executor --simplified-by fixture/simplifier`,
+    },
+    {
+      stage: "verify",
+      input: `/verify --implemented-by fixture/executor --simplified-by fixture/simplifier --task ${quotedTask}`,
+      arguments: `--implemented-by fixture/executor --simplified-by fixture/simplifier --task ${task}`,
+    },
+  ];
+
+  for (const stage of ["execute", "simplify", "verify"] as const) {
+    const fixture = createFixture(stage);
+    const rpc = startRpc(fixture, "expansion", promptDir);
+    try {
+      const promptPath = join(promptDir, `${stage}.md`);
+      await preflightRpcStage(rpc.session, {
+        commandName: stage,
+        promptPath,
+        model: { provider: "lifecycle-test", id: "driver" },
+        thinkingLevel: "minimal",
+      });
+      const template = readFileSync(promptPath, "utf8");
+
+      for (const expansion of cases.filter((candidate) => candidate.stage === stage)) {
+        await promptRpcStage(rpc.session, expansion.input);
+        const terminal = await rpc.waitFor(
+          (record) => record.type === "message_end" && record.message?.role === "assistant" && messageText(record).startsWith("fixture-expanded:"),
+          `native /${stage} expansion result`,
+        );
+        const observed = JSON.parse(messageText(terminal).slice("fixture-expanded:".length));
+        assert.equal(
+          observed,
+          expandTemplateForAssertion(template, expansion.arguments),
+          `native /${stage} expansion changed handoff input`,
+        );
+        await rpc.waitFor((record) => record.type === "agent_settled", `native /${stage} agent_settled`);
+      }
+    } finally {
+      await rpc.close();
+      rmSync(fixture.root, { recursive: true, force: true });
+    }
+  }
+}
+
 describe("Pi 1.5.0 lifecycle bridge RPC contract", () => {
-  it("expands all native lifecycle templates with exact handoff and task arguments", { timeout: 60_000 }, async () => {
+  it("expands the candidate lifecycle templates with exact handoff and task arguments", { timeout: 60_000 }, async () => {
+    await runCandidateTemplateExpansion();
+  });
+
+  it("expands temporary fixture templates with exact arguments", { timeout: 60_000 }, async () => {
     const run = await runPromptExpansionFixture();
     try {
       assert.ok(run.rpc.records.some((record) => record.type === "agent_settled"));

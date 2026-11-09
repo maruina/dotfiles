@@ -24,19 +24,20 @@
 | `diataxis` | skill-loader | Documentation | Separated usage/recovery guidance from protocol reference |
 
 ### Execution
-Current task: Task 1 complete. Continue with Task 2; the required Pi 1.5.0 bridge and native expansion evidence passed.
+Current task: Task 2 complete; Task 3 is next.
 
 | Skill | Source | Why loaded | How used |
 |---|---|---|---|
 | `skill-loader` | prompt-required | Execution workflow | Selected execution-stage guidance before repository work |
 | `resolve-worktree` | prompt-required | Explicit plan path | Resolved the plan and switched to its owning worktree |
 | `feature-worktree` | prompt-required | Plan-based code changes | Confirmed the existing feature worktree is the correct target |
-| `codebase-research` | skill-loader | Cross-component coordinator replacement | Mapped the current coordinator, lifecycle templates, tests, and relevant feedback |
+| `codebase-research` | skill-loader | Cross-component coordinator replacement | Mapped the coordinator, lifecycle templates, native/static tests, and Task 2 handoff contracts |
 | `chezmoi` | skill-loader | Managed dotfiles source | Kept edits in the source tree and deferred target application |
 | `cli-best-practices` | skill-loader | Command and protocol changes | Reviewed explicit input, structured outcome, and failure contracts |
 | `write` | skill-loader | Plan and README prose | Applied concise, evidence-based wording guidance |
 | `diataxis` | skill-loader | Extension usage and recovery docs | Checked the planned README split between usage/recovery guidance and protocol reference |
 | `reviewable-pr-workflow` | agent-selected | Existing PR history and planned PR handoff | Checked review state, rebase safety, and the stack-split gate |
+| `learning-candidates` | skill-loader | Execution surprise triage | Checked Task 1 path and fixture-signing surprises against the filter; none met its trigger |
 
 Execution PR-history check: closed PR #69 has six CodeRabbit bot comments. Comments on default-branch and Git-status failures are covered by Task 3; process-close, escalation, and listener cleanup are covered by Task 4. The two marker-parser comments do not apply to the approved structured-RPC replacement. This corrects the planning note below that no PR feedback was identified; no scope change is needed.
 
@@ -49,6 +50,8 @@ Pi runtime review: read the installed Pi 1.5.0 SDK, extension, CLI, RPC, JSON ev
 LSP resolution: after rebasing onto `fc796d7`, `lsp_context` succeeded for `shipConductor` in `dot_pi/agent/exact_extensions/ship-conductor/index.ts:15`. It returned the definition, one reference, and zero diagnostics. The previous TypeScript 7 language-server blocker is resolved; semantic navigation is available.
 
 Task 1 verification: the focused `_protocol`, `_rpc`, and `_spawn` tests passed 28/28; the existing coordinator and prompt tests passed 17/17. The Pi 1.5.0 RPC tests used the in-memory provider and the new adapter, verified approval UI request/response, structured tool outcomes, settled-without-outcome handling, and native expansion/source provenance for all three templates. All changed TypeScript files had zero LSP diagnostics. The temporary Git fixture disables commit signing to avoid inherited host configuration.
+
+Task 2 verification: `node --test exact_scripts/lifecycle-prompts.test.mjs` passed 52/52; `node --experimental-strip-types --test exact_extensions/ship-conductor/_prompts.test.ts exact_extensions/ship-conductor/_rpc.test.ts` passed 11/11. Real Pi 1.5.0 RPC tests expanded all three candidate templates across six plan/task inputs, preserving `--base`, both writer IDs, whitespace, single and double quotes, flag-looking task text, and literal `$ARGUMENTS`. LSP reported zero diagnostics for `_rpc.test.ts`; `git diff --check` passed and changed sources contain no unexpected control bytes. The initial handoff assertions failed for the missing dual-writer and conditional bridge contracts, then passed after the template changes. Native expansion lives in `_rpc.test.ts`, where the real Pi command parser is exercised; `lifecycle-prompts.test.mjs` checks prompt contracts. `_prompts.ts` and `_prompts.test.ts` remain unchanged because they serve the legacy `/ship` path scheduled for replacement in Task 3; the focused helper tests still pass. No independent `/verify`, target application, or live TUI acceptance has occurred.
 
 ## Approval and source ledger
 - Source of truth: `plans/pi-ship-conductor/design.md`, approved design at `07716f7`.
@@ -342,13 +345,13 @@ The following tasks form one integration unit, not independently authorized prod
 **Traces to:** R1, R2, R3, R5, R6
 **Files:** `dot_pi/agent/exact_prompts/execute.md`, `simplify.md`, `verify.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`, `dot_pi/agent/exact_extensions/ship-conductor/_prompts.ts`, `_prompts.test.ts`, `_rpc.test.ts`.
 
-- [ ] Starting from `main`'s current `execute.md`, `simplify.md`, `verify.md`, and `lifecycle-prompts.test.mjs`, preserve all existing skill-delegation contracts (`skill-loader` provenance, `feature-worktree`, `reviewable-pr-workflow` stack-split, `learning-candidates`, and slice execution/verification).
-- [ ] Add failing handoff assertions and native expansion cases in `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs` (updating `execute and simplify emit the same /verify handoff contract` for the dual-writer `--implemented-by` + optional `--simplified-by` contract). Run `node --test exact_scripts/lifecycle-prompts.test.mjs`; expect failures for missing dual-writer and conditional bridge contracts.
-- [ ] Add optional execute-to-simplify handoff (`/simplify <absolute-plan-path> --implemented-by <id>` or `--implemented-by <id> --task <quoted-original-request>`) and retain execute-to-verify. In `/simplify`, accept `--implemented-by` (ask the user if missing before emitting `/verify`), strip handoff metadata and `--base` before target resolution, preserve exact original tasks, and emit `/verify ... --implemented-by <exec-id> --simplified-by <simp-id>`. In `/verify`, require `--implemented-by` and accept optional `--simplified-by`, blocking if either matches the verifier model.
-- [ ] Conditionally use bridge decisions/results only when validated orchestration metadata/tools (`lifecycle_request_decision`, `lifecycle_submit_outcome`) exist. Preserve conversational approvals otherwise. In orchestrated stages require fixed-unit scope, pinned baseline, and proper blocked outcomes. Accept fresh orchestration verify sessions as independent without requiring a literal manual `/new`.
-- [ ] Preserve simplify clean-start commit/push policy, no-change no-commit behavior, and explicit distinction between manual unchanged-candidate verdict validity and mandatory first verification in `/implement`.
-- [ ] Run `node --test exact_scripts/lifecycle-prompts.test.mjs` and `node --experimental-strip-types --test exact_extensions/ship-conductor/_prompts.test.ts exact_extensions/ship-conductor/_rpc.test.ts`; expect direct and orchestrated cases green.
-- [ ] Refactor only after green, rerun, and commit with `feat(pi): preserve lifecycle handoff provenance through simplify`.
+- [x] Starting from `main`'s current `execute.md`, `simplify.md`, `verify.md`, and `lifecycle-prompts.test.mjs`, preserve all existing skill-delegation contracts (`skill-loader` provenance, `feature-worktree`, `reviewable-pr-workflow` stack-split, `learning-candidates`, and slice execution/verification).
+- [x] Add failing handoff assertions in `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs` and native expansion cases in `_rpc.test.ts` (updating `execute and simplify emit the same /verify handoff contract` for the dual-writer `--implemented-by` + optional `--simplified-by` contract). Run `node --test exact_scripts/lifecycle-prompts.test.mjs`; expect failures for missing dual-writer and conditional bridge contracts.
+- [x] Add optional execute-to-simplify handoff (`/simplify <absolute-plan-path> --implemented-by <id>` or `--implemented-by <id> --task <quoted-original-request>`) and retain execute-to-verify. In `/simplify`, accept `--implemented-by` (ask the user if missing before emitting `/verify`), strip handoff metadata and `--base` before target resolution, preserve exact original tasks, and emit `/verify ... --implemented-by <exec-id> --simplified-by <simp-id>`. In `/verify`, require `--implemented-by` and accept optional `--simplified-by`, blocking if either matches the verifier model.
+- [x] Conditionally use bridge decisions/results only when validated orchestration metadata/tools (`lifecycle_request_decision`, `lifecycle_submit_outcome`) exist. Preserve conversational approvals otherwise. In orchestrated stages require fixed-unit scope, pinned baseline, and proper blocked outcomes. Accept fresh orchestration verify sessions as independent without requiring a literal manual `/new`.
+- [x] Preserve simplify clean-start commit/push policy, no-change no-commit behavior, and explicit distinction between manual unchanged-candidate verdict validity and mandatory first verification in `/implement`.
+- [x] Run `node --test exact_scripts/lifecycle-prompts.test.mjs` and `node --experimental-strip-types --test exact_extensions/ship-conductor/_prompts.test.ts exact_extensions/ship-conductor/_rpc.test.ts`; expect direct and orchestrated cases green.
+- [x] Refactor only after green, rerun, and commit with `feat(pi): preserve lifecycle handoff provenance through simplify`.
 
 ### Task 3: Replace the command with the complete single-round coordinator
 **Delivers:** `/implement` selects models, locks/pins one clean execution unit, runs all three stages, and reports a typed outcome.

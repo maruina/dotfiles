@@ -18,8 +18,9 @@ Say exactly what you mean. Remove every word that does not help the reader.
 - Lead with the main point. Give each paragraph a clear purpose that supports the text's goal.
 - Write for readers across cultures and levels of English fluency. Prefer short, literal sentences with a clear subject, verb, and object. Use terminology, capitalization, punctuation, and formatting consistently.
 - Avoid idioms, slang, jokes, culturally specific references, and phrasal verbs when a direct verb says the same thing.
-- Simplify sentence structure, not technical nouns. Name the exact item, then explain its function in a short clause on first use: "`datadog-admission-webhooks`, which injects `VAULT_AUTH_PATH` at pod creation". Do not replace a component, step, field, or error name with a generic description such as "the setup agent" or "a request handler".
+- Simplify sentence structure, not technical nouns. Name the exact item, then explain its function in a short clause on first use: "`datadog-admission-webhooks`, which injects `VAULT_AUTH_PATH` at pod creation". Avoid both failure modes: do not replace a component, step, field, or error name with a generic description (`"the setup agent"`, `"a request handler"`), and do not drop unexplained shorthand or abstract buzzwords (`"durable outbox"`, `"replay of committed transitions"`) without stating the concrete runtime action.
 - Replace jargon only when a familiar word is equally precise. Names that a reader can search for in code, logs, or dashboards are not jargon; keep them and format them as code. Define other specialized terms on first use and use them consistently.
+- Connect facts into an explicit mechanism across components: name what writes or sends a value, where it is stored or routed, what reads or validates it, and why the check fails. Do not leave adjacent sentences with an unstated link (for example, stating a version number in one sentence and an empty query in the next without stating that the version caused the empty query).
 - Expand unfamiliar acronyms on first use and explain their function, not only what the letters mean.
 - Split sentences that carry more than one main idea. A causal chain joined by `because` or `as a result` is one idea; keep it in one sentence when splitting would hide the cause. Use headings, lists, and tables when they make the text easier to scan.
 - Do not force rhetorical patterns such as `not just X, but Y`, groups of three, or `from X to Y` when the ideas do not form a real range. Let the content determine the structure.
@@ -56,8 +57,8 @@ Use these checks as prompts, not forbidden forms. Edit only to improve clarity, 
 
 ## Failures and incidents
 - Title: name the component, the failure, and the cause or ordering problem.
-- Problem: write the causal chain in order: normal behavior, what was missing or out of order, and the observed failure. Use `because` and `as a result` to make causation explicit. Quote the exact error string.
-- Fix: state what the change does and when it applies (`falls back to X when Y is unset`), not only that it fixed the problem. Name the actor for manual recovery.
+- Problem: write the causal chain in order: normal behavior, what was missing or out of order, how the value or state moved across components, and the observed failure. When a failure depends on a sequence of state changes (such as a two-AZ placement followed by a third AZ joining, or a bootstrap-to-normal credential switch), trace each step in order so the outcome does not read as a paradox. Use `because`, `when`, and `as a result` to make causation explicit. Quote the exact error string.
+- Fix: state what each cited PR, commit, or manual action changed and when it applies (`falls back to X when Y is unset`, `Merged #513 added the VPC endpoint to build-stable, and #147 created the US7 surrogate IAM roles`), not only that it fixed the problem. Never list bare PR or ticket numbers without stating what each one changed. Name the actor for manual recovery.
 - Number independent causes when one record has more than one.
 - Give scope with names, counts, and UTC times.
 - Correct a misattributed cause or PR explicitly: `#10620 is the initial US7 Vault Terraform setup, not a labeler fix`.
@@ -67,6 +68,9 @@ Strong: `` Parent `computecla-agent` started before `datadog-admission-webhooks`
 
 Weak: `Merged dd-source#148300 derives the auth path from the cluster.`
 Strong: `` Merged dd-source#148300 falls back to deriving the Dedicated Vault auth mount path from `cluster.VaultAuthMountPath()` when `VAULT_AUTH_PATH` is unset. ``
+
+Weak: `A zone-spread rule kept tls-vault away from the zone of its volume, so the pod stayed Pending. Merged micro-vaults#159.`
+Strong: `` `tls-vault`'s zonal `topologySpreadConstraints` used the default `Honor` policy for `nodeAffinityPolicy` and `nodeTaintsPolicy`, so the scheduler counted only AZs with matching `nodeless` + `arm64` nodes. When a new cluster had matching nodes in only 2 of 3 AZs, `maxSkew: 1` permitted a 2:1 split and bound two zonal EBS PVs in one AZ; once the third AZ had nodes, the spread constraint required the pod to run in the third AZ while its bound EBS volume remained in the first AZ. Merged micro-vaults#159 sets `nodeAffinityPolicy: Ignore` and `nodeTaintsPolicy: Ignore` on the zone spread constraint. ``
 
 ## Output
 Follow the requested delivery format. If none is specified, return the draft or revised text directly. After a substantial rewrite, briefly explain the material changes when the requested or default format permits commentary.

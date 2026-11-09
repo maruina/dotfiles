@@ -59,6 +59,8 @@ A hidden `user-context` extension injects current repository, branch, pull reque
 ## Language and Writing
 - Use US English and ASD-STE100 Simplified Technical English for all user communication and prose artifacts, including documentation, code comments, plans, and specifications.
 - Apply ASD-STE100 to grammar and general vocabulary, not to technical names. Keep the exact names of components, workflow steps, fields, flags, environment variables, error messages, and IDs; STE permits technical names. Do not replace them with generic descriptions.
+- Explain technical behavior with complete English sentences that trace the concrete mechanism: name the exact component, type, field, or step, state what it does or checks at runtime, and connect cause and effect with explicit transitions (`because`, `when`, `so`, `as a result`). Avoid both vague paraphrases (`"the setup agent"`, `"saving status"`) and compressed shorthand or abstract labels (`"durable outbox"`, bare PR lists, or disconnected facts that leave the reader to infer how A caused B).
+- Load the `write` skill before drafting, rewriting, or reviewing prose artifacts (`*.md` files, documentation, issue or incident registers, plans, design docs, PR descriptions, and messages drafted for the user to send).
 - When drafting a reply for the user to send, put only the message body in a plain-text code block. Keep labels outside the block. Do not add quote bars, line prefixes, or extra indentation.
 - In Markdown, do not insert a blank line after frontmatter or headings; use one blank line between sections.
 - Write comments only for non-obvious behavior, workarounds, or bug-fix context. Do not restate the code.

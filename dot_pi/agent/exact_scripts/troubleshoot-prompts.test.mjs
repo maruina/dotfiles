@@ -8,6 +8,9 @@ const agentDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const promptsDir = existsSync(path.join(agentDir, "exact_prompts"))
   ? path.join(agentDir, "exact_prompts")
   : path.join(agentDir, "prompts");
+const skillsDir = existsSync(path.join(agentDir, "exact_skills"))
+  ? path.join(agentDir, "exact_skills")
+  : path.join(agentDir, "skills");
 
 function prompt(name) {
   return readFileSync(path.join(promptsDir, name), "utf8");
@@ -90,7 +93,7 @@ test("troubleshoot routes only from explicit skill-description matches", () => {
 
 test("skill-loader includes compute-support investigation triggers", () => {
   const text = readFileSync(
-    path.join(agentDir, "exact_skills", "skill-loader", "SKILL.md"),
+    path.join(skillsDir, "skill-loader", "SKILL.md"),
     "utf8",
   );
 

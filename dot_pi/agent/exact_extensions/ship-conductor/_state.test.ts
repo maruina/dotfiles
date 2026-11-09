@@ -1,4 +1,5 @@
 import { strict as assert } from "node:assert";
+import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -41,6 +42,32 @@ describe("LifecycleStateStore", () => {
     lease.release();
     const second = store.acquireWorktree(worktree, "run-test-2", "other-session");
     second.release();
+  });
+
+  it("refuses a competing process while a worktree lock is owned", () => {
+    root = mkdtempSync(join(tmpdir(), "lifecycle-state-"));
+    const worktree = createWorktree(root);
+    const stateDirectory = join(root, "agent", "lifecycle-coordinator");
+    const store = new LifecycleStateStore(stateDirectory);
+    const lease = store.acquireWorktree(worktree, "run-parent", "parent-session");
+    const moduleUrl = new URL("./_state.ts", import.meta.url).href;
+    const script = `
+      import { LifecycleStateStore } from ${JSON.stringify(moduleUrl)};
+      try {
+        new LifecycleStateStore(${JSON.stringify(stateDirectory)}).acquireWorktree(${JSON.stringify(worktree)}, "run-child", "child-session");
+        process.exit(2);
+      } catch (error) {
+        if (!/already owned/.test(error.message)) throw error;
+      }
+    `;
+    try {
+      execFileSync(process.execPath, ["--experimental-strip-types", "--input-type=module", "-e", script], {
+        cwd: process.cwd(),
+        encoding: "utf8",
+      });
+    } finally {
+      lease.release();
+    }
   });
 
   it("refuses an existing stale or unreadable lock without taking it over", () => {

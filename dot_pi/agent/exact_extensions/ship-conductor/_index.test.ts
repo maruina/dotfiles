@@ -122,8 +122,9 @@ describe("/implement extension command", () => {
     } as unknown as ExtensionCommandContext;
     const { commands, events } = createExtension();
     const command = commands.get("implement")!;
+    let activeRun: Promise<void> | undefined;
     try {
-      const activeRun = command.handler(fixture.planPath, context);
+      activeRun = command.handler(fixture.planPath, context);
       await new Promise<void>((resolve) => setImmediate(resolve));
       assert.equal(selectionStarted, true);
 
@@ -134,10 +135,15 @@ describe("/implement extension command", () => {
       assert.deepEqual(inputResult, { action: "handled" });
       assert.match(notices.at(-1) ?? "", /owns this session/);
 
-      resolveSelection(undefined);
-      await activeRun;
+      events.get("session_shutdown")!({});
+      const stoppedBeforeModelSelectionReturned = await Promise.race([
+        activeRun.then(() => true),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 50)),
+      ]);
+      assert.equal(stoppedBeforeModelSelectionReturned, true);
     } finally {
       resolveSelection?.(undefined);
+      if (activeRun) await activeRun;
       rmSync(fixture.tempRoot, { recursive: true, force: true });
       if (previousConfig === undefined) delete process.env[CHILD_CONFIG_ENV];
       else process.env[CHILD_CONFIG_ENV] = previousConfig;

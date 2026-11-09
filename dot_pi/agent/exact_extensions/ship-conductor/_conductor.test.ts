@@ -105,10 +105,13 @@ function conductorUI(): RpcStageUI & { setEditorText(text: string): void; notice
 
 type RunnerOptions = {
   simplifyChange?: "changed" | "unchanged";
-  executeOutcome?: "success" | "blocked";
+  simplifyOutcome?: "success" | "blocked";
+  executeOutcome?: "success" | "blocked" | "no-commit";
   verifyOutcome?: "VERIFIED" | "BLOCKED";
   failAt?: "execute" | "simplify" | "verify";
   mutateVerify?: boolean;
+  mutateVerifyAfterOutcome?: boolean;
+  terminationUnconfirmed?: boolean;
 };
 
 function stageRunner(root: string, planPath: string, options: RunnerOptions = {}): {
@@ -137,7 +140,7 @@ function stageRunner(root: string, planPath: string, options: RunnerOptions = {}
         decisions: [],
         progress: [],
         stderr: "fixture stderr",
-        terminationConfirmed: true,
+        terminationConfirmed: !options.terminationUnconfirmed,
       };
     }
 
@@ -147,6 +150,9 @@ function stageRunner(root: string, planPath: string, options: RunnerOptions = {}
       if (options.executeOutcome === "blocked") {
         outcome = "blocked";
         change = "unchanged";
+      } else if (options.executeOutcome === "no-commit") {
+        outcome = "success";
+        change = "changed";
       } else {
         writeFileSync(planPath, readFileSync(planPath, "utf8").replace("- [ ] Implement the selected slice.", "- [x] Implement the selected slice."));
         mkdirSync(join(root, "src"), { recursive: true });
@@ -157,15 +163,20 @@ function stageRunner(root: string, planPath: string, options: RunnerOptions = {}
         change = "changed";
       }
     } else if (request.stage === "simplify") {
-      if (options.simplifyChange === "changed") {
-        writeFileSync(join(root, "src", "simplified.txt"), "simplified result\n");
-        git(root, ["add", "."]);
-        git(root, ["commit", "--quiet", "-m", "simplify selected slice"]);
-        change = "changed";
-      } else {
+      if (options.simplifyOutcome === "blocked") {
+        outcome = "blocked";
         change = "unchanged";
+      } else {
+        if (options.simplifyChange === "changed") {
+          writeFileSync(join(root, "src", "simplified.txt"), "simplified result\n");
+          git(root, ["add", "."]);
+          git(root, ["commit", "--quiet", "-m", "simplify selected slice"]);
+          change = "changed";
+        } else {
+          change = "unchanged";
+        }
+        outcome = "success";
       }
-      outcome = "success";
     } else {
       if (options.mutateVerify) writeFileSync(join(root, "verify-mutation.txt"), "forbidden mutation\n");
       outcome = options.verifyOutcome ?? "VERIFIED";
@@ -186,6 +197,10 @@ function stageRunner(root: string, planPath: string, options: RunnerOptions = {}
       candidate,
       reportRef: `lifecycle-coordinator/runs/${request.runId}/reports/${request.stage}-fixture.md`,
     };
+    if (options.mutateVerifyAfterOutcome && request.stage === "verify") {
+      writeFileSync(join(root, "verify-post-result-mutation.txt"), "forbidden untracked mutation\n");
+      writeFileSync(join(root, "src", "execute.txt"), "forbidden tracked mutation\n");
+    }
     return {
       status: "settled",
       outcome: envelope,
@@ -299,6 +314,34 @@ describe("runImplement", () => {
     assert.equal(outcome.blockedVerdicts, 0);
   });
 
+  it("blocks successful execute outcomes without a committed selected unit", async () => {
+    const fixture = createRepo();
+    const depsState = baseDeps(fixture);
+    const baseline = git(fixture.root, ["rev-parse", "HEAD"]);
+    const stages = stageRunner(fixture.root, fixture.planPath, { executeOutcome: "no-commit" });
+    depsState.deps.runStage = stages.runner;
+    const outcome = await runImplement(fixture.planPath, fixture.root, depsState.deps, undefined);
+
+    assertOutcomeStatus(outcome, "blocked");
+    assert.deepEqual(stages.calls.map((call) => call.stage), ["execute"]);
+    assert.equal(git(fixture.root, ["rev-parse", "HEAD"]), baseline);
+  });
+
+  it("does not verify after simplify blocks a required push or fails before its commit", async () => {
+    for (const options of [{ simplifyOutcome: "blocked" as const }, { failAt: "simplify" as const }]) {
+      const fixture = createRepo();
+      const depsState = baseDeps(fixture);
+      const stages = stageRunner(fixture.root, fixture.planPath, options);
+      depsState.deps.runStage = stages.runner;
+      const outcome = await runImplement(fixture.planPath, fixture.root, depsState.deps, undefined);
+
+      assert.ok(["blocked", "process-failure"].includes(outcome.status));
+      assert.deepEqual(stages.calls.map((call) => call.stage), ["execute", "simplify"]);
+      assert.match(git(fixture.root, ["log", "--format=%s", "-1"]), /implement selected slice/);
+      assert.equal(outcome.verificationAttempts, 0);
+    }
+  });
+
   it("keeps transport failure distinct from a blocked verification verdict", async () => {
     const fixture = createRepo();
     const depsState = baseDeps(fixture);
@@ -325,6 +368,38 @@ describe("runImplement", () => {
     assert.equal(outcome.blockedVerdicts, 1);
   });
 
+  it("blocks a verification mutation made after its outcome was submitted", async () => {
+    const fixture = createRepo();
+    const depsState = baseDeps(fixture);
+    const stages = stageRunner(fixture.root, fixture.planPath, { mutateVerifyAfterOutcome: true });
+    depsState.deps.runStage = stages.runner;
+    const outcome = await runImplement(fixture.planPath, fixture.root, depsState.deps, undefined);
+
+    assertOutcomeStatus(outcome, "blocked");
+    assert.equal(existsSync(join(fixture.root, "verify-post-result-mutation.txt")), true);
+    assert.equal(readFileSync(join(fixture.root, "src", "execute.txt"), "utf8"), "forbidden tracked mutation\n");
+    assert.equal(outcome.verificationAttempts, 1);
+    assert.equal(outcome.blockedVerdicts, 1);
+  });
+
+  it("retains worktree ownership when child termination is unconfirmed", async () => {
+    const fixture = createRepo();
+    const depsState = baseDeps(fixture);
+    const stages = stageRunner(fixture.root, fixture.planPath, { failAt: "execute", terminationUnconfirmed: true });
+    depsState.deps.runStage = stages.runner;
+    const outcome = await runImplement(fixture.planPath, fixture.root, depsState.deps, undefined);
+
+    assert.equal(outcome.status, "process-failure");
+    if (outcome.status !== "process-failure") return;
+    assert.equal(outcome.ownershipRetained, true);
+    assert.deepEqual(stages.calls.map((call) => call.stage), ["execute"]);
+    assert.equal(existsSync(depsState.store.worktreeLockPath(fixture.root)), true);
+    assert.throws(
+      () => depsState.store.acquireWorktree(fixture.root, "second-run", "next-session"),
+      /already owned/,
+    );
+  });
+
   it("refuses a worktree already owned by another lifecycle run", async () => {
     const fixture = createRepo();
     const depsState = baseDeps(fixture);
@@ -338,6 +413,38 @@ describe("runImplement", () => {
     } finally {
       owner.release();
     }
+  });
+
+  it("cancels before preflight without acquiring a lock or selecting models", async () => {
+    const fixture = createRepo();
+    const depsState = baseDeps(fixture);
+    const stages = stageRunner(fixture.root, fixture.planPath);
+    depsState.deps.runStage = stages.runner;
+    const controller = new AbortController();
+    controller.abort();
+    const outcome = await runImplement(fixture.planPath, fixture.root, depsState.deps, controller.signal);
+
+    assertOutcomeStatus(outcome, "cancelled");
+    assert.deepEqual(depsState.modelSelection.calls, []);
+    assert.equal(stages.calls.length, 0);
+    assert.equal(existsSync(depsState.store.worktreeLockPath(fixture.root)), false);
+  });
+
+  it("cancels between settled stages without dispatching simplify", async () => {
+    const fixture = createRepo();
+    const depsState = baseDeps(fixture);
+    const stages = stageRunner(fixture.root, fixture.planPath);
+    const controller = new AbortController();
+    depsState.deps.runStage = async (request, signal, callbacks) => {
+      const result = await stages.runner(request, signal, callbacks);
+      if (request.stage === "execute") controller.abort();
+      return result;
+    };
+    const outcome = await runImplement(fixture.planPath, fixture.root, depsState.deps, controller.signal);
+
+    assertOutcomeStatus(outcome, "cancelled");
+    assert.deepEqual(stages.calls.map((call) => call.stage), ["execute"]);
+    assert.equal(existsSync(depsState.store.worktreeLockPath(fixture.root)), false);
   });
 
   it("does not acquire a lock or start a writer when model selection is cancelled", async () => {

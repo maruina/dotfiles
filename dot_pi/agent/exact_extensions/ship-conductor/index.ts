@@ -36,6 +36,23 @@ function currentIdentity(ctx: ExtensionCommandContext): { provider: string; id: 
   return ctx.model ? { provider: ctx.model.provider, id: ctx.model.id } : undefined;
 }
 
+function raceWithAbort<T>(operation: Promise<T>, signal: AbortSignal | undefined, fallback: T): Promise<T> {
+  if (!signal) return operation;
+  if (signal.aborted) return Promise.resolve(fallback);
+  return new Promise((resolve, reject) => {
+    const finish = (callback: () => void) => {
+      signal.removeEventListener("abort", onAbort);
+      callback();
+    };
+    const onAbort = () => finish(() => resolve(fallback));
+    signal.addEventListener("abort", onAbort, { once: true });
+    operation.then(
+      (value) => finish(() => resolve(value)),
+      (error: unknown) => finish(() => reject(error)),
+    );
+  });
+}
+
 export default function implementCoordinator(pi: ExtensionAPI): void {
   let active = false;
   let activeAbort: AbortController | undefined;
@@ -81,10 +98,18 @@ export default function implementCoordinator(pi: ExtensionAPI): void {
         };
         const gitRunner = createGitRunner();
         const modelUI: ModelSelectionUI = {
-          select: (stage, options) => ctx.ui.select(`Select the ${stage} model`, options),
-          confirmIndependent: (verifier, writer) => ctx.ui.confirm(
-            "Confirm verifier independence",
-            `Pi does not expose upstream model-service identity. Confirm that ${verifier.provider}/${verifier.id} is independent of ${writer.provider}/${writer.id}.`,
+          select: (stage, options) => raceWithAbort(
+            ctx.ui.select(`Select the ${stage} model`, options),
+            combined.signal,
+            undefined,
+          ),
+          confirmIndependent: (verifier, writer) => raceWithAbort(
+            ctx.ui.confirm(
+              "Confirm verifier independence",
+              `Pi does not expose upstream model-service identity. Confirm that ${verifier.provider}/${verifier.id} is independent of ${writer.provider}/${writer.id}.`,
+            ),
+            combined.signal,
+            false,
           ),
         };
         const stageUI = ctx.ui as RpcStageUI;

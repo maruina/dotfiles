@@ -1,6 +1,7 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import {
+  MAX_STAGE_REPORT_BYTES,
   parseDecisionInput,
   parseDecisionResult,
   parseLifecycleOutcome,
@@ -195,6 +196,16 @@ describe("parseLifecycleOutcome", () => {
         { schemaVersion: 1, outcome: "success", change: "unchanged", report: "wrong stage" },
         "verify",
       ),
+    );
+  });
+
+  it("rejects reports that exceed the byte cap even when their character count is lower", () => {
+    const report = "🧪".repeat(Math.floor(MAX_STAGE_REPORT_BYTES / 4) + 1);
+    assert.ok(report.length < MAX_STAGE_REPORT_BYTES);
+    assert.ok(Buffer.byteLength(report, "utf8") > MAX_STAGE_REPORT_BYTES);
+    assert.throws(
+      () => parseLifecycleOutcome({ schemaVersion: 1, outcome: "success", change: "unchanged", report }, "simplify"),
+      /Lifecycle report exceeds/,
     );
   });
 

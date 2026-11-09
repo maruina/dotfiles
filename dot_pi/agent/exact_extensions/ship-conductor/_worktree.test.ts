@@ -185,7 +185,11 @@ describe("captureCleanCandidate", () => {
     assert.equal(snapshot.branch, "feature");
     assert.equal(snapshot.head, git(fixture.root, ["rev-parse", "HEAD"]));
     assert.match(snapshot.stateDigest, /^[0-9a-f]{64}$/);
-    writeFileSync(join(fixture.root, "changed.txt"), "dirty\n");
+    const untracked = join(fixture.root, "changed.txt");
+    writeFileSync(untracked, "dirty\n");
+    assert.throws(() => captureCleanCandidate(fixture.root, createGitRunner()), /not clean/);
+    rmSync(untracked);
+    writeFileSync(join(fixture.root, "plans", "feature", "design.md"), "tracked dirty\n");
     assert.throws(() => captureCleanCandidate(fixture.root, createGitRunner()), /not clean/);
   });
 });

@@ -76,6 +76,13 @@ const MAX_RPC_STDERR_BYTES = 16 * 1024;
 const RPC_CONTROL_TIMEOUT_MS = 30_000;
 const RPC_CLOSE_GRACE_MS = 5_000;
 
+function utf8Tail(value: string, maxBytes: number): string {
+  const bytes = Buffer.from(value, "utf8");
+  let start = Math.max(0, bytes.length - maxBytes);
+  while (start < bytes.length && (bytes[start]! & 0xc0) === 0x80) start++;
+  return bytes.subarray(start).toString("utf8");
+}
+
 export function buildRpcStageArgs(provider: string, modelId: string, thinkingLevel: string, bridgePath: string): string[] {
   if (!provider || !modelId || !thinkingLevel || !isAbsolute(bridgePath)) {
     throw new Error("RPC stage requires a provider, model, thinking level, and absolute bridge path");
@@ -133,7 +140,7 @@ class RpcSessionImplementation implements RpcSession {
     process.stdout.on("data", (chunk: Buffer | string) => this.readStdout(chunk));
     process.stdout.on("end", () => this.finishStdout());
     process.stderr.on("data", (chunk: Buffer | string) => {
-      this.stderr = (this.stderr + chunk.toString()).slice(-MAX_RPC_STDERR_BYTES);
+      this.stderr = utf8Tail(this.stderr + chunk.toString(), MAX_RPC_STDERR_BYTES);
     });
     process.stdin.on("error", (error: Error) => this.fail(new Error(`Pi RPC stdin failed: ${error.message}`)));
     process.on("error", (error) => this.fail(new Error(`Pi RPC process failed to start: ${error.message}`)));
@@ -629,6 +636,12 @@ export async function runRpcLifecycleStage(
     if (!activeUI) return;
     const pending = activeUI;
     pending.cancelResolve();
+    try {
+      callbacks.onWaitingForUser?.(false);
+    } catch (error) {
+      failure ??= boundedText(error instanceof Error ? error.message : String(error), 2_000);
+      failed.resolve(failure);
+    }
     if (!pending.responseSent && session) {
       pending.responseSent = true;
       void session.send({ type: "extension_ui_response", id: pending.id, cancelled: true }).catch(() => undefined);

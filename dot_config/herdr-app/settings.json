@@ -1,0 +1,11 @@
+{
+  "zoom": 1,
+  "sounds": {
+    "enabled": false
+  },
+  "font": "MesloLGS NF",
+  "font_size": 15,
+  "theme": "catppuccin-frappe",
+  "font_ligatures": false,
+  "minimum_contrast": 1
+}

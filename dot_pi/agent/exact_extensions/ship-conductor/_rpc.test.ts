@@ -267,6 +267,10 @@ async function runFixture(outcomeMode: "success" | "error" | "missing") {
     );
     assert.equal(decisionResult.isError, false);
     assert.equal(decisionResult.result.details.decision, "approved");
+    const decisionText = decisionResult.result.content.map((part: { text?: string }) => part.text ?? "").join("\n");
+    assert.match(decisionText, /The user selected "Approve"/);
+    assert.match(decisionText, /Question: May I proceed\?/);
+    assert.match(decisionText, /Approved proposal: Continue the deterministic test\./);
     assert.equal(decisionResult.result.details.runId, "run-test-123");
     assert.equal(decisionResult.result.details.stage, "execute");
     assert.equal(decisionResult.result.details.sessionId, state.sessionId);

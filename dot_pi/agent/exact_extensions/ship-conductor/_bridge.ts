@@ -111,6 +111,29 @@ function assertRuntimeContext(config: StageConfig, ctx: { cwd: string; model: { 
   return { sessionId, model: { provider: ctx.model.provider, id: ctx.model.id } };
 }
 
+// The model sees only this text, not `details`, so it must state who decided and exactly what was decided.
+function decisionResultText(decision: "approved" | "rejected" | "cancelled", question: string, proposal: string): string {
+  if (decision === "approved") {
+    return [
+      'The user selected "Approve" in the coordinator session. This is the user\'s explicit approval of the proposal below.',
+      `Question: ${question}`,
+      `Approved proposal: ${proposal}`,
+    ].join("\n");
+  }
+  if (decision === "rejected") {
+    return [
+      'The user selected "Reject" in the coordinator session.',
+      `Question: ${question}`,
+      `Rejected proposal: ${proposal}`,
+      "Do not apply the proposal. Stop this stage; the rejection is not approval.",
+    ].join("\n");
+  }
+  return [
+    "The user dismissed the decision dialog without choosing. Treat this as cancellation, not approval, and stop this stage.",
+    `Question: ${question}`,
+  ].join("\n");
+}
+
 function stageContract(config: StageConfig): string {
   return [
     `Protocol version: ${config.protocolVersion}`,
@@ -329,7 +352,7 @@ function registerBridge(pi: ExtensionAPI, config: StageConfig): void {
           context: params.context,
         };
         return {
-          content: [{ type: "text" as const, text: decision === "approved" ? "The coordinator approved this request." : `The coordinator decision is ${decision}.` }],
+          content: [{ type: "text" as const, text: decisionResultText(decision, params.question, params.proposal) }],
           details,
           isError: decision !== "approved",
         };

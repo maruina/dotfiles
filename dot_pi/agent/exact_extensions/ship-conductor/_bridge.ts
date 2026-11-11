@@ -137,9 +137,19 @@ function decisionResultText(decision: "approved" | "rejected" | "cancelled", que
 export function stageContract(config: StageConfig): string {
   const planRelative = relative(config.worktree, config.baseline.plan.path);
   // resolvePlan pins the plan as the design baseline when no sibling design.md exists; say so instead of naming a missing file.
-  const designLine = resolve(config.baseline.design.path) === resolve(config.baseline.plan.path)
-    ? "Pinned design blob: none — no design.md exists; the pinned plan is the only requirements document"
-    : `Pinned design blob: ${config.baseline.design.blob} (${relative(config.worktree, config.baseline.design.path)})`;
+  const hasDesign = resolve(config.baseline.design.path) !== resolve(config.baseline.plan.path);
+  const designRelative = relative(config.worktree, config.baseline.design.path);
+  const designLine = hasDesign
+    ? `Pinned design blob: ${config.baseline.design.blob} (${designRelative})`
+    : "Pinned design blob: none — no design.md exists; the pinned plan is the only requirements document";
+  // Models misread a bare blob ID (for example `git rev-parse <path>`), so state the exact read and check commands.
+  const pinnedReadLines = [
+    `Read the pinned plan with \`git show ${config.baseline.plan.blob}\`; check it with \`git rev-parse ${config.baseline.commit}:${planRelative}\`, which must print the pinned plan blob.`,
+    ...(hasDesign
+      ? [`Read the pinned design with \`git show ${config.baseline.design.blob}\`; check it with \`git rev-parse ${config.baseline.commit}:${designRelative}\`.`]
+      : []),
+    "The working-tree plan is the progress ledger: after earlier rounds it differs from the pinned plan blob, which is expected. Requirements come from the pinned blobs.",
+  ];
   return [
     `Protocol version: ${config.protocolVersion}`,
     `Run ID: ${config.runId}`,
@@ -150,6 +160,7 @@ export function stageContract(config: StageConfig): string {
     `Unit base commit: ${config.unitBase}`,
     `Pinned plan blob: ${config.baseline.plan.blob} (${planRelative})`,
     designLine,
+    ...pinnedReadLines,
     `Selected unit: ${config.unit.heading}`,
     `Selected task numbers: ${config.unit.taskNumbers.join(", ")}`,
     `Execute model: ${config.models.execute.provider}/${config.models.execute.id}`,

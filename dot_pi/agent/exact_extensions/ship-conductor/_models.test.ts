@@ -38,6 +38,11 @@ function choose(ids: Record<string, string>, confirmations: boolean[] = []): {
         const id = ids[stage];
         return options.find((option) => option.endsWith(`(${id})`));
       },
+      async selectThinking(stage, _model, options) {
+        calls.push({ stage: `${stage}:thinking`, options });
+        const level = ids[`${stage}:thinking`];
+        return level === undefined ? options[0] : options.find((option) => option === level || option.startsWith(`${level} `));
+      },
       async confirmIndependent(_verifier, _writer) {
         confirmationsUsed.push(confirmationIndex);
         return confirmations[confirmationIndex++] ?? false;
@@ -103,6 +108,7 @@ describe("selectModels", () => {
   it("does not silently substitute a model when a selection is cancelled or unavailable", async () => {
     const cancelled = await selectModels(registry(), CURRENT, {
       select: async () => undefined,
+      selectThinking: async () => undefined,
       confirmIndependent: async () => true,
     });
     assert.equal(cancelled.ok, false);
@@ -112,6 +118,7 @@ describe("selectModels", () => {
       async select(stage, options) {
         return stage === "execute" ? "not a model" : options[0];
       },
+      selectThinking: async (_stage, _model, options) => options[0],
       confirmIndependent: async () => true,
     });
     assert.equal(invalid.ok, false);
@@ -121,6 +128,7 @@ describe("selectModels", () => {
   it("refuses when no authenticated model registry entry is available", async () => {
     const result = await selectModels(registry([]), undefined, {
       select: async () => undefined,
+      selectThinking: async () => undefined,
       confirmIndependent: async () => true,
     });
     assert.equal(result.ok, false);
@@ -137,7 +145,7 @@ describe("selectModels", () => {
       { provider: "gateway-a", id: "family/model-1" },
       { provider: "gateway-b", id: "family/model-3" },
     ];
-    const result = await selectModels(registry(), CURRENT, selections.ui, scoped);
+    const result = await selectModels(registry(), CURRENT, selections.ui, { scoped });
     assert.equal(result.ok, true);
     const offered = (stage: string) => selections.calls.find((call) => call.stage === stage)!.options.map((option) => option.match(/\(([^)]+)\)$/)![1]);
     assert.deepEqual(offered("execute"), ["gateway-a/family/model-1", "gateway-b/family/model-3"]);
@@ -145,9 +153,63 @@ describe("selectModels", () => {
     assert.deepEqual(offered("verify"), ["gateway-b/family/model-3"]);
   });
 
+  it("asks for a supported thinking level after each model and records it per stage", async () => {
+    const selections = choose({
+      execute: "gateway-a/family/model-1",
+      "execute:thinking": "high",
+      simplify: "gateway-a/family/model-1",
+      verify: "gateway-a/family/model-2",
+      "verify:thinking": "low",
+    });
+    const result = await selectModels(registry(), CURRENT, selections.ui, {
+      defaultThinkingLevel: "medium",
+      supportedThinkingLevels: () => ["off", "low", "medium", "high"],
+    });
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.deepEqual(selections.calls.map((call) => call.stage), [
+      "execute", "execute:thinking", "simplify", "simplify:thinking", "verify", "verify:thinking",
+    ]);
+    assert.deepEqual(selections.calls[1].options, ["medium (default)", "off", "low", "high"]);
+    assert.deepEqual(result.thinkingLevels, { execute: "high", simplify: "medium", verify: "low" });
+  });
+
+  it("defaults to a thinking level pinned by the scope and skips the picker for a single supported level", async () => {
+    const selections = choose({
+      execute: "gateway-a/family/model-1",
+      simplify: "gateway-a/family/model-1",
+      verify: "gateway-a/family/model-2",
+    });
+    const result = await selectModels(registry(), CURRENT, selections.ui, {
+      scoped: [
+        { provider: "gateway-a", id: "family/model-1", thinkingLevel: "high" },
+        { provider: "gateway-a", id: "family/model-2" },
+      ],
+      defaultThinkingLevel: "medium",
+      supportedThinkingLevels: (model) => model.id === "family/model-2" ? ["off"] : ["low", "medium", "high"],
+    });
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.deepEqual(selections.calls.map((call) => call.stage), ["execute", "execute:thinking", "simplify", "simplify:thinking", "verify"]);
+    assert.equal(selections.calls[1].options[0], "high (default)");
+    assert.deepEqual(result.thinkingLevels, { execute: "high", simplify: "high", verify: "off" });
+  });
+
+  it("stops without substitution when a thinking selection is cancelled or invalid", async () => {
+    for (const answer of [undefined, "ultra"]) {
+      const result = await selectModels(registry(), CURRENT, {
+        select: async (_stage, options) => options[0],
+        selectThinking: async () => answer,
+        confirmIndependent: async () => true,
+      }, { defaultThinkingLevel: "medium", supportedThinkingLevels: () => ["low", "medium"] });
+      assert.equal(result.ok, false);
+      if (!result.ok) assert.match(result.reason, answer === undefined ? /thinking level selection was cancelled/ : /not in the supported thinking levels/);
+    }
+  });
+
   it("does not fall back to the full catalogue when no scoped model is available", async () => {
     const selections = choose({});
-    const result = await selectModels(registry(), CURRENT, selections.ui, [{ provider: "gateway-c", id: "missing" }]);
+    const result = await selectModels(registry(), CURRENT, selections.ui, { scoped: [{ provider: "gateway-c", id: "missing" }] });
     assert.equal(result.ok, false);
     if (!result.ok) assert.match(result.reason, /scoped models/i);
     assert.equal(selections.calls.length, 0);

@@ -76,6 +76,9 @@ function selectionUI(selections: string[] = []): { ui: ModelSelectionUI; calls: 
         const id = selections.shift() ?? (stage === "execute" ? "writer-a" : stage === "simplify" ? "writer-b" : "reviewer");
         return options.find((option) => option.includes(`fixture/${id})`));
       },
+      async selectThinking(_stage, _model, options) {
+        return options[0];
+      },
       async confirmIndependent() {
         return true;
       },
@@ -329,6 +332,30 @@ describe("runImplement", () => {
     }
     assert.equal(record.prUrl, undefined);
     assert.equal(record.prPresence, "absent");
+  });
+
+  it("runs each stage with its selected thinking level", async () => {
+    const fixture = createRepo(UNGROUPED_PLAN);
+    const levels: Record<string, string> = { execute: "high", simplify: "low", verify: "medium" };
+    const depsState = baseDeps(fixture, {
+      supportedThinkingLevels: () => ["low", "medium", "high"],
+      modelUI: {
+        ...selectionUI().ui,
+        selectThinking: async (stage, _model, options) => options.find((option) => option.startsWith(levels[stage]!)),
+      },
+    });
+    const stages = stageRunner(fixture.root, fixture.planPath);
+    const seen: Array<[string, string, string]> = [];
+    depsState.deps.runStage = async (request, signal, callbacks) => {
+      seen.push([request.stage, request.thinkingLevel, request.config.thinkingLevel]);
+      return stages.runner(request, signal, callbacks);
+    };
+    const outcome = await runImplement(fixture.planPath, fixture.root, depsState.deps, undefined);
+
+    assertOutcomeStatus(outcome, "verified");
+    assert.deepEqual(seen, [["execute", "high", "high"], ["simplify", "low", "low"], ["verify", "medium", "medium"]]);
+    assert.match(outcome.summary, /execute: settled \(fixture\/writer-a, thinking high/);
+    assert.match(outcome.summary, /verify: settled \(fixture\/reviewer, thinking medium/);
   });
 
   it("runs one round for an ungrouped plan", async () => {
@@ -590,6 +617,7 @@ describe("runImplement", () => {
     const depsState = baseDeps(fixture, {
       modelUI: {
         select: async (stage, choices) => stage === "execute" ? choices[0] : undefined,
+        selectThinking: async (_stage, _model, choices) => choices[0],
         confirmIndependent: async () => true,
       },
     });

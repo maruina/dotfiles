@@ -5,7 +5,14 @@ import {
   parseSinglePlanArgument,
   type LifecycleStage,
 } from "./_prompts.ts";
-import { selectModels, type LifecycleModel, type ModelIdentity, type ModelRegistryLike, type ModelSelectionUI } from "./_models.ts";
+import {
+  selectModels,
+  type LifecycleModel,
+  type ModelIdentity,
+  type ModelRegistryLike,
+  type ModelSelectionUI,
+  type ScopedModelChoice,
+} from "./_models.ts";
 import { PROTOCOL_VERSION, parseStageConfig, type LifecycleOutcomeEnvelope, type Stage, type StageConfig } from "./_protocol.ts";
 import {
   type RpcLifecycleStageResult,
@@ -47,7 +54,8 @@ export type ConductorDeps = {
   resolvePlan(input: string, cwd: string): ResolvePlanResult;
   registry: ModelRegistryLike;
   currentModel: ModelIdentity | undefined;
-  scopedModels?: readonly ModelIdentity[];
+  scopedModels?: readonly ScopedModelChoice[];
+  supportedThinkingLevels?: (model: LifecycleModel) => readonly string[];
   modelUI: ModelSelectionUI;
   ui: ConductorUI;
   stateStore: LifecycleStateStore;
@@ -100,7 +108,7 @@ type RunRecord = Record<string, unknown> & {
   defaultBranch: string;
   baseline: Extract<ResolvePlanResult, { ok: true }>["baseline"];
   models: Record<Stage, ModelIdentity>;
-  thinkingLevel: string;
+  thinkingLevels: Record<Stage, string>;
   initialCandidate: CandidateSnapshot;
   currentCandidate: CandidateSnapshot;
   rounds: RoundRecord[];
@@ -233,7 +241,7 @@ function createRunRecord(
   coordinatorSessionId: string,
   resolved: Extract<ResolvePlanResult, { ok: true }>,
   models: Record<Stage, ModelIdentity>,
-  thinkingLevel: string,
+  thinkingLevels: Record<Stage, string>,
   candidate: CandidateSnapshot,
   now: string,
 ): RunRecord {
@@ -250,7 +258,7 @@ function createRunRecord(
     defaultBranch: resolved.defaultBranch,
     baseline: resolved.baseline,
     models,
-    thinkingLevel,
+    thinkingLevels,
     initialCandidate: candidate,
     currentCandidate: candidate,
     rounds: [],
@@ -271,9 +279,9 @@ function startRound(record: RunRecord, unit: UnitDescriptor, unitBase: string): 
     unitBase,
     status: "running",
     stages: {
-      execute: emptyStage(record.models.execute, record.thinkingLevel),
-      simplify: emptyStage(record.models.simplify, record.thinkingLevel),
-      verify: emptyStage(record.models.verify, record.thinkingLevel),
+      execute: emptyStage(record.models.execute, record.thinkingLevels.execute),
+      simplify: emptyStage(record.models.simplify, record.thinkingLevels.simplify),
+      verify: emptyStage(record.models.verify, record.thinkingLevels.verify),
     },
     candidateCommits: {},
     verificationAttempts: 0,
@@ -409,7 +417,11 @@ export async function runImplement(
     return preflightFailure("Starting candidate changed while the plan baseline was being resolved", deps.ui);
   }
 
-  const selection = await selectModels(deps.registry, deps.currentModel, deps.modelUI, deps.scopedModels);
+  const selection = await selectModels(deps.registry, deps.currentModel, deps.modelUI, {
+    scoped: deps.scopedModels,
+    defaultThinkingLevel: deps.thinkingLevel,
+    supportedThinkingLevels: deps.supportedThinkingLevels,
+  });
   if (!selection.ok) {
     if (/cancelled/i.test(selection.reason) || signal?.aborted) return cancelledBeforeRun(selection.reason, deps.ui);
     return preflightFailure(selection.reason, deps.ui);
@@ -438,7 +450,8 @@ export async function runImplement(
   }
 
   const now = deps.now ?? (() => new Date().toISOString());
-  const record = createRunRecord(runId, deps.coordinatorSessionId, initial, models, deps.thinkingLevel, initialCandidate, now());
+  const record = createRunRecord(runId, deps.coordinatorSessionId, initial, models, selection.thinkingLevels, initialCandidate, now());
+  const thinkingLevels = selection.thinkingLevels;
   let releaseOwnership = true;
   let ownershipRetained = false;
   let terminal: ConductorOutcome | undefined;
@@ -555,7 +568,7 @@ export async function runImplement(
               break;
             }
 
-            const stageConfig = buildConfig(runId, stage, initial, unit, activeRound.unitBase, models, deps.thinkingLevel);
+            const stageConfig = buildConfig(runId, stage, initial, unit, activeRound.unitBase, models, thinkingLevels[stage]);
             const configPath = lease.writeStageConfig(activeRound.number, stage, stageConfig);
             const model = models[stage];
             const request: LifecycleStageRequest = {
@@ -575,7 +588,7 @@ export async function runImplement(
               })),
               bridgePath: deps.bridgePath,
               model,
-              thinkingLevel: deps.thinkingLevel,
+              thinkingLevel: thinkingLevels[stage],
               candidateBefore: stageCandidate,
             };
             const stageRecord = activeRound.stages[stage];
@@ -584,13 +597,13 @@ export async function runImplement(
             record.status = "running";
             record.currentCandidate = stageCandidate;
             persist();
-            deps.ui.setStatus("lifecycle-coordinator", `${stage}: starting ${modelKey(model)} (${deps.thinkingLevel})`);
+            deps.ui.setStatus("lifecycle-coordinator", `${stage}: starting ${modelKey(model)} (${thinkingLevels[stage]})`);
 
             let stageResult: RpcLifecycleStageResult;
             try {
               stageResult = await deps.runStage(request, signal, {
                 onObserved: async (state) => {
-                  const invalid = validateObservedState(stage, state, model, deps.thinkingLevel, seenSessions);
+                  const invalid = validateObservedState(stage, state, model, thinkingLevels[stage], seenSessions);
                   if (invalid) throw new Error(invalid);
                   stageRecord.sessionId = state.sessionId;
                   stageRecord.status = "running";
@@ -628,10 +641,10 @@ export async function runImplement(
             if (stageResult.observed) {
               const invalid = stageRecord.sessionId
                 ? stageRecord.sessionId === stageResult.observed.sessionId && stageResult.observed.model.provider === model.provider &&
-                  stageResult.observed.model.id === model.id && stageResult.observed.thinkingLevel === deps.thinkingLevel
+                  stageResult.observed.model.id === model.id && stageResult.observed.thinkingLevel === thinkingLevels[stage]
                   ? undefined
                   : `Stage ${stage} returned observed state that contradicts its pre-dispatch record`
-                : validateObservedState(stage, stageResult.observed, model, deps.thinkingLevel, seenSessions);
+                : validateObservedState(stage, stageResult.observed, model, thinkingLevels[stage], seenSessions);
               if (invalid) {
                 stageRecord.status = "process-failure";
                 finish("process-failure", stage, invalid);

@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { getSupportedThinkingLevels, type Api, type Model } from "@earendil-works/pi-ai";
 import { getAgentDir, type ExtensionAPI, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { runImplement, type ConductorDeps, type LifecycleStageRunner } from "./_conductor.ts";
 import type { ModelSelectionUI } from "./_models.ts";
@@ -103,6 +104,11 @@ export default function implementCoordinator(pi: ExtensionAPI): void {
             combined.signal,
             undefined,
           ),
+          selectThinking: (stage, model, options) => raceWithAbort(
+            ctx.ui.select(`Select the ${stage} thinking level for ${model.provider}/${model.id}`, options),
+            combined.signal,
+            undefined,
+          ),
           confirmIndependent: (verifier, writer) => raceWithAbort(
             ctx.ui.confirm(
               "Confirm verifier independence",
@@ -154,8 +160,9 @@ export default function implementCoordinator(pi: ExtensionAPI): void {
           resolvePlan: (input, cwd) => resolvePlan(input, cwd, gitRunner),
           registry: ctx.modelRegistry,
           currentModel: currentIdentity(ctx),
-          // deliberate: a thinking level pinned by a scope pattern is ignored; every stage inherits the coordinator thinking level.
-          scopedModels: ctx.scopedModels.map(({ model }) => ({ provider: model.provider, id: model.id })),
+          scopedModels: ctx.scopedModels.map(({ model, thinkingLevel }) => ({ provider: model.provider, id: model.id, thinkingLevel })),
+          // selectModels passes the registry's own Model object, so the cast only widens the declared type.
+          supportedThinkingLevels: (model) => getSupportedThinkingLevels(model as Model<Api>),
           modelUI,
           ui: ctx.ui,
           stateStore: new LifecycleStateStore(join(agentDirectory, "lifecycle-coordinator")),

@@ -3,7 +3,7 @@
 
 **Goal:** Replace `/ship` with `/implement <plan-path>` to run each remaining plan slice, in order, through fresh execute, simplify, and independent verify sessions with user approvals in the coordinator.
 **Smallest user-feedback slice:** Complete one real three-stage run, including an approval round-trip, committed or no-change simplification, and a fresh verification verdict.
-**Out of Scope:** Automatic repair, lifecycle retries, skipping a blocked slice, `/systematic-review` or a final whole-feature simplify inside `/implement`, parallel stages, restart recovery, planless orchestration, saved presets, command aliases, a fourth model, an agent framework, and security-sandbox claims. Direct planless lifecycle commands remain supported.
+**Out of Scope:** Repair or stage retry without an explicit user choice, more than two recoveries per run, skipping a blocked slice, `/systematic-review` or a final whole-feature simplify inside `/implement`, parallel stages, restart recovery, planless orchestration, saved presets, command aliases, a fourth model, an agent framework, and security-sandbox claims. Direct planless lifecycle commands remain supported.
 **Architecture:** The extension owns model selection, RPC transport, approval routing, local records, and transition checks. Existing templates own lifecycle policy and are dispatched through native Pi expansion. Fresh children share the selected candidate worktree, not conversation history; the verifier receives pinned requirements and candidate references, not predecessor narratives.
 **Tech Stack:** TypeScript, Node.js built-ins, existing Pi extension interfaces, Pi 1.5.0 RPC, Git, Markdown templates, node:test, and chezmoi.
 
@@ -24,7 +24,7 @@
 | `diataxis` | skill-loader | Documentation | Separated usage/recovery guidance from protocol reference |
 
 ### Execution
-Current task: Tasks 1-4 are complete. The user approved the slice loop amendment (design `### Slice loop`), which adds Task 5; the live acceptance task is now Task 6 and documentation is Task 7. Task 5 is complete. The Task 6 model-preflight blocker has a confirmed cause and fix (see the Task 6 blocker evidence); Task 6 needs a real TUI run by the user.
+Current task: Tasks 1-4 are complete. The user approved the slice loop amendment (design `### Slice loop`), which adds Task 5; the live acceptance task is now Task 6 and documentation is Task 7. Task 5 is complete. The Task 6 model-preflight blocker has a confirmed cause and fix (see the Task 6 blocker evidence); Task 7 needs a real TUI run by the user; Task 6 adds user-chosen recovery first.
 
 | Skill | Source | Why loaded | How used |
 |---|---|---|---|
@@ -226,7 +226,7 @@ The system SHALL run one execute → simplify → verify round per remaining sli
 - WHEN the coordinator evaluates the next round.
 - THEN no later round starts and the report names completed, stopped, and remaining slices.
 
-#### Scenario: Round limit
+#### Scenario: Round limit (R9)
 - GIVEN a plan with more than 20 remaining slices.
 - WHEN `/implement` reaches the limit.
 - THEN it stops after round 20 and reports the remaining slices; it does not exceed the run-record limit.
@@ -347,6 +347,19 @@ The system SHALL report per-stage state/model, selected unit, candidate commits,
 - WHEN reporting.
 - THEN no URL or verdict is invented.
 
+### Requirement R10: User-chosen recovery
+The system SHALL offer recovery with the coordinating session's model only after a stage stops and only on the user's choice, and SHALL retry only the stopped stage in a fresh session after a clean recovery.
+
+#### Scenario: Recovered stage continues
+- GIVEN execute stops because its commit failed and the verifier differs from the session model.
+- WHEN the user chooses Recover, the session model commits the work, and the user chooses Retry.
+- THEN execute runs again in a fresh session, confirms the committed unit, and the run continues to simplify and verify.
+
+#### Scenario: Recovery must not happen
+- GIVEN the user chooses Stop or dismisses the dialog, the run was cancelled, two recoveries already ran, the session model equals the verifier, or the worktree is dirty or out of scope after recovery.
+- WHEN the coordinator evaluates recovery or retry.
+- THEN no recovery message is sent or no retry starts, and the run ends with its recorded reason.
+
 ## Implementation Tasks
 The following tasks form one integration unit, not independently authorized product slices. Every task must be green before its commit. If native protocol feasibility fails in Task 1, stop before building later tasks. Do not orchestrate this replacement with the old `/ship` implementation.
 
@@ -432,10 +445,23 @@ Per-stage thinking (user direction after Task 5): after each stage model, `selec
 
 Live-run visibility and cancellation (first Task 6 attempt, run `203a0e82-ac91-4252-baaa-61d94a213d19`): after model selection, the run did start, but the coordinator reported progress only through `ctx.ui.setStatus`, so the TUI looked idle. The coordinator now shows a `ctx.ui.setWidget` panel (run ID, round N of M, slice, one line per stage with status, model, and thinking level, and the latest child activity) and clears it at the end. The same attempt showed that the input-block message "cancel it with Ctrl-C" was wrong: in Pi 1.5.0, Ctrl-C is `app.clear` and Escape is `app.interrupt`, and `ctx.signal` is undefined in extension commands, so neither key reaches a running stage outside a dialog. `/implement` now registers `ctrl+shift+x` with `pi.registerShortcut` to abort the active run, and `session_shutdown` awaits the active run because Pi awaits shutdown handlers (`emitSessionShutdownEvent`). New tests failed first; the extension suite passed 119/119.
 
-### Task 6: Run the live acceptance workflow in isolation
-**Delivers:** Evidence that actual models, actual approvals, normal capabilities, and the three-stage candidate workflow work together across two slices.
+### Task 6: Recover a stopped stage with the session model and show the summary once
+**Delivers:** A stopped stage offers user-chosen recovery with the coordinating session's model and a fresh retry of the same stage; the terminal summary appears once.
 **Blocked by:** 5
-**Traces to:** R1-R9
+**Traces to:** R7, R8, R10; user direction during live acceptance
+**Files:** `dot_pi/agent/exact_extensions/ship-conductor/index.ts`, `_conductor.ts`, `_conductor.test.ts`, `_index.test.ts`, `_models.ts`, `_unit.ts`, `_unit.test.ts`; `plans/pi-ship-conductor/design.md` (amended).
+
+- [ ] Add failing tests: a blocked execute, a dirty writer result, a process failure, and a `BLOCKED` verdict each offer recovery; Recover sends one bounded recovery prompt and waits for its completion; Retry re-runs only the same stage in a fresh session and the run continues; Stop, dismissal, cancellation, a third recovery, a session model equal to the verifier, a dirty worktree after recovery, and an out-of-unit plan change all end without a retry; retried verify counts another attempt. Test the command handler returning before the run ends and the summary being shown once (one-line notification, one transcript entry, no editor text).
+- [ ] Implement the smallest change: background run in `index.ts`, `agent_settled`-based recovery turn, input allowed only during recovery, recovery dialogs and retry loop in `_conductor.ts`, a `recovery` progress mode in `validatePlanProgress`, execute success measured against the round's unit base, and `pi.appendEntry` with an entry renderer for the summary.
+- [ ] Run `node --experimental-strip-types --test 'exact_extensions/ship-conductor/*.test.ts'`; expect all green. Run LSP diagnostics. Refactor only after green and rerun.
+- [ ] Commit with `feat(pi): recover stopped implement stages with the session model`.
+
+Feasibility evidence: a Pi 1.5.0 RPC spike with an in-memory provider showed that `pi.sendUserMessage` inside a command handler starts its turn only after the handler returns, so `ctx.waitForIdle()` returned with zero turns. When the handler started the work in the background and returned, the background code started a real turn, waited for it, and later dialogs still reached the user. Without a scheduling tick, `waitForIdle()` returned before the queued turn started, so the implementation waits for the next `agent_settled` event instead.
+
+### Task 7: Run the live acceptance workflow in isolation
+**Delivers:** Evidence that actual models, actual approvals, normal capabilities, and the three-stage candidate workflow work together across two slices.
+**Blocked by:** 6
+**Traces to:** R1-R10
 **Files:** `plans/pi-ship-conductor/plan.md` (execution evidence only); disposable smoke files outside this feature worktree are test fixtures, not shipped source.
 
 - [ ] Create an isolated disposable feature worktree with a small committed two-slice plan, an exact deterministic test command, no external service mutation, and one explicit approval gate. Use explicit candidate extension/prompt resource paths, normal required extensions, and a private temporary coordinator-state directory. Confirm intended templates resolve and old installed extension command conflicts do not hide the candidate.
@@ -459,15 +485,15 @@ Fifth attempt (run `30e3c872-ac79-4e68-98ef-5e0239e83389`): the user approved th
 
 - [ ] Record report references and actual outcomes here, clean disposable resources only after confirmed child termination, and commit with `docs(pi): record implement coordinator live acceptance evidence`.
 
-### Task 7: Complete documentation and final feature verification
+### Task 8: Complete documentation and final feature verification
 **Delivers:** Complete acceptance traceability, passing repository gates, and durable usage/recovery guidance for future agents.
-**Blocked by:** 6
-**Traces to:** R1-R9; explicit documentation and future-agent guidance requirement
+**Blocked by:** 7
+**Traces to:** R1-R10; explicit documentation and future-agent guidance requirement
 **Files:** `AGENTS.md`, `dot_pi/agent/AGENTS.md` (inspect; modify only if justified), `dot_pi/agent/exact_extensions/ship-conductor/README.md`, `plans/pi-ship-conductor/plan.md` (execution ledger).
 
 - [ ] Replace root marker-parser coupling guidance with the structured bridge/template contract, exact focused tests, Pi 1.5.0 integration requirement, and scoped child-marker trap. Inspect `dot_pi/agent/AGENTS.md`; record why no change is needed if guidance is correctly owned elsewhere. Do not update unrelated obsolete MCP guidance.
 - [ ] Document `/implement`, the lifecycle order (`/plan` → `/systematic-review` → `/implement`), the slice loop and its stop rules, the optional manual whole-feature `/simplify` + `/verify`, manual handoff examples, both writer identities, no-change semantics, ownership/cancellation recovery, run-record privacy/retention, required live evidence, and targeted rollout/rollback in the extension README. No generated references or production runbook/dashboard are needed; explain this local-tool scope.
-- [ ] Final verification: map every R1-R9 scenario to passing focused tests or recorded live evidence; require the complete three-stage feature and loop, not only helper tests. Confirm `/ship` removal, no fixed pools/prose transition parsing, no predecessor narrative sent to verify, and no round after a non-verified round.
+- [ ] Final verification: map every R1-R10 scenario to passing focused tests or recorded live evidence; require the complete three-stage feature and loop, not only helper tests. Confirm `/ship` removal, no fixed pools/prose transition parsing, no predecessor narrative sent to verify, and no round after a non-verified round.
 - [ ] Run `npm test` then `npm run test:all` from `dot_pi/agent` while installed dependencies remain; expect all tests and extension smoke green. Runtime integration must run against Pi 1.5.0, not silently skip. Run TypeScript LSP diagnostics after final code changes.
 - [ ] Remove disposable source `node_modules` after both gates. Inspect Git status and ensure test artifacts are outside the candidate. Preview reviewed explicit targets with `chezmoi --source "$PWD" diff <explicit-target-file>` from the worktree; inspect deletions too. Do not apply before the independent `/verify` gate.
 - [ ] Commit guidance with `docs(pi): document implement coordinator operation and recovery`. Record documentation decisions, focused/full results, live report references, and any unresolved blocker in this plan.
@@ -484,10 +510,11 @@ Fifth attempt (run `30e3c872-ac79-4e68-98ef-5e0239e83389`): the user approved th
 | R6 Manual handoffs | 1, 2, 3, 7 | Native expansion round-trips and template contracts |
 | R7 Bounds/ownership/cancel | 1, 3, 4, 5, 6, 7 | Competing processes, bounded stream tests, actual termination and live cancellation |
 | R8 Reporting | 3, 4, 5, 6, 7 | Structured run records/final reports across terminal outcomes |
-| R9 Slice loop | 5, 6, 7 | Multi-round conductor tests, per-round state tests, live two-slice run |
+| R9 Slice loop | 5, 7, 8 | Multi-round conductor tests, per-round state tests, live two-slice run |
+| R10 Recovery | 6, 7, 8 | Conductor recovery tests, background-command test, live recovery observation |
 
 ## Execution Notes
-- This is one execution unit: complete all seven tasks or stop explicitly blocked. No `### Slice N` headings are used because partial transport/template work cannot establish the approved feedback slice.
+- This is one execution unit: complete all eight tasks or stop explicitly blocked. No `### Slice N` headings are used because partial transport/template work cannot establish the approved feedback slice.
 - Preserve this planning provenance and add `### Execution` beneath `## Skills loaded and used` when execution starts. Update checkboxes and append evidence without changing approved requirements.
 - Before implementation, run `/systematic-review` on this plan. If the documented fixture-provider/bridge integration or exact native task preservation fails, return to planning; do not introduce an unapproved interface or weaken evidence.
 - This plan intentionally changes more than fifteen files. Apply the existing stack-split check before a draft PR. Internal protocol/template commits may be reviewed separately, but no partial delivery can claim the complete coordinator; ask before choosing a PR stack or overriding review boundaries.

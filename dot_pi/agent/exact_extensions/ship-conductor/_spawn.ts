@@ -582,6 +582,7 @@ export async function runRpcLifecycleStage(
   let cancelled = false;
   let rejection: string | undefined;
   let finalOutcome: LifecycleOutcomeEnvelope | undefined;
+  let lastRejectedOutcome: string | undefined;
   let settledRecord: RpcRecord | undefined;
   let agentStarted = false;
   let activeDecisionToolCallId: string | undefined;
@@ -878,7 +879,14 @@ export async function runRpcLifecycleStage(
           requestAbort();
         }
       } else {
-        if (record.isError) throw new Error("Lifecycle outcome tool returned an error");
+        if (record.isError) {
+          // A rejected outcome call is not a submission; the stage may correct its state and submit again before it settles.
+          const content = (record.result as { content?: Array<{ text?: unknown }> } | undefined)?.content;
+          const text = Array.isArray(content) ? content.map((part) => (typeof part?.text === "string" ? part.text : "")).join(" ").trim() : "";
+          lastRejectedOutcome = boundedText(text || "no error text", MAX_PROGRESS_BYTES);
+          recordProgress(`${options.stage}: outcome rejected: ${lastRejectedOutcome}`);
+          return;
+        }
         if (finalOutcome) throw new Error("Lifecycle outcome was submitted more than once");
         finalOutcome = parseLifecycleOutcomeEnvelope(details, {
           runId: options.runId,
@@ -946,7 +954,11 @@ export async function runRpcLifecycleStage(
     if (activeUI || activeDecisionToolCallId || toolCalls.size > 0) throw new Error("Pi RPC agent_settled with a pending UI request or lifecycle tool call");
     if (waitResult.record.aborted === true || cancelled) throw new Error("Lifecycle stage was cancelled");
     if (rejection) throw new Error(rejection);
-    if (!finalOutcome) throw new Error("Pi RPC agent_settled without one structured lifecycle outcome");
+    if (!finalOutcome) {
+      throw new Error(lastRejectedOutcome
+        ? `Pi RPC agent_settled after a rejected outcome without a corrected submission: ${lastRejectedOutcome}`
+        : "Pi RPC agent_settled without one structured lifecycle outcome");
+    }
 
     const finalState = await observeRpcState(session);
     if (

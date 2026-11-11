@@ -269,6 +269,7 @@ function lifecycleRpc(options: {
   outcome?: boolean;
   wrongRunId?: boolean;
   duplicateOutcome?: boolean;
+  rejectedOutcome?: boolean;
   modelDrift?: boolean;
   resistAbort?: boolean;
   ignoreSignals?: boolean;
@@ -298,6 +299,16 @@ function lifecycleRpc(options: {
           isError: decision !== "approved",
           result: { details: decisionResult(decision, options.wrongRunId ? "run-other" : "run-1") },
         });
+        if (decision === "approved" && options.rejectedOutcome) {
+          proc.emitRecord({ type: "tool_execution_start", toolCallId: "rejected-outcome-call", toolName: "lifecycle_submit_outcome" });
+          proc.emitRecord({
+            type: "tool_execution_end",
+            toolCallId: "rejected-outcome-call",
+            toolName: "lifecycle_submit_outcome",
+            isError: true,
+            result: { content: [{ type: "text", text: "Cannot submit success: the worktree has uncommitted changes." }] },
+          });
+        }
         if (decision === "approved" && options.outcome !== false) {
           for (const toolCallId of options.duplicateOutcome ? ["outcome-call", "duplicate-outcome-call"] : ["outcome-call"]) {
             proc.emitRecord({ type: "tool_execution_start", toolCallId, toolName: "lifecycle_submit_outcome" });
@@ -838,6 +849,34 @@ describe("runRpcLifecycleStage", () => {
     } finally {
       mock.timers.reset();
     }
+  });
+
+  it("lets a stage correct a rejected outcome call and resubmit", async () => {
+    const { spawner } = lifecycleRpc({ rejectedOutcome: true });
+    const result = await runRpcLifecycleStage(
+      spawner,
+      { command: "pi", args: [] },
+      "/wt",
+      { PI_LIFECYCLE_CHILD_CONFIG: "/tmp/stage.json" },
+      STAGE_OPTIONS,
+      stageUI("Approve"),
+    );
+    assert.equal(result.status, "settled", result.status === "settled" ? "" : result.reason);
+    assert.ok(result.progress.some((entry) => /outcome rejected: Cannot submit success/.test(entry)));
+  });
+
+  it("fails when a rejected outcome call is never corrected", async () => {
+    const { spawner } = lifecycleRpc({ rejectedOutcome: true, outcome: false });
+    const result = await runRpcLifecycleStage(
+      spawner,
+      { command: "pi", args: [] },
+      "/wt",
+      { PI_LIFECYCLE_CHILD_CONFIG: "/tmp/stage.json" },
+      STAGE_OPTIONS,
+      stageUI("Approve"),
+    );
+    assert.equal(result.status, "failure");
+    if (result.status === "failure") assert.match(result.reason, /rejected outcome.*Cannot submit success/i);
   });
 
   it("rejects missing and wrong-run outcomes after settlement", async () => {

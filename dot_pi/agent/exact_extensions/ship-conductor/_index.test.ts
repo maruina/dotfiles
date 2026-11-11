@@ -14,6 +14,7 @@ function createExtension() {
   const commands = new Map<string, CommandOptions>();
   const events = new Map<string, EventHandler>();
   const shortcuts = new Map<string, { handler: (ctx: unknown) => unknown }>();
+  const entries: Array<{ customType: string; data: { summary: string; level: string } }> = [];
   const pi = {
     on: (event: string, handler: EventHandler) => {
       events.set(event, handler);
@@ -21,9 +22,12 @@ function createExtension() {
     },
     registerCommand: (name: string, options: CommandOptions) => commands.set(name, options),
     registerShortcut: (key: string, options: { handler: (ctx: unknown) => unknown }) => shortcuts.set(key, options),
+    registerEntryRenderer: () => undefined,
+    appendEntry: (customType: string, data: { summary: string; level: string }) => entries.push({ customType, data }),
+    sendUserMessage: () => undefined,
   } as unknown as ExtensionAPI;
   implementCoordinator(pi);
-  return { commands, events, shortcuts };
+  return { commands, events, shortcuts, entries };
 }
 
 function git(root: string, args: string[]): string {
@@ -120,10 +124,12 @@ describe("/implement extension command", () => {
         },
         confirm: async () => true,
         notify: (message: string) => notices.push(message),
+        setStatus: () => undefined,
+        setWidget: () => undefined,
         setEditorText: () => undefined,
       },
     } as unknown as ExtensionCommandContext;
-    const { commands, events, shortcuts } = createExtension();
+    const { commands, events, shortcuts, entries } = createExtension();
     const command = commands.get("implement")!;
     let activeRun: Promise<void> | undefined;
     try {
@@ -138,25 +144,24 @@ describe("/implement extension command", () => {
       assert.deepEqual(inputResult, { action: "handled" });
       assert.match(notices.at(-1) ?? "", /owns this session.*Ctrl\+Shift\+X/);
 
-      let runFinished = false;
-      const run = activeRun.then(() => {
-        runFinished = true;
-      });
+      assert.equal(entries.length, 0, "the run is still active after the command handler returned");
       if (stopWith === "cancel shortcut") {
         await shortcuts.get("ctrl+shift+x")!.handler(context);
-        assert.match(notices.at(-1) ?? "", /Cancelling the active \/implement run/);
+        assert.match(notices.find((notice) => /Cancelling the active \/implement run/.test(notice)) ?? "", /Cancelling/);
+        for (let wait = 0; wait < 50 && entries.length === 0; wait++) await new Promise<void>((resolve) => setTimeout(resolve, 10));
       } else {
         await events.get("session_shutdown")!({});
-        assert.equal(runFinished, true, "session_shutdown must wait for the active run to stop");
       }
-      const stoppedBeforeModelSelectionReturned = await Promise.race([
-        run.then(() => true),
-        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 50)),
-      ]);
-      assert.equal(stoppedBeforeModelSelectionReturned, true);
+      assert.equal(entries.length, 1, "the run ends with one summary entry");
+      assert.equal(entries[0]!.customType, "implement-summary");
+      assert.match(entries[0]!.data.summary, /cancelled/i);
+      const afterStop = notices.length;
+      await command.handler(fixture.planPath, { ...context, ui: { ...context.ui, select: async () => undefined } } as unknown as ExtensionCommandContext);
+      assert.doesNotMatch(notices.slice(afterStop).join("\n"), /already active/, "a stopped run must release the session");
     } finally {
       resolveSelection?.(undefined);
       if (activeRun) await activeRun;
+      await events.get("session_shutdown")!({});
       rmSync(fixture.tempRoot, { recursive: true, force: true });
       if (previousConfig === undefined) delete process.env[CHILD_CONFIG_ENV];
       else process.env[CHILD_CONFIG_ENV] = previousConfig;

@@ -89,6 +89,11 @@ function selectionUI(selections: string[] = []): { ui: ModelSelectionUI; calls: 
 type FakeConductorUI = RpcStageUI & {
   setEditorText(text: string): void;
   setWidget(key: string, lines: string[] | undefined): void;
+  showSummary(summary: string, level: string): void;
+  answers: string[];
+  dialogs: Array<{ title: string; options: string[] }>;
+  summaries: string[];
+  editorTexts: string[];
   notices: string[];
   statuses: Map<string, string | undefined>;
   widgets: Array<string[] | undefined>;
@@ -98,9 +103,15 @@ function conductorUI(): FakeConductorUI {
   const notices: string[] = [];
   const statuses = new Map<string, string | undefined>();
   const widgets: Array<string[] | undefined> = [];
+  const answers: string[] = [];
+  const dialogs: Array<{ title: string; options: string[] }> = [];
+  const summaries: string[] = [];
+  const editorTexts: string[] = [];
   const ui: FakeConductorUI = {
-    async select(_title: string, options: string[]) {
-      return options[0];
+    async select(title: string, options: string[]) {
+      dialogs.push({ title, options });
+      const answer = answers.shift();
+      return answer === undefined ? undefined : options.find((option) => option.startsWith(answer));
     },
     async confirm() {
       return true;
@@ -117,10 +128,19 @@ function conductorUI(): FakeConductorUI {
     setStatus(key: string, text: string | undefined) {
       statuses.set(key, text);
     },
-    setEditorText(_text: string) {},
+    setEditorText(text: string) {
+      editorTexts.push(text);
+    },
     setWidget(_key: string, lines: string[] | undefined) {
       widgets.push(lines);
     },
+    showSummary(summary: string) {
+      summaries.push(summary);
+    },
+    answers,
+    dialogs,
+    summaries,
+    editorTexts,
     notices,
     statuses,
     widgets,
@@ -151,7 +171,7 @@ function stageRunner(root: string, planPath: string, options: RunnerOptions = {}
   let verifyRound = 0;
   const runner: LifecycleStageRunner = async (request, _signal, callbacks) => {
     const unitKey = request.config.unit.taskNumbers.join("-");
-    const sessionId = `session-${request.stage}-${unitKey}`;
+    const sessionId = `session-${request.stage}-${unitKey}-${calls.length + 1}`;
     calls.push({
       stage: request.stage,
       prompt: request.prompt,
@@ -287,7 +307,7 @@ function baseDeps(fixture: ReturnType<typeof createRepo>, overrides: Partial<Con
 }
 
 function assertOutcomeStatus(outcome: ConductorOutcome, expected: ConductorOutcome["status"]): void {
-  assert.equal(outcome.status, expected);
+  assert.equal(outcome.status, expected, outcome.summary);
 }
 
 describe("runImplement", () => {
@@ -492,6 +512,168 @@ describe("runImplement", () => {
     assert.match(outcome.reason, /round limit/i);
     assert.match(outcome.summary, /Remaining slices: Slice 21: Slice 21/);
     assert.equal(existsSync(depsState.store.worktreeLockPath(fixture.root)), false);
+  });
+
+  it("shows the terminal summary once and a one-line notification", async () => {
+    const fixture = createRepo(UNGROUPED_PLAN);
+    const depsState = baseDeps(fixture);
+    const stages = stageRunner(fixture.root, fixture.planPath, { executeOutcome: "blocked" });
+    depsState.deps.runStage = stages.runner;
+    const outcome = await runImplement(fixture.planPath, fixture.root, depsState.deps, undefined);
+
+    assertOutcomeStatus(outcome, "blocked");
+    assert.deepEqual(depsState.ui.summaries, [outcome.summary]);
+    assert.deepEqual(depsState.ui.editorTexts, []);
+    assert.equal(depsState.ui.notices.length, 1);
+    assert.doesNotMatch(depsState.ui.notices[0]!, /\n/);
+    assert.match(depsState.ui.notices[0]!, /run-test.*blocked/);
+  });
+
+  it("recovers a blocked execute with the session model and retries only that stage", async () => {
+    const fixture = createRepo(UNGROUPED_PLAN);
+    const prompts: string[] = [];
+    const depsState = baseDeps(fixture, {
+      worktreeStatus: (root) => git(root, ["status", "--porcelain=v1", "--untracked-files=all"]),
+      recovery: {
+        sessionModel: () => ({ provider: "fixture", id: "writer-a" }),
+        async run(prompt) {
+          prompts.push(prompt);
+          git(fixture.root, ["commit", "--quiet", "-m", "implement selected slice"]);
+          return { status: "settled", model: { provider: "fixture", id: "writer-a" } };
+        },
+      },
+    });
+    depsState.ui.answers.push("Recover", "Retry");
+    const stages = stageRunner(fixture.root, fixture.planPath);
+    let executeCalls = 0;
+    depsState.deps.runStage = async (request, signal, callbacks) => {
+      if (request.stage !== "execute") return stages.runner(request, signal, callbacks);
+      executeCalls++;
+      const sessionId = `session-execute-${executeCalls}`;
+      const observed = { sessionId, model: request.model, thinkingLevel: request.thinkingLevel, messageCount: 1 };
+      await callbacks.onObserved?.(observed);
+      stages.calls.push({ stage: "execute", prompt: request.prompt, sessionId, unit: request.config.unit.taskNumbers, unitBase: request.config.unitBase, configPath: request.configPath, model: "" });
+      let outcome: "success" | "blocked" = "success";
+      let change: "changed" | "unchanged" = "unchanged";
+      if (executeCalls === 1) {
+        writeFileSync(fixture.planPath, readFileSync(fixture.planPath, "utf8").replace("- [ ] Implement task 1.", "- [x] Implement task 1."));
+        mkdirSync(join(fixture.root, "src"), { recursive: true });
+        writeFileSync(join(fixture.root, "src", "execute.txt"), "execute result\n");
+        git(fixture.root, ["add", "."]);
+        outcome = "blocked";
+      }
+      const candidate = executeCalls === 1 ? request.candidateBefore : captureCleanCandidate(fixture.root, createGitRunner());
+      return {
+        status: "settled",
+        outcome: {
+          schemaVersion: 1, runId: request.runId, stage: "execute", sessionId, model: request.model, outcome, change, candidate,
+          reportRef: `lifecycle-coordinator/runs/${request.runId}/reports/execute-${executeCalls}.md`,
+        },
+        promptStarted: true, observed, decisions: [], progress: [], stderr: "", terminationConfirmed: true,
+      };
+    };
+    const outcome = await runImplement(fixture.planPath, fixture.root, depsState.deps, undefined);
+
+    assertOutcomeStatus(outcome, "verified");
+    assert.deepEqual(stages.calls.map((call) => call.stage), ["execute", "execute", "simplify", "verify"]);
+    assert.equal(prompts.length, 1);
+    assert.match(prompts[0]!, /execute reported a lifecycle blocker/);
+    assert.match(prompts[0]!, /M  plans\/feature\/plan\.md/);
+    assert.match(prompts[0]!, /Fix only this blocker/);
+    assert.match(prompts[0]!, /Do not push/);
+    assert.match(depsState.ui.dialogs[0]!.title, /round 1 execute/i);
+    assert.deepEqual(depsState.ui.dialogs[0]!.options, ["Recover with fixture/writer-a", "Stop"]);
+    assert.deepEqual(depsState.ui.dialogs[1]!.options, ["Retry execute in a fresh session", "Recover again with fixture/writer-a", "Stop"]);
+    const record = JSON.parse(readFileSync(outcome.status === "verified" ? outcome.recordPath : "", "utf8")) as Record<string, any>;
+    assert.equal(record.rounds[0].recoveries.length, 1);
+    assert.equal(record.rounds[0].recoveries[0].stage, "execute");
+    assert.deepEqual(record.rounds[0].recoveries[0].model, { provider: "fixture", id: "writer-a" });
+    assert.equal(record.rounds[0].recoveries[0].failedReportRef, "lifecycle-coordinator/runs/run-test/reports/execute-1.md");
+    assert.match(outcome.summary, /Recovery 1: execute by fixture\/writer-a/);
+    assert.equal(existsSync(depsState.store.worktreeLockPath(fixture.root)), false);
+  });
+
+  it("retries verify in a fresh session after a recovered BLOCKED verdict", async () => {
+    const fixture = createRepo(UNGROUPED_PLAN);
+    const depsState = baseDeps(fixture, {
+      worktreeStatus: () => "",
+      recovery: {
+        sessionModel: () => ({ provider: "fixture", id: "writer-a" }),
+        async run() {
+          writeFileSync(join(fixture.root, "src", "fix.txt"), "fix\n");
+          git(fixture.root, ["add", "."]);
+          git(fixture.root, ["commit", "--quiet", "-m", "fix verification finding"]);
+          return { status: "settled", model: { provider: "fixture", id: "writer-a" } };
+        },
+      },
+    });
+    depsState.ui.answers.push("Recover", "Retry");
+    const stages = stageRunner(fixture.root, fixture.planPath, { verifyOutcomes: ["BLOCKED", "VERIFIED"] });
+    depsState.deps.runStage = stages.runner;
+    const outcome = await runImplement(fixture.planPath, fixture.root, depsState.deps, undefined);
+
+    assertOutcomeStatus(outcome, "verified");
+    assert.deepEqual(stages.calls.map((call) => call.stage), ["execute", "simplify", "verify", "verify"]);
+    assert.notEqual(stages.calls[2]!.sessionId === stages.calls[3]!.sessionId, true);
+    assert.equal(outcome.verificationAttempts, 2);
+    assert.equal(outcome.blockedVerdicts, 1);
+  });
+
+  it("does not recover after Stop, dismissal, a session model equal to the verifier, or the recovery limit", async () => {
+    const cases: Array<{ name: string; answers: string[]; sessionModel: string; expectedRuns: number }> = [
+      { name: "stop", answers: ["Stop"], sessionModel: "writer-a", expectedRuns: 0 },
+      { name: "dismiss", answers: [], sessionModel: "writer-a", expectedRuns: 0 },
+      { name: "verifier", answers: ["Recover"], sessionModel: "reviewer", expectedRuns: 0 },
+      { name: "limit", answers: ["Recover", "Recover again", "Recover again", "Recover again"], sessionModel: "writer-a", expectedRuns: 2 },
+    ];
+    for (const testCase of cases) {
+      const fixture = createRepo(UNGROUPED_PLAN);
+      let runs = 0;
+      const depsState = baseDeps(fixture, {
+        worktreeStatus: () => "",
+        recovery: {
+          sessionModel: () => ({ provider: "fixture", id: testCase.sessionModel }),
+          async run() {
+            runs++;
+            return { status: "settled", model: { provider: "fixture", id: testCase.sessionModel } };
+          },
+        },
+      });
+      depsState.ui.answers.push(...testCase.answers);
+      const stages = stageRunner(fixture.root, fixture.planPath, { executeOutcome: "blocked" });
+      depsState.deps.runStage = stages.runner;
+      const outcome = await runImplement(fixture.planPath, fixture.root, depsState.deps, undefined);
+
+      assert.equal(outcome.status, "blocked", testCase.name);
+      assert.equal(runs, testCase.expectedRuns, testCase.name);
+      assert.deepEqual(stages.calls.map((call) => call.stage), ["execute"], testCase.name);
+      if (testCase.name === "verifier") assert.equal(depsState.ui.dialogs.length, 0, "no recovery is offered when the verifier is the session model");
+      assert.equal(existsSync(depsState.store.worktreeLockPath(fixture.root)), false, testCase.name);
+    }
+  });
+
+  it("refuses to retry while the worktree is dirty after recovery", async () => {
+    const fixture = createRepo(UNGROUPED_PLAN);
+    const depsState = baseDeps(fixture, {
+      worktreeStatus: () => "?? leftover.txt",
+      recovery: {
+        sessionModel: () => ({ provider: "fixture", id: "writer-a" }),
+        async run() {
+          writeFileSync(join(fixture.root, "leftover.txt"), "dirty\n");
+          return { status: "settled", model: { provider: "fixture", id: "writer-a" } };
+        },
+      },
+    });
+    depsState.ui.answers.push("Recover", "Stop");
+    const stages = stageRunner(fixture.root, fixture.planPath, { executeOutcome: "blocked" });
+    depsState.deps.runStage = stages.runner;
+    const outcome = await runImplement(fixture.planPath, fixture.root, depsState.deps, undefined);
+
+    assertOutcomeStatus(outcome, "blocked");
+    assert.deepEqual(stages.calls.map((call) => call.stage), ["execute"]);
+    assert.equal(depsState.ui.dialogs.length, 2);
+    assert.match(depsState.ui.dialogs[1]!.title, /not clean/i);
+    assert.ok(!depsState.ui.dialogs[1]!.options.some((option) => option.startsWith("Retry")));
   });
 
   it("runs fresh verification after unchanged simplify without making an empty commit", async () => {

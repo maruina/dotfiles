@@ -39,7 +39,7 @@ function normalizedModelId(model: ModelIdentity): string {
   return model.id.trim().toLowerCase();
 }
 
-function sameKnownModel(left: ModelIdentity, right: ModelIdentity): boolean {
+export function sameKnownModel(left: ModelIdentity, right: ModelIdentity): boolean {
   return identityKey(left) === identityKey(right) || normalizedModelId(left) === normalizedModelId(right);
 }
 

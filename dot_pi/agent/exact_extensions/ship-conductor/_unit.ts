@@ -1,5 +1,6 @@
 export type UnitDescriptor = { heading: string; taskNumbers: number[] };
-export type ProgressStage = "execute" | "simplify";
+/** `recovery` allows checkbox changes inside the selected unit only, because the session model may finish its ledger. */
+export type ProgressStage = "execute" | "simplify" | "recovery";
 
 type SliceInfo = { number: number; title: string; heading: string; order: number };
 type TaskInfo = {
@@ -278,6 +279,7 @@ export function validatePlanProgress(
     const current = after.tasks[index];
     const previousState = previous.checks;
     const currentState = current.checks;
+    if (stage === "recovery" && selected.has(previous.number)) continue;
     if (stage === "execute" && selected.has(previous.number)) {
       if (!currentState.every(Boolean)) return { ok: false, reason: `Execute did not complete every checkbox for Task ${previous.number}` };
     } else if (JSON.stringify(previousState) !== JSON.stringify(currentState)) {

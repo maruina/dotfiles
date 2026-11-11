@@ -96,6 +96,8 @@ describe("LifecycleStateStore", () => {
     assert.throws(() => lease.writeStageConfig(1, "execute", initial), /EEXIST|already exists/);
     assert.equal(lease.writeStageConfig(2, "execute", initial), join(lease.runDirectory, "configs", "2-execute.json"));
     assert.throws(() => lease.writeStageConfig(0, "execute", initial), /round/);
+    assert.equal(lease.writeStageConfig(1, "execute", initial, 2), join(lease.runDirectory, "configs", "1-execute-2.json"));
+    assert.throws(() => lease.writeStageConfig(1, "execute", initial, 0), /attempt/);
     lease.release();
   });
 

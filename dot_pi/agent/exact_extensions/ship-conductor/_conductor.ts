@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import {
   buildStagePrompt,
   parseSinglePlanArgument,
@@ -12,6 +13,7 @@ import {
   type ModelRegistryLike,
   type ModelSelectionUI,
   type ScopedModelChoice,
+  sameKnownModel,
 } from "./_models.ts";
 import { PROTOCOL_VERSION, parseStageConfig, type LifecycleOutcomeEnvelope, type Stage, type StageConfig } from "./_protocol.ts";
 import {
@@ -47,8 +49,10 @@ export type LifecycleStageRunner = (
 ) => Promise<RpcLifecycleStageResult>;
 
 export type ConductorUI = RpcStageUI & {
-  setEditorText(text: string): void;
+  setEditorText?(text: string): void;
   setWidget?(key: string, lines: string[] | undefined): void;
+  /** Shows the full terminal summary once in the transcript; the notification carries one line. */
+  showSummary?(summary: string, level: "info" | "warning" | "error"): void;
 };
 
 export type ConductorDeps = {
@@ -66,6 +70,12 @@ export type ConductorDeps = {
   bridgePath: string;
   captureCandidate(root: string): CandidateSnapshot;
   runStage: LifecycleStageRunner;
+  /** User-chosen recovery with the coordinating session's model; absent means no recovery is offered. */
+  recovery?: {
+    sessionModel(): ModelIdentity | undefined;
+    run(prompt: string, signal: AbortSignal | undefined): Promise<{ status: "settled" | "cancelled"; model: ModelIdentity | undefined }>;
+  };
+  worktreeStatus?(root: string): string;
   createRunId?: () => string;
   now?: () => string;
 };
@@ -92,8 +102,22 @@ type RoundRecord = {
   status: string;
   stages: Record<Stage, StageRecord>;
   candidateCommits: { execute?: string; simplify?: string };
-  verificationAttempts: 0 | 1;
-  blockedVerdicts: 0 | 1;
+  verificationAttempts: number;
+  blockedVerdicts: number;
+  recoveries: RecoveryRecord[];
+};
+
+type RecoveryRecord = {
+  number: number;
+  stage: Stage;
+  reason: string;
+  model: ModelIdentity;
+  failedSessionId?: string;
+  failedReportRef?: string;
+  failedError?: string;
+  startedAt: string;
+  finishedAt?: string;
+  candidateAfter?: string;
 };
 
 type RunRecord = Record<string, unknown> & {
@@ -119,7 +143,8 @@ type RunRecord = Record<string, unknown> & {
   prUrl?: string;
   prPresence: "present" | "absent";
   verificationAttempts: number;
-  blockedVerdicts: 0 | 1;
+  blockedVerdicts: number;
+  recoveryCount: number;
   error?: string;
   nextAction: string;
 };
@@ -130,7 +155,7 @@ export type ConductorOutcome =
       runId: string;
       recordPath: string;
       verificationAttempts: number;
-      blockedVerdicts: 0;
+      blockedVerdicts: number;
       summary: string;
     }
   | {
@@ -140,7 +165,7 @@ export type ConductorOutcome =
       stage: TerminalStage;
       reason: string;
       verificationAttempts: number;
-      blockedVerdicts: 0 | 1;
+      blockedVerdicts: number;
       summary: string;
     }
   | {
@@ -150,7 +175,7 @@ export type ConductorOutcome =
       stage: TerminalStage;
       reason: string;
       verificationAttempts: number;
-      blockedVerdicts: 0;
+      blockedVerdicts: number;
       ownershipRetained: boolean;
       summary: string;
     }
@@ -161,7 +186,7 @@ export type ConductorOutcome =
       stage?: Stage | "transition";
       reason: string;
       verificationAttempts: number;
-      blockedVerdicts: 0;
+      blockedVerdicts: number;
       ownershipRetained: boolean;
       summary: string;
     }
@@ -176,6 +201,9 @@ export type ConductorOutcome =
 type TerminalStage = Stage | "preflight" | "transition";
 
 const STAGES: Stage[] = ["execute", "simplify", "verify"];
+// deliberate: at most two recoveries per run, so a stage that keeps failing ends instead of looping with the user.
+export const MAX_RECOVERIES_PER_RUN = 2;
+const MAX_RECOVERY_CONTEXT_BYTES = 8 * 1024;
 // deliberate: one run executes at most 20 rounds so the run record stays below MAX_RUN_RECORD_BYTES; rerun /implement to continue.
 export const MAX_ROUNDS_PER_RUN = 20;
 const MAX_PROGRESS_ENTRIES = 100;
@@ -200,17 +228,28 @@ function reasonOf(error: unknown): string {
   return truncate(error instanceof Error ? error.message : String(error), MAX_ERROR_BYTES);
 }
 
+function oneLine(text: string): string {
+  return truncate(text.replace(/\s+/g, " ").trim(), 300);
+}
+
+function announce(ui: ConductorUI, summary: string, headline: string, level: "info" | "warning" | "error"): void {
+  if (ui.showSummary) {
+    ui.showSummary(summary, level);
+    ui.notify(oneLine(headline), level);
+  } else {
+    ui.notify(summary, level);
+  }
+}
+
 function preflightFailure(reason: string, ui: ConductorUI): ConductorOutcome {
   const summary = `Lifecycle preflight failed: ${reason}\nNo stage was started.`;
-  ui.notify(summary, "error");
-  ui.setEditorText(summary);
+  announce(ui, summary, `Lifecycle preflight failed: ${reason}`, "error");
   return { status: "preflight-failure", reason, verificationAttempts: 0, blockedVerdicts: 0, summary };
 }
 
 function cancelledBeforeRun(reason: string, ui: ConductorUI): ConductorOutcome {
   const summary = `Lifecycle run cancelled: ${reason}\nNo stage was started.`;
-  ui.notify(summary, "warning");
-  ui.setEditorText(summary);
+  announce(ui, summary, `Lifecycle run cancelled: ${reason}`, "warning");
   return { status: "cancelled", reason, verificationAttempts: 0, blockedVerdicts: 0, ownershipRetained: false, summary };
 }
 
@@ -269,6 +308,7 @@ function createRunRecord(
     prPresence: "absent",
     verificationAttempts: 0,
     blockedVerdicts: 0,
+    recoveryCount: 0,
     nextAction: "No stage has started.",
   };
 }
@@ -287,6 +327,7 @@ function startRound(record: RunRecord, unit: UnitDescriptor, unitBase: string): 
     candidateCommits: {},
     verificationAttempts: 0,
     blockedVerdicts: 0,
+    recoveries: [],
   };
   record.rounds.push(round);
   return round;
@@ -302,8 +343,8 @@ function compactRound(round: RoundRecord): void {
 }
 
 function markBlockedVerdict(record: RunRecord, round: RoundRecord): void {
-  round.blockedVerdicts = 1;
-  record.blockedVerdicts = 1;
+  round.blockedVerdicts++;
+  record.blockedVerdicts++;
 }
 
 const PROGRESS_WIDGET_KEY = "lifecycle-coordinator";
@@ -356,13 +397,14 @@ function renderSummary(record: RunRecord, reason?: string): string {
     `Worktree: ${record.worktree} (${record.branch})`,
     `Plan: ${record.planPath}`,
     ...record.rounds.flatMap((round) => [
-      `Round ${round.number} — ${round.unit.heading}: ${round.status} (tasks ${round.unit.taskNumbers.join(", ")}; unit base ${round.unitBase.slice(0, 12)}; verification attempts ${round.verificationAttempts}/1; blocked verdicts ${round.blockedVerdicts}/1)`,
+      `Round ${round.number} — ${round.unit.heading}: ${round.status} (tasks ${round.unit.taskNumbers.join(", ")}; unit base ${round.unitBase.slice(0, 12)}; verification attempts ${round.verificationAttempts}; blocked verdicts ${round.blockedVerdicts})`,
       ...STAGES.map((stage) => stageSummary(round, stage)),
+      ...round.recoveries.map((recovery) => `  Recovery ${recovery.number}: ${recovery.stage} by ${modelKey(recovery.model)}${recovery.candidateAfter ? `, candidate ${recovery.candidateAfter.slice(0, 12)}` : ""} (${recovery.reason})`),
       `  execute commit: ${round.candidateCommits.execute ?? "none"}; simplify commit: ${round.candidateCommits.simplify ?? "none"}`,
     ]),
     `Remaining slices: ${record.remainingUnits.length > 0 ? record.remainingUnits.join("; ") : "none"}`,
     `PR: ${record.prUrl ?? "absent"}`,
-    `Verification attempts: ${record.verificationAttempts}; blocked verdicts: ${record.blockedVerdicts}/1`,
+    `Verification attempts: ${record.verificationAttempts}; blocked verdicts: ${record.blockedVerdicts}; recoveries: ${record.recoveryCount}`,
     `Reports: ${record.reports.length > 0 ? record.reports.join(", ") : "none"}`,
     `Decisions: ${record.decisions.length > 0 ? record.decisions.map((entry) => `${entry.stage} ${entry.decision}: ${entry.question ?? entry.title}`).join("; ") : "none"}`,
   ];
@@ -491,6 +533,9 @@ export async function runImplement(
   const completedTasks = new Set<number>();
   const plannedRounds = Math.min(remainingUnitHeadings(initial.planText).length, MAX_ROUNDS_PER_RUN);
   let lastActivity: string | undefined;
+  type PendingStop = { status: "blocked" | "process-failure"; stage: Stage; reason?: string; nextAction?: string };
+  let pendingStop: PendingStop | undefined;
+  let deferStops = deps.recovery !== undefined;
 
   const persist = () => {
     record.updatedAt = now();
@@ -499,6 +544,11 @@ export async function runImplement(
   };
 
   const finish = (status: "blocked" | "process-failure" | "cancelled" | "verified", stage: TerminalStage, reason?: string, nextAction?: string): void => {
+    if (deferStops && (status === "blocked" || status === "process-failure") && (STAGES as string[]).includes(stage)) {
+      // The stage loop offers recovery before this stop becomes terminal.
+      pendingStop = { status, stage: stage as Stage, reason, nextAction };
+      return;
+    }
     record.status = status;
     try {
       record.remainingUnits = remainingUnitHeadings(readFileSync(initial.planPath, "utf8"));
@@ -527,7 +577,7 @@ export async function runImplement(
         runId,
         recordPath: lease.recordPath,
         verificationAttempts: record.verificationAttempts,
-        blockedVerdicts: 0,
+        blockedVerdicts: record.blockedVerdicts,
         summary,
       };
     } else if (status === "blocked") {
@@ -549,7 +599,7 @@ export async function runImplement(
         stage,
         reason: reason ?? "Lifecycle transport or protocol failure",
         verificationAttempts: record.verificationAttempts,
-        blockedVerdicts: 0,
+        blockedVerdicts: record.blockedVerdicts,
         ownershipRetained,
         summary,
       };
@@ -561,13 +611,195 @@ export async function runImplement(
         stage: stage === "preflight" ? undefined : stage,
         reason: reason ?? "Lifecycle run was cancelled",
         verificationAttempts: record.verificationAttempts,
-        blockedVerdicts: 0,
+        blockedVerdicts: record.blockedVerdicts,
         ownershipRetained,
         summary,
       };
     }
-    deps.ui.notify(summary, status === "verified" ? "info" : status === "cancelled" ? "warning" : "error");
-    deps.ui.setEditorText(summary);
+    const where = stage === "preflight" || stage === "transition" ? "" : ` at round ${round?.number ?? 0} ${stage}`;
+    announce(
+      deps.ui,
+      summary,
+      `Lifecycle run ${runId} ${status}${status === "verified" ? "" : where}${reason ? `: ${reason}` : ""}`,
+      status === "verified" ? "info" : status === "cancelled" ? "warning" : "error",
+    );
+  };
+
+  const raceAbort = <T>(operation: Promise<T>, fallback: T): Promise<T> => {
+    if (!signal) return operation;
+    if (signal.aborted) return Promise.resolve(fallback);
+    return new Promise<T>((resolve, reject) => {
+      const onAbort = () => resolve(fallback);
+      signal.addEventListener("abort", onAbort, { once: true });
+      operation.then(
+        (value) => {
+          signal.removeEventListener("abort", onAbort);
+          resolve(value);
+        },
+        (error: unknown) => {
+          signal.removeEventListener("abort", onAbort);
+          reject(error);
+        },
+      );
+    });
+  };
+
+  const readBounded = (path: string): string | undefined => {
+    try {
+      return truncate(readFileSync(path, "utf8"), MAX_RECOVERY_CONTEXT_BYTES);
+    } catch {
+      return undefined;
+    }
+  };
+
+  const recoveryPrompt = (activeRound: RoundRecord, stop: PendingStop): string => {
+    const stageRecord = activeRound.stages[stop.stage];
+    const report = stageRecord.reportRef ? readBounded(join(dirname(deps.stateStore.rootDirectory), stageRecord.reportRef)) : undefined;
+    const diagnostics = [stageRecord.error, stageRecord.stderr].filter(Boolean).join("\n");
+    let status: string;
+    try {
+      status = deps.worktreeStatus?.(initial.root).trimEnd() || "(clean)";
+    } catch (error) {
+      status = `(git status failed: ${reasonOf(error)})`;
+    }
+    return [
+      `/implement run ${runId} stopped at round ${activeRound.number} (${activeRound.unit.heading}), stage ${stop.stage}, status ${stop.status}.`,
+      `Reason: ${stop.reason ?? "not recorded"}`,
+      `Worktree: ${initial.root} (branch ${initial.branch})`,
+      `Plan: ${initial.planPath}; selected tasks: ${activeRound.unit.taskNumbers.join(", ")}`,
+      report ? `Stage report (${stageRecord.reportRef}):\n${report}` : `Stage diagnostics:\n${truncate(diagnostics || "none", MAX_RECOVERY_CONTEXT_BYTES)}`,
+      `git status --porcelain=v1 --untracked-files=all:\n${truncate(status, MAX_RECOVERY_CONTEXT_BYTES)}`,
+      "",
+      "You are recovering this run for the user. Fix only this blocker inside the selected unit:",
+      `- Work in ${initial.root}; keep changes inside the selected unit.`,
+      "- Leave the worktree clean: commit what the stage should have committed with the plan's commit message, or revert changes the stage must not keep.",
+      "- Do not start other tasks or slices, and do not run /implement, /execute, /simplify, or /verify.",
+      "- Do not push, open a PR, or bypass checks or commit signing. If you cannot fix the blocker, say why and stop.",
+      `When you finish, summarize what you changed. The coordinator then asks the user whether to retry ${stop.stage} in a fresh session.`,
+    ].join("\n");
+  };
+
+  const recoveryUnavailable = (sessionModel: ModelIdentity | undefined): string | undefined => {
+    if (ownershipRetained) return "child termination was not confirmed";
+    if (record.recoveryCount >= MAX_RECOVERIES_PER_RUN) return `the run already used ${MAX_RECOVERIES_PER_RUN} recoveries`;
+    if (!sessionModel) return "the session model is unknown";
+    if (sameKnownModel(sessionModel, models.verify)) return "the session model matches the selected verifier";
+    return undefined;
+  };
+
+  // Returns true when the user chose to retry the stopped stage after a clean recovery.
+  const handleStop = async (activeRound: RoundRecord): Promise<boolean> => {
+    const stop = pendingStop!;
+    pendingStop = undefined;
+    const end = (status: "blocked" | "process-failure" | "cancelled", reason: string | undefined, extra?: string) => {
+      deferStops = false;
+      finish(status, stop.stage, reason, extra ? `${extra} ${stop.nextAction ?? ""}`.trim() : stop.nextAction);
+      deferStops = deps.recovery !== undefined;
+    };
+    const recovery = deps.recovery!;
+    const sessionModel = recovery.sessionModel();
+    const unavailable = recoveryUnavailable(sessionModel);
+    if (unavailable) {
+      end(stop.status, stop.reason, `Recovery was not offered because ${unavailable}.`);
+      return false;
+    }
+    record.status = "waiting-for-user";
+    persist();
+    const first = await raceAbort(
+      deps.ui.select(`/implement stopped at round ${activeRound.number} ${stop.stage}: ${oneLine(stop.reason ?? stop.status)}`, [
+        `Recover with ${modelKey(sessionModel!)}`,
+        "Stop",
+      ]),
+      undefined,
+    );
+    if (signal?.aborted) {
+      end("cancelled", "Cancelled while choosing recovery");
+      return false;
+    }
+    if (!first?.startsWith("Recover")) {
+      end(stop.status, stop.reason);
+      return false;
+    }
+
+    while (true) {
+      const current = recovery.sessionModel() ?? sessionModel!;
+      const entry: RecoveryRecord = {
+        number: record.recoveryCount + 1,
+        stage: stop.stage,
+        reason: oneLine(stop.reason ?? stop.status),
+        model: current,
+        failedSessionId: activeRound.stages[stop.stage].sessionId,
+        failedReportRef: activeRound.stages[stop.stage].reportRef,
+        failedError: activeRound.stages[stop.stage].error,
+        startedAt: now(),
+      };
+      activeRound.recoveries.push(entry);
+      record.recoveryCount++;
+      record.status = "recovering";
+      lastActivity = `recovering ${stop.stage} with ${modelKey(current)}`;
+      persist();
+      deps.ui.setStatus("lifecycle-coordinator", lastActivity);
+      const result = await recovery.run(recoveryPrompt(activeRound, stop), signal);
+      entry.finishedAt = now();
+      if (result.model) entry.model = result.model;
+      persist();
+      if (result.status === "cancelled" || signal?.aborted) {
+        end("cancelled", "Cancelled during recovery");
+        return false;
+      }
+      if (!result.model || sameKnownModel(result.model, models.verify)) {
+        end(stop.status, stop.reason, "Recovery stopped because the session model matched the verifier or was unknown.");
+        return false;
+      }
+
+      let problem: string | undefined;
+      let candidate: CandidateSnapshot | undefined;
+      let planText: string | undefined;
+      try {
+        candidate = deps.captureCandidate(initial.root);
+        planText = readFileSync(initial.planPath, "utf8");
+        if (candidate.branch !== initial.branch) problem = `the branch changed to ${candidate.branch}`;
+        else {
+          const progress = validatePlanProgress(planTextBeforeStage, planText, unit, "recovery");
+          if (!progress.ok) problem = `the plan changed outside the selected unit: ${progress.reason}`;
+        }
+      } catch (error) {
+        problem = `the worktree is not clean: ${reasonOf(error)}`;
+      }
+      const canRecoverAgain = record.recoveryCount < MAX_RECOVERIES_PER_RUN;
+      const options = [
+        ...(problem ? [] : [`Retry ${stop.stage} in a fresh session`]),
+        ...(canRecoverAgain ? [`Recover again with ${modelKey(result.model)}`] : []),
+        "Stop",
+      ];
+      record.status = "waiting-for-user";
+      persist();
+      const answer = await raceAbort(
+        deps.ui.select(
+          problem ? `Recovery finished, but ${oneLine(problem)}` : `Recovery finished for round ${activeRound.number} ${stop.stage}`,
+          options,
+        ),
+        undefined,
+      );
+      if (signal?.aborted) {
+        end("cancelled", "Cancelled after recovery");
+        return false;
+      }
+      if (answer?.startsWith("Retry") && candidate && planText !== undefined) {
+        entry.candidateAfter = candidate.head;
+        candidateBeforeStage = candidate;
+        planTextBeforeStage = planText;
+        record.currentCandidate = candidate;
+        activeRound.stages[stop.stage] = emptyStage(models[stop.stage], thinkingLevels[stop.stage]);
+        activeRound.status = "running";
+        record.status = "running";
+        persist();
+        return true;
+      }
+      if (answer?.startsWith("Recover again") && canRecoverAgain) continue;
+      end(stop.status, stop.reason, problem ? `After recovery, ${problem}.` : undefined);
+      return false;
+    }
   };
 
   try {
@@ -587,221 +819,229 @@ export async function runImplement(
           round = startRound(record, unit, candidateBeforeStage.head);
           const activeRound = round;
           persist();
-          for (const stage of STAGES) {
-            if (signal?.aborted) {
-              activeRound.stages[stage].status = "not-started";
-              finish("cancelled", stage, "Cancelled before the next stage was dispatched");
-              break;
-            }
-            const stageCandidate = deps.captureCandidate(initial.root);
-            if (!sameCandidate(candidateBeforeStage, stageCandidate)) {
-              finish("blocked", stage, `Candidate changed outside the coordinator before ${stage}`);
-              break;
-            }
+          let stageIndex = 0;
+          attempts: while (true) {
+            for (; stageIndex < STAGES.length; stageIndex++) {
+              const stage = STAGES[stageIndex];
+              if (signal?.aborted) {
+                activeRound.stages[stage].status = "not-started";
+                finish("cancelled", stage, "Cancelled before the next stage was dispatched");
+                break;
+              }
+              const stageCandidate = deps.captureCandidate(initial.root);
+              if (!sameCandidate(candidateBeforeStage, stageCandidate)) {
+                finish("blocked", stage, `Candidate changed outside the coordinator before ${stage}`);
+                break;
+              }
 
-            const stageConfig = buildConfig(runId, stage, initial, unit, activeRound.unitBase, models, thinkingLevels[stage]);
-            const configPath = lease.writeStageConfig(activeRound.number, stage, stageConfig);
-            const model = models[stage];
-            const request: LifecycleStageRequest = {
-              runId,
-              stage,
-              cwd: initial.root,
-              config: stageConfig,
-              configPath,
-              prompt: buildStagePrompt(stage as LifecycleStage, initial.planPath, {
-                implementedBy: modelKey(models.execute),
-                simplifiedBy: modelKey(models.simplify),
-              }),
-              promptPath: deps.stagePaths[stage],
-              templates: STAGES.filter((candidate) => candidate !== stage).map((candidate) => ({
-                commandName: candidate,
-                promptPath: deps.stagePaths[candidate],
-              })),
-              bridgePath: deps.bridgePath,
-              model,
-              thinkingLevel: thinkingLevels[stage],
-              candidateBefore: stageCandidate,
-            };
-            const stageRecord = activeRound.stages[stage];
-            stageRecord.status = "starting";
-            stageRecord.candidateBefore = stageCandidate;
-            record.status = "running";
-            record.currentCandidate = stageCandidate;
-            lastActivity = undefined;
-            persist();
-            deps.ui.setStatus("lifecycle-coordinator", `${stage}: starting ${modelKey(model)} (${thinkingLevels[stage]})`);
+              const stageConfig = buildConfig(runId, stage, initial, unit, activeRound.unitBase, models, thinkingLevels[stage]);
+              const attempt = 1 + activeRound.recoveries.filter((recovery) => recovery.stage === stage && recovery.candidateAfter).length;
+            const configPath = lease.writeStageConfig(activeRound.number, stage, stageConfig, attempt);
+              const model = models[stage];
+              const request: LifecycleStageRequest = {
+                runId,
+                stage,
+                cwd: initial.root,
+                config: stageConfig,
+                configPath,
+                prompt: buildStagePrompt(stage as LifecycleStage, initial.planPath, {
+                  implementedBy: modelKey(models.execute),
+                  simplifiedBy: modelKey(models.simplify),
+                }),
+                promptPath: deps.stagePaths[stage],
+                templates: STAGES.filter((candidate) => candidate !== stage).map((candidate) => ({
+                  commandName: candidate,
+                  promptPath: deps.stagePaths[candidate],
+                })),
+                bridgePath: deps.bridgePath,
+                model,
+                thinkingLevel: thinkingLevels[stage],
+                candidateBefore: stageCandidate,
+              };
+              const stageRecord = activeRound.stages[stage];
+              stageRecord.status = "starting";
+              stageRecord.candidateBefore = stageCandidate;
+              record.status = "running";
+              record.currentCandidate = stageCandidate;
+              lastActivity = undefined;
+              persist();
+              deps.ui.setStatus("lifecycle-coordinator", `${stage}: starting ${modelKey(model)} (${thinkingLevels[stage]})`);
 
-            let stageResult: RpcLifecycleStageResult;
-            try {
-              stageResult = await deps.runStage(request, signal, {
-                onObserved: async (state) => {
-                  const invalid = validateObservedState(stage, state, model, thinkingLevels[stage], seenSessions);
-                  if (invalid) throw new Error(invalid);
-                  stageRecord.sessionId = state.sessionId;
-                  stageRecord.status = "running";
-                  persist();
-                },
-                onProgress: (message) => {
-                  if (stageRecord.progress.length < MAX_PROGRESS_ENTRIES) stageRecord.progress.push(truncate(message, MAX_PROGRESS_BYTES));
-                  lastActivity = truncate(message, MAX_PROGRESS_BYTES);
-                  deps.ui.setStatus("lifecycle-coordinator", truncate(message, MAX_PROGRESS_BYTES));
-                  persist();
-                },
-                onWaitingForUser: (waiting) => {
-                  stageRecord.status = waiting ? "waiting-for-user" : "running";
-                  record.status = waiting ? "waiting-for-user" : "running";
-                  deps.ui.setStatus("lifecycle-coordinator", waiting ? `${stage}: waiting for user decision` : `${stage}: running`);
-                  persist();
-                },
-                onDecision: (decision) => {
-                  updateDecision(record, activeRound, stage, decision);
-                  persist();
-                },
-              });
-            } catch (error) {
-              ownershipRetained = true;
-              releaseOwnership = false;
-              stageRecord.status = "process-failure";
-              stageRecord.error = `Stage runner threw without a termination result: ${reasonOf(error)}`;
-              finish("process-failure", stage, stageRecord.error);
-              break;
-            }
-
-            for (const decision of stageResult.decisions) updateDecision(record, activeRound, stage, decision);
-            stageRecord.progress = stageResult.progress.slice(0, MAX_PROGRESS_ENTRIES).map((message) => truncate(message, MAX_PROGRESS_BYTES));
-            stageRecord.stderr = truncate(stageResult.stderr, 16 * 1024);
-            stageRecord.error = stageResult.status === "settled" ? undefined : stageResult.reason;
-            if (stageResult.observed) {
-              const invalid = stageRecord.sessionId
-                ? stageRecord.sessionId === stageResult.observed.sessionId && stageResult.observed.model.provider === model.provider &&
-                  stageResult.observed.model.id === model.id && stageResult.observed.thinkingLevel === thinkingLevels[stage]
-                  ? undefined
-                  : `Stage ${stage} returned observed state that contradicts its pre-dispatch record`
-                : validateObservedState(stage, stageResult.observed, model, thinkingLevels[stage], seenSessions);
-              if (invalid) {
+              let stageResult: RpcLifecycleStageResult;
+              try {
+                stageResult = await deps.runStage(request, signal, {
+                  onObserved: async (state) => {
+                    const invalid = validateObservedState(stage, state, model, thinkingLevels[stage], seenSessions);
+                    if (invalid) throw new Error(invalid);
+                    stageRecord.sessionId = state.sessionId;
+                    stageRecord.status = "running";
+                    persist();
+                  },
+                  onProgress: (message) => {
+                    if (stageRecord.progress.length < MAX_PROGRESS_ENTRIES) stageRecord.progress.push(truncate(message, MAX_PROGRESS_BYTES));
+                    lastActivity = truncate(message, MAX_PROGRESS_BYTES);
+                    deps.ui.setStatus("lifecycle-coordinator", truncate(message, MAX_PROGRESS_BYTES));
+                    persist();
+                  },
+                  onWaitingForUser: (waiting) => {
+                    stageRecord.status = waiting ? "waiting-for-user" : "running";
+                    record.status = waiting ? "waiting-for-user" : "running";
+                    deps.ui.setStatus("lifecycle-coordinator", waiting ? `${stage}: waiting for user decision` : `${stage}: running`);
+                    persist();
+                  },
+                  onDecision: (decision) => {
+                    updateDecision(record, activeRound, stage, decision);
+                    persist();
+                  },
+                });
+              } catch (error) {
+                ownershipRetained = true;
+                releaseOwnership = false;
                 stageRecord.status = "process-failure";
-                finish("process-failure", stage, invalid);
-                if (!stageResult.terminationConfirmed) {
-                  ownershipRetained = true;
-                  releaseOwnership = false;
+                stageRecord.error = `Stage runner threw without a termination result: ${reasonOf(error)}`;
+                finish("process-failure", stage, stageRecord.error);
+                break;
+              }
+
+              for (const decision of stageResult.decisions) updateDecision(record, activeRound, stage, decision);
+              stageRecord.progress = stageResult.progress.slice(0, MAX_PROGRESS_ENTRIES).map((message) => truncate(message, MAX_PROGRESS_BYTES));
+              stageRecord.stderr = truncate(stageResult.stderr, 16 * 1024);
+              stageRecord.error = stageResult.status === "settled" ? undefined : stageResult.reason;
+              if (stageResult.observed) {
+                const invalid = stageRecord.sessionId
+                  ? stageRecord.sessionId === stageResult.observed.sessionId && stageResult.observed.model.provider === model.provider &&
+                    stageResult.observed.model.id === model.id && stageResult.observed.thinkingLevel === thinkingLevels[stage]
+                    ? undefined
+                    : `Stage ${stage} returned observed state that contradicts its pre-dispatch record`
+                  : validateObservedState(stage, stageResult.observed, model, thinkingLevels[stage], seenSessions);
+                if (invalid) {
+                  stageRecord.status = "process-failure";
+                  finish("process-failure", stage, invalid);
+                  if (!stageResult.terminationConfirmed) {
+                    ownershipRetained = true;
+                    releaseOwnership = false;
+                  }
+                  break;
+                }
+                stageRecord.sessionId = stageResult.observed.sessionId;
+              }
+              if (stage === "verify" && stageResult.promptStarted) {
+                activeRound.verificationAttempts++;
+                record.verificationAttempts++;
+              }
+              stageRecord.status = stageResult.status === "settled" ? "settled" : stageResult.status === "blocked" ? "blocked" : stageResult.status === "cancelled" ? "cancelled" : "process-failure";
+              if (stageResult.status === "settled") {
+                stageRecord.outcome = stageResult.outcome;
+                stageRecord.reportRef = stageResult.outcome.reportRef;
+                if (!record.reports.includes(stageResult.outcome.reportRef)) record.reports.push(stageResult.outcome.reportRef);
+                if (stageResult.outcome.prUrl) {
+                  record.prUrl = stageResult.outcome.prUrl;
+                  record.prPresence = "present";
+                }
+              }
+              if (!stageResult.terminationConfirmed) {
+                ownershipRetained = true;
+                releaseOwnership = false;
+              }
+              persist();
+
+              if (stageResult.status !== "settled") {
+                if (stageResult.status === "cancelled") finish("cancelled", stage, stageResult.reason);
+                else if (stageResult.status === "blocked") finish("blocked", stage, stageResult.reason);
+                else finish("process-failure", stage, stageResult.reason);
+                break;
+              }
+              if (!stageResult.observed) {
+                stageRecord.status = "process-failure";
+                finish("process-failure", stage, `Stage ${stage} settled without observed RPC state`);
+                break;
+              }
+              if (!stageResult.promptStarted) {
+                finish("process-failure", stage, `${stage} settled without a started native prompt`);
+                break;
+              }
+              if (!stageOutcomeName(stage, stageResult.outcome)) {
+                finish("process-failure", stage, `${stage} submitted an outcome that does not match its stage`);
+                break;
+              }
+              if ((stage === "execute" || stage === "simplify") && stageResult.outcome.outcome === "blocked") {
+                stageRecord.status = "blocked";
+                finish("blocked", stage, `${stage} reported a lifecycle blocker`);
+                break;
+              }
+              let afterCandidate: CandidateSnapshot;
+              try {
+                afterCandidate = deps.captureCandidate(initial.root);
+              } catch (error) {
+                const reason = stage === "verify"
+                  ? `Verification changed or dirtied candidate state: ${reasonOf(error)}`
+                  : `${stage} did not leave a clean committed candidate: ${reasonOf(error)}`;
+                const status = stage === "verify" || /not clean/i.test(reason) ? "blocked" : "process-failure";
+                if (stage === "verify" && activeRound.verificationAttempts > 0) markBlockedVerdict(record, activeRound);
+                stageRecord.status = status === "blocked" ? "blocked" : "process-failure";
+                finish(status, stage, reason);
+                break;
+              }
+              stageRecord.candidateAfter = afterCandidate;
+              if (afterCandidate.branch !== initial.branch || !expectedCandidateMatches(stageResult.outcome, afterCandidate)) {
+                if (stage === "verify" && activeRound.verificationAttempts > 0) markBlockedVerdict(record, activeRound);
+                stageRecord.status = "blocked";
+                finish("blocked", stage, `${stage} candidate snapshot changed after the bridge submitted its outcome`);
+                break;
+              }
+              if (stage === "verify") {
+                if (!sameCandidate(stageCandidate, afterCandidate)) {
+                  markBlockedVerdict(record, activeRound);
+                  stageRecord.status = "blocked";
+                  finish("blocked", stage, "Verification changed the candidate after its read-only review");
+                  break;
+                }
+                record.currentCandidate = afterCandidate;
+                if (stageResult.outcome.outcome === "BLOCKED") {
+                  markBlockedVerdict(record, activeRound);
+                  stageRecord.status = "blocked";
+                  finish("blocked", stage, "Independent verification returned BLOCKED");
+                } else {
+                  activeRound.status = "verified";
                 }
                 break;
               }
-              stageRecord.sessionId = stageResult.observed.sessionId;
-            }
-            if (stage === "verify" && stageResult.promptStarted && activeRound.verificationAttempts === 0) {
-              activeRound.verificationAttempts = 1;
-              record.verificationAttempts++;
-            }
-            stageRecord.status = stageResult.status === "settled" ? "settled" : stageResult.status === "blocked" ? "blocked" : stageResult.status === "cancelled" ? "cancelled" : "process-failure";
-            if (stageResult.status === "settled") {
-              stageRecord.outcome = stageResult.outcome;
-              stageRecord.reportRef = stageResult.outcome.reportRef;
-              if (!record.reports.includes(stageResult.outcome.reportRef)) record.reports.push(stageResult.outcome.reportRef);
-              if (stageResult.outcome.prUrl) {
-                record.prUrl = stageResult.outcome.prUrl;
-                record.prPresence = "present";
-              }
-            }
-            if (!stageResult.terminationConfirmed) {
-              ownershipRetained = true;
-              releaseOwnership = false;
-            }
-            persist();
 
-            if (stageResult.status !== "settled") {
-              if (stageResult.status === "cancelled") finish("cancelled", stage, stageResult.reason);
-              else if (stageResult.status === "blocked") finish("blocked", stage, stageResult.reason);
-              else finish("process-failure", stage, stageResult.reason);
-              break;
-            }
-            if (!stageResult.observed) {
-              stageRecord.status = "process-failure";
-              finish("process-failure", stage, `Stage ${stage} settled without observed RPC state`);
-              break;
-            }
-            if (!stageResult.promptStarted) {
-              finish("process-failure", stage, `${stage} settled without a started native prompt`);
-              break;
-            }
-            if (!stageOutcomeName(stage, stageResult.outcome)) {
-              finish("process-failure", stage, `${stage} submitted an outcome that does not match its stage`);
-              break;
-            }
-            if ((stage === "execute" || stage === "simplify") && stageResult.outcome.outcome === "blocked") {
-              stageRecord.status = "blocked";
-              finish("blocked", stage, `${stage} reported a lifecycle blocker`);
-              break;
-            }
-            let afterCandidate: CandidateSnapshot;
-            try {
-              afterCandidate = deps.captureCandidate(initial.root);
-            } catch (error) {
-              const reason = stage === "verify"
-                ? `Verification changed or dirtied candidate state: ${reasonOf(error)}`
-                : `${stage} did not leave a clean committed candidate: ${reasonOf(error)}`;
-              const status = stage === "verify" || /not clean/i.test(reason) ? "blocked" : "process-failure";
-              if (stage === "verify" && activeRound.verificationAttempts === 1) markBlockedVerdict(record, activeRound);
-              stageRecord.status = status === "blocked" ? "blocked" : "process-failure";
-              finish(status, stage, reason);
-              break;
-            }
-            stageRecord.candidateAfter = afterCandidate;
-            if (afterCandidate.branch !== initial.branch || !expectedCandidateMatches(stageResult.outcome, afterCandidate)) {
-              if (stage === "verify" && activeRound.verificationAttempts === 1) markBlockedVerdict(record, activeRound);
-              stageRecord.status = "blocked";
-              finish("blocked", stage, `${stage} candidate snapshot changed after the bridge submitted its outcome`);
-              break;
-            }
-            if (stage === "verify") {
-              if (!sameCandidate(stageCandidate, afterCandidate)) {
-                markBlockedVerdict(record, activeRound);
+              const progressAfter = validatePlanProgress(planTextBeforeStage, readFileSync(initial.planPath, "utf8"), unit, stage);
+              if (!progressAfter.ok) {
                 stageRecord.status = "blocked";
-                finish("blocked", stage, "Verification changed the candidate after its read-only review");
+                finish("blocked", stage, progressAfter.reason);
                 break;
+              }
+              if (stage === "execute") {
+                // Execute must leave the unit committed past the round base; a retry after recovery may find that commit already present.
+                if (afterCandidate.head === activeRound.unitBase) {
+                  stageRecord.status = "blocked";
+                  finish("blocked", stage, "Execute must commit the selected unit before simplify can start");
+                  break;
+                }
+                activeRound.candidateCommits.execute = afterCandidate.head;
+              } else {
+                if (stageResult.outcome.change === "unchanged" && !sameCandidate(stageCandidate, afterCandidate)) {
+                  stageRecord.status = "blocked";
+                  finish("blocked", stage, "Simplify reported unchanged but changed candidate state");
+                  break;
+                }
+                if (stageResult.outcome.change === "changed" && afterCandidate.head === stageCandidate.head) {
+                  stageRecord.status = "blocked";
+                  finish("blocked", stage, "Simplify reported changed without creating a new candidate commit");
+                  break;
+                }
+                if (stageResult.outcome.change === "changed") activeRound.candidateCommits.simplify = afterCandidate.head;
               }
               record.currentCandidate = afterCandidate;
-              if (stageResult.outcome.outcome === "BLOCKED") {
-                markBlockedVerdict(record, activeRound);
-                stageRecord.status = "blocked";
-                finish("blocked", stage, "Independent verification returned BLOCKED");
-              } else {
-                activeRound.status = "verified";
-              }
-              break;
+              planTextBeforeStage = readFileSync(initial.planPath, "utf8");
+              candidateBeforeStage = afterCandidate;
+              record.status = "running";
+              persist();
             }
-
-            const progressAfter = validatePlanProgress(planTextBeforeStage, readFileSync(initial.planPath, "utf8"), unit, stage);
-            if (!progressAfter.ok) {
-              stageRecord.status = "blocked";
-              finish("blocked", stage, progressAfter.reason);
-              break;
-            }
-            if (stage === "execute") {
-              if (stageResult.outcome.change !== "changed" || afterCandidate.head === stageCandidate.head) {
-                stageRecord.status = "blocked";
-                finish("blocked", stage, "Execute must commit the selected unit before simplify can start");
-                break;
-              }
-              activeRound.candidateCommits.execute = afterCandidate.head;
-            } else {
-              if (stageResult.outcome.change === "unchanged" && !sameCandidate(stageCandidate, afterCandidate)) {
-                stageRecord.status = "blocked";
-                finish("blocked", stage, "Simplify reported unchanged but changed candidate state");
-                break;
-              }
-              if (stageResult.outcome.change === "changed" && afterCandidate.head === stageCandidate.head) {
-                stageRecord.status = "blocked";
-                finish("blocked", stage, "Simplify reported changed without creating a new candidate commit");
-                break;
-              }
-              if (stageResult.outcome.change === "changed") activeRound.candidateCommits.simplify = afterCandidate.head;
-            }
-            record.currentCandidate = afterCandidate;
-            planTextBeforeStage = readFileSync(initial.planPath, "utf8");
-            candidateBeforeStage = afterCandidate;
-            record.status = "running";
-            persist();
+            if (pendingStop && (await handleStop(activeRound))) continue attempts;
+            break attempts;
           }
           if (terminal) break;
 
@@ -852,12 +1092,11 @@ export async function runImplement(
         stage: "preflight",
         reason: record.error,
         verificationAttempts: record.verificationAttempts,
-        blockedVerdicts: 0,
+        blockedVerdicts: record.blockedVerdicts,
         ownershipRetained,
         summary: renderSummary(record, record.error),
       };
-      deps.ui.notify(terminal.summary, "error");
-      deps.ui.setEditorText(terminal.summary);
+      announce(deps.ui, terminal.summary, `Lifecycle run ${runId} process-failure: ${terminal.reason}`, "error");
     }
   } finally {
     deps.ui.setWidget?.(PROGRESS_WIDGET_KEY, undefined);
@@ -874,7 +1113,7 @@ export async function runImplement(
       stage: "preflight",
       reason: "Lifecycle state machine ended without a terminal outcome",
       verificationAttempts: record.verificationAttempts,
-      blockedVerdicts: 0,
+      blockedVerdicts: record.blockedVerdicts,
       ownershipRetained,
       summary: renderSummary(record, "Lifecycle state machine ended without a terminal outcome"),
     };
@@ -908,12 +1147,11 @@ export async function runImplement(
         stage: "preflight",
         reason,
         verificationAttempts: record.verificationAttempts,
-        blockedVerdicts: 0,
+        blockedVerdicts: record.blockedVerdicts,
         ownershipRetained,
         summary: renderSummary(record, reason),
       };
-      deps.ui.notify(terminal.summary, "error");
-      deps.ui.setEditorText(terminal.summary);
+      announce(deps.ui, terminal.summary, `Lifecycle run ${runId} process-failure: ${terminal.reason}`, "error");
     }
   }
   return terminal;

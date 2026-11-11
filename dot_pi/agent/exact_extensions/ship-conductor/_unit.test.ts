@@ -106,4 +106,14 @@ describe("validatePlanProgress", () => {
     assert.equal(validatePlanProgress(before, after, unit, "simplify").ok, false);
     assert.equal(validatePlanProgress(before, before, unit, "simplify").ok, true);
   });
+
+  it("lets recovery change only the selected unit's checkboxes", () => {
+    const inUnit = groupedPlan.replace("- [ ] Add the API.", "- [x] Add the API.");
+    assert.equal(validatePlanProgress(groupedPlan, inUnit, unit, "recovery").ok, true);
+    assert.equal(validatePlanProgress(groupedPlan, groupedPlan, unit, "recovery").ok, true);
+    const outOfUnit = groupedPlan.replace("- [ ] Add follow-up.", "- [x] Add follow-up.");
+    const result = validatePlanProgress(groupedPlan, outOfUnit, unit, "recovery");
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.match(result.reason, /out-of-unit/);
+  });
 });

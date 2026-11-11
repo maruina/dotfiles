@@ -86,10 +86,19 @@ function selectionUI(selections: string[] = []): { ui: ModelSelectionUI; calls: 
   };
 }
 
-function conductorUI(): RpcStageUI & { setEditorText(text: string): void; notices: string[]; statuses: Map<string, string | undefined> } {
+type FakeConductorUI = RpcStageUI & {
+  setEditorText(text: string): void;
+  setWidget(key: string, lines: string[] | undefined): void;
+  notices: string[];
+  statuses: Map<string, string | undefined>;
+  widgets: Array<string[] | undefined>;
+};
+
+function conductorUI(): FakeConductorUI {
   const notices: string[] = [];
   const statuses = new Map<string, string | undefined>();
-  const ui: RpcStageUI & { setEditorText(text: string): void; notices: string[]; statuses: Map<string, string | undefined> } = {
+  const widgets: Array<string[] | undefined> = [];
+  const ui: FakeConductorUI = {
     async select(_title: string, options: string[]) {
       return options[0];
     },
@@ -109,8 +118,12 @@ function conductorUI(): RpcStageUI & { setEditorText(text: string): void; notice
       statuses.set(key, text);
     },
     setEditorText(_text: string) {},
+    setWidget(_key: string, lines: string[] | undefined) {
+      widgets.push(lines);
+    },
     notices,
     statuses,
+    widgets,
   };
   return ui;
 }
@@ -332,6 +345,33 @@ describe("runImplement", () => {
     }
     assert.equal(record.prUrl, undefined);
     assert.equal(record.prPresence, "absent");
+  });
+
+  it("shows a progress widget for the active round and stage, then clears it", async () => {
+    const fixture = createRepo();
+    const depsState = baseDeps(fixture);
+    const stages = stageRunner(fixture.root, fixture.planPath);
+    const shownDuringStage: string[][] = [];
+    depsState.deps.runStage = async (request, signal, callbacks) => {
+      shownDuringStage.push(depsState.ui.widgets.at(-1) ?? []);
+      return stages.runner(request, signal, callbacks);
+    };
+    const outcome = await runImplement(fixture.planPath, fixture.root, depsState.deps, undefined);
+
+    assertOutcomeStatus(outcome, "verified");
+    assert.equal(shownDuringStage.length, 6);
+    const firstExecute = shownDuringStage[0]!.join("\n");
+    assert.match(firstExecute, /run-test/);
+    assert.match(firstExecute, /Round 1 of 2 — Slice 1: Current slice/);
+    assert.match(firstExecute, /▶ execute +starting +fixture\/writer-a \(minimal\)/);
+    assert.match(firstExecute, /· simplify +pending +fixture\/writer-b/);
+    const secondVerify = shownDuringStage[5]!.join("\n");
+    assert.match(secondVerify, /Round 2 of 2 — Slice 2: Later slice/);
+    assert.match(secondVerify, /✔ execute +settled/);
+    assert.match(secondVerify, /▶ verify +starting +fixture\/reviewer/);
+    const progressLines = depsState.ui.widgets.filter((lines) => lines?.some((line) => line.includes("fixture started")));
+    assert.ok(progressLines.length > 0);
+    assert.equal(depsState.ui.widgets.at(-1), undefined);
   });
 
   it("runs each stage with its selected thinking level", async () => {

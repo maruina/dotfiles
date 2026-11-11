@@ -13,15 +13,17 @@ type EventHandler = (...args: unknown[]) => unknown;
 function createExtension() {
   const commands = new Map<string, CommandOptions>();
   const events = new Map<string, EventHandler>();
+  const shortcuts = new Map<string, { handler: (ctx: unknown) => unknown }>();
   const pi = {
     on: (event: string, handler: EventHandler) => {
       events.set(event, handler);
       return () => undefined;
     },
     registerCommand: (name: string, options: CommandOptions) => commands.set(name, options),
+    registerShortcut: (key: string, options: { handler: (ctx: unknown) => unknown }) => shortcuts.set(key, options),
   } as unknown as ExtensionAPI;
   implementCoordinator(pi);
-  return { commands, events };
+  return { commands, events, shortcuts };
 }
 
 function git(root: string, args: string[]): string {
@@ -83,7 +85,7 @@ describe("/implement extension command", () => {
     }
   });
 
-  it("blocks concurrent input and nested dispatch while model selection is active", async () => {
+  for (const stopWith of ["cancel shortcut", "session shutdown"] as const) it(`blocks concurrent input and nested dispatch while model selection is active, then stops on ${stopWith}`, async () => {
     const fixture = createRepo();
     const previousConfig = process.env[CHILD_CONFIG_ENV];
     delete process.env[CHILD_CONFIG_ENV];
@@ -121,7 +123,7 @@ describe("/implement extension command", () => {
         setEditorText: () => undefined,
       },
     } as unknown as ExtensionCommandContext;
-    const { commands, events } = createExtension();
+    const { commands, events, shortcuts } = createExtension();
     const command = commands.get("implement")!;
     let activeRun: Promise<void> | undefined;
     try {
@@ -134,11 +136,21 @@ describe("/implement extension command", () => {
 
       const inputResult = await events.get("input")!({ input: "Please continue" }, context);
       assert.deepEqual(inputResult, { action: "handled" });
-      assert.match(notices.at(-1) ?? "", /owns this session/);
+      assert.match(notices.at(-1) ?? "", /owns this session.*Ctrl\+Shift\+X/);
 
-      events.get("session_shutdown")!({});
+      let runFinished = false;
+      const run = activeRun.then(() => {
+        runFinished = true;
+      });
+      if (stopWith === "cancel shortcut") {
+        await shortcuts.get("ctrl+shift+x")!.handler(context);
+        assert.match(notices.at(-1) ?? "", /Cancelling the active \/implement run/);
+      } else {
+        await events.get("session_shutdown")!({});
+        assert.equal(runFinished, true, "session_shutdown must wait for the active run to stop");
+      }
       const stoppedBeforeModelSelectionReturned = await Promise.race([
-        activeRun.then(() => true),
+        run.then(() => true),
         new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 50)),
       ]);
       assert.equal(stoppedBeforeModelSelectionReturned, true);

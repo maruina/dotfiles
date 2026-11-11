@@ -11,6 +11,8 @@ import { captureCleanCandidate, createGitRunner, resolvePlan } from "./_worktree
 import type { Stage } from "./_protocol.ts";
 
 const CHILD_CONFIG_ENV = "PI_LIFECYCLE_CHILD_CONFIG";
+// Ctrl-C is Pi's `app.clear` and Escape is `app.interrupt`; neither reaches an idle extension command, so cancellation needs its own key.
+const CANCEL_SHORTCUT = "ctrl+shift+x";
 
 function combineSignals(signals: Array<AbortSignal | undefined>): { signal: AbortSignal | undefined; dispose(): void } {
   const active = signals.filter((signal): signal is AbortSignal => signal !== undefined);
@@ -57,15 +59,32 @@ function raceWithAbort<T>(operation: Promise<T>, signal: AbortSignal | undefined
 export default function implementCoordinator(pi: ExtensionAPI): void {
   let active = false;
   let activeAbort: AbortController | undefined;
+  let activeRun: Promise<void> | undefined;
   const extensionDirectory = dirname(fileURLToPath(import.meta.url));
 
   pi.on("input", (_event, ctx) => {
     if (!active) return { action: "continue" };
-    if (ctx.mode === "tui") ctx.ui.notify("A lifecycle run owns this session. Wait for it to finish or cancel it with Ctrl-C.", "warning");
+    if (ctx.mode === "tui") ctx.ui.notify("A lifecycle run owns this session. Wait for it to finish or press Ctrl+Shift+X to cancel it.", "warning");
     return { action: "handled" };
   });
 
-  pi.on("session_shutdown", () => activeAbort?.abort());
+  // Pi awaits session_shutdown handlers, so quitting waits until the active child has stopped and ownership is resolved.
+  pi.on("session_shutdown", async () => {
+    activeAbort?.abort();
+    await activeRun;
+  });
+
+  pi.registerShortcut(CANCEL_SHORTCUT, {
+    description: "Cancel the active /implement run",
+    handler: async (ctx) => {
+      if (!activeAbort) {
+        ctx.ui.notify("No /implement run is active.", "info");
+        return;
+      }
+      ctx.ui.notify("Cancelling the active /implement run; waiting for the current stage to stop.", "warning");
+      activeAbort.abort();
+    },
+  });
 
   pi.registerCommand("implement", {
     description: "Run one approved plan unit through execute, simplify, and independent verify",
@@ -86,6 +105,10 @@ export default function implementCoordinator(pi: ExtensionAPI): void {
       active = true;
       const controller = new AbortController();
       activeAbort = controller;
+      let markRunStopped!: () => void;
+      activeRun = new Promise<void>((resolve) => {
+        markRunStopped = resolve;
+      });
       const onSigint = () => controller.abort();
       process.on("SIGINT", onSigint);
       const combined = combineSignals([ctx.signal, controller.signal]);
@@ -181,6 +204,8 @@ export default function implementCoordinator(pi: ExtensionAPI): void {
         process.off("SIGINT", onSigint);
         activeAbort = undefined;
         active = false;
+        activeRun = undefined;
+        markRunStopped();
       }
     },
   });

@@ -48,6 +48,7 @@ export type LifecycleStageRunner = (
 
 export type ConductorUI = RpcStageUI & {
   setEditorText(text: string): void;
+  setWidget?(key: string, lines: string[] | undefined): void;
 };
 
 export type ConductorDeps = {
@@ -305,6 +306,33 @@ function markBlockedVerdict(record: RunRecord, round: RoundRecord): void {
   record.blockedVerdicts = 1;
 }
 
+const PROGRESS_WIDGET_KEY = "lifecycle-coordinator";
+const STAGE_ICONS: Record<string, string> = {
+  pending: "·",
+  "not-started": "·",
+  starting: "▶",
+  running: "▶",
+  "waiting-for-user": "?",
+  settled: "✔",
+  cancelled: "✖",
+  blocked: "✖",
+  "process-failure": "✖",
+};
+
+function progressWidget(record: RunRecord, round: RoundRecord, plannedRounds: number, lastActivity: string | undefined): string[] {
+  const lines = [
+    `/implement run ${record.runId} — Ctrl+Shift+X cancels`,
+    `Round ${round.number} of ${Math.max(plannedRounds, round.number)} — ${round.unit.heading}`,
+    ...STAGES.map((stage) => {
+      const value = round.stages[stage];
+      const status = value.status === "waiting-for-user" ? "waiting for you" : value.status;
+      return `${STAGE_ICONS[value.status] ?? "·"} ${stage.padEnd(8)} ${status.padEnd(16)} ${modelKey(value.model)} (${value.thinkingLevel})`;
+    }),
+  ];
+  if (lastActivity) lines.push(`Last: ${lastActivity}`);
+  return lines;
+}
+
 function updateDecision(record: RunRecord, round: RoundRecord, stage: Stage, decision: RpcStageDecision): void {
   const index = record.decisions.findIndex((entry) => entry.uiRequestId === decision.uiRequestId && entry.stage === stage);
   if (index < 0) record.decisions.push(decision);
@@ -461,10 +489,13 @@ export async function runImplement(
   let unit = selectedUnit.unit;
   let round: RoundRecord | undefined;
   const completedTasks = new Set<number>();
+  const plannedRounds = Math.min(remainingUnitHeadings(initial.planText).length, MAX_ROUNDS_PER_RUN);
+  let lastActivity: string | undefined;
 
   const persist = () => {
     record.updatedAt = now();
     lease.writeRecord(record);
+    if (round && !terminal) deps.ui.setWidget?.(PROGRESS_WIDGET_KEY, progressWidget(record, round, plannedRounds, lastActivity));
   };
 
   const finish = (status: "blocked" | "process-failure" | "cancelled" | "verified", stage: TerminalStage, reason?: string, nextAction?: string): void => {
@@ -596,6 +627,7 @@ export async function runImplement(
             stageRecord.candidateBefore = stageCandidate;
             record.status = "running";
             record.currentCandidate = stageCandidate;
+            lastActivity = undefined;
             persist();
             deps.ui.setStatus("lifecycle-coordinator", `${stage}: starting ${modelKey(model)} (${thinkingLevels[stage]})`);
 
@@ -611,6 +643,7 @@ export async function runImplement(
                 },
                 onProgress: (message) => {
                   if (stageRecord.progress.length < MAX_PROGRESS_ENTRIES) stageRecord.progress.push(truncate(message, MAX_PROGRESS_BYTES));
+                  lastActivity = truncate(message, MAX_PROGRESS_BYTES);
                   deps.ui.setStatus("lifecycle-coordinator", truncate(message, MAX_PROGRESS_BYTES));
                   persist();
                 },
@@ -827,6 +860,7 @@ export async function runImplement(
       deps.ui.setEditorText(terminal.summary);
     }
   } finally {
+    deps.ui.setWidget?.(PROGRESS_WIDGET_KEY, undefined);
     deps.ui.setStatus("lifecycle-coordinator", undefined);
     deps.ui.setStatus("lifecycle-stage", undefined);
     deps.ui.setStatus("lifecycle-child", undefined);

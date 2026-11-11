@@ -47,6 +47,7 @@ export type ConductorDeps = {
   resolvePlan(input: string, cwd: string): ResolvePlanResult;
   registry: ModelRegistryLike;
   currentModel: ModelIdentity | undefined;
+  scopedModels?: readonly ModelIdentity[];
   modelUI: ModelSelectionUI;
   ui: ConductorUI;
   stateStore: LifecycleStateStore;
@@ -408,7 +409,7 @@ export async function runImplement(
     return preflightFailure("Starting candidate changed while the plan baseline was being resolved", deps.ui);
   }
 
-  const selection = await selectModels(deps.registry, deps.currentModel, deps.modelUI);
+  const selection = await selectModels(deps.registry, deps.currentModel, deps.modelUI, deps.scopedModels);
   if (!selection.ok) {
     if (/cancelled/i.test(selection.reason) || signal?.aborted) return cancelledBeforeRun(selection.reason, deps.ui);
     return preflightFailure(selection.reason, deps.ui);

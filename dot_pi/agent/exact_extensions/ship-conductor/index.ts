@@ -154,6 +154,8 @@ export default function implementCoordinator(pi: ExtensionAPI): void {
           resolvePlan: (input, cwd) => resolvePlan(input, cwd, gitRunner),
           registry: ctx.modelRegistry,
           currentModel: currentIdentity(ctx),
+          // deliberate: a thinking level pinned by a scope pattern is ignored; every stage inherits the coordinator thinking level.
+          scopedModels: ctx.scopedModels.map(({ model }) => ({ provider: model.provider, id: model.id })),
           modelUI,
           ui: ctx.ui,
           stateStore: new LifecycleStateStore(join(agentDirectory, "lifecycle-coordinator")),

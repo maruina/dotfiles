@@ -83,6 +83,7 @@ export async function selectModels(
   registry: ModelRegistryLike,
   current: ModelIdentity | undefined,
   ui: ModelSelectionUI,
+  scoped: readonly ModelIdentity[] = [],
 ): Promise<ModelSelectionResult> {
   let available: LifecycleModel[];
   try {
@@ -91,6 +92,12 @@ export async function selectModels(
     return { ok: false, reason: `Cannot read authenticated models: ${error instanceof Error ? error.message : String(error)}` };
   }
   if (available.length === 0) return { ok: false, reason: "No available authenticated chat models are configured" };
+  // An empty scope means the session is not scoped, so every available model is usable (same rule as `/scoped-models`).
+  if (scoped.length > 0) {
+    const scopedKeys = new Set(scoped.map(identityKey));
+    available = available.filter((model) => scopedKeys.has(identityKey(model)));
+    if (available.length === 0) return { ok: false, reason: "None of the session's scoped models is an available authenticated chat model" };
+  }
 
   try {
     const execute = await selectOne(registry, ui, "execute", available, current);

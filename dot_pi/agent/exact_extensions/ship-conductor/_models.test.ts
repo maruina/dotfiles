@@ -126,4 +126,30 @@ describe("selectModels", () => {
     assert.equal(result.ok, false);
     if (!result.ok) assert.match(result.reason, /No available authenticated chat models/);
   });
+
+  it("offers only the session's scoped models in every picker", async () => {
+    const selections = choose({
+      execute: "gateway-a/family/model-1",
+      simplify: "gateway-a/family/model-1",
+      verify: "gateway-b/family/model-3",
+    }, [true]);
+    const scoped = [
+      { provider: "gateway-a", id: "family/model-1" },
+      { provider: "gateway-b", id: "family/model-3" },
+    ];
+    const result = await selectModels(registry(), CURRENT, selections.ui, scoped);
+    assert.equal(result.ok, true);
+    const offered = (stage: string) => selections.calls.find((call) => call.stage === stage)!.options.map((option) => option.match(/\(([^)]+)\)$/)![1]);
+    assert.deepEqual(offered("execute"), ["gateway-a/family/model-1", "gateway-b/family/model-3"]);
+    assert.deepEqual(offered("simplify"), ["gateway-a/family/model-1", "gateway-b/family/model-3"]);
+    assert.deepEqual(offered("verify"), ["gateway-b/family/model-3"]);
+  });
+
+  it("does not fall back to the full catalogue when no scoped model is available", async () => {
+    const selections = choose({});
+    const result = await selectModels(registry(), CURRENT, selections.ui, [{ provider: "gateway-c", id: "missing" }]);
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.match(result.reason, /scoped models/i);
+    assert.equal(selections.calls.length, 0);
+  });
 });

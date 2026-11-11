@@ -105,6 +105,7 @@ describe("/implement extension command", () => {
       cwd: fixture.root,
       model: models[0],
       modelRegistry: registry,
+      scopedModels: [],
       thinkingLevel: "minimal",
       signal: new AbortController().signal,
       sessionManager: { getSessionId: () => "coordinator-session" },

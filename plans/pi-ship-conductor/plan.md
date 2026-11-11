@@ -1,9 +1,9 @@
 # Pi Lifecycle Coordinator Implementation Plan
 > Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace `/ship` with `/implement <plan-path>` to run one approved execution unit through fresh execute, simplify, and independent verify sessions with user approvals in the coordinator.
+**Goal:** Replace `/ship` with `/implement <plan-path>` to run each remaining plan slice, in order, through fresh execute, simplify, and independent verify sessions with user approvals in the coordinator.
 **Smallest user-feedback slice:** Complete one real three-stage run, including an approval round-trip, committed or no-change simplification, and a fresh verification verdict.
-**Out of Scope:** Automatic repair, lifecycle retries, later-slice execution, parallel stages, restart recovery, planless orchestration, saved presets, command aliases, a fourth model, an agent framework, and security-sandbox claims. Direct planless lifecycle commands remain supported.
+**Out of Scope:** Automatic repair, lifecycle retries, skipping a blocked slice, `/systematic-review` or a final whole-feature simplify inside `/implement`, parallel stages, restart recovery, planless orchestration, saved presets, command aliases, a fourth model, an agent framework, and security-sandbox claims. Direct planless lifecycle commands remain supported.
 **Architecture:** The extension owns model selection, RPC transport, approval routing, local records, and transition checks. Existing templates own lifecycle policy and are dispatched through native Pi expansion. Fresh children share the selected candidate worktree, not conversation history; the verifier receives pinned requirements and candidate references, not predecessor narratives.
 **Tech Stack:** TypeScript, Node.js built-ins, existing Pi extension interfaces, Pi 1.5.0 RPC, Git, Markdown templates, node:test, and chezmoi.
 
@@ -24,7 +24,7 @@
 | `diataxis` | skill-loader | Documentation | Separated usage/recovery guidance from protocol reference |
 
 ### Execution
-Current task: Task 4 failure containment and cancellation is complete; Task 5 isolated live acceptance is next and requires an interactive TUI session.
+Current task: Tasks 1-4 are complete. The user approved the slice loop amendment (design `### Slice loop`), which adds Task 5; the live acceptance task is now Task 6 and documentation is Task 7. The Task 6 model-preflight blocker has a confirmed cause and fix (see the Task 6 blocker evidence).
 
 | Skill | Source | Why loaded | How used |
 |---|---|---|---|
@@ -41,7 +41,7 @@ Current task: Task 4 failure containment and cancellation is complete; Task 5 is
 
 Execution PR-history check: closed PR #69 has six CodeRabbit bot comments. Comments on default-branch and Git-status failures are covered by Task 3; process-close, escalation, and listener cleanup are covered by Task 4. The two marker-parser comments do not apply to the approved structured-RPC replacement. This corrects the planning note below that no PR feedback was identified; no scope change is needed.
 
-Rebase note: the branch was first rebased onto `b346344`, resolving the expected `dot_pi/agent/package.json` and `AGENTS.md` conflicts, then onto `a00fb7c23d6ca0aa6ac10175082f8528c037c61d`. After the user directed using updated main, the plan was aligned to `fc796d77749b1876fdc1518b8a8a06918fef6a2c` and the feature branch was rebased onto that commit. The rebase completed cleanly, preserved the Pi 1.5.0 / TypeScript 7.0.2 manifest and lockfile plus the native TypeScript 7 LSP changes, and did not move `main`.
+Rebase note: the branch was first rebased onto `b346344`, resolving the expected `dot_pi/agent/package.json` and `AGENTS.md` conflicts, then onto `a00fb7c23d6ca0aa6ac10175082f8528c037c61d`. After the user directed using updated main, the plan was aligned to `fc796d77749b1876fdc1518b8a8a06918fef6a2c` and the feature branch was rebased onto that commit. A later rebase moved the branch onto `a8527549d27be90d02fa629c5ddbe9353d2d060e`, which is the verified merge base for Tasks 1-4. The rebase completed cleanly, preserved the Pi 1.5.0 / TypeScript 7.0.2 manifest and lockfile plus the native TypeScript 7 LSP changes, and did not move `main`.
 
 Baseline review: changes from `b346344` through `fc796d7` affect the agent dependency manifest/lockfile and the TypeScript LSP extension. They do not change lifecycle templates or the coordinator implementation, so the approved behavior requirements remain applicable.
 
@@ -101,6 +101,7 @@ Inspect `dot_pi/agent/AGENTS.md` too; change it only if required durable guidanc
 7. Execute and simplify may share a model; verify differs from both selections, including no-change simplify. Use provider-qualified IDs, plus conservative known alias normalization. Unknown cross-provider equivalence requires clarification before claiming independence; provider labels alone do not prove different underlying models.
 8. Inherit coordinator thinking level, let native Pi apply supported limits, and display/record effective settings. Never silently substitute a model.
 9. One complete shippable slice is required. Protocol and manual handoff work can have green commits but are not sufficient to declare the feature delivered.
+10. Loop over slices inside one run (user-approved amendment). After a `VERIFIED` round, reselect the next unit with `selectExecutionUnit`; continue only when `validatePlanProgress`-style checks show unchanged plan structure, checkbox changes limited to the finished unit, and the next slice in plan order. Each `StageConfig` carries `unitBase` (round start HEAD) beside `baseline.commit` (run start); the bridge injects `Unit base commit`. Stage configs are written per round. Rejected: a confirmation dialog between slices (benefit: a human checkpoint per slice; rejected because the user asked for an unattended loop and Ctrl-C cancels), and a final `/systematic-review` or whole-feature simplify (benefit: cross-slice cleanup; rejected because it adds a writer after the final verification).
 
 ### Requirement mechanisms and feasibility
 | Requirement | Mechanism | Evidence it exists | Validation | If unavailable |
@@ -149,6 +150,7 @@ Inspect `dot_pi/agent/AGENTS.md` too; change it only if required durable guidanc
 - Use LSP references before public-symbol behavior/signature changes, diagnostics after nontrivial TypeScript changes, and focused failing tests before implementation. Add `deliberate:` comments only for non-obvious intentional limits, such as no crash recovery and the version-bound RPC adapter.
 
 ### Bounds, Security Requirements, and Observability Requirements
+- At most 20 rounds per run. The run record keeps progress entries only for the active round; completed rounds keep stage status, models, session IDs, outcomes, report references, and commits.
 - One active child and one outstanding lifecycle decision. Control/startup calls have a 30-second deadline; model work and human response time have no coordinator deadline.
 - RPC records are at most 1 MiB. Decode UTF-8 incrementally and frame only on LF, accepting CRLF. Reject malformed/oversized protocol records, honor stdin backpressure, continuously drain stdout/stderr, and bound pending requests/listeners.
 - Retain at most 16 KiB stderr and 100 progress entries. Decision context is at most 16 KiB; reject oversize context instead of hiding part. Bound displayed progress strings too, so entry count alone cannot bypass memory limits.
@@ -207,9 +209,27 @@ The system SHALL resolve one committed plan to a canonical clean feature worktre
 - THEN no writer starts and the specific blocker is reported.
 
 #### Scenario: Later slices remain
-- GIVEN one unit completes.
+- GIVEN one unit completes with `VERIFIED`.
 - WHEN later plan slices remain.
-- THEN no later slice starts.
+- THEN the next slice in plan order starts a fresh round with the same models; no slice starts after a non-verified round.
+
+### Requirement R9: Ordered slice loop
+The system SHALL run one execute → simplify → verify round per remaining slice, in plan order, and finish only when no incomplete slice remains or a round does not end in `VERIFIED`.
+
+#### Scenario: Multi-slice plan completes
+- GIVEN a grouped plan with two incomplete slices.
+- WHEN both rounds end in `VERIFIED`.
+- THEN the run reports both slices verified, each round used a distinct unit base commit and fresh sessions, and stage configs and reports did not collide.
+
+#### Scenario: Loop must stop
+- GIVEN a round ends blocked, failed, cancelled, or `BLOCKED`, or the plan structure changed, out-of-unit checkboxes changed, or the next unit is not the next slice in order.
+- WHEN the coordinator evaluates the next round.
+- THEN no later round starts and the report names completed, stopped, and remaining slices.
+
+#### Scenario: Round limit
+- GIVEN a plan with more than 20 remaining slices.
+- WHEN `/implement` reaches the limit.
+- THEN it stops after round 20 and reports the remaining slices; it does not exceed the run-record limit.
 
 ### Requirement R2: Native dispatch, fresh contexts, and selected models
 The system SHALL run exactly execute, simplify, and verify in order through native templates in fresh RPC sessions, under the selected models with validated provenance.
@@ -391,28 +411,45 @@ The following tasks form one integration unit, not independently authorized prod
 - [x] Run `node --experimental-strip-types --test 'exact_extensions/ship-conductor/*.test.ts'`; expect all cases green and no hanging test process. Rerun after any refactor.
 - [x] Commit with `fix(pi): contain lifecycle failures and cancellation`; production behavior changed to enforce byte-bounded stderr and cancel pending UI selection/wait state.
 
-### Task 5: Run the live acceptance workflow in isolation
-**Delivers:** Evidence that actual models, actual approvals, normal capabilities, and the three-stage candidate workflow work together.
+### Task 5: Loop the round over remaining plan slices
+**Delivers:** One `/implement` run executes every remaining slice in order and stops at the first non-verified round.
 **Blocked by:** 4
-**Traces to:** R1-R8
+**Traces to:** R1, R7, R8, R9
+**Files:** `dot_pi/agent/exact_extensions/ship-conductor/_conductor.ts`, `_conductor.test.ts`, `_protocol.ts`, `_protocol.test.ts`, `_bridge.ts`, `_state.ts`, `_state.test.ts`, `_rpc.test.ts`; `dot_pi/agent/exact_prompts/execute.md`, `simplify.md`, `verify.md`; `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`.
+
+- [ ] Add failing conductor tests: two verified slices run six stages in order with distinct unit base commits; a `BLOCKED` verdict, blocked writer, cancellation between rounds, changed plan structure, out-of-unit checkbox change, or out-of-order next unit stops the loop; an ungrouped plan runs one round; the 20-round limit stops with remaining slices reported. Add failing state tests for per-round stage config paths, and protocol tests for `unitBase`.
+- [ ] Run `node --experimental-strip-types --test 'exact_extensions/ship-conductor/*.test.ts'`; expect the new loop cases to fail.
+- [ ] Add `unitBase` to `StageConfig`, inject `Unit base commit` in `_bridge.ts`, write stage configs per round, keep progress only for the active round, and loop in `runImplement`. Per-round verification counters replace the single 0/1 counters in the record and summary.
+- [ ] Update the three templates' orchestrated sections: execute and simplify scope the unit from `Unit base commit`; verify diffs the slice from `Unit base commit` and reconstructs `Final verification` from `Pinned baseline commit`. Add matching assertions to `lifecycle-prompts.test.mjs`; run `node --test exact_scripts/lifecycle-prompts.test.mjs`.
+- [ ] Run the extension suite and `node --experimental-strip-types --test exact_extensions/ship-conductor/_rpc.test.ts`; expect all green. Run LSP diagnostics on changed TypeScript. Refactor only after green and rerun.
+- [ ] Commit with `feat(pi): loop implement rounds over remaining plan slices`.
+
+### Task 6: Run the live acceptance workflow in isolation
+**Delivers:** Evidence that actual models, actual approvals, normal capabilities, and the three-stage candidate workflow work together across two slices.
+**Blocked by:** 5
+**Traces to:** R1-R9
 **Files:** `plans/pi-ship-conductor/plan.md` (execution evidence only); disposable smoke files outside this feature worktree are test fixtures, not shipped source.
 
-- [ ] Create an isolated disposable feature worktree with a small committed plan, an exact deterministic test command, no external service mutation, and one explicit approval gate. Use explicit candidate extension/prompt resource paths, normal required extensions, and a private temporary coordinator-state directory. Confirm intended templates resolve and old installed extension command conflicts do not hide the candidate.
+- [ ] Create an isolated disposable feature worktree with a small committed two-slice plan, an exact deterministic test command, no external service mutation, and one explicit approval gate. Use explicit candidate extension/prompt resource paths, normal required extensions, and a private temporary coordinator-state directory. Confirm intended templates resolve and old installed extension command conflicts do not hide the candidate.
 - [ ] Record Pi version, selected/observed models, thinking, run ID, unit, baseline/candidate commits and observation window. Invoke `/implement <absolute-smoke-plan-path>` in a real interactive Pi session; this requires the user/TUI and authenticated providers, so automation alone is insufficient.
 - [ ] Complete a real approval round-trip. Observe execute, no-change or committed simplify, and fresh distinct verify. Compare candidate state and deterministic test results, not merely absence of errors. Record PR absence explicitly if prohibited by the smoke plan.
 - [ ] Exercise cancellation in a separate invocation while awaiting approval, and refusal for an owned worktree. Confirm no later stage and no surviving child before removing fixtures. Preserve retained candidate changes until inspected.
-- [ ] If user interaction, credentials, or a provider are unavailable, record a blocker and stop. Do not mark acceptance complete, infer success from mock tests, refresh credentials, or switch to prose parsing.
+- [x] If user interaction, credentials, or a provider are unavailable, record a blocker and stop. Do not mark acceptance complete, infer success from mock tests, refresh credentials, or switch to prose parsing.
+
+Blocker evidence (2026-11-09): The user launched the approval smoke in Pi 1.5.0, but model preflight returned `No available authenticated chat models are configured` / `No stage was started`. A read-only `pi auth check --provider openai --no-refresh --json` in the tool environment returned `not_ready` / `credentials_not_configured` for both the default and isolated agent directories; no credential refresh was attempted. The coordinator selects models before creating a run ID or acquiring the worktree lock, and no coordinator state directory exists. No child or stage was started. I did not run `/login`. At failure time, the launcher’s temporary `auth.json` was a symlink to `~/.pi/agent/auth.json`. I have since replaced only that temporary symlink with a private mode-0600 empty file; no `/login` was run. A future login through this launcher would stay in the temporary agent directory, but requires user authorization. Follow-up credential hypothesis: the smoke launcher runs `pi` directly and does not wrap it with `dd-auth`. The work-profile `models.json` config sets OpenAI request tags but no API key; Pi's built-in OpenAI provider expects `OPENAI_API_KEY`. `dd-auth --help` reports that it wraps a child command and defaults to exporting `DD_API_KEY`, with an option to choose another environment variable. Whether that Datadog key is valid for this model endpoint, and which mapping the normal Pi launch uses, are unconfirmed. I did not run `dd-auth` to fetch credentials. Approval, stage models, run ID, cancellation, and owned-worktree refusal remain unobserved; this task is incomplete.
+
+Blocker resolution (2026-11-11): the `dd-auth` hypothesis is disproven. The work profile authenticates models through the `pi-dd-ai-gateway` package, which registers providers with a `!ddtool auth token rapid-ai-platform` API key command. `settings.json` listed that package as `../../go/src/...`, and Pi resolves relative local package paths from the agent directory (`docs/packages.md`). The launcher's `PI_CODING_AGENT_DIR` override therefore resolved the path under the temporary directory, the gateway did not load, and no model was authenticated. `pi list` with the temporary agent directory showed no resolved path for the six local packages; with absolute paths, all six resolved. The fix is commit `15ff89c` on `maruina/pi-absolute-package-paths` (`fix(pi): use absolute paths for work-profile local packages`), applied to `~/.pi/agent/settings.json`. No credential was read or refreshed.
 - [ ] Record report references and actual outcomes here, clean disposable resources only after confirmed child termination, and commit with `docs(pi): record implement coordinator live acceptance evidence`.
 
-### Task 6: Complete documentation and final feature verification
+### Task 7: Complete documentation and final feature verification
 **Delivers:** Complete acceptance traceability, passing repository gates, and durable usage/recovery guidance for future agents.
-**Blocked by:** 5
-**Traces to:** R1-R8; explicit documentation and future-agent guidance requirement
+**Blocked by:** 6
+**Traces to:** R1-R9; explicit documentation and future-agent guidance requirement
 **Files:** `AGENTS.md`, `dot_pi/agent/AGENTS.md` (inspect; modify only if justified), `dot_pi/agent/exact_extensions/ship-conductor/README.md`, `plans/pi-ship-conductor/plan.md` (execution ledger).
 
 - [ ] Replace root marker-parser coupling guidance with the structured bridge/template contract, exact focused tests, Pi 1.5.0 integration requirement, and scoped child-marker trap. Inspect `dot_pi/agent/AGENTS.md`; record why no change is needed if guidance is correctly owned elsewhere. Do not update unrelated obsolete MCP guidance.
-- [ ] Document `/implement`, manual handoff examples, both writer identities, no-change semantics, ownership/cancellation recovery, run-record privacy/retention, required live evidence, and targeted rollout/rollback in the extension README. No generated references or production runbook/dashboard are needed; explain this local-tool scope.
-- [ ] Final verification: map every R1-R8 scenario to passing focused tests or recorded live evidence; require the complete three-stage feature, not only helper tests. Confirm `/ship` removal, no fixed pools/prose transition parsing, no predecessor narrative sent to verify, and no later-unit execution.
+- [ ] Document `/implement`, the lifecycle order (`/plan` → `/systematic-review` → `/implement`), the slice loop and its stop rules, the optional manual whole-feature `/simplify` + `/verify`, manual handoff examples, both writer identities, no-change semantics, ownership/cancellation recovery, run-record privacy/retention, required live evidence, and targeted rollout/rollback in the extension README. No generated references or production runbook/dashboard are needed; explain this local-tool scope.
+- [ ] Final verification: map every R1-R9 scenario to passing focused tests or recorded live evidence; require the complete three-stage feature and loop, not only helper tests. Confirm `/ship` removal, no fixed pools/prose transition parsing, no predecessor narrative sent to verify, and no round after a non-verified round.
 - [ ] Run `npm test` then `npm run test:all` from `dot_pi/agent` while installed dependencies remain; expect all tests and extension smoke green. Runtime integration must run against Pi 1.5.0, not silently skip. Run TypeScript LSP diagnostics after final code changes.
 - [ ] Remove disposable source `node_modules` after both gates. Inspect Git status and ensure test artifacts are outside the candidate. Preview reviewed explicit targets with `chezmoi --source "$PWD" diff <explicit-target-file>` from the worktree; inspect deletions too. Do not apply before the independent `/verify` gate.
 - [ ] Commit guidance with `docs(pi): document implement coordinator operation and recovery`. Record documentation decisions, focused/full results, live report references, and any unresolved blocker in this plan.
@@ -421,17 +458,18 @@ The following tasks form one integration unit, not independently authorized prod
 ## Requirement Traceability
 | Requirement | Tasks | Highest supported evidence |
 |---|---|---|
-| R1 Safe fixed unit | 2, 3, 4, 5, 6 | Real Git/worktree tests, unit fixtures, lock contention, live refusal |
-| R2 Native/fresh/models | 1, 2, 3, 5, 6 | Native RPC dispatch, observed state/session identity, child-config isolation tests |
-| R3 Decisions | 1, 2, 3, 4, 5, 6 | Real bridge RPC dialog, correlation failures, live TUI approval/dismissal |
-| R4 Typed settled outcomes | 1, 3, 4, 5, 6 | Actual tool events, fake-process lifecycle tests, live settled outcomes |
-| R5 Simplify/verify | 2, 3, 4, 5, 6 | Real Git transitions, commit/push failure fixtures, live closeout |
-| R6 Manual handoffs | 1, 2, 3, 6 | Native expansion round-trips and template contracts |
-| R7 Bounds/ownership/cancel | 1, 3, 4, 5, 6 | Competing processes, bounded stream tests, actual termination and live cancellation |
-| R8 Reporting | 3, 4, 5, 6 | Structured run records/final reports across terminal outcomes |
+| R1 Safe fixed unit | 2, 3, 4, 5, 6, 7 | Real Git/worktree tests, unit fixtures, lock contention, live refusal |
+| R2 Native/fresh/models | 1, 2, 3, 6, 7 | Native RPC dispatch, observed state/session identity, child-config isolation tests |
+| R3 Decisions | 1, 2, 3, 4, 6, 7 | Real bridge RPC dialog, correlation failures, live TUI approval/dismissal |
+| R4 Typed settled outcomes | 1, 3, 4, 6, 7 | Actual tool events, fake-process lifecycle tests, live settled outcomes |
+| R5 Simplify/verify | 2, 3, 4, 6, 7 | Real Git transitions, commit/push failure fixtures, live closeout |
+| R6 Manual handoffs | 1, 2, 3, 7 | Native expansion round-trips and template contracts |
+| R7 Bounds/ownership/cancel | 1, 3, 4, 5, 6, 7 | Competing processes, bounded stream tests, actual termination and live cancellation |
+| R8 Reporting | 3, 4, 5, 6, 7 | Structured run records/final reports across terminal outcomes |
+| R9 Slice loop | 5, 6, 7 | Multi-round conductor tests, per-round state tests, live two-slice run |
 
 ## Execution Notes
-- This is one execution unit: complete all six tasks or stop explicitly blocked. No `### Slice N` headings are used because partial transport/template work cannot establish the approved feedback slice.
+- This is one execution unit: complete all seven tasks or stop explicitly blocked. No `### Slice N` headings are used because partial transport/template work cannot establish the approved feedback slice.
 - Preserve this planning provenance and add `### Execution` beneath `## Skills loaded and used` when execution starts. Update checkboxes and append evidence without changing approved requirements.
 - Before implementation, run `/systematic-review` on this plan. If the documented fixture-provider/bridge integration or exact native task preservation fails, return to planning; do not introduce an unapproved interface or weaken evidence.
 - This plan intentionally changes more than fifteen files. Apply the existing stack-split check before a draft PR. Internal protocol/template commits may be reviewed separately, but no partial delivery can claim the complete coordinator; ask before choosing a PR stack or overriding review boundaries.

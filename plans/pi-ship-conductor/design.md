@@ -4,6 +4,8 @@ Approved through `/brainstorm`. Design only; implementation is not authorized by
 
 This design supersedes the two-stage `/ship` design in this file. The user approved `/implement <plan-path>`, an extension-controlled coordinator, three model selections, one execute → simplify → verify round, approvals in the coordinating session, and structured stage outcomes. The user also approved replacing the existing `/ship` work rather than maintaining two coordinators.
 
+Amendment (approved by the user after Task 4): `/implement` repeats the execute → simplify → verify round for each remaining plan slice, in order, until the plan is complete or a round does not end in `VERIFIED`. The user also approved that `/implement` does not run `/systematic-review` or a final whole-feature simplification. The `### Slice loop` section defines this behavior. It replaces the earlier single-round boundary wherever the two conflict.
+
 The sibling `plan.md` describes the superseded implementation. Its completed tasks remain historical evidence, not an implementation plan for this design. Run `/plan` against this design before further execution. In particular, do not follow its prohibition on template changes, fixed model pools, or prose-marker completion contract.
 
 ## Alignment brief
@@ -11,10 +13,11 @@ The sibling `plan.md` describes the superseded implementation. Its completed tas
 Matteo uses Pi lifecycle templates to execute approved plans, optionally simplify the result, and independently verify the candidate. Manual handoffs can lose the original requirements and the identities of models that changed the candidate. Fresh stage contexts also need explicit approval routing and completion signals.
 
 ### Goal
-One `/implement <plan-path>` invocation selects models and runs one approved execution unit through execute, simplify, and verify. Each stage has a fresh context. The coordinating session displays progress, asks approval questions, and reports the result. Repairs remain manual.
+One `/implement <plan-path>` invocation selects models once and runs each remaining execution unit through execute, simplify, and verify, one unit after another. Each stage has a fresh context. The coordinating session displays progress, asks approval questions, and reports the result. Repairs remain manual.
 
 ### Non-goals
-- Automatic repair, lifecycle-stage retry loops, or automatic execution of later plan slices.
+- Automatic repair or lifecycle-stage retry loops. A blocked round is never retried, and the loop never skips a blocked slice.
+- Running `/systematic-review` or a final whole-feature `/simplify` inside `/implement`.
 - A fourth model-driven coordinator or a second simplification agent.
 - A general-purpose agent framework, agent discovery system, or parallel stage execution.
 - Planless orchestration, saved model presets, or resuming orchestration after a coordinator restart.
@@ -27,7 +30,8 @@ One `/implement <plan-path>` invocation selects models and runs one approved exe
 - Invoking `/implement` is explicit opt-in to simplification, not approval of later scope decisions.
 - Execute and simplify may share a model. The selected verifier differs from both selected writer models, even if simplification later makes no changes.
 - Route approval requests to the user in the coordinating session. The extension never answers for the user.
-- Stop after one round, or earlier on a blocker, process/protocol failure, or cancellation.
+- Start the next slice only after the current round ends in `VERIFIED`. Stop after the last slice, or earlier on a blocker, process/protocol failure, `BLOCKED` verdict, or cancellation.
+- Continue to the next slice without an extra confirmation dialog. Ctrl-C cancels the run.
 
 ## Context reviewed and evidence
 ### Repository baseline
@@ -65,7 +69,7 @@ The user sees the selected models, stage progress, approval questions, and a fin
 
 A template-only change is smaller and useful for manual work, but cannot validate the selected experience: isolated child sessions with interaction in the coordinator. A two-stage coordinator already exists; building another two-stage skeleton would not resolve the missing simplification and approval behavior.
 
-Defer automatic repair, restart recovery, planless orchestration, model presets, and aliases. Revisit only after the single-round workflow has passed live validation and the user requests additional scope.
+Defer automatic repair, restart recovery, planless orchestration, model presets, and aliases. Revisit only after the slice-loop workflow has passed live validation and the user requests additional scope.
 
 ## Design overview
 ### Ownership boundary
@@ -93,7 +97,7 @@ Dispatch the existing stage command through Pi's native template expansion. Reso
 
 Each child receives only durable references, approved user decisions relevant to its stage, and stage metadata. No previous conversation transcript is copied. The verifier receives requirements and candidate references plus provenance, not the execute or simplify narrative as evidence.
 
-The approved execution unit stays fixed. A successful slice does not authorize the next slice. Simplification is limited to that unit and its immediate context; the branch diff is inspection context, not authorization to modify previous or future slices. If the allowed scope cannot be determined, stop instead of selecting a convenient diff base.
+Each round has one fixed execution unit. Simplification is limited to that unit and its immediate context; the branch diff is inspection context, not authorization to modify previous or future slices. If the allowed scope cannot be determined, stop instead of selecting a convenient diff base.
 
 ### Structured stage bridge
 Expose two narrow capabilities only in orchestrated children:
@@ -165,6 +169,21 @@ Keep `/verify` read-only. It independently reads the baseline, resolves the comp
 
 A verifier result is `VERIFIED` or `BLOCKED`. A process failure or cancellation before a verdict is reported separately. Repairs require manual execution and a completely new verification run.
 
+### Slice loop
+The lifecycle order is `/brainstorm` → `/plan` → `/systematic-review <plan>` → `/implement <plan>`. `/systematic-review` reviews the plan before execution, and its fixes require user confirmation, so it stays outside `/implement`.
+
+Inside `/implement`, the coordinator runs one round per execution unit:
+1. Select the first slice with incomplete tasks, as `/execute` does. An ungrouped plan has one unit, so the run has one round.
+2. Record the current HEAD as the unit base commit, then run execute, simplify, and verify for that unit.
+3. When verify returns `VERIFIED`, read the plan again. Continue only when the plan task and slice structure still match the pinned plan, only the finished unit's checkboxes changed, and the newly selected unit is the next slice in plan order. Otherwise, stop as blocked.
+4. When no incomplete slice remains, finish the run as verified.
+
+All rounds use the same three models, the same pinned plan and design blobs, and the same worktree ownership. Each stage contract names both the pinned baseline commit (the run start) and the unit base commit (the round start). Execute and simplify use the unit base commit to limit their scope. Verify uses the unit base commit for the slice diff and the pinned baseline commit to reconstruct the cumulative state for the plan's `Final verification` item on the final slice.
+
+The coordinator does not run a final whole-feature simplification. Such a pass would edit slices that already have a `VERIFIED` verdict, so those verdicts would become invalid and another full verification would be necessary. The final report names cross-slice simplification opportunities that simplify stages reported, and the user can run `/simplify <plan> --base <feature-base>` and a fresh `/verify` manually.
+
+Bound one run to at most 20 rounds. Keep progress entries only for the active round; a completed round keeps its stage outcomes, report references, and commits.
+
 ### Concurrency and cancellation
 Use exclusive ownership keyed by the canonical selected worktree. A second orchestration run must not start writers there. The coordinating session must not perform repository work while the child owns the worktree. This is a cooperative ownership rule, not protection from other editors or arbitrary processes.
 
@@ -175,7 +194,7 @@ Unexpected external changes stop progression. Do not automatically take over a s
 ### Final report
 Report the overall outcome, per-stage state and model, selected execution unit, candidate and simplification commits, approval decisions, concise changes/findings, and the PR link when available. Absence of a PR is explicit, not replaced with an invented URL.
 
-Show verification attempts as zero or one and blocked verification verdicts as zero or one. Process failures before a verdict are separate from verification blockers. Link durable reports and provide the existing manual lifecycle follow-up when blocked. Do not imply that verified work was merged, deployed, or repaired.
+Report the completed, current, and remaining slices. Show verification attempts per round as zero or one and blocked verification verdicts per round as zero or one; at most one round can have a blocked verdict, because the run stops after it. Process failures before a verdict are separate from verification blockers. Link durable reports and provide the existing manual lifecycle follow-up when blocked. Do not imply that verified work was merged, deployed, or repaired.
 
 ## Reuse and alternatives
 | Approach | Coverage and merit | Safety, delivery, cost, and validation | Decision |
@@ -231,7 +250,9 @@ Rollback by reverting the replacement code/template changes and applying the rev
 - Committed clean execution can enter simplify; dirty state cannot.
 - Changed simplify passes tests and commits; commit/push failure stops before verification.
 - No-change simplify makes no empty commit and still enters fresh verification.
-- Only the selected execution unit is processed; prior and later slices are not silently simplified or executed.
+- Each round processes only its selected execution unit; prior and later slices are not simplified or executed in that round.
+- A `VERIFIED` round starts the next slice; a non-verified round, a changed plan structure, or an out-of-order next unit stops the loop.
+- The last `VERIFIED` round finishes the run; stage configurations and reports for different rounds do not collide.
 - Verification snapshots detect tracked and untracked candidate mutation.
 
 ### Freshness, ownership, and cancellation
@@ -261,6 +282,8 @@ Rejected findings:
 - Skip verification after no-change simplify: execution still requires independent closeout.
 - Infer lifecycle success from exit code or final text: violates the outcome contract.
 - Automatically repair a blocked verification: explicitly deferred by the user; repair remains manual.
+- Run `/systematic-review` after the last slice: it would add a writer after the final verification, and `/verify` already performs the independent semantic review.
+- Run a final whole-feature simplification: it can remove duplication across slices, but it invalidates every earlier `VERIFIED` verdict and needs another full verification.
 - Claim a worktree lease or read-only prompt prevents arbitrary writes: unsupported security claim; ownership is cooperative and verification must detect state changes.
 
 ## Skills loaded and used

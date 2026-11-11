@@ -13,7 +13,7 @@ type ParsedPlan = { grouped: boolean; slices: SliceInfo[]; tasks: TaskInfo[] };
 
 export type ExecutionUnitResult =
   | { ok: true; unit: UnitDescriptor }
-  | { ok: false; reason: string };
+  | { ok: false; reason: string; complete?: true };
 export type ProgressValidationResult = { ok: true } | { ok: false; reason: string };
 
 const MAX_TASKS = 1000;
@@ -202,7 +202,7 @@ export function selectExecutionUnit(markdown: string): ExecutionUnitResult {
   }
 
   const incomplete = plan.tasks.filter((task) => !isComplete(task));
-  if (incomplete.length === 0) return { ok: false, reason: "Plan has no remaining incomplete tasks" };
+  if (incomplete.length === 0) return { ok: false, reason: "Plan has no remaining incomplete tasks", complete: true };
 
   let selected: TaskInfo[];
   let heading: string;
@@ -225,6 +225,19 @@ export function selectExecutionUnit(markdown: string): ExecutionUnitResult {
     ok: true,
     unit: { heading, taskNumbers: selected.map((task) => task.number).sort((a, b) => a - b) },
   };
+}
+
+export function remainingUnitHeadings(markdown: string): string[] {
+  let plan: ParsedPlan;
+  try {
+    plan = parsePlan(markdown);
+  } catch (error) {
+    return [`unknown (${error instanceof Error ? error.message : String(error)})`];
+  }
+  if (!plan.grouped) return plan.tasks.some((task) => !isComplete(task)) ? ["All remaining plan tasks"] : [];
+  return plan.slices
+    .filter((slice) => plan.tasks.some((task) => task.sliceNumber === slice.number && !isComplete(task)))
+    .map((slice) => slice.heading);
 }
 
 function sameTaskShape(left: TaskInfo, right: TaskInfo): boolean {

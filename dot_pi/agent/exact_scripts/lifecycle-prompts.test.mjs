@@ -1010,6 +1010,7 @@ test("execute offers simplify and direct verify handoffs with stable writer iden
     /manual review.*fresh `\/new` session.*orchestrated review.*newly created child session.*no preceding stage transcript.*do not require a literal manual `\/new`/is,
     /differs from every supplied writer model/is,
     /do not write the report file yourself or change candidate state/i,
+    /`Unit base commit` as the orchestrated slice base.*`Pinned baseline commit` as the feature base for `Final verification`/is,
   ]);
 });
 
@@ -1018,7 +1019,8 @@ test("lifecycle templates use bridge tools only with validated orchestration con
     requireMarkers(prompt(file), [
       /injected stage contract.*protocol version.*run ID.*stage/is,
       /fixed unit.*pinned baseline/is,
-      /Pinned baseline commit.*Pinned plan blob.*Pinned design blob.*Selected unit.*Selected task numbers/is,
+      /Pinned baseline commit.*Unit base commit.*Pinned plan blob.*Pinned design blob.*Selected unit.*Selected task numbers/is,
+      /scope.*from `Unit base commit`/is,
       /both `lifecycle_request_decision` and `lifecycle_submit_outcome` tools are available/is,
       /only use.*bridge.*when.*stage contract.*both.*tools/is,
       /otherwise.*ordinary conversational approvals.*manual handoffs/is,

@@ -24,7 +24,7 @@
 | `diataxis` | skill-loader | Documentation | Separated usage/recovery guidance from protocol reference |
 
 ### Execution
-Current task: Tasks 1-4 are complete. The user approved the slice loop amendment (design `### Slice loop`), which adds Task 5; the live acceptance task is now Task 6 and documentation is Task 7. The Task 6 model-preflight blocker has a confirmed cause and fix (see the Task 6 blocker evidence).
+Current task: Tasks 1-4 are complete. The user approved the slice loop amendment (design `### Slice loop`), which adds Task 5; the live acceptance task is now Task 6 and documentation is Task 7. Task 5 is complete. The Task 6 model-preflight blocker has a confirmed cause and fix (see the Task 6 blocker evidence); Task 6 needs a real TUI run by the user.
 
 | Skill | Source | Why loaded | How used |
 |---|---|---|---|
@@ -417,12 +417,14 @@ The following tasks form one integration unit, not independently authorized prod
 **Traces to:** R1, R7, R8, R9
 **Files:** `dot_pi/agent/exact_extensions/ship-conductor/_conductor.ts`, `_conductor.test.ts`, `_protocol.ts`, `_protocol.test.ts`, `_bridge.ts`, `_state.ts`, `_state.test.ts`, `_rpc.test.ts`; `dot_pi/agent/exact_prompts/execute.md`, `simplify.md`, `verify.md`; `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`.
 
-- [ ] Add failing conductor tests: two verified slices run six stages in order with distinct unit base commits; a `BLOCKED` verdict, blocked writer, cancellation between rounds, changed plan structure, out-of-unit checkbox change, or out-of-order next unit stops the loop; an ungrouped plan runs one round; the 20-round limit stops with remaining slices reported. Add failing state tests for per-round stage config paths, and protocol tests for `unitBase`.
-- [ ] Run `node --experimental-strip-types --test 'exact_extensions/ship-conductor/*.test.ts'`; expect the new loop cases to fail.
-- [ ] Add `unitBase` to `StageConfig`, inject `Unit base commit` in `_bridge.ts`, write stage configs per round, keep progress only for the active round, and loop in `runImplement`. Per-round verification counters replace the single 0/1 counters in the record and summary.
-- [ ] Update the three templates' orchestrated sections: execute and simplify scope the unit from `Unit base commit`; verify diffs the slice from `Unit base commit` and reconstructs `Final verification` from `Pinned baseline commit`. Add matching assertions to `lifecycle-prompts.test.mjs`; run `node --test exact_scripts/lifecycle-prompts.test.mjs`.
-- [ ] Run the extension suite and `node --experimental-strip-types --test exact_extensions/ship-conductor/_rpc.test.ts`; expect all green. Run LSP diagnostics on changed TypeScript. Refactor only after green and rerun.
-- [ ] Commit with `feat(pi): loop implement rounds over remaining plan slices`.
+- [x] Add failing conductor tests: two verified slices run six stages in order with distinct unit base commits; a `BLOCKED` verdict, blocked writer, cancellation between rounds, changed plan structure, out-of-unit checkbox change, or out-of-order next unit stops the loop; an ungrouped plan runs one round; the 20-round limit stops with remaining slices reported. Add failing state tests for per-round stage config paths, and protocol tests for `unitBase`.
+- [x] Run `node --experimental-strip-types --test 'exact_extensions/ship-conductor/*.test.ts'`; expect the new loop cases to fail.
+- [x] Add `unitBase` to `StageConfig`, inject `Unit base commit` in `_bridge.ts`, write stage configs per round, keep progress only for the active round, and loop in `runImplement`. Per-round verification counters replace the single 0/1 counters in the record and summary.
+- [x] Update the three templates' orchestrated sections: execute and simplify scope the unit from `Unit base commit`; verify diffs the slice from `Unit base commit` and reconstructs `Final verification` from `Pinned baseline commit`. Add matching assertions to `lifecycle-prompts.test.mjs`; run `node --test exact_scripts/lifecycle-prompts.test.mjs`.
+- [x] Run the extension suite and `node --experimental-strip-types --test exact_extensions/ship-conductor/_rpc.test.ts`; expect all green. Run LSP diagnostics on changed TypeScript. Refactor only after green and rerun.
+- [x] Commit with `feat(pi): loop implement rounds over remaining plan slices`.
+
+Task 5 verification: before the change, the extension suite failed the new loop, `unitBase`, per-round config, and RPC contract cases; the ungrouped-plan and external-plan-change cases already passed because single-round behavior and the stage-start candidate check cover them. After the change, the extension suite passed 111/111 and `node --test exact_scripts/lifecycle-prompts.test.mjs` passed 55/55. `npm test` and `npm run test:all` exited 0 (330 unit, 84 prompt, 35 report, 12 collector tests, skills, `test:pi-deps`, and the extension smoke). LSP diagnostics showed no issues in changed TypeScript. A mutation check that disabled the bridge `unitBase` ancestry check made the new RPC case fail. The 21-slice test completes 20 rounds within the 256 KiB run-record limit because completed rounds drop progress, stderr, and stage decision copies. To keep the template size budgets in `lifecycle-prompts.test.mjs`, the change shortened two orchestrated-mode sentences in all three templates (`progress ledger` to `ledger`, and the redundant `not the bridge` clause) and removed two sentences in `verify.md` that repeated rules stated elsewhere in the same file. The next-unit "out of order" stop is a defensive check: `selectExecutionUnit` always selects the first incomplete slice, and the execute progress check requires every selected checkbox, so the check is reachable only when an invariant breaks.
 
 ### Task 6: Run the live acceptance workflow in isolation
 **Delivers:** Evidence that actual models, actual approvals, normal capabilities, and the three-stage candidate workflow work together across two slices.

@@ -88,6 +88,12 @@ function readStageConfig(configPath: string, cwd: string): StageConfig {
   if (planBlob !== config.baseline.plan.blob || designBlob !== config.baseline.design.blob) {
     throw new Error("Lifecycle baseline blob IDs do not match the pinned commit");
   }
+  try {
+    gitText(canonicalWorktree, ["merge-base", "--is-ancestor", config.baseline.commit, config.unitBase]);
+    gitText(canonicalWorktree, ["merge-base", "--is-ancestor", config.unitBase, "HEAD"]);
+  } catch {
+    throw new Error("Lifecycle unit base commit is not between the pinned baseline commit and HEAD");
+  }
   return config;
 }
 
@@ -113,6 +119,7 @@ function stageContract(config: StageConfig): string {
     `Plan: ${config.planPath}`,
     `Pinned branch: ${config.branch}`,
     `Pinned baseline commit: ${config.baseline.commit}`,
+    `Unit base commit: ${config.unitBase}`,
     `Pinned plan blob: ${config.baseline.plan.blob}`,
     `Pinned design blob: ${config.baseline.design.blob}`,
     `Selected unit: ${config.unit.heading}`,

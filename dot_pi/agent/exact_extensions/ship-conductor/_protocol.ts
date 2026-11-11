@@ -37,6 +37,7 @@ const StageConfigSchema = Type.Object(
       },
       { additionalProperties: false },
     ),
+    unitBase: GitObjectIdSchema,
     unit: Type.Object(
       {
         heading: Type.String({ minLength: 1, maxLength: 2048 }),

@@ -27,6 +27,7 @@ function validStageConfig(overrides: Record<string, unknown> = {}): Record<strin
       plan: { path: `${WORKTREE}/plans/fixture/plan.md`, blob: PLAN_BLOB },
       design: { path: `${WORKTREE}/plans/fixture/design.md`, blob: DESIGN_BLOB },
     },
+    unitBase: COMMIT,
     unit: { heading: "Fixture task", taskNumbers: [1] },
     models: {
       execute: { provider: "lifecycle-test", id: "executor" },
@@ -54,6 +55,11 @@ describe("parseStageConfig", () => {
     const missingBaseline = validStageConfig();
     delete missingBaseline.baseline;
     assert.throws(() => parseStageConfig(missingBaseline, WORKTREE));
+
+    const missingUnitBase = validStageConfig();
+    delete missingUnitBase.unitBase;
+    assert.throws(() => parseStageConfig(missingUnitBase, WORKTREE));
+    assert.throws(() => parseStageConfig(validStageConfig({ unitBase: "HEAD" }), WORKTREE));
 
     const outsidePlan = validStageConfig({ planPath: "/other/plan.md" });
     assert.throws(() => parseStageConfig(outsidePlan, WORKTREE));

@@ -77,6 +77,7 @@ function createFixture(stage: "execute" | "simplify" | "verify" = "execute"): Fi
             plan: { path: planPath, blob: planBlob },
             design: { path: designPath, blob: designBlob },
           },
+          unitBase: baselineCommit,
           unit: { heading: "Fixture task", taskNumbers: [1] },
           models: {
             execute: { provider: "lifecycle-test", id: stage === "execute" ? "driver" : "executor" },
@@ -504,10 +505,25 @@ describe("Pi 1.5.0 lifecycle bridge RPC contract", () => {
     }
   });
 
-  it("fails an invalid child configuration before starting the stage prompt", { timeout: 60_000 }, async () => {
+  const invalidConfigs: Array<{ name: string; reason: RegExp; write(fixture: ReturnType<typeof createFixture>): void }> = [
+    {
+      name: "malformed JSON",
+      reason: /extension|config|invalid|json/i,
+      write: (fixture) => writeFileSync(fixture.configPath, "{ invalid json\n", { mode: 0o600 }),
+    },
+    {
+      name: "a unit base outside the pinned history",
+      reason: /unit base commit is not between/i,
+      write: (fixture) => {
+        const config = JSON.parse(readFileSync(fixture.configPath, "utf8")) as Record<string, unknown>;
+        writeFileSync(fixture.configPath, JSON.stringify({ ...config, unitBase: "f".repeat(40) }), { mode: 0o600 });
+      },
+    },
+  ];
+  for (const invalid of invalidConfigs) it(`fails a child configuration with ${invalid.name} before starting the stage prompt`, { timeout: 60_000 }, async () => {
     assertPi150();
     const fixture = createFixture();
-    writeFileSync(fixture.configPath, "{ invalid json\n", { mode: 0o600 });
+    invalid.write(fixture);
     const promptPath = join(fixture.root, "execute.md");
     writeFileSync(promptPath, "---\ndescription: Execute fixture\n---\nfixture prompt\n");
     const args = [
@@ -560,7 +576,7 @@ describe("Pi 1.5.0 lifecycle bridge RPC contract", () => {
       );
       assert.equal(result.status, "failure");
       if (result.status !== "failure") assert.fail("invalid stage configuration must be a protocol failure");
-      assert.match(`${result.reason}\n${result.stderr}`, /extension|config|invalid|json/i);
+      assert.match(`${result.reason}\n${result.stderr}`, invalid.reason);
       assert.equal(result.promptStarted, false);
       assert.equal(result.terminationConfirmed, true);
       assert.ok(child);

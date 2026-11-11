@@ -11,7 +11,16 @@ import type { LifecycleOutcomeEnvelope } from "./_protocol.ts";
 import { LifecycleStateStore } from "./_state.ts";
 import { captureCleanCandidate, createGitRunner, resolvePlan } from "./_worktree.ts";
 
-const PLAN = `# Implementation Plan\n\n## Work\n\n### Slice 1: Current slice\n\n#### Task 1: Implement current slice\n**Blocked by:** None\n- [ ] Implement the selected slice.\n\n### Slice 2: Later slice\n\n#### Task 2: Implement later slice\n**Blocked by:** Task 1\n- [ ] Implement the later slice.\n`;
+const PLAN = `# Implementation Plan\n\n## Work\n\n### Slice 1: Current slice\n\n#### Task 1: Implement current slice\n**Blocked by:** None\n- [ ] Implement task 1.\n\n### Slice 2: Later slice\n\n#### Task 2: Implement later slice\n**Blocked by:** Task 1\n- [ ] Implement task 2.\n`;
+const UNGROUPED_PLAN = `# Implementation Plan\n\n## Work\n\n### Task 1: Implement the change\n**Blocked by:** None\n- [ ] Implement task 1.\n`;
+
+function slicedPlan(count: number): string {
+  const slices = Array.from({ length: count }, (_, index) => {
+    const number = index + 1;
+    return `### Slice ${number}: Slice ${number}\n\n#### Task ${number}: Implement slice ${number}\n**Blocked by:** ${number === 1 ? "None" : `Task ${number - 1}`}\n- [ ] Implement task ${number}.\n`;
+  });
+  return `# Implementation Plan\n\n## Work\n\n${slices.join("\n")}`;
+}
 const DESIGN = "# Design\n\nThe current slice is the only authorized unit.\n";
 const fixtures: string[] = [];
 
@@ -23,13 +32,13 @@ function git(root: string, args: string[]): string {
   return execFileSync("git", ["-C", root, ...args], { encoding: "utf8" }).trim();
 }
 
-function createRepo(): { base: string; root: string; planPath: string } {
+function createRepo(planText = PLAN): { base: string; root: string; planPath: string } {
   const base = mkdtempSync(join(tmpdir(), "implement-coordinator-"));
   fixtures.push(base);
   const root = join(base, "repo");
   const planPath = join(root, "plans", "feature", "plan.md");
   mkdirSync(join(root, "plans", "feature"), { recursive: true });
-  writeFileSync(planPath, PLAN);
+  writeFileSync(planPath, planText);
   writeFileSync(join(root, "plans", "feature", "design.md"), DESIGN);
   git(root, ["init", "--quiet", "--initial-branch=trunk"]);
   git(root, ["config", "user.name", "Lifecycle test"]);
@@ -103,11 +112,14 @@ function conductorUI(): RpcStageUI & { setEditorText(text: string): void; notice
   return ui;
 }
 
+type StageCall = { stage: string; prompt: string; sessionId: string; unit: number[]; unitBase: string; configPath: string; model: string };
+
 type RunnerOptions = {
   simplifyChange?: "changed" | "unchanged";
   simplifyOutcome?: "success" | "blocked";
   executeOutcome?: "success" | "blocked" | "no-commit";
   verifyOutcome?: "VERIFIED" | "BLOCKED";
+  verifyOutcomes?: Array<"VERIFIED" | "BLOCKED">;
   failAt?: "execute" | "simplify" | "verify";
   mutateVerify?: boolean;
   mutateVerifyAfterOutcome?: boolean;
@@ -116,17 +128,21 @@ type RunnerOptions = {
 
 function stageRunner(root: string, planPath: string, options: RunnerOptions = {}): {
   runner: LifecycleStageRunner;
-  calls: Array<{ stage: string; prompt: string; sessionId: string; unit: number[]; model: string }>;
+  calls: StageCall[];
 } {
   const gitRunner = createGitRunner();
-  const calls: Array<{ stage: string; prompt: string; sessionId: string; unit: number[]; model: string }> = [];
+  const calls: StageCall[] = [];
+  let verifyRound = 0;
   const runner: LifecycleStageRunner = async (request, _signal, callbacks) => {
-    const sessionId = `session-${request.stage}`;
+    const unitKey = request.config.unit.taskNumbers.join("-");
+    const sessionId = `session-${request.stage}-${unitKey}`;
     calls.push({
       stage: request.stage,
       prompt: request.prompt,
       sessionId,
       unit: request.config.unit.taskNumbers,
+      unitBase: request.config.unitBase,
+      configPath: request.configPath,
       model: `${request.model.provider}/${request.model.id}`,
     });
     await callbacks.onObserved?.({ sessionId, model: request.model, thinkingLevel: request.thinkingLevel, messageCount: 0 });
@@ -154,9 +170,13 @@ function stageRunner(root: string, planPath: string, options: RunnerOptions = {}
         outcome = "success";
         change = "changed";
       } else {
-        writeFileSync(planPath, readFileSync(planPath, "utf8").replace("- [ ] Implement the selected slice.", "- [x] Implement the selected slice."));
+        let planText = readFileSync(planPath, "utf8");
+        for (const number of request.config.unit.taskNumbers) {
+          planText = planText.replace(`- [ ] Implement task ${number}.`, `- [x] Implement task ${number}.`);
+        }
+        writeFileSync(planPath, planText);
         mkdirSync(join(root, "src"), { recursive: true });
-        writeFileSync(join(root, "src", "execute.txt"), "execute result\n");
+        writeFileSync(join(root, "src", "execute.txt"), `execute result ${unitKey}\n`);
         git(root, ["add", "."]);
         git(root, ["commit", "--quiet", "-m", "implement selected slice"]);
         outcome = "success";
@@ -168,7 +188,7 @@ function stageRunner(root: string, planPath: string, options: RunnerOptions = {}
         change = "unchanged";
       } else {
         if (options.simplifyChange === "changed") {
-          writeFileSync(join(root, "src", "simplified.txt"), "simplified result\n");
+          writeFileSync(join(root, "src", "simplified.txt"), `simplified result ${unitKey}\n`);
           git(root, ["add", "."]);
           git(root, ["commit", "--quiet", "-m", "simplify selected slice"]);
           change = "changed";
@@ -179,7 +199,8 @@ function stageRunner(root: string, planPath: string, options: RunnerOptions = {}
       }
     } else {
       if (options.mutateVerify) writeFileSync(join(root, "verify-mutation.txt"), "forbidden mutation\n");
-      outcome = options.verifyOutcome ?? "VERIFIED";
+      outcome = options.verifyOutcomes?.[verifyRound] ?? options.verifyOutcome ?? "VERIFIED";
+      verifyRound++;
       change = "not-applicable";
     }
 
@@ -254,7 +275,7 @@ function assertOutcomeStatus(outcome: ConductorOutcome, expected: ConductorOutco
 }
 
 describe("runImplement", () => {
-  it("selects one unit, runs execute then simplify then fresh verify, and records a typed report", async () => {
+  it("runs one execute, simplify, and fresh verify round per remaining slice and records each round", async () => {
     const fixture = createRepo();
     const depsState = baseDeps(fixture);
     const stages = stageRunner(fixture.root, fixture.planPath);
@@ -264,29 +285,146 @@ describe("runImplement", () => {
     assertOutcomeStatus(outcome, "verified");
     if (outcome.status !== "verified") return;
     assert.deepEqual(depsState.modelSelection.calls, ["execute", "simplify", "verify"]);
-    assert.deepEqual(stages.calls.map((call) => call.stage), ["execute", "simplify", "verify"]);
-    assert.deepEqual(stages.calls.map((call) => call.unit), [[1], [1], [1]]);
-    assert.deepEqual(stages.calls.map((call) => call.model), ["fixture/writer-a", "fixture/writer-b", "fixture/reviewer"]);
-    assert.deepEqual(stages.calls.map((call) => call.sessionId), ["session-execute", "session-simplify", "session-verify"]);
-    assert.match(readFileSync(fixture.planPath, "utf8"), /- \[ \] Implement the later slice\./);
+    assert.deepEqual(stages.calls.map((call) => call.stage), ["execute", "simplify", "verify", "execute", "simplify", "verify"]);
+    assert.deepEqual(stages.calls.map((call) => call.unit), [[1], [1], [1], [2], [2], [2]]);
+    assert.deepEqual(stages.calls.map((call) => call.model), [
+      "fixture/writer-a", "fixture/writer-b", "fixture/reviewer",
+      "fixture/writer-a", "fixture/writer-b", "fixture/reviewer",
+    ]);
+    assert.equal(new Set(stages.calls.map((call) => call.sessionId)).size, 6);
+    assert.equal(new Set(stages.calls.map((call) => call.configPath)).size, 6);
+    assert.deepEqual(stages.calls.map((call) => call.configPath.split("/").at(-1)), [
+      "1-execute.json", "1-simplify.json", "1-verify.json", "2-execute.json", "2-simplify.json", "2-verify.json",
+    ]);
+    const baselineCommit = git(fixture.root, ["rev-list", "--max-parents=0", "HEAD"]);
+    assert.equal(stages.calls[0]!.unitBase, baselineCommit);
+    assert.ok(stages.calls.slice(0, 3).every((call) => call.unitBase === baselineCommit));
+    assert.notEqual(stages.calls[3]!.unitBase, baselineCommit);
+    assert.ok(stages.calls.slice(3).every((call) => call.unitBase === stages.calls[3]!.unitBase));
+    assert.match(readFileSync(fixture.planPath, "utf8"), /- \[x\] Implement task 2\./);
     assert.match(stages.calls[1]!.prompt, /--implemented-by 'fixture\/writer-a'/);
     assert.match(stages.calls[2]!.prompt, /--implemented-by 'fixture\/writer-a' --simplified-by 'fixture\/writer-b'/);
     assert.ok(stages.calls.every((call) => !call.prompt.includes("fixture settled")));
-    assert.equal(outcome.verificationAttempts, 1);
+    assert.equal(outcome.verificationAttempts, 2);
     assert.equal(outcome.blockedVerdicts, 0);
     assert.equal(outcome.runId, "run-test");
+    assert.match(outcome.summary, /Slice 1: Current slice: verified/);
+    assert.match(outcome.summary, /Slice 2: Later slice: verified/);
     assert.equal(existsSync(depsState.store.worktreeLockPath(fixture.root)), false);
     const record = JSON.parse(readFileSync(outcome.recordPath, "utf8")) as Record<string, any>;
     assert.equal(record.status, "verified");
-    assert.equal(record.verificationAttempts, 1);
+    assert.equal(record.verificationAttempts, 2);
     assert.equal(record.blockedVerdicts, 0);
-    assert.equal(record.unit.heading, "Slice 1: Current slice");
-    assert.deepEqual(record.unit.taskNumbers, [1]);
-    assert.equal(record.stages.execute.status, "settled");
-    assert.equal(record.stages.simplify.status, "settled");
-    assert.equal(record.stages.verify.status, "settled");
+    assert.equal(record.rounds.length, 2);
+    assert.deepEqual(record.rounds.map((round: any) => round.unit.heading), ["Slice 1: Current slice", "Slice 2: Later slice"]);
+    assert.deepEqual(record.rounds.map((round: any) => round.unit.taskNumbers), [[1], [2]]);
+    assert.deepEqual(record.rounds.map((round: any) => round.status), ["verified", "verified"]);
+    for (const round of record.rounds) {
+      assert.equal(round.verificationAttempts, 1);
+      assert.equal(round.blockedVerdicts, 0);
+      for (const stage of ["execute", "simplify", "verify"]) {
+        assert.equal(round.stages[stage].status, "settled");
+        assert.deepEqual(round.stages[stage].progress, []);
+      }
+    }
     assert.equal(record.prUrl, undefined);
     assert.equal(record.prPresence, "absent");
+  });
+
+  it("runs one round for an ungrouped plan", async () => {
+    const fixture = createRepo(UNGROUPED_PLAN);
+    const depsState = baseDeps(fixture);
+    const stages = stageRunner(fixture.root, fixture.planPath);
+    depsState.deps.runStage = stages.runner;
+    const outcome = await runImplement(fixture.planPath, fixture.root, depsState.deps, undefined);
+
+    assertOutcomeStatus(outcome, "verified");
+    assert.deepEqual(stages.calls.map((call) => call.stage), ["execute", "simplify", "verify"]);
+    assert.equal(outcome.verificationAttempts, 1);
+  });
+
+  it("stops the loop after a BLOCKED verdict and reports the remaining slice", async () => {
+    const fixture = createRepo();
+    const depsState = baseDeps(fixture);
+    const stages = stageRunner(fixture.root, fixture.planPath, { verifyOutcomes: ["BLOCKED"] });
+    depsState.deps.runStage = stages.runner;
+    const outcome = await runImplement(fixture.planPath, fixture.root, depsState.deps, undefined);
+
+    assertOutcomeStatus(outcome, "blocked");
+    assert.deepEqual(stages.calls.map((call) => call.stage), ["execute", "simplify", "verify"]);
+    assert.equal(outcome.verificationAttempts, 1);
+    assert.equal(outcome.blockedVerdicts, 1);
+    assert.match(outcome.summary, /Slice 1: Current slice: blocked/);
+    assert.match(outcome.summary, /Remaining slices: Slice 2: Later slice/);
+    assert.match(readFileSync(fixture.planPath, "utf8"), /- \[ \] Implement task 2\./);
+  });
+
+  it("stops the loop when a later round blocks and keeps earlier verified rounds", async () => {
+    const fixture = createRepo();
+    const depsState = baseDeps(fixture);
+    const stages = stageRunner(fixture.root, fixture.planPath, { verifyOutcomes: ["VERIFIED", "BLOCKED"] });
+    depsState.deps.runStage = stages.runner;
+    const outcome = await runImplement(fixture.planPath, fixture.root, depsState.deps, undefined);
+
+    assertOutcomeStatus(outcome, "blocked");
+    assert.equal(stages.calls.length, 6);
+    assert.equal(outcome.verificationAttempts, 2);
+    assert.equal(outcome.blockedVerdicts, 1);
+    const record = JSON.parse(readFileSync(outcome.status === "blocked" ? outcome.recordPath : "", "utf8")) as Record<string, any>;
+    assert.deepEqual(record.rounds.map((round: any) => round.status), ["verified", "blocked"]);
+  });
+
+  it("cancels between rounds without dispatching the next slice", async () => {
+    const fixture = createRepo();
+    const depsState = baseDeps(fixture);
+    const stages = stageRunner(fixture.root, fixture.planPath);
+    const controller = new AbortController();
+    depsState.deps.runStage = async (request, signal, callbacks) => {
+      const result = await stages.runner(request, signal, callbacks);
+      if (request.stage === "verify") controller.abort();
+      return result;
+    };
+    const outcome = await runImplement(fixture.planPath, fixture.root, depsState.deps, controller.signal);
+
+    assertOutcomeStatus(outcome, "cancelled");
+    assert.deepEqual(stages.calls.map((call) => call.stage), ["execute", "simplify", "verify"]);
+    assert.match(outcome.summary, /Remaining slices: Slice 2: Later slice/);
+    assert.equal(existsSync(depsState.store.worktreeLockPath(fixture.root)), false);
+  });
+
+  it("stops the loop when the plan changes outside the coordinator between rounds", async () => {
+    const fixture = createRepo();
+    const depsState = baseDeps(fixture);
+    const stages = stageRunner(fixture.root, fixture.planPath);
+    depsState.deps.runStage = async (request, signal, callbacks) => {
+      const result = await stages.runner(request, signal, callbacks);
+      if (request.stage === "verify") {
+        writeFileSync(fixture.planPath, `${readFileSync(fixture.planPath, "utf8")}\n#### Task 3: Unplanned work\n**Blocked by:** None\n- [ ] Implement task 3.\n`);
+        git(fixture.root, ["commit", "--quiet", "-am", "external plan change"]);
+      }
+      return result;
+    };
+    const outcome = await runImplement(fixture.planPath, fixture.root, depsState.deps, undefined);
+
+    assertOutcomeStatus(outcome, "blocked");
+    assert.deepEqual(stages.calls.map((call) => call.stage), ["execute", "simplify", "verify"]);
+  });
+
+  it("stops after the round limit and reports the remaining slices within the record bound", async () => {
+    const fixture = createRepo(slicedPlan(21));
+    const depsState = baseDeps(fixture);
+    const stages = stageRunner(fixture.root, fixture.planPath);
+    depsState.deps.runStage = stages.runner;
+    const outcome = await runImplement(fixture.planPath, fixture.root, depsState.deps, undefined);
+
+    assertOutcomeStatus(outcome, "blocked");
+    if (outcome.status !== "blocked") return;
+    assert.equal(stages.calls.length, 60);
+    assert.equal(outcome.verificationAttempts, 20);
+    assert.equal(outcome.blockedVerdicts, 0);
+    assert.match(outcome.reason, /round limit/i);
+    assert.match(outcome.summary, /Remaining slices: Slice 21: Slice 21/);
+    assert.equal(existsSync(depsState.store.worktreeLockPath(fixture.root)), false);
   });
 
   it("runs fresh verification after unchanged simplify without making an empty commit", async () => {
@@ -297,7 +435,7 @@ describe("runImplement", () => {
     const outcome = await runImplement(fixture.planPath, fixture.root, depsState.deps, undefined);
 
     assertOutcomeStatus(outcome, "verified");
-    assert.deepEqual(stages.calls.map((call) => call.stage), ["execute", "simplify", "verify"]);
+    assert.deepEqual(stages.calls.map((call) => call.stage), ["execute", "simplify", "verify", "execute", "simplify", "verify"]);
     assert.equal(git(fixture.root, ["log", "--oneline", "-1"]).includes("simplify selected slice"), false);
   });
 

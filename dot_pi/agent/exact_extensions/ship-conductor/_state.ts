@@ -109,12 +109,13 @@ export class LifecycleRunLease {
     }
   }
 
-  writeStageConfig(stage: string, config: unknown): string {
+  writeStageConfig(round: number, stage: string, config: unknown): string {
     if (this.released) throw new Error("Lifecycle worktree ownership has been released");
+    if (!Number.isSafeInteger(round) || round < 1) throw new Error(`Invalid lifecycle round: ${round}`);
     if (!STAGES.has(stage)) throw new Error(`Unknown lifecycle stage: ${stage}`);
     const configDirectory = join(this.runDirectory, "configs");
     ensurePrivateDirectory(configDirectory);
-    const path = join(configDirectory, `${stage}.json`);
+    const path = join(configDirectory, `${round}-${stage}.json`);
     const content = JSON.stringify(config, null, 2);
     if (Buffer.byteLength(content, "utf8") > MAX_RUN_RECORD_BYTES) {
       throw new Error(`Lifecycle stage configuration exceeds ${MAX_RUN_RECORD_BYTES} bytes`);

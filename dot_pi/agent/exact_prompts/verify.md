@@ -16,19 +16,19 @@ Do not edit, format, generate, apply chezmoi state, stage, commit, switch branch
 When validated orchestrated mode is active, `lifecycle_submit_outcome` may write its private report outside the candidate. Do not write the report file yourself or change candidate state.
 
 ## Lifecycle mode
-Only use the bridge when the injected stage contract validates protocol version 1, run ID, stage `verify`, fixed unit, pinned baseline, model, effective thinking, and both `lifecycle_request_decision` and `lifecycle_submit_outcome` tools are available. If a present contract is malformed/mismatched or a tool is missing, stop and ask. Otherwise, without a contract, use ordinary conversational approvals and manual handoffs, not the bridge.
+Only use the bridge when the injected stage contract validates protocol version 1, run ID, stage `verify`, fixed unit, pinned baseline, model, effective thinking, and both `lifecycle_request_decision` and `lifecycle_submit_outcome` tools are available. If a present contract is malformed/mismatched or a tool is missing, stop and ask. Otherwise, use ordinary conversational approvals and manual handoffs.
 
-In orchestration, validate the `Pinned baseline commit`, `Pinned plan blob`, `Pinned design blob`, `Selected unit`, and `Selected task numbers`. Pinned requirements govern; the current plan is only a progress ledger. Review only the fixed unit, using no predecessor report as evidence. Use `lifecycle_request_decision` only for in-scope clarifications. A rejected or dismissed decision stops the stage without an outcome; approval cannot authorize mutation or scope change. For another blocker, submit the stage-appropriate `BLOCKED` outcome. After review, submit exactly one `VERIFIED` or `BLOCKED` outcome with `change: not-applicable`. In direct mode, return the manual verdict.
+In orchestration, validate the `Pinned baseline commit`, `Unit base commit`, `Pinned plan blob`, `Pinned design blob`, `Selected unit`, and `Selected task numbers`. Pinned requirements govern; the current plan is only a ledger. Review only the fixed unit, scoped from `Unit base commit`; no predecessor report is evidence. Use `lifecycle_request_decision` only for in-scope clarifications. A rejected or dismissed decision stops the stage without an outcome; approval cannot authorize mutation or scope change. For another blocker, submit the stage-appropriate `BLOCKED` outcome. After review, submit exactly one `VERIFIED` or `BLOCKED` outcome with `change: not-applicable`. In direct mode, return the manual verdict.
 
 ## Target resolution
 
 Parse `--implemented-by <id>` and optional `--simplified-by <id>` before target resolution; require the former. Parse writer flags only before `--task`, which consumes all remaining text as the original task. Use exactly one requirements source: a plan path or `--task`; otherwise return `BLOCKED`.
 
-1. For a plan, use the `resolve-worktree` skill (`$GLOB = **/plans/*/plan.md`) and switch to its worktree. Direct mode reads the complete plan and sibling `design.md`; orchestration uses the pinned objects validated above and treats the current plan only as a ledger. An unresolved path, blob, or unit blocks.
+1. For a plan, use the `resolve-worktree` skill (`$GLOB = **/plans/*/plan.md`) and switch to its worktree. Direct mode reads the complete plan and sibling `design.md`; orchestration uses the pinned objects validated above. An unresolved path, blob, or unit blocks.
 2. For planless work, use the exact task from `/execute` or `/simplify`. Never infer it from a diff or summary; missing or ambiguous requirements block.
 3. Preserve both writer IDs. `--simplified-by` is optional only for direct execute-to-verify; if simplify ran without the execution ID, block. Never infer IDs.
 4. Before checks, snapshot the absolute worktree path, branch, HEAD, `git status --porcelain=v1 --untracked-files=all`, staged and unstaged diffs, intended untracked files, and candidate commits.
-5. Use the pinned commit as the orchestrated base. Direct mode prefers explicit plan/task context, native parent from `gh stack status`, open-PR base from `gh`, then the repository default branch. Conflicting evidence blocks.
+5. Orchestration uses `Unit base commit` as the orchestrated slice base and `Pinned baseline commit` as the feature base for `Final verification`. Direct mode prefers explicit plan/task context, native parent from `gh stack status`, open-PR base from `gh`, then the repository default branch. Conflicting evidence blocks.
 6. Include commits from the base plus staged, unstaged, and intended untracked changes. Unexplained scope or an empty candidate blocks.
 
 ## Slice scope
@@ -38,7 +38,7 @@ For a plan with `### Slice N` headings, read the slice grouping and the current 
 
 When the current slice is the final slice, also verify the plan's `Final verification` item: the feature-level criteria against the design goals. Reconstruct the cumulative state from the feature base, merged slices, and the current candidate, and record the reconstruction method. Return `BLOCKED` instead of guessing when reconstruction is impossible.
 
-The verdict stays `VERIFIED` or `BLOCKED`. A multi-slice verdict names the slice it covers.
+A multi-slice verdict names the slice it covers.
 
 ## Risk classification
 

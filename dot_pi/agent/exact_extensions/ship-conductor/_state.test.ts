@@ -91,9 +91,11 @@ describe("LifecycleStateStore", () => {
     const recordPath = lease.recordPath;
     assert.deepEqual(JSON.parse(readFileSync(recordPath, "utf8")), initial);
     assert.equal(statSync(recordPath).mode & 0o777, 0o600);
-    assert.equal(lease.writeStageConfig("execute", { ...initial, stage: "execute" }), join(lease.runDirectory, "configs", "execute.json"));
-    assert.equal(statSync(join(lease.runDirectory, "configs", "execute.json")).mode & 0o777, 0o600);
-    assert.throws(() => lease.writeStageConfig("execute", initial), /EEXIST|already exists/);
+    assert.equal(lease.writeStageConfig(1, "execute", { ...initial, stage: "execute" }), join(lease.runDirectory, "configs", "1-execute.json"));
+    assert.equal(statSync(join(lease.runDirectory, "configs", "1-execute.json")).mode & 0o777, 0o600);
+    assert.throws(() => lease.writeStageConfig(1, "execute", initial), /EEXIST|already exists/);
+    assert.equal(lease.writeStageConfig(2, "execute", initial), join(lease.runDirectory, "configs", "2-execute.json"));
+    assert.throws(() => lease.writeStageConfig(0, "execute", initial), /round/);
     lease.release();
   });
 

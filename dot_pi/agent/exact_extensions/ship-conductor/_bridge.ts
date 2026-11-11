@@ -134,7 +134,12 @@ function decisionResultText(decision: "approved" | "rejected" | "cancelled", que
   ].join("\n");
 }
 
-function stageContract(config: StageConfig): string {
+export function stageContract(config: StageConfig): string {
+  const planRelative = relative(config.worktree, config.baseline.plan.path);
+  // resolvePlan pins the plan as the design baseline when no sibling design.md exists; say so instead of naming a missing file.
+  const designLine = resolve(config.baseline.design.path) === resolve(config.baseline.plan.path)
+    ? "Pinned design blob: none — no design.md exists; the pinned plan is the only requirements document"
+    : `Pinned design blob: ${config.baseline.design.blob} (${relative(config.worktree, config.baseline.design.path)})`;
   return [
     `Protocol version: ${config.protocolVersion}`,
     `Run ID: ${config.runId}`,
@@ -143,8 +148,8 @@ function stageContract(config: StageConfig): string {
     `Pinned branch: ${config.branch}`,
     `Pinned baseline commit: ${config.baseline.commit}`,
     `Unit base commit: ${config.unitBase}`,
-    `Pinned plan blob: ${config.baseline.plan.blob}`,
-    `Pinned design blob: ${config.baseline.design.blob}`,
+    `Pinned plan blob: ${config.baseline.plan.blob} (${planRelative})`,
+    designLine,
     `Selected unit: ${config.unit.heading}`,
     `Selected task numbers: ${config.unit.taskNumbers.join(", ")}`,
     `Execute model: ${config.models.execute.provider}/${config.models.execute.id}`,

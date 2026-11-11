@@ -6,6 +6,8 @@ This design supersedes the two-stage `/ship` design in this file. The user appro
 
 Amendment (approved by the user after Task 4): `/implement` repeats the execute → simplify → verify round for each remaining plan slice, in order, until the plan is complete or a round does not end in `VERIFIED`. The user also approved that `/implement` does not run `/systematic-review` or a final whole-feature simplification. The `### Slice loop` section defines this behavior. It replaces the earlier single-round boundary wherever the two conflict.
 
+Second amendment (approved by the user during Task 6 live acceptance): when a stage blocks, fails, or verify returns `BLOCKED`, the coordinator keeps ownership and offers a user-chosen recovery with the coordinating session's model, then a user-chosen retry of the same stage in a fresh session. The terminal summary appears once in the chat transcript instead of in both a notification and the editor. The `### Recovery` section defines this behavior. It replaces the earlier "no repair, no stage retry" boundary wherever the two conflict.
+
 The sibling `plan.md` describes the superseded implementation. Its completed tasks remain historical evidence, not an implementation plan for this design. Run `/plan` against this design before further execution. In particular, do not follow its prohibition on template changes, fixed model pools, or prose-marker completion contract.
 
 ## Alignment brief
@@ -13,10 +15,10 @@ The sibling `plan.md` describes the superseded implementation. Its completed tas
 Matteo uses Pi lifecycle templates to execute approved plans, optionally simplify the result, and independently verify the candidate. Manual handoffs can lose the original requirements and the identities of models that changed the candidate. Fresh stage contexts also need explicit approval routing and completion signals.
 
 ### Goal
-One `/implement <plan-path>` invocation selects models once and runs each remaining execution unit through execute, simplify, and verify, one unit after another. Each stage has a fresh context. The coordinating session displays progress, asks approval questions, and reports the result. Repairs remain manual.
+One `/implement <plan-path>` invocation selects models once and runs each remaining execution unit through execute, simplify, and verify, one unit after another. Each stage has a fresh context. The coordinating session displays progress, asks approval questions, and reports the result. When a stage stops, the user can recover with the session model and retry the stage.
 
 ### Non-goals
-- Automatic repair or lifecycle-stage retry loops. A blocked round is never retried, and the loop never skips a blocked slice.
+- Repair or stage retry without an explicit user choice, more than two recoveries per run, and skipping a blocked slice.
 - Running `/systematic-review` or a final whole-feature `/simplify` inside `/implement`.
 - A fourth model-driven coordinator or a second simplification agent.
 - A general-purpose agent framework, agent discovery system, or parallel stage execution.
@@ -128,7 +130,7 @@ Track lifecycle outcome separately from transport state:
 
 Wait for `agent_settled`, not merely prompt acceptance or `agent_end`. Successful process exit is insufficient. Require an unambiguous valid final result, no pending approval, no error or cancellation, and applicable state checks. Revalidate the candidate at the transition; a result submitted before later repository changes cannot authorize the next stage. A run that settles without a result is a protocol failure, not inferred success.
 
-Native provider retries may still occur inside a stage. They do not authorize restarting a lifecycle stage, repairing findings, or advancing while the run remains unsettled.
+Native provider retries may still occur inside a stage. They do not authorize restarting a lifecycle stage, repairing findings, or advancing while the run remains unsettled. Only the user-chosen recovery and retry in `### Recovery` can restart a stage.
 
 ### Run record and requirements baseline
 Keep a small versioned run record outside the candidate worktree in Pi's local state area. It contains:
@@ -167,7 +169,7 @@ Accept either a fresh manual `/new` session or a newly created orchestration ver
 
 Keep `/verify` read-only. It independently reads the baseline, resolves the complete candidate, gathers fresh deterministic evidence, performs semantic review under the distinct model, and compares before/after state. Previous execution output, plan checkboxes, and simplification test reports are not fresh verification evidence.
 
-A verifier result is `VERIFIED` or `BLOCKED`. A process failure or cancellation before a verdict is reported separately. Repairs require manual execution and a completely new verification run.
+A verifier result is `VERIFIED` or `BLOCKED`. A process failure or cancellation before a verdict is reported separately. A repair after `BLOCKED` happens through `### Recovery` or manual execution, and always needs a completely new verification session.
 
 ### Slice loop
 The lifecycle order is `/brainstorm` → `/plan` → `/systematic-review <plan>` → `/implement <plan>`. `/systematic-review` reviews the plan before execution, and its fixes require user confirmation, so it stays outside `/implement`.
@@ -184,6 +186,19 @@ The coordinator does not run a final whole-feature simplification. Such a pass w
 
 Bound one run to at most 20 rounds. Keep progress entries only for the active round; a completed round keeps its stage outcomes, report references, and commits.
 
+### Recovery
+The coordinator offers recovery when a stage ends blocked or in a process failure, when a writer leaves an unclean or uncommitted candidate, and when verify returns `BLOCKED`. It does not offer recovery after cancellation, before the first stage, after a round-limit or next-unit stop, when child termination is unconfirmed, or after two recoveries in the run.
+
+Recovery uses the coordinating session's model, so that model becomes a recorded recovery writer. The coordinator offers recovery only when the selected verifier differs from the session model under the same identity rules as the writers, and it rechecks the observed session model after each recovery turn.
+
+The flow keeps worktree ownership and every step needs a user choice:
+1. A dialog names the stage, the reason, and the options **Recover with `<session model>`** or **Stop**.
+2. Recover sends the session model one user message with the run, round, slice, worktree, branch, reason, bounded stage report or diagnostics, `git status`, and the rules: fix only this blocker inside the selected unit; leave a clean committed or reverted worktree; do not start other tasks, slices, or lifecycle commands; do not push, open a PR, or bypass checks or signing. Session input is allowed during the recovery turn.
+3. After the next `agent_settled`, a dialog offers **Retry `<stage>` in a fresh session**, **Recover again** (when allowed), or **Stop**.
+4. Retry requires a clean worktree and a plan whose structure and out-of-unit checkboxes match the plan before the failed stage. It re-baselines the candidate and starts the same stage in a new child. Execute succeeds when HEAD has moved past the round's unit base, so work that recovery committed counts once the retried execute stage confirms it.
+
+The command handler starts the run in the background and returns, because Pi starts a turn requested with `pi.sendUserMessage` only after the current command handler returns. Waiting relies on `agent_settled`, not `ctx.waitForIdle()`, because `waitForIdle()` can return before the queued turn starts.
+
 ### Concurrency and cancellation
 Use exclusive ownership keyed by the canonical selected worktree. A second orchestration run must not start writers there. The coordinating session must not perform repository work while the child owns the worktree. This is a cooperative ownership rule, not protection from other editors or arbitrary processes.
 
@@ -194,7 +209,9 @@ Unexpected external changes stop progression. Do not automatically take over a s
 ### Final report
 Report the overall outcome, per-stage state and model, selected execution unit, candidate and simplification commits, approval decisions, concise changes/findings, and the PR link when available. Absence of a PR is explicit, not replaced with an invented URL.
 
-Report the completed, current, and remaining slices. Show verification attempts per round as zero or one and blocked verification verdicts per round as zero or one; at most one round can have a blocked verdict, because the run stops after it. Process failures before a verdict are separate from verification blockers. Link durable reports and provide the existing manual lifecycle follow-up when blocked. Do not imply that verified work was merged, deployed, or repaired.
+Report the completed, current, and remaining slices. Show verification attempts and blocked verdicts per round and for the run; a retried verify adds an attempt. List recoveries with their stage, session model, and resulting commit.
+
+Show the final summary once, as a chat transcript entry that is not sent to the model, plus a one-line notification. Do not copy the summary into the editor. Process failures before a verdict are separate from verification blockers. Link durable reports and provide the existing manual lifecycle follow-up when blocked. Do not imply that verified work was merged, deployed, or repaired.
 
 ## Reuse and alternatives
 | Approach | Coverage and merit | Safety, delivery, cost, and validation | Decision |
@@ -281,7 +298,7 @@ Rejected findings:
 - Let coordinator create a missing simplification commit: violates template ownership and hides stage failure.
 - Skip verification after no-change simplify: execution still requires independent closeout.
 - Infer lifecycle success from exit code or final text: violates the outcome contract.
-- Automatically repair a blocked verification: explicitly deferred by the user; repair remains manual.
+- Automatically repair a blocked verification: rejected; repair happens only after the user chooses recovery, and it is followed by a fresh verification session.
 - Run `/systematic-review` after the last slice: it would add a writer after the final verification, and `/verify` already performs the independent semantic review.
 - Run a final whole-feature simplification: it can remove duplication across slices, but it invalidates every earlier `VERIFIED` verdict and needs another full verification.
 - Claim a worktree lease or read-only prompt prevents arbitrary writes: unsupported security claim; ownership is cooperative and verification must detect state changes.

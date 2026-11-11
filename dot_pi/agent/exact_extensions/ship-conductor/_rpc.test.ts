@@ -204,7 +204,7 @@ function assertPi150(): void {
 
 function startRpc(
   fixture: Fixture,
-  outcomeMode: "success" | "error" | "missing" | "expansion",
+  outcomeMode: "success" | "error" | "missing" | "dirty" | "expansion",
   promptTemplatePath?: string,
   childConfigPath: string | false = fixture.configPath,
 ): RpcProcess {
@@ -234,8 +234,9 @@ function messageText(record: RpcRecord): string {
     .join("");
 }
 
-async function runFixture(outcomeMode: "success" | "error" | "missing") {
+async function runFixture(outcomeMode: "success" | "error" | "missing" | "dirty") {
   const fixture = createFixture();
+  if (outcomeMode === "dirty") writeFileSync(join(fixture.worktree, "uncommitted.txt"), "left behind by the stage\n");
   const rpc = startRpc(fixture, outcomeMode);
   try {
     const stateResponse = await rpc.request("get_state");
@@ -281,7 +282,12 @@ async function runFixture(outcomeMode: "success" | "error" | "missing") {
         (record) => record.type === "tool_execution_end" && record.toolName === "lifecycle_submit_outcome",
         "lifecycle outcome tool result",
       );
-      assert.equal(outcomeResult.isError, outcomeMode === "error");
+      assert.equal(outcomeResult.isError, outcomeMode === "error" || outcomeMode === "dirty");
+      if (outcomeMode === "dirty") {
+        const text = outcomeResult.result.content.map((part: { text?: string }) => part.text ?? "").join("\n");
+        assert.match(text, /uncommitted changes/);
+        assert.match(text, /\?\? uncommitted\.txt/);
+      }
       if (outcomeMode === "success") {
         const details = outcomeResult.result.details;
         assert.equal(details.schemaVersion, 1);
@@ -313,7 +319,7 @@ async function runFixture(outcomeMode: "success" | "error" | "missing") {
       messageText(finalMessage!),
       outcomeMode === "success"
         ? /observed a successful outcome/
-        : outcomeMode === "error"
+        : outcomeMode === "error" || outcomeMode === "dirty"
           ? /observed an outcome tool error/
           : /without a structured outcome/,
     );
@@ -620,6 +626,16 @@ describe("Pi 1.5.0 lifecycle bridge RPC contract", () => {
 
   it("does not treat an actual outcome tool error as a submitted result", { timeout: 60_000 }, async () => {
     const run = await runFixture("error");
+    try {
+      assert.equal(run.outcomeResult?.isError, true);
+    } finally {
+      await run.rpc.close();
+      rmSync(run.fixture.root, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects a writer success while the worktree has uncommitted changes so the stage can correct it", { timeout: 60_000 }, async () => {
+    const run = await runFixture("dirty");
     try {
       assert.equal(run.outcomeResult?.isError, true);
     } finally {

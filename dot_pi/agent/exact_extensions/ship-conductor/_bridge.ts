@@ -134,6 +134,28 @@ function decisionResultText(decision: "approved" | "rejected" | "cancelled", que
   ].join("\n");
 }
 
+const MAX_STATUS_IN_ERROR_CHARS = 4000;
+
+// The coordinator stops a run when a writer reports success without a clean committed candidate. Rejecting the call here
+// lets the stage commit (or revert) and submit again, because a failed tool call does not count as the stage's outcome.
+function writerSuccessProblem(config: StageConfig, outcome: string, change: string): string | undefined {
+  if ((config.stage !== "execute" && config.stage !== "simplify") || outcome !== "success") return undefined;
+  const status = gitBuffer(config.worktree, ["status", "--porcelain=v1", "--untracked-files=all"]).toString("utf8").trimEnd();
+  if (status) {
+    const shown = status.length > MAX_STATUS_IN_ERROR_CHARS ? `${status.slice(0, MAX_STATUS_IN_ERROR_CHARS)}\n…` : status;
+    return [
+      "Cannot submit success: the worktree has uncommitted changes.",
+      "Commit the stage's changes as the plan requires, or revert changes the stage must not keep, then submit again.",
+      "git status --porcelain=v1 --untracked-files=all:",
+      shown,
+    ].join("\n");
+  }
+  if (config.stage === "execute" && change === "changed" && gitText(config.worktree, ["rev-parse", "HEAD"]) === config.unitBase) {
+    return "Cannot submit execute success with change: changed: HEAD still equals the unit base commit. Commit the selected unit, then submit again.";
+  }
+  return undefined;
+}
+
 export function stageContract(config: StageConfig): string {
   const planRelative = relative(config.worktree, config.baseline.plan.path);
   // resolvePlan pins the plan as the design baseline when no sibling design.md exists; say so instead of naming a missing file.
@@ -393,6 +415,8 @@ function registerBridge(pi: ExtensionAPI, config: StageConfig): void {
         if (ctx.hasPendingMessages()) return failedToolResult("Queued messages remain; the lifecycle stage cannot submit a final outcome.");
         const params = parseLifecycleOutcome(rawParams, config.stage);
         const identity = assertRuntimeContext(config, ctx);
+        const writerProblem = writerSuccessProblem(config, params.outcome, params.change);
+        if (writerProblem) return failedToolResult(writerProblem);
         const commitRefs = validateCommitRefs(config, params.commitRefs);
         const candidate = await candidateSnapshot(config, signal);
         signal?.throwIfAborted();

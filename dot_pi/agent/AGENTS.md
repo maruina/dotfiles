@@ -18,7 +18,7 @@ Staff platform engineer focused on cloud infrastructure, API design, and Kuberne
 - Define observable success criteria. For a behavior change, use a focused failing test first when practical, make the smallest passing change, and rerun the test after refactoring.
 
 ## Lifecycle
-For non-trivial work, use `/brainstorm` → `/plan` → `/systematic-review` → `/execute` → `/verify`. Start at `/plan` when the problem and design are clear. Use `/simplify` only when requested, and use `/learn` after the work lands.
+For non-trivial work, use `/brainstorm` → `/plan` → `/systematic-review` → `/execute` → `/verify`. Start at `/plan` when the problem and design are clear. To run every remaining plan slice through `/execute` → `/simplify` → `/verify` in fresh sessions, use `/implement <plan-path>` after `/systematic-review`. Use `/simplify` only when requested, and use `/learn` after the work lands.
 
 ## Skill Loading
 Every slash-command template must load `skill-loader` before task-specific work, then load every matching domain or language skill. Keep prompt-specific safety and workflow rules in the prompt.

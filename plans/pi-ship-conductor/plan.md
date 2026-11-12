@@ -24,7 +24,7 @@
 | `diataxis` | skill-loader | Documentation | Separated usage/recovery guidance from protocol reference |
 
 ### Execution
-Current task: Tasks 1-4 are complete. The user approved the slice loop amendment (design `### Slice loop`), which adds Task 5; the live acceptance task is now Task 6 and documentation is Task 7. Task 5 is complete. The Task 6 model-preflight blocker has a confirmed cause and fix (see the Task 6 blocker evidence); Task 7 needs a real TUI run by the user; Task 6 adds user-chosen recovery first.
+Current task: Tasks 1-6 and 8 are complete, and Task 7 live acceptance passed (Runs 1 and 2); only its cleanup of disposable smoke resources waits for user approval. The independent `/verify` is next.
 
 | Skill | Source | Why loaded | How used |
 |---|---|---|---|
@@ -41,7 +41,7 @@ Current task: Tasks 1-4 are complete. The user approved the slice loop amendment
 
 Execution PR-history check: closed PR #69 has six CodeRabbit bot comments. Comments on default-branch and Git-status failures are covered by Task 3; process-close, escalation, and listener cleanup are covered by Task 4. The two marker-parser comments do not apply to the approved structured-RPC replacement. This corrects the planning note below that no PR feedback was identified; no scope change is needed.
 
-Rebase note: the branch was first rebased onto `b346344`, resolving the expected `dot_pi/agent/package.json` and `AGENTS.md` conflicts, then onto `a00fb7c23d6ca0aa6ac10175082f8528c037c61d`. After the user directed using updated main, the plan was aligned to `fc796d77749b1876fdc1518b8a8a06918fef6a2c` and the feature branch was rebased onto that commit. A later rebase moved the branch onto `a8527549d27be90d02fa629c5ddbe9353d2d060e`, which is the verified merge base for Tasks 1-4. The rebase completed cleanly, preserved the Pi 1.5.0 / TypeScript 7.0.2 manifest and lockfile plus the native TypeScript 7 LSP changes, and did not move `main`.
+Rebase note: the branch was first rebased onto `b346344`, resolving the expected `dot_pi/agent/package.json` and `AGENTS.md` conflicts, then onto `a00fb7c23d6ca0aa6ac10175082f8528c037c61d`. After the user directed using updated main, the plan was aligned to `fc796d77749b1876fdc1518b8a8a06918fef6a2c` and the feature branch was rebased onto that commit. A later rebase moved the branch onto `a8527549d27be90d02fa629c5ddbe9353d2d060e`, which is the verified merge base for Tasks 1-4. Before PR preparation, the branch was rebased onto `e99d394` (latest `main`); `main` gained only unrelated herdr changes, the rebase had no conflicts, and all 32 commits stayed signed. The rebase completed cleanly, preserved the Pi 1.5.0 / TypeScript 7.0.2 manifest and lockfile plus the native TypeScript 7 LSP changes, and did not move `main`.
 
 Baseline review: changes from `b346344` through `fc796d7` affect the agent dependency manifest/lockfile and the TypeScript LSP extension. They do not change lifecycle templates or the coordinator implementation, so the approved behavior requirements remain applicable.
 
@@ -501,13 +501,37 @@ Defect found by Run 2: both the refusal and the cancellation showed the message 
 **Traces to:** R1-R10; explicit documentation and future-agent guidance requirement
 **Files:** `AGENTS.md`, `dot_pi/agent/AGENTS.md` (inspect; modify only if justified), `dot_pi/agent/exact_extensions/ship-conductor/README.md`, `plans/pi-ship-conductor/plan.md` (execution ledger).
 
-- [ ] Replace root marker-parser coupling guidance with the structured bridge/template contract, exact focused tests, Pi 1.5.0 integration requirement, and scoped child-marker trap. Inspect `dot_pi/agent/AGENTS.md`; record why no change is needed if guidance is correctly owned elsewhere. Do not update unrelated obsolete MCP guidance.
-- [ ] Document `/implement`, the lifecycle order (`/plan` → `/systematic-review` → `/implement`), the slice loop and its stop rules, the optional manual whole-feature `/simplify` + `/verify`, manual handoff examples, both writer identities, no-change semantics, ownership/cancellation recovery, run-record privacy/retention, required live evidence, and targeted rollout/rollback in the extension README. No generated references or production runbook/dashboard are needed; explain this local-tool scope.
-- [ ] Final verification: map every R1-R10 scenario to passing focused tests or recorded live evidence; require the complete three-stage feature and loop, not only helper tests. Confirm `/ship` removal, no fixed pools/prose transition parsing, no predecessor narrative sent to verify, and no round after a non-verified round.
-- [ ] Run `npm test` then `npm run test:all` from `dot_pi/agent` while installed dependencies remain; expect all tests and extension smoke green. Runtime integration must run against Pi 1.5.0, not silently skip. Run TypeScript LSP diagnostics after final code changes.
-- [ ] Remove disposable source `node_modules` after both gates. Inspect Git status and ensure test artifacts are outside the candidate. Preview reviewed explicit targets with `chezmoi --source "$PWD" diff <explicit-target-file>` from the worktree; inspect deletions too. Do not apply before the independent `/verify` gate.
-- [ ] Commit guidance with `docs(pi): document implement coordinator operation and recovery`. Record documentation decisions, focused/full results, live report references, and any unresolved blocker in this plan.
-- [ ] Hand off to a new independent `/verify` with stable writer identities and the absolute plan path. Do not claim final independent verification, apply targets, or repair findings in this task.
+- [x] Replace root marker-parser coupling guidance with the structured bridge/template contract, exact focused tests, Pi 1.5.0 integration requirement, and scoped child-marker trap. Inspect `dot_pi/agent/AGENTS.md`; record why no change is needed if guidance is correctly owned elsewhere. Do not update unrelated obsolete MCP guidance.
+- [x] Document `/implement`, the lifecycle order (`/plan` → `/systematic-review` → `/implement`), the slice loop and its stop rules, the optional manual whole-feature `/simplify` + `/verify`, manual handoff examples, both writer identities, no-change semantics, ownership/cancellation recovery, run-record privacy/retention, required live evidence, and targeted rollout/rollback in the extension README. No generated references or production runbook/dashboard are needed; explain this local-tool scope.
+- [x] Final verification: map every R1-R10 scenario to passing focused tests or recorded live evidence; require the complete three-stage feature and loop, not only helper tests. Confirm `/ship` removal, no fixed pools/prose transition parsing, no predecessor narrative sent to verify, and no round after a non-verified round.
+- [x] Run `npm test` then `npm run test:all` from `dot_pi/agent` while installed dependencies remain; expect all tests and extension smoke green. Runtime integration must run against Pi 1.5.0, not silently skip. Run TypeScript LSP diagnostics after final code changes.
+- [x] Remove disposable source `node_modules` after both gates. Inspect Git status and ensure test artifacts are outside the candidate. Preview reviewed explicit targets with `chezmoi --source "$PWD" diff <explicit-target-file>` from the worktree; inspect deletions too. Do not apply before the independent `/verify` gate.
+- [x] Commit guidance with `docs(pi): document implement coordinator operation and recovery`. Record documentation decisions, focused/full results, live report references, and any unresolved blocker in this plan.
+- [x] Hand off to a new independent `/verify` with stable writer identities and the absolute plan path. Do not claim final independent verification, apply targets, or repair findings in this task.
+
+Task 8 record:
+- Documentation: `dot_pi/agent/exact_extensions/ship-conductor/README.md` holds how-to guides (run, recover, cancel, retained lock), reference (stage contract, limits, state, files, tests), a short explanation of why the coordinator runs no model, and rollout and rollback. Root `AGENTS.md` keeps the structured-bridge contract and adds the live-run traps (background command run and `agent_settled`, cancellation keys, tool-result text, rejected outcomes) and the live-testing procedure (temporary agent directory, absolute local package paths, signing agent). `dot_pi/agent/AGENTS.md` gains one sentence naming `/implement` after `/systematic-review`, because its lifecycle line listed only the manual commands. No production runbook or dashboard applies to this local tool.
+- Final verification map:
+
+| Requirement | Evidence |
+|---|---|
+| R1 Safe fixed unit | `_worktree.test.ts`, `_unit.test.ts`, conductor preflight and lock tests; live Run 2 owned-worktree refusal |
+| R2 Native/fresh/models | `_rpc.test.ts` native expansion and provenance, `_spawn.test.ts` preflight, `_models.test.ts` scoped and thinking pickers; live Run 1 distinct fresh sessions and models |
+| R3 Decisions | `_rpc.test.ts` approval round-trip and result text, `_spawn.test.ts` rejection and dismissal; live Run 1 approval, live Run 2 dismissal |
+| R4 Typed settled outcomes | `_spawn.test.ts` settled, missing, duplicate, rejected-then-corrected, and uncorrected outcomes; `_rpc.test.ts` dirty-writer rejection; live Run 1 |
+| R5 Simplify/verify | conductor changed and unchanged simplify, verify mutation and `BLOCKED` tests; live Run 1 unchanged simplify and fresh `VERIFIED` per slice |
+| R6 Manual handoffs | `lifecycle-prompts.test.mjs` and `_rpc.test.ts` native-expansion cases |
+| R7 Bounds/ownership/cancel | `_spawn.test.ts` bounds and termination escalation, `_state.test.ts`, `_index.test.ts` shortcut and shutdown; live Run 2 cancellation with no surviving child and the lock released |
+| R8 Reporting | conductor summary, single-summary, and counter tests; live Run 1 and Run 2 summaries |
+| R9 Slice loop | conductor multi-round, stop, ungrouped, and 20-round tests; live Run 1 two verified rounds |
+| R10 Recovery | conductor recovery, retry, refusal, and dirty-after-recovery tests, `_recovery.test.ts`; live Run 1 simplify recovery with `openai/openai/gpt-6.1-sol` and a fresh retry |
+
+- Removal checks: `/ship` is not registered (`_index.test.ts`), `_markers.ts` and `_pools.ts` do not exist, stage prompts carry only the plan path and writer IDs (conductor tests assert that no predecessor report text reaches a later stage), and no round starts after a non-verified round.
+- Gates: `npm test` and `npm run test:all` exited 0 from `dot_pi/agent` (353 unit, 84 prompt, 35 report, 12 collector tests, skills, `test:pi-deps`, and the extension smoke). LSP diagnostics and `tsc --noEmit` reported no errors in changed TypeScript.
+- Dependencies: source `node_modules` stays installed because the user asked to keep development dependencies; this deviates from the plan step to remove them.
+- Target preview: `chezmoi --source "$PWD" diff` against each explicit target shows the 24 added `~/.pi/agent/extensions/ship-conductor/` files (plus `README.md`), `prompts/execute.md`, `prompts/simplify.md`, `prompts/verify.md`, `scripts/lifecycle-prompts.test.mjs`, `package.json` (the `ship-conductor/*.test.ts` glob only), and `AGENTS.md`. `main` has no `ship-conductor` directory, so no deletion targets exist. Nothing was applied.
+- Open: independent `/verify`; removal of the disposable smoke worktrees and the launcher directory after the user approves; rebase onto the latest `main`, remote-divergence review, and the stack-split check before any PR.
+
 
 ## Requirement Traceability
 | Requirement | Tasks | Highest supported evidence |

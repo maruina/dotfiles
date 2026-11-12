@@ -11,6 +11,7 @@ import { buildRpcChildEnvironment, buildRpcStageArgs, getPiInvocation, runRpcLif
 import { LifecycleStateStore } from "./_state.ts";
 import { captureCleanCandidate, createGitRunner, resolvePlan } from "./_worktree.ts";
 import type { Stage } from "./_protocol.ts";
+import { reportLifecycleActivity, type LifecycleRestingState } from "./_activity.ts";
 
 const CHILD_CONFIG_ENV = "PI_LIFECYCLE_CHILD_CONFIG";
 // Ctrl-C is Pi's `app.clear` and Escape is `app.interrupt`; neither reaches an idle extension command, so cancellation needs its own key.
@@ -127,7 +128,16 @@ export default function implementCoordinator(pi: ExtensionAPI): void {
       // The run continues after this handler returns: Pi starts a turn requested with sendUserMessage only after the
       // current command handler finishes, and recovery needs that session-model turn.
       activeRun = (async () => {
+        let stopActivity: ((state?: LifecycleRestingState) => void) | undefined;
+        let restingState: LifecycleRestingState = "idle";
         try {
+          if (ctx.mode === "tui") {
+            // A zero-line widget provides the public TUI terminal without opening a dialog or replacing the footer.
+            ctx.ui.setWidget("lifecycle-activity", (tui) => {
+              stopActivity = reportLifecycleActivity(tui.terminal);
+              return { render: () => [], invalidate: () => undefined };
+            });
+          }
           const agentDirectory = getAgentDir();
           const stagePaths: Record<Stage, string> = {
             execute: join(agentDirectory, "prompts", "execute.md"),
@@ -169,7 +179,10 @@ export default function implementCoordinator(pi: ExtensionAPI): void {
             notify: (message, type) => ctx.ui.notify(message, type),
             setStatus: (key, text) => ctx.ui.setStatus(key, text),
             setWidget: (key, lines) => ctx.ui.setWidget(key, lines),
-            showSummary: (summary, level) => pi.appendEntry<SummaryEntry>(SUMMARY_ENTRY, { summary, level }),
+            showSummary: (summary, level) => {
+              restingState = level === "error" ? "error" : level === "info" ? "done" : "idle";
+              pi.appendEntry<SummaryEntry>(SUMMARY_ENTRY, { summary, level });
+            },
           };
           const baseEnvironment = { ...process.env };
           const spawner: RpcSpawner = (command, commandArgs, options) => spawn(command, commandArgs, {
@@ -235,8 +248,11 @@ export default function implementCoordinator(pi: ExtensionAPI): void {
           };
           await runImplement(args, ctx.cwd, deps, combined.signal);
         } catch (error) {
+          restingState = "error";
           ctx.ui.notify(`implement: ${error instanceof Error ? error.message : String(error)}`, "error");
         } finally {
+          stopActivity?.(restingState);
+          if (ctx.mode === "tui") ctx.ui.setWidget("lifecycle-activity", undefined);
           combined.dispose();
           process.off("SIGINT", onSigint);
           activeAbort = undefined;

@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import implementCoordinator from "./index.ts";
+import type { ProgramStatus, TUI } from "@earendil-works/pi-tui";
 
 type CommandOptions = Parameters<ExtensionAPI["registerCommand"]>[1];
 type EventHandler = (...args: unknown[]) => unknown;
@@ -96,6 +97,10 @@ describe("/implement extension command", () => {
     let resolveSelection!: (selection: string | undefined) => void;
     let selectionStarted = false;
     const notices: string[] = [];
+    const reports: ProgramStatus[] = [];
+    const terminal = { setProgramStatus: (status: ProgramStatus) => reports.push(status) };
+    const originalWriter = terminal.setProgramStatus;
+    const widgets = new Set<string>();
     const models = [
       { provider: "fixture", id: "writer", name: "Writer" },
       { provider: "fixture", id: "verifier", name: "Verifier" },
@@ -125,7 +130,11 @@ describe("/implement extension command", () => {
         confirm: async () => true,
         notify: (message: string) => notices.push(message),
         setStatus: () => undefined,
-        setWidget: () => undefined,
+        setWidget: (key: string, content: unknown) => {
+          if (content === undefined) widgets.delete(key);
+          else widgets.add(key);
+          if (typeof content === "function") content({ terminal } as unknown as TUI);
+        },
         setEditorText: () => undefined,
       },
     } as unknown as ExtensionCommandContext;
@@ -136,6 +145,10 @@ describe("/implement extension command", () => {
       activeRun = command.handler(fixture.planPath, context);
       await new Promise<void>((resolve) => setImmediate(resolve));
       assert.equal(selectionStarted, true);
+      assert.equal(reports.at(-1)?.state, "working");
+      assert.ok(widgets.has("lifecycle-activity"));
+      terminal.setProgramStatus({ state: "done", app: "pi" });
+      assert.equal(reports.at(-1)?.state, "working", "parent recovery must not mark the lifecycle run done");
 
       await command.handler(fixture.planPath, context);
       assert.match(notices[0] ?? "", /another lifecycle run is already active/);
@@ -153,6 +166,9 @@ describe("/implement extension command", () => {
         await events.get("session_shutdown")!({});
       }
       assert.equal(entries.length, 1, "the run ends with one summary entry");
+      assert.equal(terminal.setProgramStatus, originalWriter);
+      assert.equal(reports.at(-1)?.state, "idle");
+      assert.equal(widgets.has("lifecycle-activity"), false);
       assert.equal(entries[0]!.customType, "implement-summary");
       assert.match(entries[0]!.data.summary, /cancelled/i);
       const afterStop = notices.length;

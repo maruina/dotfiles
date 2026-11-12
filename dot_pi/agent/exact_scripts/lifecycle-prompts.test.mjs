@@ -283,6 +283,23 @@ test("lifecycle prompts stay within prompt context budgets", () => {
   }
 });
 
+test("systematic review resolves PRs locally and preserves review safety", () => {
+  const text = prompt("systematic-review.md");
+
+  requireMarkers(text, [
+    /argument-hint:.*pr-url/,
+    /PR URL.*use the `feature-worktree` skill/is,
+    /PR base.*merge-base diff/is,
+    /headRefOid.*clean worktree.*HEAD.*equal/is,
+    /dirty.*stale.*stop and ask/is,
+    /Never.*checkout.*base checkout/is,
+    /fork.*do not run.*code/is,
+    /PR URL, base ref, head SHA, and resolved worktree/,
+    /apply only the ones the user confirms/,
+    /Never apply chezmoi state, push, or post GitHub comments/,
+  ]);
+});
+
 test("systematic review challenges scope against the smallest user-feedback slice", () => {
   const text = prompt("systematic-review.md");
 

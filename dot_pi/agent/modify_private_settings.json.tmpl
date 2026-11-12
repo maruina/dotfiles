@@ -12,6 +12,7 @@ printf '%s\n' "$input" | jq '
 {{- if eq .profile "work" }}
   .skills = [
     "{{ .chezmoi.homeDir }}/.pi/agent/skills_work",
+    "{{ .chezmoi.homeDir }}/go/src/github.com/DataDog/datadog-pi-packages/packages/chonk-upload/skills/chonk-upload",
     "/Users/matteo.ruina/dd/claude-marketplace/compute/skills",
     "!/Users/matteo.ruina/dd/claude-marketplace/compute/skills/k8s-api-design",
     "!/Users/matteo.ruina/dd/claude-marketplace/compute/skills/k8s-controller-dev",

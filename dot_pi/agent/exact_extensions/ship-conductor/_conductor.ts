@@ -232,24 +232,21 @@ function oneLine(text: string): string {
   return truncate(text.replace(/\s+/g, " ").trim(), 300);
 }
 
-function announce(ui: ConductorUI, summary: string, headline: string, level: "info" | "warning" | "error"): void {
-  if (ui.showSummary) {
-    ui.showSummary(summary, level);
-    ui.notify(oneLine(headline), level);
-  } else {
-    ui.notify(summary, level);
-  }
+// Pi's TUI already shows notifications in the transcript, so a summary entry plus a notification repeats the message.
+function announce(ui: ConductorUI, summary: string, level: "info" | "warning" | "error"): void {
+  if (ui.showSummary) ui.showSummary(summary, level);
+  else ui.notify(summary, level);
 }
 
 function preflightFailure(reason: string, ui: ConductorUI): ConductorOutcome {
   const summary = `Lifecycle preflight failed: ${reason}\nNo stage was started.`;
-  announce(ui, summary, `Lifecycle preflight failed: ${reason}`, "error");
+  announce(ui, summary, "error");
   return { status: "preflight-failure", reason, verificationAttempts: 0, blockedVerdicts: 0, summary };
 }
 
 function cancelledBeforeRun(reason: string, ui: ConductorUI): ConductorOutcome {
   const summary = `Lifecycle run cancelled: ${reason}\nNo stage was started.`;
-  announce(ui, summary, `Lifecycle run cancelled: ${reason}`, "warning");
+  announce(ui, summary, "warning");
   return { status: "cancelled", reason, verificationAttempts: 0, blockedVerdicts: 0, ownershipRetained: false, summary };
 }
 
@@ -616,13 +613,7 @@ export async function runImplement(
         summary,
       };
     }
-    const where = stage === "preflight" || stage === "transition" ? "" : ` at round ${round?.number ?? 0} ${stage}`;
-    announce(
-      deps.ui,
-      summary,
-      `Lifecycle run ${runId} ${status}${status === "verified" ? "" : where}${reason ? `: ${reason}` : ""}`,
-      status === "verified" ? "info" : status === "cancelled" ? "warning" : "error",
-    );
+    announce(deps.ui, summary, status === "verified" ? "info" : status === "cancelled" ? "warning" : "error");
   };
 
   const raceAbort = <T>(operation: Promise<T>, fallback: T): Promise<T> => {
@@ -1096,7 +1087,7 @@ export async function runImplement(
         ownershipRetained,
         summary: renderSummary(record, record.error),
       };
-      announce(deps.ui, terminal.summary, `Lifecycle run ${runId} process-failure: ${terminal.reason}`, "error");
+      announce(deps.ui, terminal.summary, "error");
     }
   } finally {
     deps.ui.setWidget?.(PROGRESS_WIDGET_KEY, undefined);
@@ -1151,7 +1142,7 @@ export async function runImplement(
         ownershipRetained,
         summary: renderSummary(record, reason),
       };
-      announce(deps.ui, terminal.summary, `Lifecycle run ${runId} process-failure: ${terminal.reason}`, "error");
+      announce(deps.ui, terminal.summary, "error");
     }
   }
   return terminal;

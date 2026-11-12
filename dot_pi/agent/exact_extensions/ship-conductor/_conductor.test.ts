@@ -514,7 +514,7 @@ describe("runImplement", () => {
     assert.equal(existsSync(depsState.store.worktreeLockPath(fixture.root)), false);
   });
 
-  it("shows the terminal summary once and a one-line notification", async () => {
+  it("shows the terminal summary once, without a duplicate notification or editor text", async () => {
     const fixture = createRepo(UNGROUPED_PLAN);
     const depsState = baseDeps(fixture);
     const stages = stageRunner(fixture.root, fixture.planPath, { executeOutcome: "blocked" });
@@ -524,9 +524,7 @@ describe("runImplement", () => {
     assertOutcomeStatus(outcome, "blocked");
     assert.deepEqual(depsState.ui.summaries, [outcome.summary]);
     assert.deepEqual(depsState.ui.editorTexts, []);
-    assert.equal(depsState.ui.notices.length, 1);
-    assert.doesNotMatch(depsState.ui.notices[0]!, /\n/);
-    assert.match(depsState.ui.notices[0]!, /run-test.*blocked/);
+    assert.deepEqual(depsState.ui.notices, []);
   });
 
   it("recovers a blocked execute with the session model and retries only that stage", async () => {

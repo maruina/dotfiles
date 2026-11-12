@@ -1,28 +1,35 @@
 ---
 description: Verify an implementation candidate with fresh, read-only evidence
-argument-hint: "[path-to-plan.md] [--implemented-by <model-id>] [--task <requirement>]"
+argument-hint: "[path-to-plan.md] [--implemented-by <model-id>] [--simplified-by <model-id>] [--task <requirement>]"
 ---
 # Verify
 Verification input:
 
 > $ARGUMENTS
 
-Perform a fresh, read-only closeout review of the selected implementation candidate. Treat `--implemented-by` and `--task` as handoff metadata, not target paths. Return exactly one top-level verdict: `VERIFIED` or `BLOCKED`.
-
-Use `/verify` for the final closeout gate after execution. Use `/systematic-review` to review a plan or local code before execution, and `/pr-validate` to assess someone else's GitHub PR.
+Perform a fresh read-only closeout. Require `--implemented-by`; accept optional `--simplified-by`. Treat both IDs and `--task` as metadata, not paths. Return exactly one verdict: `VERIFIED` or `BLOCKED`.
 
 <HARD-GATE>
 Do not edit, format, generate, apply chezmoi state, stage, commit, switch branches, detach HEAD, or repair anything. Do not run formatter or linter fix modes. Do not push or open or update a PR before the final state comparison passes and the verdict is `VERIFIED`. If a check would mutate the selected worktree, do not run it; return `BLOCKED` instead. A repair invalidates all prior evidence: hand control back to `/execute` or the user, then require a completely fresh `/verify` run.
 </HARD-GATE>
 
+When validated orchestrated mode is active, `lifecycle_submit_outcome` may write its private report outside the candidate. Do not write the report file yourself or change candidate state.
+
+## Lifecycle mode
+Only use the bridge when the injected stage contract validates protocol version 1, run ID, stage `verify`, fixed unit, pinned baseline, model, effective thinking, and both `lifecycle_request_decision` and `lifecycle_submit_outcome` tools are available. If a present contract is malformed/mismatched or a tool is missing, stop and ask. Otherwise, use ordinary conversational approvals and manual handoffs.
+
+In orchestration, validate the `Pinned baseline commit`, `Unit base commit`, `Pinned plan blob`, `Pinned design blob`, `Selected unit`, and `Selected task numbers`. Pinned requirements govern; the current plan is only a ledger. Review only the fixed unit, scoped from `Unit base commit`; no predecessor report is evidence. Use `lifecycle_request_decision` only for in-scope clarifications. A rejected or dismissed decision stops the stage without an outcome; approval cannot authorize mutation or scope change. For another blocker, submit the stage-appropriate `BLOCKED` outcome. After review, submit exactly one `VERIFIED` or `BLOCKED` outcome with `change: not-applicable`. In direct mode, return the manual verdict.
+
 ## Target resolution
 
-1. If `$ARGUMENTS` contains a plan path, use the `resolve-worktree` skill with `$GLOB = **/plans/*/plan.md`. Resolve the plan, switch to its owning worktree, and read the complete plan and sibling `design.md` when present as the requirements baseline. If unresolved or ambiguous, return `BLOCKED`.
-2. Without a plan path, use the `--task` value from the `/execute` handoff (or an equally explicit baseline in the current conversation); never infer intended behavior solely from the diff. If missing or ambiguous, return `BLOCKED`.
-3. Read the implementation model ID from `--implemented-by` when present; never infer it from the verifier model or repository state.
-4. Before running checks, snapshot the worktree's absolute path, branch, HEAD, `git status --porcelain=v1 --untracked-files=all`, staged diff, unstaged diff, intended untracked files, and candidate commits.
-5. Resolve the comparison base in this precedence: explicit plan/task context, native stack parent from `gh stack status`, open-PR base from `gh`, then the repository default branch. Use the base consistently; if evidence conflicts, return `BLOCKED`.
-6. Candidate scope MUST include commits relative to the base, staged changes, unstaged changes, and intended untracked files. Confirm the scope is attributable to the baseline with no unexplained changes; an empty candidate is `BLOCKED`.
+Parse `--implemented-by <id>` and optional `--simplified-by <id>` before target resolution; require the former. Parse writer flags only before `--task`, which consumes all remaining text as the original task. Use exactly one requirements source: a plan path or `--task`; otherwise return `BLOCKED`.
+
+1. For a plan, use the `resolve-worktree` skill (`$GLOB = **/plans/*/plan.md`) and switch to its worktree. Direct mode reads the complete plan and sibling `design.md`; orchestration uses the pinned objects validated above. An unresolved path, blob, or unit blocks.
+2. For planless work, use the exact task from `/execute` or `/simplify`. Never infer it from a diff or summary; missing or ambiguous requirements block.
+3. Preserve both writer IDs. `--simplified-by` is optional only for direct execute-to-verify; if simplify ran without the execution ID, block. Never infer IDs.
+4. Before checks, snapshot the absolute worktree path, branch, HEAD, `git status --porcelain=v1 --untracked-files=all`, staged and unstaged diffs, intended untracked files, and candidate commits.
+5. Orchestration uses `Unit base commit` as the orchestrated slice base and `Pinned baseline commit` as the feature base for `Final verification`. Direct mode prefers explicit plan/task context, native parent from `gh stack status`, open-PR base from `gh`, then the repository default branch. Conflicting evidence blocks.
+6. Include commits from the base plus staged, unstaged, and intended untracked changes. Unexplained scope or an empty candidate blocks.
 
 ## Slice scope
 A plan with no slice grouping verifies every acceptance scenario as today, with no separate final pass.
@@ -31,17 +38,15 @@ For a plan with `### Slice N` headings, read the slice grouping and the current 
 
 When the current slice is the final slice, also verify the plan's `Final verification` item: the feature-level criteria against the design goals. Reconstruct the cumulative state from the feature base, merged slices, and the current candidate, and record the reconstruction method. Return `BLOCKED` instead of guessing when reconstruction is impossible.
 
-The verdict stays `VERIFIED` or `BLOCKED`. A multi-slice verdict names the slice it covers.
+A multi-slice verdict names the slice it covers.
 
 ## Risk classification
 
-Classify the complete candidate before semantic review. Code, executable automation, infrastructure, Kubernetes, CI, permissions or security configuration, dependencies, runtime configuration, and Pi prompts, skills, extensions, or instructions are behavior-bearing and require semantic review; a `.md` extension alone does not make a change non-behavioral.
-
-Semantic review may be skipped only when the entire candidate is demonstrably prose-only documentation, design/plan artifacts, comments/spelling, formatting-only content, or generated output mechanically validated against its source. Record the classification and skip rationale; mixed candidates are behavior-bearing.
+Classify first. Code, automation, infra/Kubernetes/CI, permissions/security, dependencies/runtime config, and Pi prompts/skills/extensions/instructions are behavior-bearing; `.md` is not exempt. Skip semantics only for wholly prose/docs, design/plans, comments/spelling, formatting, or source-validated generated output; record rationale. Mixed changes are behavior-bearing.
 
 ## Fresh deterministic evidence
 
-Select and run only read-only, non-fixing checks. Record every layer as selected, passed, failed, skipped, unavailable, or inapplicable with its reason and concise output. Never treat prior `/execute` output, historical logs, or plan checkboxes as fresh evidence.
+Run only read-only, non-fixing checks. Record each as selected, passed, failed, skipped, unavailable, or inapplicable, with a reason and concise output. Prior `/execute` output, historical logs, and plan checkboxes are not fresh evidence.
 
 1. Run `git diff --check` against the complete candidate; whitespace errors or conflict markers block.
 2. Rerun checks required by the plan, repository guidance, package metadata, or implementation contract; missing required tools, credentials, or dependencies block.
@@ -54,14 +59,13 @@ For plan-backed work, trace every in-scope Given/When/Then acceptance scenario (
 
 ## Independent semantic review
 
-For behavior-bearing candidates, require this review to run in a fresh `/new` session under a model different from the implementation model carried by the `/execute` handoff.
+For behavior-bearing candidates, require an independent verifier model that differs from every supplied writer model. A manual review must run in a fresh `/new` session. An orchestrated review must run in a newly created child session with no preceding stage transcript; do not require a literal manual `/new` command.
 
-- Read the implementation model ID from `--implemented-by` and the verifier model ID from the injected `## Current Model` context.
-- If `--implemented-by` is missing, the verifier has no injected model ID, or the two IDs match, return `BLOCKED`. Instruct the user to return to the `/execute` or `/simplify` handoff when metadata is missing, or run `/model` to choose a different model, `/new`, confirm `## Current Model` (also shown in the statusline), then rerun the complete copy-paste `/verify` command.
-- Otherwise, use the `skill-loader` skill to determine which language and domain skills to read for the affected files, then load them and their applicable references before judging the candidate. Keep a provenance record per the `## Provenance record` section of the `skill-loader` skill.
-- Read the candidate diff, relevant implementation, and tests in bounded sections; if a tool response is truncated, retrieve the missing sections before drawing conclusions. Review the requirements baseline, diff, implementation, tests, and fresh deterministic evidence. Focus on new correctness, security, operability, compatibility, and material maintainability regressions attributable to the candidate, and verify that tests cover distinct contracts without multiplying independent dimensions or repeating expensive integration scenarios.
-- Check behavioral risks against the requirements baseline: false positives (output or action where none is expected), false negatives (valid cases silently dropped by a filter, join, or null check), contradictions with design or plan decisions, idempotency on rerun or retry, ordering sensitivity, and boundary values (zero, null, empty, single, maximum). Mark each inapplicable risk with a one-line reason.
-- Validate every potentially material finding against the diff, code, tests, repository rules, type information, or fresh command output. Confirmed findings and material concerns that cannot be confidently dismissed are `BLOCKED`. Record pre-existing, out-of-scope, duplicate, speculative, unsupported, and non-blocking style findings with concise evidence and rationale.
+- Compare injected `## Current Model` and any stage contract with `--implemented-by` and optional `--simplified-by`. If provenance is missing, any writer ID matches the verifier, or simplify lacks its execution ID, return `BLOCKED`. In manual mode, recover missing provenance or select a different model with `/model`, start `/new`, confirm identity, then rerun the full command.
+- Load applicable language/domain skills and references via `skill-loader`; record provenance.
+- Review diff, implementation, tests, requirements, and fresh evidence in bounded sections. If a tool response is truncated, retrieve the missing sections before drawing conclusions. Assess new correctness, security, operation, compatibility, and maintainability; ensure tests cover distinct contracts without multiplying independent dimensions or repeating expensive integration scenarios.
+- Check false positives, false negatives, contradictions with design or plan decisions, idempotency, ordering sensitivity, and boundary values (zero, null, empty, single, maximum); explain inapplicable risks.
+- Validate material findings against source, tests, repository rules, type information, or fresh output. Confirmed or unresolved material concerns block. Record pre-existing, out-of-scope, duplicate, speculative, unsupported, or style findings with evidence.
 
 Do not invoke a separate reviewer tool or parse session logs. Pi performs this semantic review natively under the switched model.
 

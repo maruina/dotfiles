@@ -14,7 +14,7 @@ function prompt(name) {
 }
 
 function requireMarkers(text, markers) {
-  for (const marker of markers) assert.match(text, marker);
+  for (const marker of markers) assert.ok(marker.test(text), `Missing required marker: ${marker}`);
 }
 
 const skillsDir = existsSync(path.join(agentDir, "exact_skills"))
@@ -251,7 +251,7 @@ test("lifecycle stages enforce negative scenarios, consumer maps, behavioral che
   requireMarkers(prompt("verify.md"), [
     /would still pass with a plausible wrong implementation does not observe its stated result/i,
     /false positives.*false negatives.*contradictions with design or plan decisions.*idempotency.*ordering sensitivity.*boundary values/is,
-    /Mark each inapplicable risk with a one-line reason/,
+    /(?:Mark each inapplicable risk with a one-line reason|explain inapplicable risks)/i,
   ]);
 
   const execute = prompt("execute.md");
@@ -972,19 +972,60 @@ test("pr-address-feedback policy overrides pr-comment-triage without step-number
   assert.doesNotMatch(text, /\(step \d+\)/);
 });
 
-test("execute and simplify emit the same /verify handoff contract", () => {
-  const steps = (text) =>
-    text
-      .slice(text.indexOf("## Handoff"))
-      .split("\n")
-      .filter((line) => /^\d\. (Run|Confirm)/.test(line))
-      .map((line) => line.replace(/implementation model|simplification model/g, "<producer> model"));
+test("execute offers simplify and direct verify handoffs with stable writer identities", () => {
+  const execute = prompt("execute.md");
+  requireMarkers(execute, [
+    /optional `\/simplify` handoff/i,
+    /`\/simplify <absolute-plan-path> --implemented-by <id>`/,
+    /`\/simplify --implemented-by <id> --task <quoted-original-request>`/,
+    /`\/verify <absolute-plan-path> --implemented-by <id>`/,
+    /`\/verify --implemented-by <id> --task <quoted-original-request>`/,
+    /preserve the original plan path or exact original task/i,
+    /replace each embedded apostrophe with `'\x22'\x22'`/,
+  ]);
 
-  const execute = steps(prompt("execute.md"));
-  const simplify = steps(prompt("simplify.md"));
-  assert.ok(execute.length >= 5, "execute must carry the numbered handoff steps");
-  assert.deepEqual(simplify, execute);
+  const simplify = prompt("simplify.md");
+  requireMarkers(simplify, [
+    /`--implemented-by`.*handoff metadata/is,
+    /missing.*`--implemented-by`.*ask the user.*before.*emit.*`\/verify`/is,
+    /strip.*`--implemented-by`.*`--base`.*before target resolution/is,
+    /preserve.*exact original task/is,
+    /for planless work.*supplied `--task`.*do not infer.*diff/is,
+    /when no code change.*do not write a ledger-only note or create an empty commit/is,
+    /in `\/implement`, always submit the unchanged outcome.*parent still runs fresh verification/is,
+    /in direct mode.*earlier independent verdict.*exact candidate/is,
+    /require a clean candidate worktree at stage start/i,
+    /replace each embedded apostrophe with `'\x22'\x22'`/,
+    /`\/verify <absolute-plan-path> --implemented-by <exec-id> --simplified-by <simp-id>`/,
+    /`\/verify --implemented-by <exec-id> --simplified-by <simp-id> --task <quoted-original-request>`/,
+  ]);
 
   const verify = prompt("verify.md");
-  for (const flag of ["--implemented-by", "--task"]) assert.match(verify, new RegExp(flag));
+  requireMarkers(verify, [
+    /require `--implemented-by`/i,
+    /accept optional `--simplified-by`/i,
+    /any writer ID matches the verifier.*`BLOCKED`/is,
+    /`--task`.*remaining.*original task/is,
+    /use exactly one requirements source.*a plan path or `--task`/is,
+    /manual review.*fresh `\/new` session.*orchestrated review.*newly created child session.*no preceding stage transcript.*do not require a literal manual `\/new`/is,
+    /differs from every supplied writer model/is,
+    /do not write the report file yourself or change candidate state/i,
+    /`Unit base commit` as the orchestrated slice base.*`Pinned baseline commit` as the feature base for `Final verification`/is,
+  ]);
+});
+
+test("lifecycle templates use bridge tools only with validated orchestration context", () => {
+  for (const file of ["execute.md", "simplify.md", "verify.md"]) {
+    requireMarkers(prompt(file), [
+      /injected stage contract.*protocol version.*run ID.*stage/is,
+      /fixed unit.*pinned baseline/is,
+      /Pinned baseline commit.*Unit base commit.*Pinned plan blob.*Pinned design blob.*Selected unit.*Selected task numbers/is,
+      /scope.*from `Unit base commit`/is,
+      /both `lifecycle_request_decision` and `lifecycle_submit_outcome` tools are available/is,
+      /only use.*bridge.*when.*stage contract.*both.*tools/is,
+      /otherwise.*ordinary conversational approvals.*manual handoffs/is,
+      /rejected.*or dismissed.*stops?.*stage/is,
+      /other blocker.*stage-appropriate.*`(?:blocked|BLOCKED)` outcome/is,
+    ]);
+  }
 });

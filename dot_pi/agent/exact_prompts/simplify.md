@@ -1,6 +1,6 @@
 ---
 description: Simplify recently changed code without altering behavior
-argument-hint: "[<pr-url> | <worktree-path> | <file-path>] [--base <ref>]"
+argument-hint: "[<plan-path | pr-url | worktree-path | file-path>] [--implemented-by <exec-id>] [--base <ref>] [--task <quoted-original-request>]"
 ---
 # Simplify
 Target:
@@ -13,107 +13,79 @@ Simplify code for clarity and maintainability while preserving behavior exactly.
 Do not change behavior. Existing tests must pass before and after; run the focused tests for the touched code first, and again after simplifying. If no tests cover the touched code, say so and stop rather than guessing at behavior. Do not add features, abstractions, or configurability. Do not start on `main` or `master` without explicit user consent.
 </HARD-GATE>
 
+## Lifecycle mode
+Only use the bridge when the injected stage contract validates protocol version 1, run ID, stage `simplify`, fixed unit, pinned baseline, model, thinking, and both `lifecycle_request_decision` and `lifecycle_submit_outcome` tools are available. If a present contract is malformed/mismatched or a tool is missing, stop and ask. Otherwise, use ordinary conversational approvals and manual handoffs.
+
+In orchestrated mode, require a clean candidate worktree at stage start. Validate the `Pinned baseline commit`, `Unit base commit`, `Pinned plan blob`, `Pinned design blob`, `Selected unit`, and `Selected task numbers`. Pinned objects define requirements; the current plan is only a ledger. Mismatch blocks without edits. Simplify only the fixed unit, scoped from `Unit base commit`; the broader diff is context only. Use `lifecycle_request_decision` only within scope. If rejected or dismissed, stop the stage without an outcome. For another blocker, submit the stage-appropriate `blocked` outcome. After checks and any required commit or push, submit exactly one `success` outcome with `change: changed` or `change: unchanged`. Unchanged means no commit; the parent still runs fresh verification.
+
+## Handoff metadata
+`--implemented-by` is handoff metadata; `<exec-id>` carries execution identity. `--task <quoted-original-request>` carries exact planless requirements. Strip `--implemented-by`, `--task`, and `--base` before target resolution; treat everything after `--task` as literal text, not flags. A plan path is the requirements source when present; use `--task` only for planless work. Preserve the exact original task and base meaning.
+
 ## Scope
-Default to recently changed code, not the whole repository. Read beyond the diff as needed to trace the affected flow, understand invariants, inspect callers, and find canonical helpers or ownership boundaries. Keep edits within changed code and its immediate context. If a worthwhile simplification requires broader edits, report it and stop rather than expanding scope automatically.
+Default to recently changed code. Trace affected flows, invariants, callers, and canonical helpers beyond the diff, but edit only changed code and immediate context. Report broader opportunities instead of expanding scope. For planless work, use the supplied `--task` or exact original request; do not infer it from the diff or summary. Ask if neither is available.
 
 ## Target Resolution
-Resolve the target from the first positional in `$ARGUMENTS` and switch context to the owning worktree before reading repository files or modifying code. Strip a trailing `--base <ref>` before resolving; use `<ref>` as the diff base when supplied.
+Resolve the first positional target after handoff metadata; switch to its worktree before reading or editing. `--base` sets the diff base, never the target.
 
-- **Plan path** — resolve it with the `resolve-worktree` skill with `$GLOB = **/plans/*/plan.md`. Switch to the owning worktree and simplify the branch diff there against its base; do not treat a plan path as a single-file target.
-- **File path** — resolve it with the `resolve-worktree` skill (no `$GLOB`). Simplify only that file.
-- **Worktree or directory path** — resolve it with the `resolve-worktree` skill (no `$GLOB`). Simplify the branch diff there against its base.
-- **PR URL** — use the PR URL procedure in the `feature-worktree` skill. Simplify the branch diff there against the PR's `baseRefName` unless `--base` overrides it.
-- **No positional** — simplify the current checkout's working-tree changes, or the branch diff against its base when the tree is clean.
+- **Plan** — use the `resolve-worktree` skill with `$GLOB = **/plans/*/plan.md`; review the branch diff, not only the plan file.
+- **File** — use `resolve-worktree` (no glob); simplify only that file.
+- **Worktree/directory** — use `resolve-worktree` (no glob); simplify its branch diff.
+- **PR URL** — use `feature-worktree`; use the PR base unless `--base` overrides it.
+- **No target** — review current changes, or the branch diff when the tree is clean.
 
 ## Worktree Policy
-Before changing files, use the `feature-worktree` skill to continue in the resolved worktree or the correct feature worktree, or to create one.
+Before edits, use the `feature-worktree` skill to continue in or create the resolved feature worktree.
 
 ## Delegate the "how"
-Do not restate style rules here. Before proposing or making simplifications, use the `skill-loader` skill to determine which language and domain skills to read based on the touched files. Load those skills and defer to them, plus the repository's `AGENTS.md`.
-
-Follow each loaded skill's reference-selection instructions for each review area. Loading a core skill is not a substitute for reading an applicable reference.
-
-If the touched code is in an unfamiliar area, also load `codebase-research` before changing it. Match the repository's existing conventions over any general preference.
-
-Keep a provenance record per the `## Provenance record` section of the `skill-loader` skill.
+Use `skill-loader` to select and load skills for touched files; follow their guidance and `AGENTS.md`. Follow each loaded skill's reference-selection instructions; a core skill is not a substitute for reading an applicable reference. For unfamiliar code, also load `codebase-research`. Record provenance per the `## Provenance record` section of the `skill-loader` skill.
 
 ## Review Procedure
-Read changed code and relevant tests in bounded sections. If a tool response is truncated, retrieve the missing sections before drawing conclusions; if they cannot be retrieved, report the evidence gap and stop rather than declaring that nothing needs simplification.
+Read changed code and relevant tests in bounded sections. If a tool response is truncated, retrieve the missing sections before drawing conclusions; if unavailable, report the evidence gap and stop.
 
-Complete two bounded review passes before editing or concluding that no simplification is needed:
-
+Complete two bounded review passes before editing or concluding no simplification is needed:
 1. **Production code:** inspect state, control flow, ownership, and repeated work.
-2. **Tests:** inspect distinct contracts, overlapping cases, independent dimensions multiplied together, repeated setup, and repeated expensive scenarios. Sharing a helper does not establish that test execution or coverage is nonredundant.
+2. **Tests:** inspect distinct contracts, overlapping cases, independent dimensions, repeated setup, and expensive scenarios. Sharing a helper does not establish that test execution or coverage is nonredundant.
 
-For a pass with no applicable files, record it as inapplicable. Keep both passes within the resolved scope and use the loaded skills for language-specific techniques.
-
-For each removed or merged test, name the contract it covered, the retained test that covers that contract, and why the removed combination adds no distinct interaction coverage. Fewer cases and unchanged statement coverage do not prove equivalent protection. Keep interaction cases unless their redundancy is established.
+For a pass with no applicable files, record it as inapplicable. Keep reviews in scope and use loaded language skills. For each removed or merged test, name the contract it covered, the retained test that covers it, and why the removed combination adds no distinct interaction coverage. Fewer cases and unchanged statement coverage do not prove equivalent protection; retain interaction cases unless redundancy is established.
 
 ## Simplification Lens
-Understand the affected behavior before minimizing its implementation. Apply the decision ladder from the active instructions and stop at the first option that fully preserves behavior.
+Understand the behavior first. Follow the active decision ladder and stop at the first option that fully preserves behavior. Prefer bounded changes that remove concepts, branches, wrappers, duplicate logic, or needless indirection; reuse canonical helpers and ownership boundaries, and state invariants when that clarifies control flow.
 
-Look for bounded "code-judo" changes that remove complexity rather than rearrange it:
-
-- eliminate concepts, branches, modes, wrappers, or duplicate paths
-- reuse an existing canonical helper or ownership boundary
-- make an existing invariant explicit when that simplifies control flow
-- delete indirection that does not improve naming, testing, ownership, or reuse
-
-A simplification must materially reduce at least one of:
-
-- concepts a reader must hold in mind
-- branches or special cases
-- duplicate logic
-- unnecessary indirection
-- ambiguity at a type, API, or ownership boundary
-
-Reject changes that only move complexity between files, reduce line count without improving comprehension, introduce a new abstraction, or alter sequencing, atomicity, error behavior, security, accessibility, or observability. If no material simplification exists, make no change.
+A change must materially reduce reader concepts, branches, duplication, indirection, or ambiguity at a type/API/ownership boundary. Reject cosmetic line-count changes, complexity moved between files, new abstractions, or changes that alter sequencing, atomicity, error behavior, security, accessibility, or observability. If no material simplification exists, make no change.
 
 ## Guardrail
-Simplicity serves the reader, not brevity. Do not:
+Simplicity serves the reader, not brevity. Keep useful abstractions, seams, and names. Do not harm debugging, error messages, or maintainability, or churn clear code.
 
-- remove a useful abstraction, seam, or name that aids understanding
-- collapse code in a way that harms debuggability or error messages
-- trade maintainability for fewer lines
-- churn code that is already clear
-
-If a change is cosmetic-only with no clarity gain, skip it. If nothing is worth simplifying, say so and stop.
+Skip cosmetic changes. If nothing is worth simplifying, make no code change. In direct mode, continue to Handoff and check whether fresh `/verify` is needed. In `/implement`, always submit the unchanged outcome; the parent still runs fresh verification.
 
 ## Commit
-Snapshot `git status --porcelain=v1 --untracked-files=all` before editing, and commit the simplification only when the worktree started clean:
+Snapshot `git status --porcelain=v1 --untracked-files=all`. Commit changed simplifications only if the worktree started clean:
+- After tests pass, stage only files changed here and commit with a descriptive `refactor:` message.
+- If code changed with a plan, add a short ledger note in that commit so `/verify` can account for it. Record a learning candidate with the `learning-candidates` skill if a materially simpler path was initially missed.
+- Push only when the branch has an open PR or configured upstream; never force-push. Otherwise report that the commit is local.
+- When no code change was made, do not write a ledger-only note or create an empty commit. Report unchanged. In direct mode, run fresh `/verify` unless an earlier independent verdict covers this exact candidate. In `/implement`, always submit the unchanged outcome; the parent still runs fresh verification.
 
-- After the post-simplification tests pass, stage only files changed by this pass and commit with a `refactor:` conventional message describing the simplification.
-- When a plan file exists, append a short note about the simplification pass to the plan ledger and include it in the same commit. This keeps a fresh `/verify` from treating the extra commit as an unexplained change. When a materially simpler path existed and was initially missed, record a learning candidate with the `learning-candidates` skill.
-- When the branch has an open PR or a configured upstream, push the new commit; never force-push. Otherwise leave the commit local and report that.
-
-When the worktree had uncommitted changes before simplification started, do not commit; commit boundaries belong to the plan or `/execute`. Report the simplification as uncommitted alongside the pre-existing changes.
+If the worktree started dirty, do not commit; report changes as uncommitted with the pre-existing changes.
 
 ## Stop Conditions
-Stop and ask rather than continuing when:
-
-- the target, branch, base, or worktree location is ambiguous
-- the resolved worktree is on `main` or `master` without explicit user consent
-- an instruction is unclear or multiple interpretations exist
-- no tests cover the touched code, so behavior cannot be confirmed before and after
-- a simplification would change behavior and cannot be proven safe
-- a loaded skill or repository guidance conflicts with the proposed simplification
+Stop and ask if the target, branch, base, or worktree is ambiguous; the worktree is `main`/`master` without consent; instructions are unclear or conflicting; tests cannot establish behavior; a behavior change cannot be proven safe; or loaded skills conflict with repository guidance.
 
 ## Handoff
-Report the exact handoff phrase below. First summarize the simplification diff, the verification commands run before and after, anything deliberately left alone, and the commit made (message and hash) or why no commit was made, and include **Skills loaded and used** as a `Skill | Source | Why loaded | How used` table for every skill read and applied during simplification; explicitly state when none were needed.
+Report the exact handoff phrase below. Summarize the diff, tests before and after, items left alone, and commit message/hash or why no commit was made. Include **Skills loaded and used** as a `Skill | Source | Why loaded | How used` table; explicitly say when none were needed.
 
-If nothing was worth simplifying and no change was made, say the diff is unchanged, any earlier `/verify` verdict still stands, and no fresh closeout is needed.
+In orchestrated mode, submit the structured result; the parent always starts fresh `/verify`, including after unchanged simplification.
 
-When changes were made, any earlier `/verify` verdict is stale. Before emitting the handoff, determine the requirements source for the fresh `/verify`: the plan path from this session, else resolve it with the `resolve-worktree` skill with `$GLOB = **/plans/*/plan.md` in the simplified worktree, else the plan linked from the open PR body; for planless trivial work, the original request. If neither is determinable, ask the user for the plan path or the original task before emitting the handoff.
+In direct mode, report unchanged work without a commit. An earlier independent `/verify` verdict remains valid only for the exact candidate and requirements; if none covers it, use the fresh handoff below. Any changed candidate invalidates earlier verdicts.
 
-Name the simplification model from the injected `## Current Model` context and carry its stable model ID in the `/verify` command so it survives `/new`. If the context is absent, state that no simplification model was available; do not invent one. Then say exactly:
+For any fresh verification, use this session's plan path; otherwise resolve it in the worktree or use the open PR's plan. For planless work, use the exact original task. If no plan/task or `--implemented-by` is available, ask the user before emitting `/verify`; do not infer it. Carry the execution ID and stable provider-qualified simplification ID from `## Current Model`; ask if either is missing. Then say exactly:
 
-Simplification model: `<name> (<id>)`
+Execution model ID: `<exec-id>`
+Simplification model: `<name> (<simp-id>)`
 
-1. Run `/model` and select a model different from the simplification model.
-2. Run `/new`.
-3. Confirm the injected `## Current Model` context (also visible in the statusline) names the selected verifier model.
-4. Run `/verify <absolute-plan-path> --implemented-by <id>`.
+Plan-backed command:
+`/verify <absolute-plan-path> --implemented-by <exec-id> --simplified-by <simp-id>`
 
-For planless trivial work, replace step 4 with:
+Planless command:
+`/verify --implemented-by <exec-id> --simplified-by <simp-id> --task <quoted-original-request>`
 
-4. Run `/verify --implemented-by <id> --task <quoted-original-request>`.
+Quote the exact task as one native Pi argument: single-quote it and replace each embedded apostrophe with `'"'"'`; do not backslash-escape quotes. Preserve whitespace, quotes, flags, and literal `$ARGUMENTS`. Quote paths containing whitespace. For a manual verification handoff, run `/model`, select a model different from both writer models, run `/new`, and confirm injected `## Current Model`. An orchestrated verifier is fresh without a literal `/new` command.

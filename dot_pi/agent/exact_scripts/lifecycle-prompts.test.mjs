@@ -172,6 +172,67 @@ test("brainstorm persists productively and preserves user control", () => {
   ]);
 });
 
+test("design approval requires a fresh comprehension review, not author self-review", () => {
+  requireMarkers(prompt("brainstorm.md"), [
+    /fresh.*design-only.*review/is,
+    /before final approval/i,
+    /material.*revision.*fresh review/is,
+    /git hash-object <design-path>/,
+    /mismatch requires a fresh review/i,
+    /missing.*stop/is,
+  ]);
+  requireMarkers(prompt("plan.md"), [
+    /fresh design-only review/i,
+    /reviewed.*revision/i,
+    /git hash-object <design-path>/,
+    /hashes differ.*stop/is,
+    /missing.*stop/is,
+  ]);
+});
+
+test("design-only review isolates the document and bypasses general review", () => {
+  requireMarkers(prompt("systematic-review.md"), [
+    /fresh.*`\/new`.*session/is,
+    /only the design/i,
+    /do not read.*code.*conversation/is,
+    /what this proposes/i,
+    /how it works today/i,
+    /what changes for the user/i,
+    /what could go wrong/i,
+    /what.*asked to approve/i,
+    /reviewed.*Git blob/i,
+    /do not apply.*general.*review/is,
+    /contradictory user-visible behavior is a comprehension blocker/i,
+    /stop after its verdict/i,
+    /Do not emit `## Fix findings` or the general `Review complete` handoff/,
+    /This section does not apply to design-only reviews/,
+    /missing.*not.*guess/is,
+    /git hash-object <design-path>/,
+  ]);
+});
+
+test("plan review blocks hidden material decisions, not routine details", () => {
+  for (const file of ["plan.md", "systematic-review.md"]) {
+    requireMarkers(prompt(file), [
+      /plan.*design.*material decision/is,
+      /external dependenc.*security.*data.*cost.*test/is,
+      /routine implementation details.*not/is,
+      /approval.*before implementation/is,
+    ]);
+  }
+});
+
+test("approval briefs expose validation limits and accepted gaps", () => {
+  for (const file of ["brainstorm.md", "plan.md"]) {
+    requireMarkers(prompt(file), [
+      /Validation limits:/,
+      /what.*tests establish.*untested.*block.*accepted/is,
+      /validation limits.*durable/is,
+    ]);
+  }
+  assert.match(prompt("systematic-review.md"), /validation limits.*approved.*gaps/is);
+});
+
 test("brainstorm synthesizes a design for human readers", () => {
   const text = prompt("brainstorm.md");
 
@@ -269,9 +330,9 @@ test("lifecycle stages enforce negative scenarios, consumer maps, behavioral che
 
 test("lifecycle prompts stay within prompt context budgets", () => {
   const budgets = new Map([
-    ["brainstorm.md", 12_500],
-    ["plan.md", 16_000],
-    ["systematic-review.md", 10_000],
+    ["brainstorm.md", 14_000],
+    ["plan.md", 16_800],
+    ["systematic-review.md", 12_500],
     ["execute.md", 14_500],
     ["verify.md", 13_000],
     ["simplify.md", 9_500],

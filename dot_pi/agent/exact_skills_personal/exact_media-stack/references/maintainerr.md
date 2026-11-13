@@ -2,6 +2,10 @@
 
 Server at `http://localhost:6246` inside `deploy/maintainerr`. No auth.
 
+## Deletion path (verified 2026-11-11)
+
+The Plex deployment mounts `/data/media` with `readOnly: true` (`apps/plex/deployment.yaml`), so Plex cannot unlink media files and returns HTTP 400 for every direct `DELETE /library/metadata/<id>` (fails in ~2ms; a bogus rating key returns 404, so the route and auth are fine). Maintainerr deletes only via Radarr/Sonarr, which mount the same volume read-write. A Plex item outside the arrs (manually dropped files, IPTV test leftovers) makes Maintainerr fall back to the direct Plex delete, fail with 400, and retry every scheduled run — the signature pair is `[WARN] Failed to handle media with id <id> in collection '...'` + `[ERROR] [PlexAdapterService] Failed to delete item <id> from disk`. Caught by the Datadog monitor "Maintainerr recurring media failure". Fix: delete the files from a read-write pod (Radarr works), trigger a Plex scan of the section, and let Maintainerr clean up on its next run.
+
 ## API surface (thin)
 
 - `GET /api/rules` — rule groups. Each contains `rules[]` with `ruleJson` (a serialized condition spec) and a nested `collection` object with the live settings.

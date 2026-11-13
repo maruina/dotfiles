@@ -7,7 +7,7 @@ Arguments: `$ARGUMENTS`
 
 Update the current branch's existing GitHub PR after implementation or review feedback. Use `/pr-create` to open the first PR for a branch.
 
-Read `reviewable-pr-workflow` before acting. It is the source of truth for PR bodies, history, stacks, and reporting. For stacked PRs, also read `github-stacks` and use GitHub's native stack workflow.
+Load `skill-loader` first and follow its skill-selection rules. Read `reviewable-pr-workflow` before acting. It is the source of truth for PR bodies, history, stacks, and reporting. For stacked PRs, also read `github-stacks` and use GitHub's native stack workflow.
 
 ## Phase 1: Establish PR and review state
 Run:
@@ -67,7 +67,17 @@ gh pr edit <number> --body-file <temp-file>
 
 Include `--title <new-title>` only after approval or an explicit title-update request.
 
+## Phase 4: Check ARP status
+After pushing any branch changes and updating the PR, check Agentic Review Platform (ARP) status if the `agentic-review` MCP server is available. Discover `agentic_review_get_status` with `tool_search` and read the server instructions, subject to this command's read-only limit. If ARP is unavailable or needs sign-in, report that and do not block the PR update.
+
+Read the PR's pushed head with `gh pr view <number> --json headRefOid`, then call `agentic_review_get_status` for the same owner, repository, and PR number. Compare the returned `head_sha` with `headRefOid`:
+- If they match, report ARP's status for that head. Distinguish queued, running, failed, skipped, paused, and completed reviews; do not describe missing or unfinished reviews as clean.
+- If they differ or the persisted head is absent, report the ARP status as stale or unavailable for the pushed head. Do not present an older result as validation of the updated PR.
+
+Do not request or retry a review, even if the server instructions recommend it. Do not resolve findings or start a fix loop. Those operations write production state, and finding resolutions are permanent; use a separate, explicit review task. Do not poll or wait for completion.
+
 ## Report
 Report per the workflow skill, plus:
+- the ARP status, reviewed head compared with the pushed head, or availability gap;
 - title and generated-section changes;
 - explanations and examples added, updated, or retained.

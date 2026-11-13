@@ -33,10 +33,20 @@ The user approved the three numbered recommendations in the preceding comparison
 **Traces to:** All scenarios above
 **Files:** `dot_pi/agent/exact_prompts/brainstorm.md`, `dot_pi/agent/exact_prompts/plan.md`, `dot_pi/agent/exact_prompts/systematic-review.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`
 
-- [ ] Add focused contract tests and observe failure.
-- [ ] Add the smallest prompt changes and adjust explicit context budgets only for added policy.
-- [ ] Run focused and full checks; inspect the complete diff.
-- [ ] Record validation limits and completion evidence.
-- [ ] Apply explicit verified targets, commit with `feat(pi): add lifecycle approval checks`, and push only when safe.
+- [x] Add focused contract tests and observe failure.
+- [x] Add the smallest prompt changes and adjust explicit context budgets only for added policy.
+- [x] Run focused and full checks; inspect the complete diff.
+- [x] Record validation limits and completion evidence.
+- [x] Apply explicit verified targets, commit with `feat(pi): add lifecycle approval checks`, and push only when safe.
 
 Documentation impact: the changed prompts are the user and agent instructions. No extension or coordinator behavior changes, so no additional AGENTS.md guidance is needed.
+
+## Execution evidence
+- Four focused contract tests failed before implementation. All 60 lifecycle contract tests pass after implementation. `npm test` and the final `npm run test:all` passed, including the offline smoke check. An earlier repeated unit run timed out; a bounded retry and subsequent final full runs passed.
+- JavaScript LSP diagnostics reported no errors after dependency installation. The initial LSP context request was unavailable before installation.
+- Independent semantic review used a fresh `anthropic/claude-sonnet-4-6` session, separate from writer `openai/gpt-6.1-sol`. Added explicit content-hash comparisons and a named durable validation-limits requirement after review. Rejected the suggestion that loading the write skill grants write permission; skills are instructions, not tool permissions. Final review found no blocking material defects. Its report-delivery-channel and conservative scope-classification advisories remain non-blocking.
+- Live fresh-session tests used the candidate `/systematic-review` template in a disposable Git worktree. The first run incorrectly continued into the general fix workflow. After explicit exclusions, an ambiguous design returned `NEEDS CLARIFICATION` without the general fix handoff. A clarified design returned `READY FOR USER APPROVAL`, also without that handoff.
+- Limits: these live tests sample one reviewer model and two documents; they do not prove universal compliance. Gates remain prompt policy rather than coordinator enforcement. Missing reports stop the workflow; no automatic report transport is added.
+
+## Learning candidates
+- 2026-11-13: A design-only section that bypassed the general review method still allowed the model to emit the later Fix findings section. Explicitly exclude that section both at the design-only stopping rule and at the general section itself — evidence: `dot_pi/agent/exact_prompts/systematic-review.md`, design-only stopping rule and Fix findings exclusion; live candidate command returned only the design verdict after the change.

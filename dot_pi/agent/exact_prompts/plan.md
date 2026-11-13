@@ -38,6 +38,10 @@ Use the upstream design, brief, issue, PR feedback, or request as the source of 
 - Investigate discoverable facts yourself; ask the user only for decisions, priorities, or unavailable context.
 - Every task must trace to a goal, requirement, or explicit instruction. Carry source-defined non-goals and deliberate deferrals into the brief and plan without adding, dropping, or reinterpreting scope.
 
+For a Medium or Large/Risky upstream design, require a fresh design-only review report identifying the reviewed design revision and final user approval. Compare `git hash-object <design-path>` with the report's blob or content hash. If either approval or report is missing, or the hashes differ, stop and request `/new` followed by `/systematic-review <absolute-path-to-design.md>` and renewed approval before planning.
+
+Compare the plan back to the approved design for each material decision: user-visible behavior, external dependencies, security, data, cost, assumptions, structure, and test limitations. Surface anything that could change the user's approval; obtain explicit approval before implementation and update the design when applicable. Routine implementation details do not need renewed design approval. With no upstream design, present material decisions in the planning alignment brief.
+
 ### Advisory learning lookup
 After resolving the input and repository context, but before feasibility decisions or recommendations, use the `learning-lookup` skill. Record skipped sources and material guidance in `plan.md`, or in the chat plan for chat-only planning. Do not retrieve the mutable store during `/execute` or `/verify`.
 
@@ -96,6 +100,9 @@ Proposed vertical slices:
 Validation strategy and test seams:
 - [requirement or scenario] → [highest supported interface; existing or justified new seam]
 
+Validation limits:
+- [what the tests establish, what remains untested, and whether each gap blocks delivery or is explicitly accepted]
+
 Assumptions, confirmed/rejected decisions, and risks:
 - ...
 ```
@@ -137,6 +144,8 @@ Right-size the remainder:
 - **Medium / Large/Risky:** add `## Implementation Contract` containing **Components Affected** (`Component | Files | Responsibility | Verification`), **Key Decisions** (decision, rationale, and rejected alternative's benefit), **Implementation Constraints** (ADRs, assumptions, stop conditions, and safety/performance/DX requirements or why inapplicable), **Security and Observability Requirements** (or why none apply), **Failure Modes to Handle**, **Rollout and Rollback** (with owner), and **Test Strategy** (highest deterministic supported interface, seams, system boundaries to mock, and narrow failing command).
 
 For integration, reliability, performance, or cost checks, define comparable baseline and candidate workloads where applicable. Specify telemetry selectors for the exact instance, version, traffic cohort, and observation window. Define isolation for mutable state, queues, background jobs, and downstream effects, not only ports or incoming traffic. Record mock limitations and which claims require real dependencies. If required traffic, telemetry, or isolation is unavailable, name the gap and do not plan to infer success from absent errors.
+
+Carry the approved validation limits into the durable plan. Missing required evidence blocks delivery; an accepted gap does not waive a required check. New or widened gaps require user approval.
 
 ### Slice grouping
 Group tasks under `### Slice N: <title>` headings only when the plan needs more than one shippable slice: Medium or Large/Risky work, or work with deliberately deferred scope. Each heading names the user feedback it delivers. Slice 1 is the smallest user-feedback slice. Small/direct plans keep the concise `## Scope` and `## Validation` shape with one execution unit and no slice headings.

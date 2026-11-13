@@ -147,6 +147,9 @@ Smallest user-feedback slice:
 Success criteria and validation:
 - ...
 
+Validation limits:
+- [what the tests establish, what remains untested, and whether each gap blocks delivery or is explicitly accepted]
+
 Operational notes:
 - ...
 
@@ -159,12 +162,17 @@ Open questions:
 
 Ask the user to confirm or adjust the brief. After confirmation, create the durable design unless the user chose the chat-only exception. Confirm that the option comparison still holds before writing `design.md`; if it no longer holds, return to alignment. Do not write to Jira or Confluence unless requested.
 
+## Design comprehension gate
+For Medium and Large/Risky durable designs, require a fresh, design-only comprehension review before final approval. After the confirmed alignment brief, write and commit a draft, then stop and ask the user to start `/new` and run `/systematic-review <absolute-path-to-design.md>`. Do not substitute author self-review or carry the conversation into the reviewer session. Small designs and explicit chat-only brainstorming keep the existing flow.
+
+Resume final approval only with a report identifying the reviewed revision and no unresolved comprehension blockers. Compare `git hash-object <design-path>` with the report's blob or content hash; a mismatch requires a fresh review before approval. If the report is missing or stale, stop at the review handoff; do not emit the completed-spec handoff. Fix confirmed gaps, obtain a fresh review after any material design revision, then ask the user to approve the reviewed design. Preserve validation limits in the durable design, including explicitly accepted gaps. A comprehension review does not establish technical correctness.
+
 ## Design artifact
 When creating or updating `design.md`:
 
 1. Use the `feature-worktree` skill to continue in the correct existing worktree or create one from the latest default branch.
 2. Write `plans/<ticket-or-feature>/design.md`, preferably under the relevant package in a monorepo.
-3. Include the confirmed alignment brief plus context reviewed, goals and non-goals, assumptions, the smallest user-feedback slice and the deferred alternatives, design overview, risks and mitigations, operability, rollout/rollback, security and data handling, testing strategy, and open questions. Preserve skill provenance and add skills used while writing or reviewing the spec. Write for a reader outside the conversation: explain context, domain terms, and current behavior where relevant. The design is a synthesis, not a transcript; omit coaching exchanges and question history.
+3. Include the confirmed alignment brief plus context reviewed, goals and non-goals, assumptions, the smallest user-feedback slice and the deferred alternatives, design overview, risks and mitigations, operability, rollout/rollback, security and data handling, testing strategy, validation limits (including untested claims and accepted gaps), and open questions. Preserve skill provenance and add skills used while writing or reviewing the spec. Write for a reader outside the conversation: explain context, domain terms, and current behavior where relevant. The design is a synthesis, not a transcript; omit coaching exchanges and question history.
 4. Apply the review in `## Alignment and durable output`, fix blocking issues inline, and record material rejected findings with rationale.
 5. Commit only the design with `docs: add <ticket-or-feature> design`. Stop rather than commit on `main` or `master` or with unrelated changes.
 
@@ -181,6 +189,6 @@ For chat-only brainstorming, end with:
 
 If this captures the problem and first slice, I can turn it into a plan next.
 
-For durable brainstorming, after saving and committing the spec, say exactly:
+For durable brainstorming, after saving and committing the spec and satisfying any required design comprehension gate, say exactly:
 
 Spec complete, committed, and saved to `<absolute-path-to-design.md>`. Review it before handing off to `/plan <absolute-path-to-design.md>`, or run `/plan` with no arguments to choose from discovered design specs.

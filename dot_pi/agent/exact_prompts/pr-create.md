@@ -7,7 +7,7 @@ Arguments: `$ARGUMENTS`
 
 Create the first GitHub PR for the current branch. Use `/pr-update` when the branch already has a PR.
 
-Read `reviewable-pr-workflow` before acting. It is the source of truth for PR bodies, history, stacks, and reporting. For stacked PRs, also read `github-stacks` and use GitHub's native stack workflow.
+Load `skill-loader` first and follow its skill-selection rules. Read `reviewable-pr-workflow` before acting. It is the source of truth for PR bodies, history, stacks, and reporting. For stacked PRs, also read `github-stacks` and use GitHub's native stack workflow.
 
 Creating a PR is the explicit side effect of this command. Create it as a draft.
 
@@ -71,8 +71,21 @@ Before setting the final body, verify that the explanation, examples, and code r
 
 For a native stack, confirm GitHub displays the full stack after submission. Do not add a manual stack-navigation block to PR bodies.
 
+## Phase 4: Offer an ARP review
+After creating the draft PR, offer an Agentic Review Platform (ARP) review if the `agentic-review` MCP server is available. Draft PRs are not reviewed automatically. Ask for explicit approval to request a review and ask whether to use `silent: true` (no GitHub comments or reactions). Creating a PR does not authorize an ARP write. If ARP is unavailable or needs sign-in, report that and do not block PR creation.
+
+Only after approval:
+- Discover the tools with `tool_search` and read the server instructions, subject to this command's approval limits.
+- Read the PR's pushed head with `gh pr view <url> --json headRefOid` and call `agentic_review_get_status` for the same owner, repository, and PR number.
+- Compare the returned `head_sha` with `headRefOid`. If they differ or the persisted head is absent, report that ARP has not captured the pushed head and stop the ARP step.
+- Follow `allowed_action`: use `review_anyway` only for `REVIEW_ACTION_REVIEW_ANYWAY`, or `retry` only for `REVIEW_ACTION_RETRY`. Pass the returned `head_sha` as `expected_head_sha` and the user's chosen `silent` value to `agentic_review_request_review`. If no action is allowed, report the status without requesting a review. This tool cannot force a fresh review of an already completed head.
+- Report the returned status and head, including whether an in-flight review was reused. Do not poll or wait for completion.
+
+ARP writes affect production, and finding resolutions are permanent. Do not resolve findings or start a fix loop in this command; use a separate, explicit review task.
+
 ## Report
 Report per the workflow skill, plus:
+- the ARP offer, approval, request result, or availability gap;
 - the base branch;
 - whether a stack was proposed;
 - the explanation and examples included;

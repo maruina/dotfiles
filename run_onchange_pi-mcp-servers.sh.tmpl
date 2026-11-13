@@ -11,6 +11,11 @@ pi mcp remove b2-mcp >/dev/null 2>&1 || true
 pi mcp remove datadog-prod >/dev/null 2>&1 || true
 pi mcp remove datadog-staging >/dev/null 2>&1 || true
 
+pi mcp add agentic-review \
+  --url "https://agentic-review-mcp.mcp.us1.ddbuild.io/internal/mcp" \
+  --exposure deferred \
+  --description 'Query Agentic Review Platform (ARP) PR review status and findings. Request reviews and record permanent finding resolutions only on explicit request; writes affect production. Sign in once with: pi mcp login agentic-review.'
+
 pi mcp add ddci-mcp-prod --url "https://ddci-mcp.mcp.us1.ddbuild.io/internal/mcp" \
   --exposure deferred \
   --description 'Query and control DDCI (GitLab CI) pipelines: status, AI error summaries, job logs, retry failed jobs, trigger auto/on-demand runs, local build impact analysis. Sign in once with: pi mcp login ddci-mcp-prod.'
@@ -25,6 +30,7 @@ pi mcp add slack \
   --description 'Search and read Datadog Slack channels, threads, and users. Send only on explicit request.' \
   -- python3 '~/.pi/agent/skills_work/slack-mcp/scripts/slack-mcp-proxy.py'
 {{ else }}
+pi mcp remove agentic-review >/dev/null 2>&1 || true
 pi mcp remove datadog-prod >/dev/null 2>&1 || true
 pi mcp remove datadog-staging >/dev/null 2>&1 || true
 pi mcp remove ddci-mcp-prod >/dev/null 2>&1 || true

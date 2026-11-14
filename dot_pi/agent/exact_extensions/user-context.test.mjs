@@ -52,21 +52,6 @@ test("formatCurrentModel emits a named model and omits missing IDs", () => {
   assert.deepEqual(formatCurrentModel({ name: "GPT-5" }), []);
 });
 
-test("formatCurrentModel adds a known thinking level and omits a missing one", () => {
-  assert.deepEqual(
-    formatCurrentModel({ id: "gpt-5", name: "GPT-5" }, "high"),
-    ["## Current Model", "- GPT-5 (gpt-5)", "- Thinking level: high"],
-  );
-  assert.deepEqual(
-    formatCurrentModel({ id: "gpt-5", name: "GPT-5" }),
-    ["## Current Model", "- GPT-5 (gpt-5)"],
-  );
-  assert.deepEqual(
-    formatCurrentModel({ id: "gpt-5", name: "GPT-5" }, undefined),
-    ["## Current Model", "- GPT-5 (gpt-5)"],
-  );
-});
-
 test("loadRexLines returns nothing without REX_SESSION and never runs rex", async () => {
   assert.equal(await loadRexLines({}, neverRun), null);
   assert.equal(await loadRexLines({ REX_SERVER: "unix:///tmp/rex.sock" }, neverRun), null);

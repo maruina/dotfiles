@@ -33,10 +33,6 @@ type RecentPullRequest = {
   headRefName?: string;
 };
 
-// Mirrors ThinkingLevel from @earendil-works/pi-agent-core, which is not a
-// declared dependency and not re-exported by @earendil-works/pi-coding-agent.
-type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
-
 function runSync(command: string, args: string[] = [], cwd?: string, timeout = 2000): string | null {
   try {
     return execFileSync(command, args, { encoding: "utf8", timeout, cwd, stdio: ["ignore", "pipe", "ignore"] }).trim() || null;
@@ -208,16 +204,9 @@ export function formatPR(pr: RecentPullRequest | CurrentPullRequest): string {
   return `- [${state}] #${pr.number}${base}: ${pr.title} [head: ${head}]${link}`;
 }
 
-export function formatCurrentModel(model?: { id?: string; name?: string }, thinkingLevel?: ThinkingLevel): string[] {
+export function formatCurrentModel(model?: { id?: string; name?: string }): string[] {
   if (!model?.id) return [];
-  const lines = ["## Current Model", `- ${model.name ?? model.id} (${model.id})`];
-  if (thinkingLevel) {
-    lines.push(`- Thinking level: ${thinkingLevel}`);
-    // deliberate: getThinkingLevel always returns a level on current pi; the
-    // undefined branch guards an older pi or a failed call and must not be
-    // removed as dead code. Upgrade path: drop the branch when min pi exposes it.
-  }
-  return lines;
+  return ["## Current Model", `- ${model.name ?? model.id} (${model.id})`];
 }
 
 export function shouldAddSkillLoaderGuidance(prompt: string): boolean {
@@ -278,14 +267,7 @@ export default function (pi: ExtensionAPI) {
       lines.push(...rexLines);
     }
 
-    let thinkingLevel: ThinkingLevel | null = null;
-    try {
-      thinkingLevel = pi.getThinkingLevel();
-    } catch {
-      // Older pi or a failed call; the report shows the level as unavailable.
-      thinkingLevel = null;
-    }
-    const currentModelLines = formatCurrentModel(ctx.model, thinkingLevel ?? undefined);
+    const currentModelLines = formatCurrentModel(ctx.model);
     if (currentModelLines.length > 0) {
       if (lines.length > 0) lines.push("");
       lines.push(...currentModelLines);

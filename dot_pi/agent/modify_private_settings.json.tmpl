@@ -47,8 +47,16 @@ printf '%s\n' "$input" | jq '
   ] |
   .packages = [
     "npm:@datadog/pi-plugin",
-    "npm:@pi-minimal/mention-skills"
+    "npm:@pi-minimal/mention-skills",
+    "npm:pi-observational-memory"
   ] |
+  .["observational-memory"] = {
+    "model": {
+      "provider": "opencode-go",
+      "id": "deepseek-v4.1-flash",
+      "thinking": "low"
+    }
+  } |
   del(.npmCommand) |
   del(.npmGuard) |
 {{- end }}

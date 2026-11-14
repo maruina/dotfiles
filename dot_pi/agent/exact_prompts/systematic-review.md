@@ -46,6 +46,7 @@ For behavior-bearing code, also check that resource growth is bounded (loops, qu
 For `plan.md` targets, check that:
 
 - every requirement maps to a task or explicit follow-up
+- plan metadata parses for the `/implement` preflight: `### Task N: <title>` and `### Slice N: <title>` headings, `**Blocked by:**` lines holding only `Task N` references or `None` (each reference with its own `Task` keyword; notes on their own line), every checkbox inside a task body, and feature-level final verification as a numbered task in the last slice
 - the smallest user-feedback slice is named and is slice 1
 - every requirement and task maps to a slice, unless it is explicitly deferred as a follow-up
 - scope that re-entered from an alternative design or a prior review is deferred with a revisit trigger

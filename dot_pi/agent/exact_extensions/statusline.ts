@@ -1,5 +1,5 @@
 import type { AssistantMessage } from "@earendil-works/pi-ai";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { estimateTokens, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
 function formatTokens(tokens: number): string {
@@ -8,12 +8,31 @@ function formatTokens(tokens: number): string {
 	return `${(tokens / 1_000_000).toFixed(1)}m`;
 }
 
-function formatContext(usage: { tokens: number | null; contextWindow: number; percent: number | null } | undefined): string {
+function formatContext(usage: { tokens: number | null; contextWindow: number; percent: number | null } | undefined, estimated = false): string {
 	if (!usage || usage.tokens === null) return "ctx n/a";
+	const prefix = estimated ? "~" : "";
 	const percent = usage.percent ?? (usage.contextWindow > 0 ? (usage.tokens / usage.contextWindow) * 100 : null);
-	if (percent === null) return `${formatTokens(usage.tokens)} ctx`;
+	if (percent === null) return `${prefix}${formatTokens(usage.tokens)} ctx`;
 	const left = Math.max(0, 100 - percent);
-	return `${percent.toFixed(0)}% ctx · ${left.toFixed(0)}% left`;
+	return `${prefix}${percent.toFixed(0)}% ctx · ${left.toFixed(0)}% left`;
+}
+
+// Pi reports tokens: null after a compaction until the next assistant response
+// (unknown until the next LLM call). Estimate the post-compaction context from
+// the branch with the same per-entry estimator Pi uses, plus a chars/4 system
+// prompt estimate (the system message entry stores sections, which
+// estimateTokens does not count).
+export function estimateContextTokens(entries: readonly unknown[], systemPrompt: string): number {
+	let tokens = Math.ceil(systemPrompt.length / 4);
+	for (const entry of entries) {
+		const e = entry as { type: string; message?: unknown; content?: unknown };
+		if (e.type === "message" && e.message) {
+			tokens += estimateTokens(e.message as Parameters<typeof estimateTokens>[0]);
+		} else if (e.type === "custom_message" && typeof e.content === "string") {
+			tokens += Math.ceil(e.content.length / 4);
+		}
+	}
+	return tokens;
 }
 
 function shortModel(id?: string): string {
@@ -93,7 +112,18 @@ export default function (pi: ExtensionAPI) {
 						output += message.usage?.output ?? 0;
 					}
 
-					const context = formatContext(ctx.getContextUsage());
+					const contextUsage = ctx.getContextUsage();
+					const context =
+						contextUsage && contextUsage.tokens === null
+							? formatContext(
+								{
+									tokens: estimateContextTokens(ctx.sessionManager.getBranch(), ctx.getSystemPrompt()),
+									contextWindow: contextUsage.contextWindow,
+									percent: null,
+								},
+								true,
+							)
+							: formatContext(contextUsage);
 					const branch = footerData.getGitBranch();
 					const dir = process.cwd().split("/").pop() || "";
 					const sandbox = sandboxStatus();

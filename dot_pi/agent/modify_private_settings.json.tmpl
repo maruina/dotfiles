@@ -51,6 +51,7 @@ printf '%s\n' "$input" | jq '
     "npm:pi-observational-memory"
   ] |
   .["observational-memory"] = {
+    "compactAfterTokensMode": "ratio",
     "model": {
       "provider": "opencode-go",
       "id": "deepseek-v4.1-flash",

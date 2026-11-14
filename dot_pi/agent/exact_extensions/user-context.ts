@@ -33,7 +33,9 @@ type RecentPullRequest = {
   headRefName?: string;
 };
 
-type ThinkingLevel = "off" | "low" | "medium" | "high";
+// Mirrors ThinkingLevel from @earendil-works/pi-agent-core, which is not a
+// declared dependency and not re-exported by @earendil-works/pi-coding-agent.
+type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 
 function runSync(command: string, args: string[] = [], cwd?: string, timeout = 2000): string | null {
   try {
@@ -206,7 +208,7 @@ export function formatPR(pr: RecentPullRequest | CurrentPullRequest): string {
   return `- [${state}] #${pr.number}${base}: ${pr.title} [head: ${head}]${link}`;
 }
 
-export function formatCurrentModel(model?: { id?: string; name?: string }, thinkingLevel?: string): string[] {
+export function formatCurrentModel(model?: { id?: string; name?: string }, thinkingLevel?: ThinkingLevel): string[] {
   if (!model?.id) return [];
   const lines = ["## Current Model", `- ${model.name ?? model.id} (${model.id})`];
   if (thinkingLevel) {
@@ -276,7 +278,7 @@ export default function (pi: ExtensionAPI) {
       lines.push(...rexLines);
     }
 
-    let thinkingLevel: string | null = null;
+    let thinkingLevel: ThinkingLevel | null = null;
     try {
       thinkingLevel = pi.getThinkingLevel();
     } catch {
@@ -403,7 +405,9 @@ export default function (pi: ExtensionAPI) {
       };
     }
 
-    if (shouldAddSkillLoaderGuidance(event.prompt)) {
+    // Only user-message runs carry a prompt; custom runs started by
+    // pi.sendMessage while idle have no prompt to inspect.
+    if (event.messageType === "user" && shouldAddSkillLoaderGuidance(event.prompt)) {
       response.systemPrompt = `${event.systemPrompt}\n\n${SKILL_LOADER_GUIDANCE}`;
     }
 

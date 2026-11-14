@@ -222,6 +222,28 @@ export function shouldAddSkillLoaderGuidance(prompt: string): boolean {
   return CODE_TASK_RE.test(prompt) && CODE_CONTEXT_RE.test(prompt);
 }
 
+export function formatRexContext(output: string): string[] {
+  return ["## Rex", "", ...output.split("\n")];
+}
+
+type AsyncRunner = typeof runAsync;
+
+// rex __internal session-start prints the Rex guidance block and exits 0
+// with no output when REX_SESSION is unset, so it is safe outside Rex.
+export async function loadRexLines(env: NodeJS.ProcessEnv, run: AsyncRunner): Promise<string[] | null> {
+  if (!env.REX_SESSION) return null;
+  const output = await run("rex", ["__internal", "session-start", "--agent", "pi"], undefined, 3000);
+  return output ? formatRexContext(output) : null;
+}
+
+let cachedRexLines: string[] | null | undefined;
+
+async function getRexLines(): Promise<string[] | null> {
+  if (cachedRexLines !== undefined) return cachedRexLines;
+  cachedRexLines = await loadRexLines(process.env, runAsync);
+  return cachedRexLines;
+}
+
 export function buildRepoContextKey(cwd: string, branch: string | null, email: string | null): string {
   return [cwd, branch ?? "", email ?? ""].join("\0");
 }
@@ -246,6 +268,12 @@ export default function (pi: ExtensionAPI) {
       lines.push("## User Identity");
       if (name) lines.push(`- Name: ${name}`);
       if (email) lines.push(`- Email: ${email}`);
+    }
+
+    const rexLines = await getRexLines();
+    if (rexLines) {
+      if (lines.length > 0) lines.push("");
+      lines.push(...rexLines);
     }
 
     let thinkingLevel: string | null = null;

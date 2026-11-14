@@ -6,10 +6,15 @@ import {
   buildRepoContextKey,
   formatCurrentModel,
   formatPR,
+  loadRexLines,
   pathInside,
   shouldAddSkillLoaderGuidance,
   uniqueMatches,
 } from "./user-context.ts";
+
+const neverRun = () => {
+  throw new Error("rex must not run when REX_SESSION is unset");
+};
 
 test("uniqueMatches returns distinct Jira keys in first-seen order", () => {
   assert.deepEqual(
@@ -60,6 +65,27 @@ test("formatCurrentModel adds a known thinking level and omits a missing one", (
     formatCurrentModel({ id: "gpt-5", name: "GPT-5" }, undefined),
     ["## Current Model", "- GPT-5 (gpt-5)"],
   );
+});
+
+test("loadRexLines returns nothing without REX_SESSION and never runs rex", async () => {
+  assert.equal(await loadRexLines({}, neverRun), null);
+  assert.equal(await loadRexLines({ REX_SERVER: "unix:///tmp/rex.sock" }, neverRun), null);
+});
+
+test("loadRexLines returns nothing when rex is missing or unusable", async () => {
+  const run = async () => null;
+  assert.equal(await loadRexLines({ REX_SESSION: "session:x" }, run), null);
+});
+
+test("loadRexLines formats the rex session-start output", async () => {
+  const run = async () => "You're running in a Rex terminal.\n\nREX_SESSION=session:x";
+  assert.deepEqual(await loadRexLines({ REX_SESSION: "session:x" }, run), [
+    "## Rex",
+    "",
+    "You're running in a Rex terminal.",
+    "",
+    "REX_SESSION=session:x",
+  ]);
 });
 
 test("formatPR includes state, number, base, title, head, and link", () => {

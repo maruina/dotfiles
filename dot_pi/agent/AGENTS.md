@@ -35,7 +35,7 @@ Each lifecycle prompt is the source of truth for its stage.
 - Open the worktree directory in JetBrains IDEs such as GoLand.
 
 ## Dynamic Context
-A hidden `user-context` extension injects current repository, branch, pull request, Jira key, worktree, and recent-file context. Treat it as a hint; follow explicit user instructions and repository guidance first.
+A hidden `user-context` extension injects current repository, branch, pull request, Jira key, worktree, recent-file, and Rex session context when the session runs in a Rex terminal with `rex` available. Treat it as a hint; follow explicit user instructions and repository guidance first.
 
 ## Tool Use
 - Use `gh` for GitHub operations.

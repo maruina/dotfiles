@@ -216,10 +216,13 @@ export function shouldAddSkillLoaderGuidance(prompt: string): boolean {
 export function formatRexContext(output: string): string[] {
   return ["## Rex", "", ...output.split("\n"), "", ...[
     "### Session and tab names",
-    "Do not rename the shared Rex session unless the user asks. When creating a session at the user's request, use the repository name by default, or preserve the name the user supplies.",
+    'Before task work on the first request that identifies the task, inspect the session with `rex session inspect "$REX_SESSION" --json` and find this pane\'s containing tab. Do not assume the session is shared.',
+    'If the session has exactly one tab and one pane, rename the session to the repository name with `rex session rename "$REX_SESSION" <repository-name>` without waiting for the user to ask. Use the Git remote repository basename (for example, `dotfiles`, not the checkout directory name `chezmoi`), not `owner/repo`, the branch, or the task name. If there is no Git remote, use the Git root directory name; outside a Git repository, use the current directory basename (for example, `/path/to/foo` becomes `foo`).',
+    "Preserve an explicit user-supplied session name or a name that already matches the repository or directory. If the session has multiple tabs or panes, preserve the session name unless the user asks to rename it. When creating a session at the user's request, use the same repository naming rule or preserve the name the user supplies.",
     "Name this Pi agent's tab after the first request that identifies the task. Use π- followed by two to four lowercase task words joined by hyphens, such as π-compare-rex-extensions. Keep the existing label if it still describes the work.",
     'Find the containing tab with `rex block inspect -s "$REX_SESSION" "$REX_BLOCK" --json` and read `.block.window_id`. Rename that tab with `rex window rename -s "$REX_SESSION" <window-id> <label>`, not the focused tab.',
     "If multiple Pi agents share a tab through split panes, preserve the shared tab name and use pane labels instead.",
+    'Verify the session and tab names with `rex session inspect "$REX_SESSION" --json` before continuing with task work. If inspection or renaming fails, report the failure rather than silently skipping the naming step.',
   ]];
 }
 

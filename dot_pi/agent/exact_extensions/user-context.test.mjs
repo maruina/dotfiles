@@ -62,7 +62,7 @@ test("loadRexLines returns nothing when rex is missing or unusable", async () =>
   assert.equal(await loadRexLines({ REX_SESSION: "session:x" }, run), null);
 });
 
-test("loadRexLines disables session naming and adds tab naming guidance", async () => {
+test("loadRexLines disables Rex's built-in naming and adds repository session and task tab guidance", async () => {
   const calls = [];
   const run = async (...args) => {
     calls.push(args);
@@ -78,13 +78,23 @@ test("loadRexLines disables session naming and adds tab naming guidance", async 
     "REX_SESSION=session:x",
   ]);
   const guidance = lines.slice(5).join("\n");
-  assert.match(guidance, /Do not rename the shared Rex session unless the user asks/);
-  assert.match(guidance, /repository name/);
+  assert.doesNotMatch(guidance, /the shared Rex session/);
+  assert.match(guidance, /Before task work.*first request that identifies the task/);
+  assert.match(guidance, /rex session inspect/);
+  assert.match(guidance, /exactly one tab and one pane.*repository name/);
+  assert.match(guidance, /Git remote.*dotfiles.*not.*chezmoi/);
+  assert.match(guidance, /not.*owner\/repo.*branch.*task name/);
+  assert.match(guidance, /no Git remote.*Git root directory name/);
+  assert.match(guidance, /outside a Git repository.*current directory basename.*\/path\/to\/foo.*foo/);
+  assert.match(guidance, /rex session rename/);
+  assert.match(guidance, /Preserve.*user-supplied session name/);
+  assert.match(guidance, /multiple tabs or panes.*preserve the session name/);
   assert.match(guidance, /π-.*two to four lowercase task words/);
   assert.match(guidance, /rex block inspect/);
   assert.match(guidance, /rex window rename/);
   assert.match(guidance, /not the focused tab/);
   assert.match(guidance, /multiple Pi agents share a tab.*pane labels/);
+  assert.match(guidance, /Verify.*session and tab names.*before continuing/);
 });
 
 test("formatPR includes state, number, base, title, head, and link", () => {

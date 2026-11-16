@@ -214,7 +214,13 @@ export function shouldAddSkillLoaderGuidance(prompt: string): boolean {
 }
 
 export function formatRexContext(output: string): string[] {
-  return ["## Rex", "", ...output.split("\n")];
+  return ["## Rex", "", ...output.split("\n"), "", ...[
+    "### Session and tab names",
+    "Do not rename the shared Rex session unless the user asks. When creating a session at the user's request, use the repository name by default, or preserve the name the user supplies.",
+    "Name this Pi agent's tab after the first request that identifies the task. Use π- followed by two to four lowercase task words joined by hyphens, such as π-compare-rex-extensions. Keep the existing label if it still describes the work.",
+    'Find the containing tab with `rex block inspect -s "$REX_SESSION" "$REX_BLOCK" --json` and read `.block.window_id`. Rename that tab with `rex window rename -s "$REX_SESSION" <window-id> <label>`, not the focused tab.',
+    "If multiple Pi agents share a tab through split panes, preserve the shared tab name and use pane labels instead.",
+  ]];
 }
 
 type AsyncRunner = typeof runAsync;
@@ -223,7 +229,7 @@ type AsyncRunner = typeof runAsync;
 // with no output when REX_SESSION is unset, so it is safe outside Rex.
 export async function loadRexLines(env: NodeJS.ProcessEnv, run: AsyncRunner): Promise<string[] | null> {
   if (!env.REX_SESSION) return null;
-  const output = await run("rex", ["__internal", "session-start", "--agent", "pi"], undefined, 3000);
+  const output = await run("rex", ["__internal", "session-start", "--agent", "pi", "--feature-session-naming=false"], undefined, 3000);
   return output ? formatRexContext(output) : null;
 }
 

@@ -80,21 +80,14 @@ test("loadRexLines disables Rex's built-in naming and adds repository session an
   const guidance = lines.slice(5).join("\n");
   assert.doesNotMatch(guidance, /the shared Rex session/);
   assert.match(guidance, /Before task work.*first request that identifies the task/);
-  assert.match(guidance, /rex session inspect/);
-  assert.match(guidance, /exactly one tab and one pane.*repository name/);
-  assert.match(guidance, /Git remote.*dotfiles.*not.*chezmoi/);
-  assert.match(guidance, /not.*owner\/repo.*branch.*task name/);
-  assert.match(guidance, /no Git remote.*Git root directory name/);
-  assert.match(guidance, /outside a Git repository.*current directory basename.*\/path\/to\/foo.*foo/);
-  assert.match(guidance, /rex session rename/);
-  assert.match(guidance, /Preserve.*user-supplied session name/);
-  assert.match(guidance, /multiple tabs or panes.*preserve the session name/);
+  assert.match(guidance, /fish -c rex-name-session/);
+  assert.match(guidance, /keep:/);
   assert.match(guidance, /π-.*two to four lowercase task words/);
-  assert.match(guidance, /rex block inspect/);
-  assert.match(guidance, /rex window rename/);
+  assert.match(guidance, /rex-name-task π-compare-rex-extensions/);
   assert.match(guidance, /not the focused tab/);
-  assert.match(guidance, /multiple Pi agents share a tab.*pane labels/);
-  assert.match(guidance, /Verify.*session and tab names.*before continuing/);
+  assert.match(guidance, /split tabs.*only this pane/);
+  assert.match(guidance, /verify changes/);
+  assert.doesNotMatch(guidance, /rex (session rename|window rename|block inspect)/);
 });
 
 test("formatPR includes state, number, base, title, head, and link", () => {

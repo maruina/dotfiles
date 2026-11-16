@@ -1,10 +1,19 @@
 ---
 name: explain
-description: Help the user understand the current topic with concise diagrams, code-shape sketches, and focused HTML artifacts.
+description: Choose and build a faithful visual explanation when relationships, ordering, state changes, comparisons, or code structure are easier to understand visually. Use for explicit visual requests and substantial explanations where a visual could help; prose remains a valid outcome.
 ---
+Help the user understand the current topic. Start from the reader's question and the available evidence. Choose the smallest representation that adds comprehension value; do not add a visual only to decorate the answer.
 
-Help the user understand the current topic of conversation visually. Skip the preamble and keep prose brief. Pick the smallest view that makes the key point clear.
+## Decide before authoring
+- Research the facts first. Assess a concrete explanation passage, not only the initial request. Keep the reader's question, supported facts, destination, and output constraints explicit.
+- Read `references/visual-assessment.md` and use its Jev assessment before selecting a representation. Jev selects a broad representation; you choose the exact syntax and author it. Do not send Jev the full Mermaid syntax guide.
+- If the user explicitly selects a representation, honor that choice when the evidence and destination support it; no Jev call is needed. Explain missing evidence instead of inventing facts to complete the shape.
+- A prose route is a successful assessment, not an instruction to try again. An unavailable assessment is not a prose judgment: use your own judgment and distinguish the fallback if reporting how the representation was selected.
+- Ground every node, arrow, comparison cell, and measurement in the evidence. Keep unknown relationships in prose and label proposed behavior as proposed.
+- Respect the requested output format. Prefer text trees, tables, diffs, and pseudocode for terminal output. Use Mermaid only when the destination supports it. Do not create files or open a browser for a chat-only or read-only request.
+- Start with one focused representation. Add another only when it answers a different part of the reader's question. Put a short takeaway beside each visual rather than repeating the same explanation in prose.
 
+## Author the selected representation
 - Show logic or an algorithm as pseudocode:
 
 ```text
@@ -116,7 +125,7 @@ function expandSkill(command: string): string {
 }
 ```
 
-- For a visual UI, layout, state comparison, or concept too dense for Mermaid, write one focused HTML file — a diagram, an infographic, or a short slide deck, whichever fits the point. Match the product's colors, type, spacing, and components; use real labels and data; support desktop and mobile. Then open it for the user with the bash tool:
+- When browser output and file creation fit the request, use one focused HTML file for a visual UI, layout, state comparison, or concept too dense for the simpler representations — a diagram, an infographic, or a short slide deck, whichever fits the point. Match the product's colors, type, spacing, and components; use real labels and data; support desktop and mobile. Then open it for the user with the bash tool:
 
 ```text
 open path/to/explain-{description}.html
@@ -124,4 +133,4 @@ open path/to/explain-{description}.html
 
 - Place each visual next to the short text it supports. Keep only the calls, files, props, states, and boundaries needed to answer the user's current question.
 
-You may use one of these, you may use several, it is unlikely you will use all of them. Use your judgement and don't overwhelm the user.
+Use prose when no supported representation improves understanding. Do not generate extra visuals to fill the catalog.

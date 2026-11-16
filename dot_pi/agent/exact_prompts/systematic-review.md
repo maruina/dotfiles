@@ -7,7 +7,7 @@ Review input:
 
 > $ARGUMENTS
 
-Review the first path or PR URL (default: repository root); remaining text is context. Propose fixes after reporting findings. Use `/verify` for final read-only closeout and `/pr-validate` for a PR verdict and reviewer report.
+Review the first path or PR URL (default: repository root); remaining text is context. Report findings, then propose fixes. Use `/verify` for read-only closeout and `/pr-validate` for a PR verdict and report.
 
 <HARD-GATE>
 Keep the review itself read-only: report findings before touching anything. After the report, propose fixes under ## Fix findings and apply only the ones the user confirms. For a `plan.md` target, commit confirmed plan-only fixes after validation; do not include pre-existing changes. Never apply chezmoi state, push, or post GitHub comments.
@@ -39,7 +39,7 @@ For code targets, look for:
 - Performance issues: N+1 behavior, hot paths, and scale blow-ups
 - Tests that assert implementation details instead of meaningful behavior, or fail to cover distinct contracts without multiplying independent dimensions or repeating expensive integration scenarios (sharing a helper does not establish nonredundant execution)
 
-For behavior-bearing code, also check that resource growth is bounded (loops, queues, goroutines, retries, polling, fan-out, memory, disk), failure behavior is explicit (invalid input, partial failure, cancellation, timeout, corrupt data), performance-sensitive paths have scale assumptions or evidence, APIs are hard to misuse, and loaded language/domain skills are applied idiomatically. Also argue against the design: explain what you would do differently, why, and the trade-offs.
+For behavior-bearing code, check bounded resource growth (loops, queues, goroutines, retries, polling, fan-out, memory, disk), explicit failures (invalid input, partial failure, cancellation, timeout, corrupt data), scale evidence or assumptions for performance-sensitive paths, hard-to-misuse APIs, and idiomatic use of loaded language/domain skills. Challenge the design with an alternative, rationale, and trade-offs.
 
 ## Plan review checklist
 
@@ -75,12 +75,12 @@ Challenge scope against the smallest user-feedback slice, not only against the d
 
 1. Use `codebase-research` to locate the target area, analyze current behavior, and find similar patterns. Read files, diffs, and tests in bounded sections; if a tool response is truncated, retrieve the missing sections before drawing conclusions.
 2. Use the `skill-loader` skill to determine which language and domain skills to read based on the target files. Load them and their applicable references before evaluating findings. Keep a provenance record per the `## Provenance record` section of the `skill-loader` skill.
-3. Identify the project shape: language, package boundaries, test/build commands, entry points, and relevant guidance files.
-4. Map the target area: core files, tests, dependencies, callers, and ownership boundaries. For plans, also read the sibling `design.md`.
-5. Review from multiple angles: correctness, concurrency, security, performance, API/UX, tests, and maintainability.
-6. Prefer structural findings over low-value nits.
-7. Validate high-confidence findings with code references, tests, type information, or command output where practical.
-8. Avoid speculative noise. If a concern depends on an assumption, state the assumption and confidence.
+3. Identify languages, package boundaries, test/build commands, entry points, and guidance files.
+4. Map core files, tests, dependencies, callers, and ownership. For plans, read the sibling `design.md`.
+5. Check correctness, concurrency, security, performance, API/UX, tests, and maintainability.
+6. Prefer structural findings over nits.
+7. Validate findings with code references, tests, types, or command output where practical.
+8. Avoid speculation. State assumptions and confidence.
 9. Report the exact handoff phrase below.
 
 ## Output format
@@ -102,17 +102,17 @@ Return a concise review with these sections:
 8. **Open questions** — only questions that block confidence or change the recommendation.
 9. **Handoff** — close with the exact phrase from `## Handoff`.
 
-If no issues are found, say so explicitly and still include the design challenge and any residual risks.
+If no issues are found, say so; include the design challenge and residual risks.
 
 ## Fix findings
 This section does not apply to design-only reviews.
 
 After the report, propose fixes instead of leaving them entirely to the user:
 
-1. List the findings that can be fixed in place, each with the file, the smallest concrete change, and how to verify it. Default to offering Critical and High findings first; name Low findings you would leave alone and why.
+1. List fixable findings with the file, smallest change, and verification. Offer Critical and High findings first; explain which Low findings to leave unchanged.
 2. Ask the user which findings to apply. Do not edit before an explicit confirmation.
 3. For each confirmed fix, stay in the resolved target worktree, use the `skill-loader` skill for touched files, make the smallest change that satisfies the finding, and run the narrow relevant tests or checks. For PRs, stop if the reviewed head or clean state changed. Keep the fork-code execution restriction.
-4. Stop and ask when a fix is ambiguous, changes behavior beyond the finding, needs a design decision, or would touch unrelated code.
+4. Stop and ask if a fix is ambiguous, exceeds the finding, needs a design decision, or touches unrelated code.
 5. For a `plan.md` target, check that the worktree was clean before editing. If it was not clean, stop before editing and ask. When a confirmed fix disproves an initial planned approach, record a learning candidate in the plan with the `learning-candidates` skill. After applying confirmed fixes, rerun the plan review checklist against the updated plan, then commit only the plan file with a Conventional Commit message such as `docs: update <feature> implementation plan`. Do not include pre-existing changes or unconfirmed fixes. For other targets, leave confirmed changes uncommitted. Summarize what was fixed, committed, skipped, and why.
 
 ## Handoff

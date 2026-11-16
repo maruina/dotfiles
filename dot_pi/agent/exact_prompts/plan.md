@@ -7,10 +7,10 @@ Planning input:
 
 > $ARGUMENTS
 
-Turn an agreed problem framing, design spec, issue, or clear request into a concrete implementation plan.
+Turn agreed framing, a design, an issue, or a clear request into an implementation plan.
 
 <HARD-GATE>
-Do not write implementation code, scaffold application files, or change files outside the plan document. The default terminal state for non-trivial work is a committed `plan.md` in a feature worktree.
+Do not write implementation code, scaffold application files, or change files outside the plan document. Non-trivial work ends with a committed `plan.md` in a feature worktree.
 
 For Medium and Large/Risky work, do not write or commit `plan.md` until the user confirms a planning alignment brief. Skip this gate only when the user explicitly requests one-shot, fast, no-questions, or chat-only planning.
 </HARD-GATE>
@@ -20,7 +20,7 @@ Use, in order, an explicit artifact or issue, the conversation's agreed framing,
 
 - Resolve a supplied path with the `resolve-worktree` skill and switch to its worktree before reading it. Use `$GLOB = **/plans/*/design.md` for designs and `$GLOB = **/plans/*/plan.md` for plans; for ambiguous briefs, search likely repo-relative paths and ask only if multiple matches remain.
 - With no path and no lightweight opt-out, use `resolve-worktree` to discover `**/plans/*/design.md` across worktrees. Fall back to the conversation and `$ARGUMENTS` only when no design resolves.
-- If goals, audience, scope, success criteria, or validation are unclear, ask one focused question or return to `/brainstorm`; do not invent WHAT during planning.
+- If goals, audience, scope, success criteria, or validation are unclear, ask one focused question or return to `/brainstorm`; do not invent WHAT.
 - If an existing design or plan drifted, revise it when intent is unchanged and most scope overlaps. Return to `/brainstorm` when the problem changed, the old artifact could ship independently, or the new scope would make it unrecognizable.
 
 Classify the work before planning:
@@ -31,14 +31,14 @@ Classify the work before planning:
 Treat bounded work that needs discovery or tradeoffs as Medium; treat multi-component changes, migrations, broad refactors, compatibility or security changes, production infrastructure, or unclear ownership/validation as Large/Risky.
 
 ## Sources and discovery
-Use the upstream design, brief, issue, PR feedback, or request as the source of truth for WHAT, and the repository and validated tool behavior for HOW.
+Use the design, brief, issue, PR feedback, or request for WHAT, and the repository and validated tool behavior for HOW.
 
-- Read the input completely, then inspect relevant guidance, code, tests, build commands, package boundaries, existing patterns, tickets, prior plans, ADRs, and review threads. Surface ADR conflicts instead of overriding them.
+- Read the full input and relevant guidance, code, tests, build commands, package boundaries, patterns, tickets, plans, ADRs, and review threads. Surface ADR conflicts.
 - Load the `skill-loader` skill before implementation recommendations, then read every matching language and domain skill and its applicable references.
 - Investigate discoverable facts yourself; ask the user only for decisions, priorities, or unavailable context.
-- Every task must trace to a goal, requirement, or explicit instruction. Carry source-defined non-goals and deliberate deferrals into the brief and plan without adding, dropping, or reinterpreting scope.
+- Trace every task to a goal, requirement, or instruction. Preserve source-defined non-goals and deliberate deferrals in the brief and plan; do not change scope.
 
-For a Medium or Large/Risky upstream design, require a fresh design-only review report identifying the reviewed design revision and final user approval. Compare `git hash-object <design-path>` with the report's blob or content hash. If either approval or report is missing, or the hashes differ, stop and request `/new` followed by `/systematic-review <absolute-path-to-design.md>` and renewed approval before planning.
+For a Medium or Large/Risky upstream design, require a fresh design-only review report naming the reviewed design revision and final user approval. Compare `git hash-object <design-path>` with the report's blob or content hash. If approval or the report is missing, or hashes differ, stop and request `/new` followed by `/systematic-review <absolute-path-to-design.md>` and renewed approval before planning.
 
 Compare the plan back to the approved design for each material decision: user-visible behavior, external dependencies, security, data, cost, assumptions, structure, and test limitations. Surface anything that could change the user's approval; obtain explicit approval before implementation and update the design when applicable. Routine implementation details do not need renewed design approval. With no upstream design, present material decisions in the planning alignment brief.
 
@@ -52,7 +52,7 @@ Before acceptance criteria or tasks, establish a concrete mechanism and observab
 |---|---|---|---|---|
 | [requirement] | [interface, command, or component] | [repository reference or command output] | [observable check] | [enable, narrow/defer with approval, or block] |
 
-For each acceptance behavior, choose the highest supported interface that observes it deterministically. Prefer an existing test seam and introduce the fewest new seams necessary. Confirm a new seam when it changes architecture, a public interface, or validation strength.
+For each acceptance behavior, choose the highest supported interface that observes it deterministically. Prefer an existing test seam and the fewest new seams. Confirm new seams that change architecture, public interfaces, or validation strength.
 
 When the change modifies a shared type, schema, configuration key, or public API, find every consumer with `rg` or `lsp_find_references`, including tests, fixtures, and generated code. Map each consumer to a task or to evidence that it needs no change.
 
@@ -107,7 +107,7 @@ Assumptions, confirmed/rejected decisions, and risks:
 - ...
 ```
 
-In interactive mode: ask the user to confirm or adjust the brief, including slice granularity, genuine blocking edges, and merge/split boundaries; resolve changes and newly material questions before asking again; only confirmation authorizes writing and committing `plan.md`.
+In interactive mode, confirm the brief, slice granularity, blocking edges, and merge/split boundaries with the user. Resolve changes and material questions before reconfirming. Only confirmation authorizes writing and committing `plan.md`.
 
 ## Durable plan contract
 For a durable plan:
@@ -136,7 +136,7 @@ Start every durable plan with:
 [table per `skill-loader` `## Provenance record`]
 ```
 
-Preserve the confirmed planning provenance and add skills used while writing or self-reviewing the plan; do not copy skills from `design.md` unless loaded and used during planning.
+Preserve confirmed provenance and add skills used to write or review the plan; copy skills from `design.md` only if loaded and used during planning.
 
 Right-size the remainder:
 

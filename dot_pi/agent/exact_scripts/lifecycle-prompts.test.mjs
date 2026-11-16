@@ -291,7 +291,8 @@ test("plan anchors scope to the smallest user-feedback slice with conditional gr
     /only when the plan needs more than one shippable slice/i,
     /slice 1 is the smallest user-feedback slice/i,
     /task outside the current slice is a follow-up/i,
-    /`Final verification` item naming the feature-level acceptance criteria/i,
+    /feature-level acceptance criteria.*`### Task N: Final verification`.*last slice.*blocked by the tasks it gates/is,
+    /never as a standalone checklist section.*preflight rejects checkboxes outside numbered tasks/is,
     /slice grouping is used only when the plan needs it/i,
     /scope beyond the smallest.*explicitly deferred/is,
   ]);

@@ -27,8 +27,17 @@ printf '%s\n' "$input" | jq '
     "{{ .chezmoi.homeDir }}/go/src/github.com/DataDog/datadog-pi-packages/packages/session-cost",
     "{{ .chezmoi.homeDir }}/go/src/github.com/DataDog/datadog-pi-packages/packages/research-web",
     "npm:@datadog/pi-plugin",
-    "npm:@pi-minimal/mention-skills"
+    "npm:@pi-minimal/mention-skills",
+    "npm:pi-observational-memory"
   ] |
+  .["observational-memory"] = {
+    "compactAfterTokensMode": "ratio",
+    "model": {
+      "provider": "baseten",
+      "id": "deepseek-v4-1-flash",
+      "thinking": "low"
+    }
+  } |
   .npmCommand = [
     "{{ .chezmoi.homeDir }}/go/src/github.com/DataDog/datadog-pi-packages/packages/pi-npm-guard/bin/pi-npm-guard.mjs"
   ] |

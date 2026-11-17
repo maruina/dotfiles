@@ -1,14 +1,15 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import { stageContract } from "./_bridge.ts";
-import type { StageConfig } from "./_protocol.ts";
+import { PROTOCOL_VERSION, type StageConfig } from "./_protocol.ts";
 
 const WORKTREE = "/work/repo";
 const COMMIT = "a".repeat(40);
 
 function config(designPath: string, designBlob: string): StageConfig {
   return {
-    protocolVersion: 1,
+    protocolVersion: PROTOCOL_VERSION,
+    scope: "execution",
     runId: "run-test",
     stage: "execute",
     worktree: WORKTREE,
@@ -26,6 +27,7 @@ function config(designPath: string, designBlob: string): StageConfig {
       simplify: { provider: "fixture", id: "simplifier" },
       verify: { provider: "fixture", id: "verifier" },
     },
+    stageModel: { provider: "fixture", id: "writer" },
     thinkingLevel: "low",
   };
 }

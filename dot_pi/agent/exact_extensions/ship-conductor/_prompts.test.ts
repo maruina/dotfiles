@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
-import { buildStagePrompt, parseSinglePlanArgument, quoteNativeArgument } from "./_prompts.ts";
+import { buildCompletionPrompt, buildStagePrompt, parseSinglePlanArgument, quoteNativeArgument } from "./_prompts.ts";
 
 describe("parseSinglePlanArgument", () => {
   it("accepts one path with native single- or double-quote syntax", () => {
@@ -51,5 +51,12 @@ describe("buildStagePrompt", () => {
     assert.ok(prompt.startsWith(`/simplify ${quoteNativeArgument(path)} --implemented-by `));
     const parsed = parseSinglePlanArgument(prompt.slice("/simplify ".length).split(" --implemented-by ")[0]!);
     assert.deepEqual(parsed, { ok: true, planPath: path });
+  });
+});
+
+describe("buildCompletionPrompt", () => {
+  it("dispatches completion prompts without mutable arguments", () => {
+    assert.equal(buildCompletionPrompt("pr-publish"), "/pr-publish");
+    assert.equal(buildCompletionPrompt("arp-review"), "/arp-review");
   });
 });

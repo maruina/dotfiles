@@ -27,3 +27,17 @@ test("ARP remains optional and requires deferred tool discovery", () => {
     assert.ok(text.includes("production"));
   }
 });
+
+test("completion publication prompt is orchestrated-only and does not duplicate ARP requests", () => {
+  const text = prompt("pr-publish");
+  for (const marker of ["skill-loader", "PI_LIFECYCLE_CHILD_CONFIG", "Refuse direct invocation", "lifecycle_submit_outcome", "commitRefs", "Never offer or request ARP review"]) {
+    assert.ok(text.includes(marker), `pr-publish must include ${marker}`);
+  }
+});
+
+test("completion ARP review prompt enforces silent bounded exact-head review", () => {
+  const text = prompt("arp-review");
+  for (const marker of ["skill-loader", "PI_LIFECYCLE_CHILD_CONFIG", "tool_search", "Expected review head SHA", "silent: true", "Max status checks", "Status poll intervals", "Do not resolve findings", "Never settle findings"]) {
+    assert.ok(text.includes(marker), `arp-review must include ${marker}`);
+  }
+});

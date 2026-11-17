@@ -1,6 +1,7 @@
 import { isAbsolute } from "node:path";
 
 export type LifecycleStage = "execute" | "simplify" | "verify";
+export type CompletionPromptStage = "pr-publish" | "arp-review";
 
 type ParseResult = { ok: true; arguments: string[] } | { ok: false; reason: string };
 
@@ -69,4 +70,8 @@ export function buildStagePrompt(
     argumentsList.push("--simplified-by", quoteNativeArgument(writers.simplifiedBy));
   }
   return `/${stage} ${argumentsList.join(" ")}`;
+}
+
+export function buildCompletionPrompt(stage: CompletionPromptStage): string {
+  return `/${stage}`;
 }

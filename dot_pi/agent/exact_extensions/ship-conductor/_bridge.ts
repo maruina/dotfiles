@@ -88,18 +88,20 @@ function readStageConfig(configPath: string, cwd: string): StageConfig {
   if (planBlob !== config.baseline.plan.blob || designBlob !== config.baseline.design.blob) {
     throw new Error("Lifecycle baseline blob IDs do not match the pinned commit");
   }
-  try {
-    gitText(canonicalWorktree, ["merge-base", "--is-ancestor", config.baseline.commit, config.unitBase]);
-    gitText(canonicalWorktree, ["merge-base", "--is-ancestor", config.unitBase, "HEAD"]);
-  } catch {
-    throw new Error("Lifecycle unit base commit is not between the pinned baseline commit and HEAD");
+  if (config.scope === "execution") {
+    try {
+      gitText(canonicalWorktree, ["merge-base", "--is-ancestor", config.baseline.commit, config.unitBase]);
+      gitText(canonicalWorktree, ["merge-base", "--is-ancestor", config.unitBase, "HEAD"]);
+    } catch {
+      throw new Error("Lifecycle unit base commit is not between the pinned baseline commit and HEAD");
+    }
   }
   return config;
 }
 
 function assertRuntimeContext(config: StageConfig, ctx: { cwd: string; model: { provider: string; id: string } | undefined; thinkingLevel?: string; sessionManager: { getSessionId(): string } }): RuntimeIdentity {
   if (realpathSync(ctx.cwd) !== realpathSync(config.worktree)) throw new Error("Lifecycle child working directory changed");
-  const expectedModel = config.models[config.stage];
+  const expectedModel = config.stageModel;
   if (!ctx.model || ctx.model.provider !== expectedModel.provider || ctx.model.id !== expectedModel.id) {
     throw new Error("Lifecycle child model does not match the pinned stage configuration");
   }
@@ -172,27 +174,44 @@ export function stageContract(config: StageConfig): string {
       : []),
     "The working-tree plan is the progress ledger: after earlier rounds it differs from the pinned plan blob, which is expected. Requirements come from the pinned blobs.",
   ];
-  return [
+
+  const lines = [
     `Protocol version: ${config.protocolVersion}`,
     `Run ID: ${config.runId}`,
     `Stage: ${config.stage}`,
     `Plan: ${config.planPath}`,
     `Pinned branch: ${config.branch}`,
     `Pinned baseline commit: ${config.baseline.commit}`,
-    `Unit base commit: ${config.unitBase}`,
     `Pinned plan blob: ${config.baseline.plan.blob} (${planRelative})`,
     designLine,
     ...pinnedReadLines,
-    `Selected unit: ${config.unit.heading}`,
-    `Selected task numbers: ${config.unit.taskNumbers.join(", ")}`,
     `Execute model: ${config.models.execute.provider}/${config.models.execute.id}`,
     `Simplify model: ${config.models.simplify.provider}/${config.models.simplify.id}`,
     `Verify model: ${config.models.verify.provider}/${config.models.verify.id}`,
-    `Selected model: ${config.models[config.stage].provider}/${config.models[config.stage].id}`,
+    `Selected model: ${config.stageModel.provider}/${config.stageModel.id}`,
     `Effective thinking level: ${config.thinkingLevel}`,
-    "Use lifecycle_request_decision for user decisions. Submit exactly one final result with lifecycle_submit_outcome after the stage is complete.",
-    "Only the bridge's structured tool result controls stage completion. Prose, exit status, and verdict text do not submit an outcome.",
-  ].join("\n");
+  ];
+
+  if (config.scope === "execution") {
+    lines.push(`Unit base commit: ${config.unitBase}`);
+    lines.push(`Selected unit: ${config.unit.heading}`);
+    lines.push(`Selected task numbers: ${config.unit.taskNumbers.join(", ")}`);
+  } else {
+    lines.push(`Completion policy: ${config.completion.policy}`);
+    lines.push(`Pinned completion candidate: ${config.completion.candidate.branch}@${config.completion.candidate.head}`);
+    if (config.completion.reviewRequest) {
+      lines.push(`Target PR: ${config.completion.reviewRequest.prUrl}`);
+      lines.push(`Expected review head SHA: ${config.completion.reviewRequest.expectedHeadSha}`);
+      lines.push(`Review deadline (UTC): ${config.completion.reviewRequest.deadlineAt}`);
+      lines.push(`Max status checks: ${config.completion.reviewRequest.maxStatusChecks}`);
+      lines.push(`Status poll intervals (seconds): ${config.completion.reviewRequest.pollIntervalsSeconds.join(", ")}`);
+      lines.push(`Silent ARP request: ${config.completion.reviewRequest.silent}`);
+    }
+  }
+
+  lines.push("Use lifecycle_request_decision for user decisions. Submit exactly one final result with lifecycle_submit_outcome after the stage is complete.");
+  lines.push("Only the bridge's structured tool result controls stage completion. Prose, exit status, and verdict text do not submit an outcome.");
+  return lines.join("\n");
 }
 
 function updateUntrackedDigest(hash: ReturnType<typeof createHash>, worktree: string, signal: AbortSignal | undefined): Promise<void> {
@@ -418,6 +437,9 @@ function registerBridge(pi: ExtensionAPI, config: StageConfig): void {
         const writerProblem = writerSuccessProblem(config, params.outcome, params.change);
         if (writerProblem) return failedToolResult(writerProblem);
         const commitRefs = validateCommitRefs(config, params.commitRefs);
+        const publishedHeadSha = params.publishedHeadSha
+          ? validateCommitRefs(config, [params.publishedHeadSha])?.[0]
+          : undefined;
         const candidate = await candidateSnapshot(config, signal);
         signal?.throwIfAborted();
         const reportRef = writeStageReport(config, params.report);
@@ -433,6 +455,8 @@ function registerBridge(pi: ExtensionAPI, config: StageConfig): void {
           reportRef,
           ...(params.prUrl ? { prUrl: params.prUrl } : {}),
           ...(commitRefs ? { commitRefs } : {}),
+          ...(publishedHeadSha ? { publishedHeadSha } : {}),
+          ...(params.reviewEvidence ? { reviewEvidence: params.reviewEvidence } : {}),
         };
         outcomeSubmitted = true;
         return {

@@ -2,6 +2,7 @@ import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import {
   MAX_STAGE_REPORT_BYTES,
+  PROTOCOL_VERSION,
   parseDecisionInput,
   parseDecisionResult,
   parseLifecycleOutcome,
@@ -16,7 +17,8 @@ const DESIGN_BLOB = "c".repeat(40);
 
 function validStageConfig(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    protocolVersion: 1,
+    protocolVersion: PROTOCOL_VERSION,
+    scope: "execution",
     runId: "run-test-123",
     stage: "execute",
     worktree: WORKTREE,
@@ -34,7 +36,45 @@ function validStageConfig(overrides: Record<string, unknown> = {}): Record<strin
       simplify: { provider: "lifecycle-test", id: "simplifier" },
       verify: { provider: "lifecycle-test", id: "verifier" },
     },
+    stageModel: { provider: "lifecycle-test", id: "executor" },
     thinkingLevel: "minimal",
+    ...overrides,
+  };
+}
+
+function validCompletionConfig(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    protocolVersion: PROTOCOL_VERSION,
+    scope: "completion",
+    runId: "run-test-123",
+    stage: "arp-review",
+    worktree: WORKTREE,
+    branch: "feature",
+    planPath: `${WORKTREE}/plans/fixture/plan.md`,
+    baseline: {
+      commit: COMMIT,
+      plan: { path: `${WORKTREE}/plans/fixture/plan.md`, blob: PLAN_BLOB },
+      design: { path: `${WORKTREE}/plans/fixture/design.md`, blob: DESIGN_BLOB },
+    },
+    models: {
+      execute: { provider: "lifecycle-test", id: "executor" },
+      simplify: { provider: "lifecycle-test", id: "simplifier" },
+      verify: { provider: "lifecycle-test", id: "verifier" },
+    },
+    stageModel: { provider: "lifecycle-test", id: "executor" },
+    thinkingLevel: "minimal",
+    completion: {
+      policy: "work",
+      candidate: { branch: "feature", head: COMMIT, stateDigest: "d".repeat(64) },
+      reviewRequest: {
+        prUrl: "https://github.com/DataDog/repo/pull/123",
+        expectedHeadSha: COMMIT,
+        deadlineAt: "2026-01-01T00:20:00.000Z",
+        maxStatusChecks: 30,
+        pollIntervalsSeconds: [10, 30, 60],
+        silent: true,
+      },
+    },
     ...overrides,
   };
 }
@@ -46,9 +86,25 @@ describe("parseStageConfig", () => {
   });
 
   it("rejects an unsupported version, stage, or worktree", () => {
-    assert.throws(() => parseStageConfig(validStageConfig({ protocolVersion: 2 }), WORKTREE));
+    assert.throws(() => parseStageConfig(validStageConfig({ protocolVersion: PROTOCOL_VERSION + 1 }), WORKTREE));
     assert.throws(() => parseStageConfig(validStageConfig({ stage: "repair" }), WORKTREE));
     assert.throws(() => parseStageConfig(validStageConfig({ worktree: "/other" }), WORKTREE));
+  });
+
+  it("accepts feature-scoped completion stages with bounded review metadata", () => {
+    const config = validCompletionConfig();
+    assert.deepEqual(parseStageConfig(config, WORKTREE), config);
+  });
+
+  it("rejects completion stages missing required review bounds", () => {
+    assert.throws(() => parseStageConfig(validCompletionConfig({ completion: { policy: "work", candidate: { branch: "feature", head: COMMIT, stateDigest: "d".repeat(64) } } }), WORKTREE));
+    assert.throws(() => parseStageConfig(validCompletionConfig({ unitBase: COMMIT, unit: { heading: "bad", taskNumbers: [1] } }), WORKTREE));
+  });
+
+  it("rejects scope and stage mismatches", () => {
+    assert.throws(() => parseStageConfig(validStageConfig({ scope: "completion" }), WORKTREE), /invalid lifecycle stage configuration|invalid for completion scope/i);
+    assert.throws(() => parseStageConfig(validCompletionConfig({ scope: "execution" }), WORKTREE), /invalid lifecycle stage configuration/i);
+    assert.throws(() => parseStageConfig(validCompletionConfig({ stage: "pr-publish" }), WORKTREE), /must not include review request metadata/);
   });
 
   it("rejects incomplete or out-of-worktree baseline references", () => {
@@ -84,7 +140,7 @@ describe("parseDecisionResult", () => {
     requestId: "tool-call-1",
   };
   const details = {
-    protocolVersion: 1,
+    protocolVersion: PROTOCOL_VERSION,
     ...expected,
     decision: "approved",
     question: "May I proceed?",
@@ -118,7 +174,7 @@ describe("parseLifecycleOutcomeEnvelope", () => {
     model: { provider: "lifecycle-test", id: "driver" },
   };
   const envelope = {
-    schemaVersion: 1,
+    schemaVersion: PROTOCOL_VERSION,
     ...expected,
     outcome: "success",
     change: "changed",
@@ -170,37 +226,129 @@ describe("parseLifecycleOutcome", () => {
   it("accepts stage-appropriate outcomes and change classifications", () => {
     assert.equal(
       parseLifecycleOutcome(
-        { schemaVersion: 1, outcome: "success", change: "unchanged", report: "No candidate change." },
+        { schemaVersion: PROTOCOL_VERSION, outcome: "success", change: "unchanged", report: "No candidate change." },
         "execute",
       ).outcome,
       "success",
     );
     assert.equal(
       parseLifecycleOutcome(
-        { schemaVersion: 1, outcome: "VERIFIED", change: "not-applicable", report: "Fresh verification passed." },
+        { schemaVersion: PROTOCOL_VERSION, outcome: "VERIFIED", change: "not-applicable", report: "Fresh verification passed." },
         "verify",
       ).outcome,
       "VERIFIED",
+    );
+    assert.equal(
+      parseLifecycleOutcome(
+        {
+          schemaVersion: PROTOCOL_VERSION,
+          outcome: "success",
+          change: "not-applicable",
+          report: "Silent ARP review is complete.",
+          reviewEvidence: {
+            targetHeadSha: COMMIT,
+            reviewedHeadSha: COMMIT,
+            captureState: "complete",
+            result: "clean",
+            actionableFindings: 0,
+            statusChecks: 3,
+            reusedReview: true,
+            silent: true,
+          },
+        },
+        "arp-review",
+      ).outcome,
+      "success",
+    );
+    assert.equal(
+      parseLifecycleOutcome(
+        {
+          schemaVersion: PROTOCOL_VERSION,
+          outcome: "blocked",
+          change: "not-applicable",
+          report: "Silent ARP review found stale data.",
+          reviewEvidence: {
+            targetHeadSha: COMMIT,
+            reviewedHeadSha: "f".repeat(40),
+            captureState: "review-in-progress",
+            result: "stale",
+            actionableFindings: 2,
+            statusChecks: 7,
+            reusedReview: true,
+            silent: false,
+          },
+        },
+        "arp-review",
+      ).outcome,
+      "blocked",
+    );
+    assert.equal(
+      parseLifecycleOutcome(
+        {
+          schemaVersion: PROTOCOL_VERSION,
+          outcome: "success",
+          change: "not-applicable",
+          report: "Draft PR is ready.",
+          prUrl: "https://github.com/DataDog/repo/pull/123",
+          publishedHeadSha: COMMIT,
+        },
+        "pr-publish",
+      ).outcome,
+      "success",
     );
   });
 
   it("rejects unsupported versions and stage/outcome mismatches", () => {
     assert.throws(() =>
       parseLifecycleOutcome(
-        { schemaVersion: 2, outcome: "success", change: "changed", report: "invalid version" },
+        { schemaVersion: PROTOCOL_VERSION + 1, outcome: "success", change: "changed", report: "invalid version" },
         "execute",
       ),
     );
     assert.throws(() =>
       parseLifecycleOutcome(
-        { schemaVersion: 1, outcome: "VERIFIED", change: "not-applicable", report: "wrong stage" },
+        { schemaVersion: PROTOCOL_VERSION, outcome: "VERIFIED", change: "not-applicable", report: "wrong stage" },
         "execute",
       ),
     );
     assert.throws(() =>
       parseLifecycleOutcome(
-        { schemaVersion: 1, outcome: "success", change: "unchanged", report: "wrong stage" },
+        { schemaVersion: PROTOCOL_VERSION, outcome: "success", change: "unchanged", report: "wrong stage" },
         "verify",
+      ),
+    );
+    assert.throws(() =>
+      parseLifecycleOutcome(
+        {
+          schemaVersion: PROTOCOL_VERSION,
+          outcome: "success",
+          change: "not-applicable",
+          report: "missing review evidence",
+        },
+        "arp-review",
+      ),
+    );
+    assert.throws(() =>
+      parseLifecycleOutcome(
+        {
+          schemaVersion: PROTOCOL_VERSION,
+          outcome: "blocked",
+          change: "not-applicable",
+          report: "missing blocked evidence",
+        },
+        "arp-review",
+      ),
+    );
+    assert.throws(() =>
+      parseLifecycleOutcome(
+        {
+          schemaVersion: PROTOCOL_VERSION,
+          outcome: "success",
+          change: "not-applicable",
+          report: "missing published head",
+          prUrl: "https://github.com/DataDog/repo/pull/123",
+        },
+        "pr-publish",
       ),
     );
   });
@@ -210,7 +358,7 @@ describe("parseLifecycleOutcome", () => {
     assert.ok(report.length < MAX_STAGE_REPORT_BYTES);
     assert.ok(Buffer.byteLength(report, "utf8") > MAX_STAGE_REPORT_BYTES);
     assert.throws(
-      () => parseLifecycleOutcome({ schemaVersion: 1, outcome: "success", change: "unchanged", report }, "simplify"),
+      () => parseLifecycleOutcome({ schemaVersion: PROTOCOL_VERSION, outcome: "success", change: "unchanged", report }, "simplify"),
       /Lifecycle report exceeds/,
     );
   });
@@ -219,7 +367,7 @@ describe("parseLifecycleOutcome", () => {
     assert.throws(() =>
       parseLifecycleOutcome(
         {
-          schemaVersion: 1,
+          schemaVersion: PROTOCOL_VERSION,
           outcome: "success",
           change: "changed",
           report: "candidate update",

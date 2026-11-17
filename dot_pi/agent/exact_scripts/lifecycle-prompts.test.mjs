@@ -422,7 +422,7 @@ test("verify gates the next execution handoff on plan prerequisites, keeps fixes
     /give the exact `\/execute <absolute-plan-path>` command/i,
     /do not give a worktree root as the plan argument/i,
     /`\/verify` is read-only for repository files and must not fix or commit/i,
-    /When the verdict is `VERIFIED`.*stack-split check from the `reviewable-pr-workflow` skill.*`\/pr-create --draft`/is,
+    /In direct mode, when the verdict is `VERIFIED`.*stack-split check from the `reviewable-pr-workflow` skill.*`\/pr-create --draft`/is,
     /offer `\/execute` as the follow-up/i,
     /only after the fix is implemented and independently verified/i,
     /\*\*Copy-paste follow-up:\*\* when \*\*Findings\*\* contains any finding/i,
@@ -1095,16 +1095,28 @@ test("execute offers simplify and direct verify handoffs with stable writer iden
 
 test("lifecycle templates use bridge tools only with validated orchestration context", () => {
   for (const file of ["execute.md", "simplify.md", "verify.md"]) {
-    requireMarkers(prompt(file), [
+    const text = prompt(file);
+    requireMarkers(text, [
       /injected stage contract.*protocol version.*run ID.*stage/is,
-      /fixed unit.*pinned baseline/is,
-      /Pinned baseline commit.*Unit base commit.*Pinned plan blob.*Pinned design blob.*Selected unit.*Selected task numbers/is,
-      /scope.*from `Unit base commit`/is,
       /both `lifecycle_request_decision` and `lifecycle_submit_outcome` tools are available/is,
       /only use.*bridge.*when.*stage contract.*both.*tools/is,
       /otherwise.*ordinary conversational approvals.*manual handoffs/is,
       /rejected.*or dismissed.*stops?.*stage/is,
       /other blocker.*stage-appropriate.*`(?:blocked|BLOCKED)` outcome/is,
     ]);
+
+    if (file === "verify.md") {
+      requireMarkers(text, [
+        /Pinned baseline commit.*Pinned plan blob.*Pinned design blob/is,
+        /Unit base commit.*Selected unit.*Selected task numbers/is,
+        /slice scope.*Unit base commit.*feature scope/is,
+      ]);
+    } else {
+      requireMarkers(text, [
+        /fixed unit.*pinned baseline/is,
+        /Pinned baseline commit.*Unit base commit.*Pinned plan blob.*Pinned design blob.*Selected unit.*Selected task numbers/is,
+        /scope.*from `Unit base commit`/is,
+      ]);
+    }
   }
 });

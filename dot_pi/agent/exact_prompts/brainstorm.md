@@ -165,7 +165,7 @@ Ask the user to confirm or adjust the brief. After confirmation, create the dura
 ## Design comprehension gate
 For Medium and Large/Risky durable designs, require a fresh, design-only comprehension review before final approval. After the confirmed alignment brief, write and commit a draft, then stop and ask the user to start `/new` and run `/systematic-review <absolute-path-to-design.md>`. Do not substitute author self-review or carry the conversation into the reviewer session. Small designs and explicit chat-only brainstorming keep the existing flow.
 
-Resume final approval only with a report identifying the reviewed revision and no unresolved comprehension blockers. Compare `git hash-object <design-path>` with the report's blob or content hash; a mismatch requires a fresh review before approval. If the report is missing or stale, stop at the review handoff; do not emit the completed-spec handoff. Fix confirmed gaps, obtain a fresh review after any material design revision, then ask the user to approve the reviewed design. Preserve validation limits in the durable design, including explicitly accepted gaps. A comprehension review does not establish technical correctness.
+This prompt ends at the review handoff. The reviewer session owns the remaining gate steps: it applies the confirmed comprehension fixes, and asks for and records user approval of the reviewed design before the `/plan` handoff. Resume this session only when a proposed fix needs a design decision the reviewer cannot make; record the decision, commit it, and return to the reviewer session for a fresh review when the revision is material. Preserve validation limits in the durable design, including explicitly accepted gaps. A comprehension review does not establish technical correctness.
 
 ## Design artifact
 When creating or updating `design.md`:
@@ -189,6 +189,10 @@ For chat-only brainstorming, end with:
 
 If this captures the problem and first slice, I can turn it into a plan next.
 
-For durable brainstorming, after saving and committing the spec and satisfying any required design comprehension gate, say exactly:
+For durable brainstorming subject to the design comprehension gate, say exactly:
+
+Design draft committed and saved to `<absolute-path-to-design.md>`. Run `/systematic-review <absolute-path-to-design.md>` in a fresh session; the reviewer session applies confirmed fixes and records your approval before `/plan`.
+
+For durable brainstorming with no comprehension review (Small designs and explicit chat-only brainstorming), say exactly:
 
 Spec complete, committed, and saved to `<absolute-path-to-design.md>`. Review it before handing off to `/plan <absolute-path-to-design.md>`, or run `/plan` with no arguments to choose from discovered design specs.

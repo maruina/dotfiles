@@ -10,7 +10,7 @@ Review input:
 Review the first path or PR URL (default: repository root); remaining text is context. Report findings, then propose fixes. Use `/verify` for read-only closeout and `/pr-validate` for a PR verdict and report.
 
 <HARD-GATE>
-Keep the review itself read-only: report findings before touching anything. After the report, propose fixes under ## Fix findings and apply only the ones the user confirms. For a `plan.md` target, commit confirmed plan-only fixes after validation; do not include pre-existing changes. Never apply chezmoi state, push, or post GitHub comments.
+Keep the review itself read-only: report findings before touching anything. After the report, propose fixes under ## Fix findings and apply only the ones the user confirms. For a `plan.md` target, commit confirmed plan-only fixes after validation; for a design target, commit confirmed design fixes per `## Design-only review`; do not include pre-existing changes. Never apply chezmoi state, push, or post GitHub comments.
 </HARD-GATE>
 
 ## Target resolution
@@ -27,7 +27,13 @@ Run in a fresh `/new` session with only the design as task context. If earlier c
 
 First restate **What this proposes** and **How it works today**, from the document alone. Then answer: **What changes for the user? What could go wrong? What exactly am I being asked to approve?** Report missing information; do not guess. Flag unexplained project terms or mechanisms only when they prevent understanding or approval. Do not request implementation details, invent findings, reopen settled choices, or claim technical correctness. An unanswered approval question or contradictory user-visible behavior is a comprehension blocker.
 
-Report the design path, reviewed Git blob from `git hash-object <design-path>` (also valid for an uncommitted draft), skills used, restatement, answers, and material comprehension findings. Give `READY FOR USER APPROVAL` only when no comprehension blocker remains; otherwise give `NEEDS CLARIFICATION`. This is not final user approval. Keep the review read-only; return findings to `/brainstorm` for confirmed fixes and approval. Material revisions require a fresh review. Return only this report and stop after its verdict. Do not emit `## Fix findings` or the general `Review complete` handoff.
+Report the design path, reviewed Git blob from `git hash-object <design-path>` (also valid for an uncommitted draft), skills used, restatement, answers, and material comprehension findings. Give `READY FOR USER APPROVAL` only when no comprehension blocker remains; otherwise give `NEEDS CLARIFICATION`. This verdict alone is not final user approval.
+
+On `NEEDS CLARIFICATION`, propose a fix for each blocker, apply the fixes the user confirms, and commit only the design file with `docs: revise <feature> design for review findings`. Route a fix back to `/brainstorm` when it needs a design decision about user-visible behavior, external dependencies, security, data, cost, or scope instead of a comprehension clarification. After applying confirmed fixes, rerun this comprehension check against the revised design in this session when the revision is mechanical: clarifications, wording, and added facts. A revision that changes design intent is material: commit it and request a fresh session review before any approval. Report the revised blob with the final verdict. Do not emit `## Fix findings` or the general `Review complete` handoff.
+
+On `READY FOR USER APPROVAL`, ask the user to approve the design. On explicit approval, set the design's status header to Approved, commit only that change with `docs: approve <feature> design`, and say exactly:
+
+Design approved and saved to `<absolute-path-to-design.md>`. Run `/plan <absolute-path-to-design.md>` to create the implementation plan.
 
 ## Code review checklist
 

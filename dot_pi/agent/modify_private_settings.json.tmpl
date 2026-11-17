@@ -22,6 +22,7 @@ printf '%s\n' "$input" | jq '
   .packages = [
     "{{ .chezmoi.homeDir }}/go/src/github.com/DataDog/datadog-pi-packages/packages/dd-ai-gateway",
     "{{ .chezmoi.homeDir }}/go/src/github.com/DataDog/datadog-pi-packages/packages/confluence-cli",
+    "{{ .chezmoi.homeDir }}/go/src/github.com/DataDog/datadog-pi-packages/packages/copycat",
     "{{ .chezmoi.homeDir }}/go/src/github.com/DataDog/datadog-pi-packages/packages/pi-npm-guard",
     "{{ .chezmoi.homeDir }}/go/src/github.com/DataDog/datadog-pi-packages/packages/prompt-stash",
     "{{ .chezmoi.homeDir }}/go/src/github.com/DataDog/datadog-pi-packages/packages/session-cost",

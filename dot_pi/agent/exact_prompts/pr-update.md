@@ -57,6 +57,10 @@ Before refreshing the description, compare the full diff with the task context, 
 
 Use these checks to prepare the explanation, not to generate a reviewer checklist. Explain supported constraints and failure behavior in the narrative. Report unresolved blockers separately and ask before proceeding when they require a decision. Do not invent concerns for unaffected areas.
 
+Read `explain` and its `references/visual-assessment.md`. Before publishing the body, run the Jev assessment on one coherent passage from the drafted PR explanation. Set the reader question to what a reviewer needs to understand about this change, set the destination to a GitHub PR body, and allow only destination-supported representations. Follow the reference's bounds, gates, explicit-format override, and unavailable-assessment fallback; prose is a valid result. If a visual helps, place one focused representation beside the explanation it supports and verify it against the final diff. Load `mermaid-best-practices` before authoring Mermaid. Do not create HTML files or open a browser.
+
+Also reassess existing visuals against the full PR diff. Preserve accurate handwritten visuals; update or remove stale generated visuals in place rather than appending duplicates. A prose assessment does not by itself justify deleting an accurate handwritten visual.
+
 If the title is stale, propose a replacement. Change it only when the user explicitly requested it or approves the proposal.
 
 Write the body to a temporary file, push the branch as required by its review state, and update the PR:

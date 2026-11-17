@@ -60,6 +60,8 @@ Draft a title and body using the `reviewable-pr-workflow` template. Include an o
 - link `design.md` as the reviewer-facing design record;
 - link `plan.md` as optional implementation context.
 
+Read `explain` and its `references/visual-assessment.md`. Before publishing the body, run the Jev assessment on one coherent passage from the drafted PR explanation. Set the reader question to what a reviewer needs to understand about this change, set the destination to a GitHub PR body, and allow only destination-supported representations. Follow the reference's bounds, gates, explicit-format override, and unavailable-assessment fallback; prose is a valid result. If a visual helps, place one focused representation beside the explanation it supports and verify it against the final diff. Load `mermaid-best-practices` before authoring Mermaid. Do not create HTML files or open a browser.
+
 For a native stack, run `gh stack submit` and capture the PR URLs and numbers it reports. Do not push or create the stack's PRs separately. For a standalone branch, push it and create a draft PR:
 
 ```bash

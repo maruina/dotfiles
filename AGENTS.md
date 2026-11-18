@@ -45,15 +45,17 @@ Declare Homebrew packages in `run_onchange_brew-install.sh.tmpl`. Do not install
 - Before `/verify` for changes under `dot_pi/agent/`, run `npm ci --ignore-scripts` in that directory. Keep dependencies until `npm test` and `npm run test:all` complete, then remove them.
 
 ## Completion Workflow
-After making and verifying a requested chezmoi source change, apply it to the target and commit and push it by default.
+After making and verifying a requested chezmoi source change, apply it to the target and land it through a pull request to `main` by default. Do not push directly to `main`.
 
 Default sequence:
 1. Run `chezmoi diff` for the relevant target or full source.
 2. Run `chezmoi apply` for the changed target.
 3. Commit the source changes with a Conventional Commit message.
-4. Push the branch.
+4. Push the feature branch.
+5. Open a PR to `main`, or update the existing PR for the branch.
+6. Squash-merge the PR after required checks pass and required reviews approve it. Do not bypass branch protections. If GitHub blocks the merge, report the blocker and leave the PR open.
 
-Do not apply, commit, or push when:
+Do not apply, commit, push, open a PR, or merge when:
 - the user asks for a preview only;
 - the change is incomplete or unverified;
 - unrelated local changes exist;

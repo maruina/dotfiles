@@ -14,7 +14,7 @@ function formatContext(usage: { tokens: number | null; contextWindow: number; pe
 	const percent = usage.percent ?? (usage.contextWindow > 0 ? (usage.tokens / usage.contextWindow) * 100 : null);
 	if (percent === null) return `${prefix}${formatTokens(usage.tokens)} ctx`;
 	const left = Math.max(0, 100 - percent);
-	return `${prefix}${percent.toFixed(0)}% ctx · ${left.toFixed(0)}% left`;
+	return `${prefix}${percent.toFixed(0)}% ctx · ${left.toFixed(0)}% left · ${formatTokens(usage.contextWindow)} total`;
 }
 
 // Pi reports tokens: null after a compaction until the next assistant response

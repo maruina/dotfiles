@@ -176,10 +176,10 @@ test("design approval requires a fresh comprehension review, not author self-rev
   requireMarkers(prompt("brainstorm.md"), [
     /fresh.*design-only.*review/is,
     /before final approval/i,
-    /material.*revision.*fresh review/is,
-    /git hash-object <design-path>/,
-    /mismatch requires a fresh review/i,
-    /missing.*stop/is,
+    /material.*revision.*fresh review|fresh review.*revision.*material/is,
+    /This prompt ends at the review handoff/,
+    /reviewer session owns.*records user approval/is,
+    /Do not substitute author self-review/i,
   ]);
   requireMarkers(prompt("plan.md"), [
     /fresh design-only review/i,
@@ -203,7 +203,9 @@ test("design-only review isolates the document and bypasses general review", () 
     /reviewed.*Git blob/i,
     /do not apply.*general.*review/is,
     /contradictory user-visible behavior is a comprehension blocker/i,
-    /stop after its verdict/i,
+    /On `READY FOR USER APPROVAL`, ask the user to approve the design/,
+    /On explicit approval, set the design's status header to Approved, commit only that change/,
+    /Design approved and saved.*Run `\/plan/is,
     /Do not emit `## Fix findings` or the general `Review complete` handoff/,
     /This section does not apply to design-only reviews/,
     /missing.*not.*guess/is,

@@ -187,10 +187,12 @@ The system SHALL stop at three reviewed heads or the per-head deadline and SHALL
 **Traces to:** R1-R5
 **Files:** All implementation files above; `plans/implement-arp/plan.md` as the evidence ledger.
 
-- [ ] Run `npm ci --ignore-scripts` in `dot_pi/agent` if not already current, then both focused commands, `npm test`, and `npm run test:all`. Keep dependencies until all gates and independent `/verify` finish; remove `dot_pi/agent/node_modules` afterward as repository guidance requires.
+- [x] Run `npm ci --ignore-scripts` in `dot_pi/agent` if not already current, then both focused commands, `npm test`, and `npm run test:all`.
+  - Post-verification cleanup: Keep dependencies until all gates and independent `/verify` finish; remove `dot_pi/agent/node_modules` afterward as repository guidance requires.
 - [x] Execute the disposable-worktree smoke from Test Strategy with candidate prompts/extensions and isolated remote boundaries. Record setup, invocation, observed typed transitions, cancellation outcome, and cleanup. Do not run unsigned commits or bypass approval/signing checks outside isolated test fixtures.
 - [x] Establish production ARP evidence with an explicitly authorized suitable draft PR, or stop delivery and ask the user to accept the real-service evidence gap. Do not interpret mocked success as live MCP proof.
-- [ ] Verify work/personal rendering and explicit target diffs using `chezmoi --source "$PWD"`; run `git diff --check` and confirm only intended changes. Apply only after independent `/verify`, with the live-evidence gap resolved or accepted. Commit/push according to repository completion rules.
+- [x] Verify work/personal rendering and explicit target diffs using `chezmoi --source "$PWD"`; run `git diff --check` and confirm only intended changes.
+  - Publication follows verification: Apply only after independent `/verify`, with the live-evidence gap resolved or accepted. Commit/push according to repository completion rules.
 - [x] Record commands, outcomes, omissions, and exact verified candidate in the ledger; do not create an empty evidence-only commit unless required ledger changes exist.
 
 ## Learning candidates
@@ -262,5 +264,9 @@ The system SHALL stop at three reviewed heads or the per-head deadline and SHALL
   - The user answered "Yes" to "Do you accept that remaining production evidence gap for this delivery?"
   - Live production request, status, and findings were checked on `ddoghq/computecla-controllers#50` at `b18959b2582b766c31b01cbfed4da41861fb25e3`, review `01a1ee07-b95d-7284-99c0-fa1670d27065`.
   - The complete automatic coordinator and permanent settlement path were verified only with real-RPC local fixtures and mocked remote boundaries, not in production. This is not production end-to-end proof.
-- Open evidence gap:
-  - Independent `/verify` was not run in this correction pass. Task 4 gates that depend on independent `/verify` remain open until fresh Gemini 4 verification returns `VERIFIED`; post-verify cleanup also remains open.
+- Final verification and integration:
+  - Fresh independent `google/gemini-3.8-flash` verification returned `VERIFIED` at `fbf0778db8fab0c89037afea98040ee433b4f26a`. The initial and final Git state matched. The production evidence limit above was explicitly accepted, not presented as production end-to-end proof.
+  - The user explicitly selected one PR rather than the proposed stack and authorized targeted apply, publication, PR creation, and merge after checks pass.
+  - Merged current `origin/main` (`c31b555`) without conflicts in signed merge commit `7ada78ea860e61e534f1ae4c422acbe9a7b1de1e`. No feature history was rewritten. The merge preserved the independent main-branch changes.
+  - After integration, `npm ci --ignore-scripts`, the focused extension suite (191 tests), both focused prompt suites (69 tests), and `npm run test:all` (including `npm test`) passed. Explicit previews covered the 26 changed managed target files; work/personal rendering and whitespace checks passed.
+  - This ledger closeout changes only verification metadata. A fresh independent verification of the integrated committed candidate is required before apply and publication. Dependencies remain until that verification finishes; post-verification cleanup and publication are subsequent operations, not claimed complete here.

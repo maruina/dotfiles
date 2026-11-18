@@ -60,7 +60,13 @@ Draft a title and body using the `reviewable-pr-workflow` template. Include an o
 - link `design.md` as the reviewer-facing design record;
 - link `plan.md` as optional implementation context.
 
-Read `explain` and its `references/visual-assessment.md`. Before publishing the body, run the Jev assessment on one coherent passage from the drafted PR explanation. Set the reader question to what a reviewer needs to understand about this change, set the destination to a GitHub PR body, and allow only destination-supported representations. Follow the reference's bounds, gates, explicit-format override, and unavailable-assessment fallback; prose is a valid result. If a visual helps, place one focused representation beside the explanation it supports and verify it against the final diff. Load `mermaid-best-practices` before authoring Mermaid. Do not create HTML files or open a browser.
+Read the opening as a software engineer who has not read the ticket, design, or earlier PRs. Can you tell what happens today, why it matters, and what this PR changes? If not, start with one concrete scenario. Define subsystem terms when they first matter, then use code names and links to help the reviewer navigate. Make clear what this PR delivers and what later work must provide.
+
+Read `explain` and its `references/visual-assessment.md`. Before publishing the body, run the Jev assessment on one coherent passage from the drafted PR explanation. Use a full section if it answers one reviewer question and fits the reference's size limit. Include any definitions or example context needed to understand that passage. Make one call, not a series of per-paragraph or per-line calls. Set the reader question to what a reviewer needs to understand about this change, set the destination to a GitHub PR body, and allow only destination-supported representations.
+
+For follow-up edits to the same draft, reassess only if the reader question, the facts that support the representation, or the set of allowed representations changes. Do not call Jev again for copy edits. If the user specifies a format and the evidence and destination support it, use it without calling Jev.
+
+Follow the reference's bounds, gates, explicit-format override, and unavailable-assessment fallback; prose is a valid result. If a visual helps, place one focused representation beside the explanation it supports and verify it against the final diff. Load `mermaid-best-practices` before authoring Mermaid. Do not create HTML files or open a browser.
 
 For a native stack, run `gh stack submit` and capture the PR URLs and numbers it reports. Do not push or create the stack's PRs separately. For a standalone branch, push it and create a draft PR:
 

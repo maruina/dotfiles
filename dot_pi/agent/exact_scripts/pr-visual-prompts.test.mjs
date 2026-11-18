@@ -6,12 +6,20 @@ const promptsDir = new URL(existsSync(new URL("../exact_prompts", import.meta.ur
 const prompt = (name) => readFileSync(new URL(`${name}.md`, promptsDir), "utf8");
 
 for (const name of ["pr-create", "pr-update"]) {
-  test(`${name} assesses a drafted passage before publishing the PR body`, () => {
+  test(`${name} checks the opening and assesses a drafted passage before publishing the PR body`, () => {
     const text = prompt(name);
     for (const marker of [
+      "a software engineer who has not read the ticket, design, or earlier PRs",
+      "start with one concrete scenario",
+      "Define subsystem terms when they first matter",
       "Read `explain` and its `references/visual-assessment.md`",
       "Jev assessment",
       "one coherent passage from the drafted PR explanation",
+      "Include any definitions or example context needed to understand that passage",
+      "not a series of per-paragraph or per-line calls",
+      "For follow-up edits to the same draft, reassess only if the reader question, the facts that support the representation, or the set of allowed representations changes",
+      "Do not call Jev again for copy edits",
+      "use it without calling Jev",
       "GitHub PR body",
       "reader question",
       "destination-supported representations",
@@ -22,7 +30,9 @@ for (const name of ["pr-create", "pr-update"]) {
     ]) {
       assert.ok(text.includes(marker), `${name} must include ${marker}`);
     }
+    const readerCheck = text.indexOf("Read the opening as a software engineer");
     const assessment = text.indexOf("Jev assessment");
+    assert.ok(readerCheck >= 0 && readerCheck < assessment, "the reader check must precede assessment");
     const publish = text.indexOf(name === "pr-create" ? "gh pr create --draft" : "gh pr edit <number>");
     assert.ok(assessment < publish, "assessment must precede publication");
   });

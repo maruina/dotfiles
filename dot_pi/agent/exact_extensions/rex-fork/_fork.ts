@@ -56,9 +56,9 @@ async function identity(pi: ExtensionAPI, endpoint: string): Promise<Identity> {
   return value;
 }
 
-async function inspectOwnPane(pi: ExtensionAPI, peer: Identity, cwd: string): Promise<void> {
+async function inspectOwnPane(pi: ExtensionAPI, peer: Identity, cwd: string): Promise<string> {
   const view = await rex(pi, peer.endpoint, ["block", "inspect", "-s", peer.session_id, peer.block_id, "--json"]);
-  if (view.session_id !== peer.session_id || view.block?.block_id !== peer.block_id || view.block.host_id !== peer.host_id) {
+  if (view.session_id !== peer.session_id || view.block?.block_id !== peer.block_id || view.block.host_id !== peer.host_id || !idMatches("window", view.block.window_id)) {
     throw new Error("Rex pane membership or host does not match.");
   }
   const processes = await rex(pi, peer.endpoint, ["block", "call", "-s", peer.session_id, "-b", peer.block_id, "process"]);
@@ -68,6 +68,7 @@ async function inspectOwnPane(pi: ExtensionAPI, peer: Identity, cwd: string): Pr
     || realpathSync(processes.foreground.path) !== realpathSync(process.execPath)) {
     throw new Error(`This Pi is not the verified foreground process of the invoking pane (expected PID ${process.pid}, executable ${process.execPath}, cwd ${cwd}; observed PID ${processes.foreground?.pid}, UID ${processes.foreground?.user_id}, executable ${processes.foreground?.path}, cwd ${processes.foreground?.cwd}).`);
   }
+  return view.block.window_id;
 }
 
 function sameServer(before: Identity, after: Identity): boolean {
@@ -128,7 +129,7 @@ export async function publishStartupReceipt(pi: ExtensionAPI, ctx: ExtensionCont
   atomicJson(join(directory, "receipt.json"), { ...attempt, block: peer.block_id, pid: process.pid });
 }
 
-export async function runTabFork(api: ExtensionAPI, ctx: ExtensionContext, current: () => boolean, settled: () => boolean): Promise<void> {
+export async function runTabFork(api: ExtensionAPI, ctx: ExtensionContext, current: () => boolean, settled: () => boolean, destination: "tab" | "right" | "below"): Promise<void> {
   let deadline = Infinity;
   const pi: ExtensionAPI = { ...api, exec: async (command, args, options) => {
     const remaining = deadline - Date.now();
@@ -144,7 +145,7 @@ export async function runTabFork(api: ExtensionAPI, ctx: ExtensionContext, curre
   const command = launcher();
   if (realpathSync(ctx.cwd) !== realpathSync(ctx.sessionManager.getCwd())) throw new Error("Source cwd does not match the session cwd.");
   const rechecked = await identity(pi, endpoint);
-  await inspectOwnPane(pi, rechecked, ctx.cwd);
+  const sourceWindow = await inspectOwnPane(pi, rechecked, ctx.cwd);
   if (!sameServer(peer, rechecked) || !settled()) throw new Error("Source session, idle state, or Rex identity changed before the snapshot.");
   const snapshot = snapshotBranch(ctx.sessionManager, ctx.cwd);
   let directory: string;
@@ -166,18 +167,20 @@ export async function runTabFork(api: ExtensionAPI, ctx: ExtensionContext, curre
   let submitted = false;
   let created: any;
   try {
-    if (!settled()) throw new Error("Source changed before tab creation.");
+    if (!settled()) throw new Error("Source changed before creation.");
+    const layout = { block: { flavor: "com.superlogical.terminal.shell", options: {
+      shell: "none", login: false, cwd: ctx.cwd,
+      command: ["/usr/bin/env", `PI_CODING_AGENT_DIR=${getAgentDir()}`, `PI_REX_FORK_ATTEMPT=${directory}`, ...command, "--session", snapshot.path],
+    } } };
+    const request = destination === "tab"
+      ? { session_id: peer.session_id, focus: true, layout }
+      : { session_id: peer.session_id, focus: true, layout, anchor_id: peer.block_id, side: "after", direction: destination === "right" ? "horizontal" : "vertical" };
     submitted = true;
-    created = await rex(pi, endpoint, ["api", "call", "-s", peer.session_id, "session.new_window", JSON.stringify({
-      session_id: peer.session_id, focus: true,
-      layout: { block: { flavor: "com.superlogical.terminal.shell", options: {
-        shell: "none", login: false, cwd: ctx.cwd,
-        command: ["/usr/bin/env", `PI_CODING_AGENT_DIR=${getAgentDir()}`, `PI_REX_FORK_ATTEMPT=${directory}`, ...command, "--session", snapshot.path],
-      } } },
-    })]);
+    created = await rex(pi, endpoint, ["api", "call", "-s", peer.session_id, destination === "tab" ? "session.new_window" : "session.new_split", JSON.stringify(request)]);
     atomicJson(join(directory, "creation.json"), created);
-    if (!idMatches("window", created.window_id) || !Array.isArray(created.block_ids) || created.block_ids.length !== 1
-      || !idMatches("block", created.block_ids[0]) || created.block_ids[0] === peer.block_id) throw new Error("Rex returned an invalid tab identity.");
+    if ((destination === "tab" ? !idMatches("window", created.window_id) : created.anchor_id !== peer.block_id)
+      || !Array.isArray(created.block_ids) || created.block_ids.length !== 1
+      || !idMatches("block", created.block_ids[0]) || created.block_ids[0] === peer.block_id) throw new Error("Rex returned an invalid destination identity.");
     deadline = Date.now() + 15000;
     while (current() && Date.now() < deadline) {
       const path = join(directory, "receipt.json");
@@ -189,12 +192,12 @@ export async function runTabFork(api: ExtensionAPI, ctx: ExtensionContext, curre
         if (!current() || Date.now() >= deadline || !sameServer(peer, after)) throw new Error("Source or Rex changed during startup verification.");
         const target = await rex(pi, endpoint, ["block", "inspect", "-s", peer.session_id, receipt.block, "--json"], Math.max(1, Math.min(7000, deadline - Date.now())));
         const processInfo = await rex(pi, endpoint, ["block", "call", "-s", peer.session_id, "-b", receipt.block, "process"], Math.max(1, Math.min(7000, deadline - Date.now())));
-        if (!current() || Date.now() >= deadline || target.block?.window_id !== created.window_id || target.block.host_id !== peer.host_id
+        if (!current() || Date.now() >= deadline || target.block?.window_id !== (destination === "tab" ? created.window_id : sourceWindow) || target.block.host_id !== peer.host_id
           || processInfo.foreground?.pid !== receipt.pid || processInfo.foreground.user_id !== process.getuid?.()
           || realpathSync(processInfo.foreground.cwd) !== realpathSync(ctx.cwd) || realpathSync(processInfo.foreground.path) !== realpathSync(process.execPath)) throw new Error("Destination process identity did not verify.");
         for (const name of ["attempt.json", "creation.json", "receipt.json"]) unlinkSync(join(directory, name));
         rmdirSync(directory);
-        ctx.ui.notify(`Opened an independent conversation in Rex tab ${created.window_id}.`, "info");
+        ctx.ui.notify(destination === "tab" ? `Opened an independent conversation in Rex tab ${created.window_id}.` : `Opened an independent conversation in Rex split ${created.block_ids[0]}.`, "info");
         return;
       }
       await sleep(Math.min(250, Math.max(1, deadline - Date.now())));

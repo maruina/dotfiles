@@ -16,13 +16,12 @@ export default function rexFork(pi: ExtensionAPI) {
   pi.on("ui_prompt_start", () => { prompts++; });
   pi.on("ui_prompt_end", () => { prompts = Math.max(0, prompts - 1); });
   pi.registerCommand("rex-fork", {
-    description: "Fork this settled conversation into a verified Rex tab",
+    description: "Fork this settled conversation into a verified Rex tab or split",
     getArgumentCompletions: prefix => ["tab", "right", "below"].filter(value => value.startsWith(prefix)).map(value => ({ value, label: value })),
     handler: async (args, ctx: ExtensionContext) => {
-      if (args.trim() !== "tab") {
-        ctx.ui.notify(args.trim() === "right" || args.trim() === "below"
-          ? "Rex split forks are not supported in this slice. Use /rex-fork tab."
-          : "Usage: /rex-fork tab (one argument required).", "warning");
+      const destination = args.trim();
+      if (destination !== "tab" && destination !== "right" && destination !== "below") {
+        ctx.ui.notify("Usage: /rex-fork tab|right|below (one argument required).", "warning");
         return;
       }
       if (ctx.mode !== "tui" || active || prompts > 0 || !ctx.isIdle() || ctx.hasPendingMessages()) {
@@ -37,7 +36,7 @@ export default function rexFork(pi: ExtensionAPI) {
         && ctx.sessionManager.getSessionId() === id && ctx.sessionManager.getLeafId() === leaf;
       const settled = () => current() && prompts === 0 && ctx.isIdle() && !ctx.hasPendingMessages();
       active = true;
-      try { await runTabFork(pi, ctx, current, settled); }
+      try { await runTabFork(pi, ctx, current, settled, destination); }
       catch (error) { ctx.ui.notify(`Rex fork refused: ${error instanceof Error ? error.message : String(error)}`, "error"); }
       finally { active = false; }
     },

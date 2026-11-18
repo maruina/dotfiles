@@ -36,6 +36,19 @@
 | `learning-candidates` | prompt-required | Unexpected live-test behavior | Recorded the isolated TUI submission failure and startup metadata observation. |
 | `script-best-practices` | skill-loader | Shell command in `package.json` | Preserved the existing `sh` runner and quoted extension path when registering the suite. |
 
+#### Slice 2 execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `skill-loader` | prompt-required | Execution guidance | Selected matching skills. |
+| `resolve-worktree` | prompt-required | Plan path | Resolved the plan to this worktree. |
+| `feature-worktree` | prompt-required | Isolated execution | Continued on `maruina/rex-fork`. |
+| `chezmoi` | skill-loader | Managed source | Kept runtime and target files unchanged. |
+| `codebase-research` | skill-loader | Fork behavior | Traced the command and Rex response shapes. |
+| `cli-best-practices` | skill-loader | Slash command | Checked arguments and partial-failure reports. |
+| `write` | skill-loader | Ledger and README | Applied concise, precise prose. |
+| `diataxis` | skill-loader | README | Separated command reference and recovery guidance. |
+| `rex` | agent-selected | Installed Rex API | Inspected the split schema and behavior. |
+
 Execution started on Slice 1 only. The user approved disposable dependency installation in this feature worktree and prohibited deployment, shared runtime dependency changes, and changes to the vendor-copycat or pi-restore worktrees. `npm ci --ignore-scripts --prefix dot_pi/agent` passed (246 packages; zero reported vulnerabilities). Worktree dependencies remain installed until the required suites finish. Task 1 initially stopped on isolated startup verification. The following blocker notes are historical; see Slice 1 completion evidence for the final state.
 
 #### Initial Slice 1 evidence and blocker
@@ -236,14 +249,18 @@ Slice 1 is complete; stop here. Slice 2 remains unstarted. Independent `/verify`
 **Delivers:** The complete requested command, anchored splits, command reference, and final integration evidence.
 
 ### Task 2: Add right and below destinations
+**Status:** In progress. Slice 1 received independent verification with no blocking findings. Copycat publication was merged as `9fefd1f`; the user previously approved worktree-only dependency installation. `npm ci --ignore-scripts --prefix dot_pi/agent` passed for Slice 2. No shared runtime files or targets were changed.
+
 **Delivers:** Both split variants use the same verified snapshot/launch path and anchor to the invoking pane.
 **Blocked by:** Task 1
 **Traces to:** R1, R3, R4
 **Files:** `dot_pi/agent/exact_extensions/rex-fork/index.ts`, `dot_pi/agent/exact_extensions/rex-fork/_fork.ts`, `dot_pi/agent/exact_extensions/rex-fork/rex-fork.test.mjs`
 
-- [ ] Add failing tests for `right` and `below`, including a different focused pane, invalid anchor, and uncertain split creation.
-- [ ] Implement `session.new_split` with explicit source `anchor_id`, `side: after`, and the matching horizontal/vertical direction. Reuse the tab snapshot, launch, and receipt path without duplicate creation or fallback.
-- [ ] Run the focused test and opt-in smoke commands from Test Strategy; expect both orientations to target the invoking pane and all tab behavior to remain green.
+- [x] Add failing tests for `right` and `below`, including a different focused pane, invalid anchor, and uncertain split creation.
+- [x] Implement `session.new_split` with explicit source `anchor_id`, `side: after`, and the matching horizontal/vertical direction. Reuse the tab snapshot, launch, and receipt path without duplicate creation or fallback.
+- [x] Run the focused test and opt-in smoke commands from Test Strategy; expect both orientations to target the invoking pane and all tab behavior to remain green.
+
+The four focused split cases initially failed because the command rejected splits. The deterministic suite then passed 27 tests with three opt-in smoke cases skipped. The isolated smoke suite passed all 30 tests, including both orientations with a different active window; it verified source-anchored layout, focus, receipt, source bytes, and no launch-generated turn. TypeScript and test diagnostics and `git diff --check` passed.
 - [ ] Refactor only after green, rerun verification, and commit with `feat(pi): fork conversations into anchored rex splits`.
 
 ### Task 3: Document usage and future-agent constraints

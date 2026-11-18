@@ -60,15 +60,15 @@ function extension(exec = async () => { throw new Error("Unexpected external cal
   return { command: commands.get("rex-fork"), events, notifications, ctx };
 }
 
-test("tab command refuses invalid arguments, unsupported splits, busy work, queued messages, prompts, and non-TUI mode", async () => {
+test("command refuses invalid arguments, busy work, queued messages, prompts, and non-TUI mode", async () => {
   const app = extension();
-  for (const args of ["", "unknown", "tab extra", "right", "below"]) await app.command.handler(args, app.ctx);
+  for (const args of ["", "unknown", "tab extra"]) await app.command.handler(args, app.ctx);
   for (const change of [{ mode: "rpc" }, { isIdle: () => false }, { hasPendingMessages: () => true }]) {
     await app.command.handler("tab", { ...app.ctx, ...change });
   }
   app.events.get("ui_prompt_start")();
   await app.command.handler("tab", app.ctx);
-  assert.equal(app.notifications.length, 9);
+  assert.equal(app.notifications.length, 7);
   assert.equal(app.notifications.every(n => n.level === "warning"), true);
   assert.deepEqual(app.command.getArgumentCompletions("t"), [{ value: "tab", label: "tab" }]);
 });
@@ -118,7 +118,7 @@ async function tabFixture(run, mode = "success") {
       }
       else if (args.includes("inspect")) value = { session_id: peer.session_id, block: { block_id: args.at(-2), host_id: peer.host_id, window_id: "window:bbbb" } };
       else if (args.at(-1) === "process") value = { foreground: { pid: args.includes("block:bbbb") || mode === "unrelated-process" ? process.pid + 1 : process.pid, user_id: process.getuid(), cwd: realpathSync(root), path: process.execPath } };
-      else if (args.includes("session.new_window")) {
+      else if (args.includes("session.new_window") || args.includes("session.new_split")) {
         payload = JSON.parse(args.at(-1));
         if (mode === "lost") throw new Error("lost creation reply");
         if (mode === "cancel-after") app.events.get("session_shutdown")();
@@ -126,7 +126,9 @@ async function tabFixture(run, mode = "success") {
         const directory = command.find(v => v.startsWith("PI_REX_FORK_ATTEMPT=")).slice("PI_REX_FORK_ATTEMPT=".length);
         const attempt = JSON.parse(readFileSync(join(directory, "attempt.json"), "utf8"));
         if (mode !== "missing-receipt") writeFileSync(join(directory, "receipt.json"), JSON.stringify({ ...attempt, nonce: mode === "mismatch" ? "wrong" : attempt.nonce, block: "block:bbbb", pid: process.pid + 1 }), { mode: 0o600 });
-        value = { window_id: "window:bbbb", block_ids: mode === "malformed-creation" ? [] : ["block:bbbb"], revision: 1 };
+        value = args.includes("session.new_split")
+          ? { anchor_id: mode === "invalid-anchor" ? "block:cccc" : peer.block_id, block_ids: ["block:bbbb"], split_ids: ["split:bbbb"], revision: 1 }
+          : { window_id: "window:bbbb", block_ids: mode === "malformed-creation" ? [] : ["block:bbbb"], revision: 1 };
       } else throw new Error(`Unexpected external call: ${program} ${args.join(" ")}`);
       return { code: 0, stdout: JSON.stringify(value) };
     });
@@ -157,6 +159,31 @@ test("tab registration launches one independent snapshot without a prompt and ve
     assert.equal(app.notifications.at(-1).level, "info", JSON.stringify(app.notifications));
     assert.equal(calls.some(([, args]) => args.includes("send") || args.includes("send-key")), false);
   });
+});
+
+for (const [destination, direction] of [["right", "horizontal"], ["below", "vertical"]]) test(`${destination} split anchors to the invoking pane and verifies startup`, async () => {
+  await tabFixture(async ({ source, sourceBytes, calls, app, payload }) => {
+    await app.command.handler(destination, app.ctx);
+    assert.equal(calls.filter(([, args]) => args.includes("session.new_split")).length, 1);
+    assert.equal(calls.some(([, args]) => args.includes("session.new_window")), false);
+    const request = payload();
+    assert.equal(request.anchor_id, "block:aaaa");
+    assert.equal(request.direction, direction);
+    assert.equal(request.side, "after");
+    assert.equal(request.focus, true);
+    assert.equal(request.layout.block.options.command.at(-2), "--session");
+    assert.deepEqual(readFileSync(source.getSessionFile()), sourceBytes);
+    assert.equal(app.notifications.at(-1).level, "info", JSON.stringify(app.notifications));
+  });
+});
+
+for (const mode of ["lost", "invalid-anchor"]) test(`right split ${mode} remains uncertain without retry or cleanup`, async () => {
+  await tabFixture(async ({ app, calls }) => {
+    await app.command.handler("right", app.ctx);
+    assert.equal(calls.filter(([, args]) => args.includes("session.new_split")).length, 1);
+    assert.equal(calls.some(([, args]) => args.includes("session.new_window") || args.includes("close") || args.includes("kill")), false);
+    assert.match(app.notifications.at(-1).message, /created\/unverified/);
+  }, mode);
 });
 
 for (const mode of ["lost", "mismatch", "cancel-after", "malformed-creation"]) test(`tab ${mode} creation remains uncertain without retry or resource cleanup`, async () => {
@@ -235,7 +262,7 @@ test("tab serializes overlapping commands without queueing a second fork", async
   }, "overlap");
 });
 
-test("tab isolated Rex/Pi startup has no launch-generated turns", { skip: process.env.PI_REX_FORK_SMOKE !== "1", timeout: 45000 }, async (t) => {
+for (const destination of ["tab", "right", "below"]) test(`${destination} isolated Rex/Pi startup has no launch-generated turns`, { skip: process.env.PI_REX_FORK_SMOKE !== "1", timeout: 60000 }, async (t) => {
   const root = mkdtempSync(join(tmpdir(), "rxf-"));
   const endpoint = `unix://${join(root, "rex.sock")}`;
   assert.notEqual(endpoint, process.env.REX_SERVER);
@@ -293,21 +320,40 @@ export default function(pi) { pi.on("session_start", (_event, ctx) => {
     const baseline = await json("session", "inspect", session, "--json");
     assert.equal(baseline.windows.length, 1);
     assert.deepEqual(readFileSync(source.getSessionFile()), original);
-    await rex("send", "-s", session, "-b", block, "/rex-fork tab");
+    if (destination !== "tab") {
+      await json("window", "new", "-s", session, "other", "--shell=none", "--json", "--", "/bin/sleep", "60");
+      const otherFocused = await json("session", "inspect", session, "--json");
+      assert.notEqual(otherFocused.active_window_id, baseline.active_window_id);
+    }
+    await rex("send", "-s", session, "-b", block, `/rex-fork ${destination}`);
     await sleep(250);
     // Enter accepts argument completion without submission, so dismiss completion first.
     await rex("send-key", "-s", session, "-b", block, "--action", "press", "escape");
     await rex("send-key", "-s", session, "-b", block, "--action", "press", "enter");
     const view = await waitFor(async () => {
       const current = await json("session", "inspect", session, "--json");
-      if (current.windows.length === 2) return current;
+      if (destination === "tab" && current.windows.length === 2) return current;
+      if (destination !== "tab") {
+        const sourceWindow = current.windows.find(window => window.window_id === baseline.active_window_id);
+        if (sourceWindow?.layers[0].blocks.length === 2) return current;
+      }
       const screen = await rex("capture", "-s", session, "-b", block, "--trim");
       lastScreen = screen;
       if (/Rex fork refused|Extension issues/.test(screen)) throw new Error(screen);
       return false;
     }, 18000);
     assert.equal(view.windows.length, 2);
-    assert.notEqual(view.active_window_id, baseline.active_window_id);
+    if (destination === "tab") {
+      assert.notEqual(view.active_window_id, baseline.active_window_id);
+    } else {
+      assert.equal(view.active_window_id, baseline.active_window_id);
+      const sourceWindow = view.windows.find(window => window.window_id === baseline.active_window_id);
+      const split = sourceWindow.layers[0].layout.split;
+      assert.equal(split.direction, destination === "right" ? "horizontal" : "vertical");
+      assert.equal(split.before.block_id, block);
+      assert.notEqual(split.after.block_id, block);
+      assert.equal(sourceWindow.focused_block_id, split.after.block_id);
+    }
     const attempts = join(env.PI_CODING_AGENT_DIR, "rex-fork-attempts");
     await waitFor(async () => {
       const screen = await rex("capture", "-s", session, "-b", block, "--trim");

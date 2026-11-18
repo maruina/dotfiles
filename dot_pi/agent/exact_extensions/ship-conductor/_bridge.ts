@@ -211,10 +211,16 @@ export function stageContract(config: StageConfig): string {
       lines.push(`Fix target PR: ${config.completion.fixRequest.prUrl}`);
       lines.push(`Fix reviewed head SHA: ${config.completion.fixRequest.reviewedHeadSha}`);
       lines.push(`Fix findings count: ${config.completion.fixRequest.findings.length}`);
+      for (const finding of config.completion.fixRequest.findings) {
+        lines.push(`Fix finding: ${JSON.stringify(finding)}`);
+      }
     }
     if (config.completion.pendingSettlements && config.completion.pendingSettlements.length > 0) {
       lines.push(`Pending addressed settlements: ${config.completion.pendingSettlements.length}`);
       lines.push(`Pending settlement IDs: ${config.completion.pendingSettlements.map((entry) => entry.findingId).join(", ")}`);
+      for (const settlement of config.completion.pendingSettlements) {
+        lines.push(`Pending settlement: ${JSON.stringify(settlement)}`);
+      }
     }
     if (config.completion.verificationWriters && config.completion.verificationWriters.length > 0) {
       lines.push(`Completion verification writers: ${config.completion.verificationWriters.join(", ")}`);

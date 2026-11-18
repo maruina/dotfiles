@@ -529,6 +529,60 @@ describe("runCompletionPhase", () => {
     assert.match(result.reason, /includes the verifier identity/i);
   });
 
+  it("blocks before completion verify when writer metadata matches verifier model ID under a different provider", async () => {
+    const dispatch: CompletionStageDispatch = async () => {
+      throw new Error("dispatch must not run");
+    };
+
+    const result = await runWithDispatch(dispatch, { writerModelIds: ["other-provider/verifier"] });
+
+    assert.equal(result.status, "blocked");
+    assert.equal(result.stage, "verify");
+    assert.match(result.reason, /includes the verifier identity/i);
+  });
+
+  it("blocks normalized writer identities before publishing", async () => {
+    const result = await runWithDispatch(async () => { throw new Error("dispatch must not run"); }, {
+      writerModelIds: [" OTHER-PROVIDER /  VERIFIER  "],
+    });
+    assert.equal(result.status, "blocked");
+    assert.equal(result.stage, "verify");
+    assert.match(result.reason, /includes the verifier identity/i);
+  });
+
+  it("accepts independent verifier metadata with slashed model IDs", async () => {
+    const calls: CompletionStage[] = [];
+    const result = await runCompletionPhase({
+      policy: policy("work"),
+      runId: "run-test",
+      worktree: REPO.root,
+      branch: "feature",
+      planPath: join(REPO.root, "plans", "feature", "plan.md"),
+      baselineCommit: BASELINE,
+      baselinePlanPath: join(REPO.root, "plans", "feature", "plan.md"),
+      baselinePlanBlob: REPO.planBlob,
+      baselineDesignPath: join(REPO.root, "plans", "feature", "design.md"),
+      baselineDesignBlob: REPO.designBlob,
+      candidate: CANDIDATE1,
+      models: {
+        execute: { provider: "openai", id: "openai/gpt-5.3-codex" },
+        simplify: { provider: "anthropic", id: "claude-4.5-sonnet" },
+        verify: { provider: "google", id: "gemini-2.5-pro" },
+      },
+      writerModelIds: [" openai/openai/gpt-5.3-codex "],
+      thinkingLevels: { execute: "minimal", verify: "high" },
+      dispatch: async ({ stage, config }) => {
+        calls.push(stage);
+        const candidate = config.scope === "completion" ? config.completion.candidate : CANDIDATE1;
+        if (stage === "pr-publish") return { status: "settled", outcome: published(candidate) };
+        return { status: "settled", outcome: reviewClean(candidate) };
+      },
+    });
+
+    assert.equal(result.status, "verified");
+    assert.deepEqual(calls, ["pr-publish", "arp-review"]);
+  });
+
   it("blocks arp-fix settlement metadata for unrelated findings", async () => {
     const calls: CompletionStage[] = [];
     const result = await runWithDispatch(async ({ stage, config }) => {

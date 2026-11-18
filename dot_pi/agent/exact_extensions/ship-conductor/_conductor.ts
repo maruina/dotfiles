@@ -446,7 +446,7 @@ function renderSummary(record: RunRecord, reason?: string): string {
   ];
   if (reason) lines.push(`Reason: ${reason}`);
   lines.push(`Next action: ${record.nextAction}`);
-  lines.push("No PR was opened, merged, or deployed by the coordinator.");
+  lines.push("The coordinator did not merge or deploy the PR.");
   return lines.join("\n");
 }
 
@@ -1247,7 +1247,7 @@ export async function runImplement(
                 ? `Review the draft PR (${completion.prUrl}) and the silent ARP result for exact head ${completion.reviewedHead}.`
                 : completion.status === "skipped"
                   ? completion.reason
-                  : `Completion stopped at ${completion.stage} for ${completionLocation} (target head ${completionTarget}; settled finding IDs: ${settledIds}; remaining finding IDs: ${remainingIds}; reviewed heads: ${reviewedHeads}). Recover manually: confirm ${completionLocation} still points to ${completionTarget}, settle any remaining findings with explicit evidence, then rerun /implement '${initial.planPath}' to restart completion checks.`;
+                  : `Completion stopped at ${completion.stage} for ${completionLocation} (target head ${completionTarget}; settled finding IDs: ${settledIds}; remaining finding IDs: ${remainingIds}; reviewed heads: ${reviewedHeads}). Recover manually: compare the PR head with the target head and the reviewed heads, then inspect the local candidate and PR-wide findings. Do not settle an unresolved valid finding as addressed until its fix is verified and pushed. Finish or create any required fix commit, run fresh independent /verify, push the exact verified head, settle supported IDs with evidence, and request or inspect a silent ARP review for that head.`;
 
               const previousDeferStops = deferStops;
               deferStops = false;

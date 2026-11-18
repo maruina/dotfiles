@@ -287,10 +287,24 @@ function sameModel(left: { provider: string; id: string }, right: { provider: st
   return left.provider === right.provider && left.id === right.id;
 }
 
+function parseModelReference(reference: string): { provider: string; id: string } | undefined {
+  const trimmed = reference.trim();
+  const slash = trimmed.indexOf("/");
+  if (slash <= 0 || slash === trimmed.length - 1) return undefined;
+  const providerRaw = trimmed.slice(0, slash);
+  const idRaw = trimmed.slice(slash + 1);
+  const provider = providerRaw.trim();
+  const id = idRaw.trim();
+  if (!provider || !id) return undefined;
+  if (providerRaw !== provider || idRaw !== id) return undefined;
+  if (/\s/.test(provider) || /\s/.test(id)) return undefined;
+  return { provider, id };
+}
+
 function sameKnownModelReference(model: { provider: string; id: string }, reference: string): boolean {
-  const normalized = reference.trim().toLowerCase();
-  if (!normalized) return false;
-  return normalized === `${model.provider}/${model.id}`.toLowerCase();
+  const parsed = parseModelReference(reference);
+  if (!parsed) return false;
+  return sameKnownModel(model, parsed);
 }
 
 function hasItems<T>(value: T[] | undefined): value is T[] {
@@ -298,7 +312,7 @@ function hasItems<T>(value: T[] | undefined): value is T[] {
 }
 
 function isCanonicalModelReference(reference: string): boolean {
-  return /^[^/\s]+\/[^/\s]+$/.test(reference.trim());
+  return parseModelReference(reference) !== undefined;
 }
 
 export function parseStageConfig(value: unknown, expectedWorktree: string): StageConfig {

@@ -753,7 +753,15 @@ describe("runImplement", () => {
     assertOutcomeStatus(outcome, "blocked");
     assert.deepEqual(completionCalls, ["pr-publish", "arp-review", "arp-fix", "completion-verify"]);
     assert.match(outcome.summary, /Independent feature verification returned BLOCKED/i);
+    assert.match(outcome.summary, /Completion stopped at verify for https:\/\/github\.com\/DataDog\/repo\/pull\/123/i);
+    assert.match(outcome.summary, /target head [0-9a-f]{40}/i);
+    assert.match(outcome.summary, /settled finding IDs: none/i);
     assert.match(outcome.summary, /remaining finding IDs: bug-1/i);
+    assert.match(outcome.summary, /reviewed heads: [0-9a-f]{40}/i);
+    assert.match(outcome.summary, /compare the PR head with the target head and the reviewed heads/i);
+    assert.match(outcome.summary, /do not settle an unresolved valid finding as addressed until its fix is verified and pushed/i);
+    assert.doesNotMatch(outcome.summary, /rerun \/implement/i);
+    assert.doesNotMatch(outcome.summary, /No PR was opened/i);
   });
 
   it("does not start completion for intermediate slices", async () => {

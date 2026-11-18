@@ -9,7 +9,7 @@ import {
   type StageConfig,
 } from "./_protocol.ts";
 import type { CandidateSnapshot } from "./_worktree.ts";
-import type { ModelIdentity } from "./_models.ts";
+import { sameKnownModel, type ModelIdentity } from "./_models.ts";
 
 const PROFILE_FILE = "ship-conductor-profile.json";
 const REVIEW_DEADLINE_MS = 20 * 60 * 1000;
@@ -184,10 +184,22 @@ function dedupeStrings(values: string[]): string[] {
   return result;
 }
 
+function parseModelReference(reference: string): ModelIdentity | undefined {
+  const trimmed = reference.trim();
+  const slash = trimmed.indexOf("/");
+  if (slash <= 0 || slash === trimmed.length - 1) return undefined;
+  const providerRaw = trimmed.slice(0, slash);
+  const idRaw = trimmed.slice(slash + 1);
+  const provider = providerRaw.trim();
+  const id = idRaw.trim();
+  if (!provider || !id) return undefined;
+  return { provider, id };
+}
+
 function referencesModel(reference: string, model: ModelIdentity): boolean {
-  const normalized = reference.trim().toLowerCase();
-  if (!normalized) return false;
-  return normalized === `${model.provider}/${model.id}`.toLowerCase();
+  const parsed = parseModelReference(reference);
+  if (!parsed) return false;
+  return sameKnownModel(parsed, model);
 }
 
 function validateOutcome(stage: CompletionStage, response: { status: string; outcome?: LifecycleOutcomeEnvelope }): string | undefined {

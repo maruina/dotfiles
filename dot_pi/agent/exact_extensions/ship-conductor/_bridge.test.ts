@@ -32,9 +32,9 @@ function config(designPath: string, designBlob: string): StageConfig {
   };
 }
 
-function completionConfig(stage: "arp-fix" | "verify"): StageConfig {
+function completionConfig(stage: "arp-fix" | "arp-review" | "verify"): StageConfig {
   const common = {
-    protocolVersion: PROTOCOL_VERSION,
+    protocolVersion: PROTOCOL_VERSION as typeof PROTOCOL_VERSION,
     scope: "completion" as const,
     runId: "run-test",
     worktree: WORKTREE,
@@ -59,12 +59,54 @@ function completionConfig(stage: "arp-fix" | "verify"): StageConfig {
             fixRequest: {
               prUrl: "https://github.com/DataDog/repo/pull/123",
               reviewedHeadSha: COMMIT,
-              findings: [{ findingId: "finding-1", filePath: "src/main.ts", startLine: 10, endLine: 12, reviewedSha: COMMIT, summary: "summary" }],
+              findings: [
+                {
+                  findingId: "finding-alpha",
+                  filePath: "src/main.ts",
+                  startLine: 10,
+                  endLine: 12,
+                  reviewedSha: COMMIT,
+                  summary: "fix alpha",
+                },
+                {
+                  findingId: "finding-beta",
+                  filePath: "src/other.ts",
+                  startLine: 20,
+                  endLine: 21,
+                  reviewedSha: "e".repeat(40),
+                  summary: "fix beta",
+                },
+              ],
             },
           }
-        : {
-            verificationWriters: ["fixture/writer", "fixture/simplifier"],
-          }),
+        : stage === "arp-review"
+          ? {
+              reviewRequest: {
+                prUrl: "https://github.com/DataDog/repo/pull/123",
+                expectedHeadSha: COMMIT,
+                deadlineAt: "2099-01-01T00:20:00.000Z",
+                maxStatusChecks: 30,
+                pollIntervalsSeconds: [10, 30, 60],
+                silent: true as const,
+              },
+              pendingSettlements: [
+                {
+                  findingId: "finding-beta",
+                  fixCommitSha: "f".repeat(40),
+                  fixChangeSummary: "settle beta",
+                  reason: "verified in follow-up checks",
+                },
+                {
+                  findingId: "finding-gamma",
+                  fixCommitSha: "a".repeat(40),
+                  fixChangeSummary: "settle gamma",
+                  reason: "verified against gamma",
+                },
+              ],
+            }
+          : {
+              verificationWriters: ["fixture/writer", "fixture/simplifier"],
+            }),
     },
   };
   return {
@@ -95,11 +137,21 @@ describe("stageContract", () => {
     assert.doesNotMatch(text, /Pinned design blob: b{40}/);
   });
 
-  it("prints completion fix metadata without exposing mutable candidate details", () => {
+  it("prints structured fix findings for arp-fix handoff", () => {
     const text = stageContract(completionConfig("arp-fix"));
     assert.match(text, /^Fix target PR: https:\/\/github\.com\/DataDog\/repo\/pull\/123$/m);
     assert.match(text, /^Fix reviewed head SHA: a{40}$/m);
-    assert.match(text, /^Fix findings count: 1$/m);
+    assert.match(text, /^Fix findings count: 2$/m);
+    assert.match(text, /^Fix finding: .*"findingId":"finding-alpha".*"filePath":"src\/main\.ts".*"startLine":10.*"endLine":12.*"reviewedSha":"a{40}".*"summary":"fix alpha".*$/m);
+    assert.match(text, /^Fix finding: .*"findingId":"finding-beta".*"filePath":"src\/other\.ts".*"startLine":20.*"endLine":21.*"reviewedSha":"e{40}".*"summary":"fix beta".*$/m);
+  });
+
+  it("prints structured pending settlements for arp-review handoff", () => {
+    const text = stageContract(completionConfig("arp-review"));
+    assert.match(text, /^Pending addressed settlements: 2$/m);
+    assert.match(text, /^Pending settlement IDs: finding-beta, finding-gamma$/m);
+    assert.match(text, /^Pending settlement: .*"findingId":"finding-beta".*"fixCommitSha":"f{40}".*"fixChangeSummary":"settle beta".*"reason":"verified in follow-up checks".*$/m);
+    assert.match(text, /^Pending settlement: .*"findingId":"finding-gamma".*"fixCommitSha":"a{40}".*"fixChangeSummary":"settle gamma".*"reason":"verified against gamma".*$/m);
   });
 
   it("prints completion verification writer identities", () => {

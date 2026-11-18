@@ -116,6 +116,25 @@ describe("parseStageConfig", () => {
     assert.deepEqual(parseStageConfig(verify, WORKTREE), verify);
   });
 
+  it("accepts verification writer references whose model IDs contain slashes", () => {
+    const slashed = {
+      ...validCompletionBase("verify"),
+      models: {
+        execute: { provider: "openai", id: "openai/gpt-5.3-codex" },
+        simplify: { provider: "anthropic", id: "claude-4.5-sonnet" },
+        verify: { provider: "google", id: "gemini-2.5-pro" },
+      },
+      stageModel: { provider: "google", id: "gemini-2.5-pro" },
+      completion: {
+        policy: "work",
+        candidate: { branch: "feature", head: COMMIT, stateDigest: "e".repeat(64) },
+        verificationWriters: ["openai/openai/gpt-5.3-codex", "anthropic/claude-4.5-sonnet"],
+      },
+    };
+
+    assert.deepEqual(parseStageConfig(slashed, WORKTREE), slashed);
+  });
+
   it("rejects completion configs with wrong stage metadata", () => {
     assert.throws(() => parseStageConfig(withCompletion("pr-publish", {
       reviewRequest: {
@@ -143,7 +162,19 @@ describe("parseStageConfig", () => {
     }), WORKTREE), /canonical provider\/id identities/i);
 
     assert.throws(() => parseStageConfig(withCompletion("verify", {
+      verificationWriters: ["lifecycle-test/"],
+    }), WORKTREE), /canonical provider\/id identities/i);
+
+    assert.throws(() => parseStageConfig(withCompletion("verify", {
+      verificationWriters: [" lifecycle-test /verifier "],
+    }), WORKTREE), /canonical provider\/id identities/i);
+
+    assert.throws(() => parseStageConfig(withCompletion("verify", {
       verificationWriters: ["lifecycle-test/verifier"],
+    }), WORKTREE), /includes the verifier identity/i);
+
+    assert.throws(() => parseStageConfig(withCompletion("verify", {
+      verificationWriters: ["other-provider/verifier"],
     }), WORKTREE), /includes the verifier identity/i);
   });
 

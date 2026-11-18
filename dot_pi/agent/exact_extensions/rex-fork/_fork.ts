@@ -101,9 +101,20 @@ function launcher(): string[] {
   const packageFile = join(dirname(script), "..", ...(bundled ? [".."] : []), "package.json");
   const pkg = JSON.parse(readFileSync(packageFile, "utf8"));
   if ((!bundled && !script.endsWith("/dist/cli.js")) || pkg.name !== "@earendil-works/pi-coding-agent") throw new Error("Unsupported Pi launcher; use the installed Pi CLI.");
-  // deliberate: reject extra source launch flags rather than replay configuration or prompts; add explicit supported flags separately.
+  // deliberate: accept only known source selectors; support other launch configurations only after validating their effects.
+  const valued = new Set(["--provider", "--model", "--models", "--thinking", "--session", "--session-id", "--session-dir", "--fork", "--name", "-n"]);
+  const flags = new Set(["--continue", "-c", "--resume", "-r"]);
   const args = process.argv.slice(2);
-  if (args.length && !(args.length === 2 && args[0] === "--session")) throw new Error("Custom Pi launch arguments are unsupported.");
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "--") break;
+    if (valued.has(arg)) {
+      if (!args[i + 1] || args[i + 1].startsWith("-")) throw new Error(`Missing value for ${arg}.`);
+      i++;
+    } else if (arg.startsWith("-") && !flags.has(arg)) {
+      throw new Error("Unsupported Pi launch option.");
+    }
+  }
   return [process.execPath, script];
 }
 

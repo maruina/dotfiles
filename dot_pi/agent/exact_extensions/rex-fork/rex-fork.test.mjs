@@ -12,6 +12,7 @@ import { createJiti } from "jiti";
 
 const jiti = createJiti(import.meta.url);
 const { SessionManager } = await jiti.import("@earendil-works/pi-coding-agent");
+const { CombinedAutocompleteProvider, Editor } = await jiti.import("@earendil-works/pi-tui");
 const { snapshotBranch } = await jiti.import("./_fork.ts");
 const { default: register } = await jiti.import("./index.ts");
 
@@ -71,6 +72,64 @@ test("command refuses invalid arguments, busy work, queued messages, prompts, an
   assert.equal(app.notifications.length, 7);
   assert.equal(app.notifications.every(n => n.level === "warning"), true);
   assert.deepEqual(app.command.getArgumentCompletions("t"), [{ value: "tab", label: "tab" }]);
+});
+
+test("session startup wraps forced rex-fork completion and delegates other input", async () => {
+  const app = extension();
+  let wrapper;
+  app.ctx.ui.addAutocompleteProvider = factory => { wrapper = factory; };
+  await app.events.get("session_start")({}, { ...app.ctx, mode: "rpc" });
+  assert.equal(wrapper, undefined);
+  await app.events.get("session_start")({}, app.ctx);
+  assert.equal(typeof wrapper, "function");
+  const base = new CombinedAutocompleteProvider([{ name: "rex-fork", getArgumentCompletions: app.command.getArgumentCompletions }], process.cwd());
+  const delegated = [];
+  const current = {
+    getSuggestions: (lines, line, col, options) => { delegated.push({ lines, line, col, options }); return base.getSuggestions(lines, line, col, options); },
+    applyCompletion: base.applyCompletion.bind(base),
+    shouldTriggerFileCompletion: base.shouldTriggerFileCompletion.bind(base),
+  };
+  const provider = wrapper(current);
+  const options = { force: true, signal: new AbortController().signal };
+  const complete = text => provider.getSuggestions([text], 0, text.length, options);
+  const all = await complete("/rex-fork ");
+  assert.deepEqual(all.items.map(item => item.value), ["tab", "right", "below"]);
+  assert.deepEqual(provider.applyCompletion(["/rex-fork "], 0, 10, all.items[0], all.prefix).lines, ["/rex-fork tab"]);
+  assert.deepEqual((await complete("/rex-fork b")).items.map(item => item.value), ["below"]);
+  assert.deepEqual((await provider.getSuggestions(["/rex-fork r"], 0, 11, { ...options, force: false })).items.map(item => item.value), ["right"]);
+  for (const text of ["/other ", "./some-path", "/rex-forked "]) {
+    await complete(text);
+    assert.equal(delegated.at(-1).options, options);
+  }
+});
+
+test("editor Tab after rex-fork space displays destinations and inserts a selection", async () => {
+  const app = extension();
+  let wrap;
+  app.ctx.ui.addAutocompleteProvider = factory => { wrap = factory; };
+  await app.events.get("session_start")({}, app.ctx);
+  const base = new CombinedAutocompleteProvider([{ name: "rex-fork", getArgumentCompletions: app.command.getArgumentCompletions }], process.cwd());
+  const provider = wrap(base);
+  for (const text of ["/other", "./some-path", "/rex-forked "]) {
+    assert.equal(provider.shouldTriggerFileCompletion([text], 0, text.length), base.shouldTriggerFileCompletion([text], 0, text.length));
+  }
+  const plain = text => text;
+  const editor = new Editor({ terminal: { rows: 30 }, requestRender() {} }, {
+    borderColor: plain,
+    selectList: { selectedPrefix: plain, selectedText: plain, description: plain, scrollInfo: plain, noMatch: plain },
+  });
+  editor.setAutocompleteProvider(provider);
+  editor.setText("/rex-fork ");
+  editor.handleInput("\t");
+  let rendered = "";
+  for (let i = 0; i < 50; i++) {
+    rendered = editor.render(80).join("\n");
+    if (["tab", "right", "below"].every(option => rendered.includes(option))) break;
+    await sleep(10);
+  }
+  for (const option of ["tab", "right", "below"]) assert.ok(rendered.includes(option), `Tab did not display ${option}: ${rendered}`);
+  editor.handleInput("\t");
+  assert.equal(editor.getText(), "/rex-fork tab");
 });
 
 test("tab snapshot refuses absent and partially persisted conversations", () => {
@@ -158,6 +217,30 @@ test("tab registration launches one independent snapshot without a prompt and ve
     assert.notEqual(command.at(-1), source.getSessionFile());
     assert.equal(app.notifications.at(-1).level, "info", JSON.stringify(app.notifications));
     assert.equal(calls.some(([, args]) => args.includes("send") || args.includes("send-key")), false);
+  });
+});
+
+test("source launch selectors and messages are not copied to the destination", async () => {
+  const args = ["--provider", "example-provider", "--model", "example-model", "--models", "example-pattern", "--thinking", "low", "--session", "/private/session", "--session-id", "source-id", "--session-dir", "/private/sessions", "--fork", "/private/fork", "--name", "private-name", "-n", "private-short-name", "--continue", "-c", "--resume", "-r", "/source-command", "--", "-private-message"];
+  await tabFixture(async ({ app, payload }) => {
+    process.argv.push(...args);
+    await app.command.handler("tab", app.ctx);
+    assert.equal(app.notifications.at(-1).level, "info", JSON.stringify(app.notifications));
+    const command = payload().layout.block.options.command;
+    assert.equal(command.length, 7);
+    assert.equal(command.at(-2), "--session");
+    for (const value of args.filter(value => value !== "--session")) assert.equal(command.includes(value), false, value);
+  });
+});
+
+for (const args of [["--extension", "private-value"], ["--tools", "private-value"], ["--config", "private-value"], ["--model=private-value"], ["--model"], ["--model", "--provider"]]) test(`source launch rejects ${args[0]} safely`, async () => {
+  await tabFixture(async ({ root, app, calls }) => {
+    process.argv.push(...args);
+    await app.command.handler("tab", app.ctx);
+    assert.equal(calls.some(([, values]) => values.includes("session.new_window")), false);
+    assert.equal(readdirSync(root).filter(file => file.endsWith(".jsonl")).length, 1);
+    assert.equal(app.notifications.at(-1).level, "error");
+    assert.equal(app.notifications.at(-1).message.includes("private-value"), false);
   });
 });
 
@@ -290,9 +373,17 @@ for (const destination of ["tab", "right", "below"]) test(`${destination} isolat
     mkdirSync(join(env.PI_CODING_AGENT_DIR, "extensions"));
     symlinkSync(fileURLToPath(new URL(".", import.meta.url)), join(env.PI_CODING_AGENT_DIR, "extensions", "rex-fork"));
     writeFileSync(join(env.PI_CODING_AGENT_DIR, "extensions", "startup-proof.ts"), `import { appendFileSync } from "node:fs";
-export default function(pi) { pi.on("session_start", (_event, ctx) => {
-  appendFileSync(${JSON.stringify(join(root, "startup.jsonl"))}, JSON.stringify({mode:ctx.mode, commands:pi.getCommands().map(command => command.name)}) + "\\n", {mode: 0o600});
-}); }`);
+export default function(pi) {
+  pi.registerCommand("startup-proof", { description: "Record startup command", handler: async () => {
+    appendFileSync(${JSON.stringify(join(root, "initial-command.jsonl"))}, JSON.stringify({pid:process.pid}) + "\\n", {mode: 0o600});
+  }});
+  for (const event of ["agent_start", "before_provider_request"]) pi.on(event, () => {
+    appendFileSync(${JSON.stringify(join(root, "model-events.jsonl"))}, JSON.stringify({event, pid:process.pid}) + "\\n", {mode: 0o600});
+  });
+  pi.on("session_start", (_event, ctx) => {
+    appendFileSync(${JSON.stringify(join(root, "startup.jsonl"))}, JSON.stringify({mode:ctx.mode, pid:process.pid, commands:pi.getCommands().map(command => command.name)}) + "\\n", {mode: 0o600});
+  });
+}`);
     writeFileSync(join(env.PI_CODING_AGENT_DIR, "settings.json"), JSON.stringify({ packages: [], quietStartup: true }), { mode: 0o600 });
     const config = join(root, "init.lua");
     writeFileSync(config, "");
@@ -307,7 +398,7 @@ export default function(pi) { pi.on("session_start", (_event, ctx) => {
     server.stderr.on("data", chunk => { if (serverLog.length < 65536) serverLog += chunk; });
     await waitFor(() => json("api", "call", "server.status"), 7000);
     const pi = (await run("which", ["pi"], { timeout: 7000 })).stdout.trim();
-    const created = await json("new", "rex-fork-test", "--shell=none", "-c", cwd, "--json", "--", pi, "--session", source.getSessionFile());
+    const created = await json("new", "rex-fork-test", "--shell=none", "-c", cwd, "--json", "--", pi, "--provider", "anthropic", "--model", "claude-sonnet-4-5", "--thinking", "off", "--session", source.getSessionFile(), "/startup-proof");
     const session = created.session_id;
     testSession = session;
     const block = created.initial_windows[0].block_ids[0];
@@ -315,6 +406,8 @@ export default function(pi) { pi.on("session_start", (_event, ctx) => {
     await waitFor(async () => (await rex("capture", "-s", session, "-b", block, "--trim")).includes("rex-fork-smoke-source"), 12000);
     await sleep(2000);
     const registration = JSON.parse(readFileSync(join(root, "startup.jsonl"), "utf8").trim());
+    await waitFor(() => existsSync(join(root, "initial-command.jsonl")), 7000);
+    assert.equal(JSON.parse(readFileSync(join(root, "initial-command.jsonl"), "utf8").trim()).pid, registration.pid);
     assert.equal(registration.mode, "tui");
     assert.equal(registration.commands.includes("rex-fork"), true);
     const baseline = await json("session", "inspect", session, "--json");
@@ -369,6 +462,11 @@ export default function(pi) { pi.on("session_start", (_event, ctx) => {
     assert.notEqual(copy.getSessionId(), source.getSessionId());
     assert.equal(copy.getCwd(), cwd);
     assert.equal(copy.getEntries().filter(entry => entry.type === "message").length, 1);
+    const registrations = readFileSync(join(root, "startup.jsonl"), "utf8").trim().split("\n").map(line => JSON.parse(line));
+    assert.equal(registrations.length, 2);
+    assert.notEqual(registrations[0].pid, registrations[1].pid);
+    assert.equal(readFileSync(join(root, "initial-command.jsonl"), "utf8").trim().split("\n").length, 1);
+    assert.equal(existsSync(join(root, "model-events.jsonl")), false);
   } catch (error) {
     if (testSession) {
       try {

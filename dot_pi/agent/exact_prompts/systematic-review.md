@@ -7,7 +7,7 @@ Review input:
 
 > $ARGUMENTS
 
-Review the first path or PR URL (default: repository root); remaining text is context. Report findings, then propose fixes. Use `/verify` for read-only closeout and `/pr-validate` for a PR verdict and report.
+Review the first path or PR URL (default: repository root); remaining text is context. Report findings, then propose fixes. Use `/verify` for closeout and `/pr-validate` for PR verdicts.
 
 <HARD-GATE>
 Keep the review itself read-only: report findings before touching anything. After the report, propose fixes under ## Fix findings and apply only the ones the user confirms. For a `plan.md` target, commit confirmed plan-only fixes after validation; for a design target, commit confirmed design fixes per `## Design-only review`; do not include pre-existing changes. Never apply chezmoi state, push, or post GitHub comments.
@@ -39,20 +39,20 @@ Design approved and saved to `<absolute-path-to-design.md>`. Run `/plan <absolut
 
 For code targets, look for:
 
-- Duplicative code, dead code, or structural complexity that should be deleted rather than rearranged (thin wrappers, identity layers, ad-hoc branching, special cases, giant files, or unclear type/ownership boundaries)
+- Duplicative or dead code, thin wrappers, identity layers, ad-hoc branches, special cases, giant files, or unclear type/ownership boundaries; prefer deletion over rearrangement
 - Race conditions, concurrency issues, edge cases, off-by-one errors, null/undefined hazards, and error-handling gaps
 - Security issues: input validation, injection, auth boundaries, and CLI access control
 - Performance issues: N+1 behavior, hot paths, and scale blow-ups
-- Tests that assert implementation details instead of meaningful behavior, or fail to cover distinct contracts without multiplying independent dimensions or repeating expensive integration scenarios (sharing a helper does not establish nonredundant execution)
+- Tests that assert implementation details instead of behavior; cover distinct contracts without multiplying independent dimensions or repeating expensive integration scenarios, even through shared helpers
 
-For behavior-bearing code, check bounded resource growth (loops, queues, goroutines, retries, polling, fan-out, memory, disk), explicit failures (invalid input, partial failure, cancellation, timeout, corrupt data), scale evidence or assumptions for performance-sensitive paths, hard-to-misuse APIs, and idiomatic use of loaded language/domain skills. Challenge the design with an alternative, rationale, and trade-offs.
+For behavior-bearing code, check resource bounds (loops, queues, goroutines, retries, polling, fan-out, memory, disk), explicit failures (invalid input, partial failure, cancellation, timeout, corrupt data), scale evidence/assumptions for performance-sensitive paths, API misuse, and language/domain idioms. Challenge the design with alternatives and trade-offs.
 
 ## Plan review checklist
 
 For `plan.md` targets, check that:
 
 - every requirement maps to a task or explicit follow-up
-- plan metadata parses for the `/implement` preflight: `### Task N: <title>` and `### Slice N: <title>` headings, `**Blocked by:**` lines holding only `Task N` references or `None` (each reference with its own `Task` keyword; notes on their own line), every checkbox inside a task body, and feature-level final verification as a numbered task in the last slice
+- `/implement` metadata parses: `### Task N: <title>` and `### Slice N: <title>` headings; `**Blocked by:**` holds only `Task N` references or `None` (repeat `Task` per reference; put notes separately); checkboxes belong inside tasks; feature-level final verification is a numbered task in the last slice
 - the smallest user-feedback slice is named and is slice 1
 - every requirement and task maps to a slice, unless it is explicitly deferred as a follow-up
 - scope that re-entered from an alternative design or a prior review is deferred with a revisit trigger
@@ -69,7 +69,7 @@ For `plan.md` targets, check that:
 - safety, performance, and developer-experience decisions are explicit for behavior-bearing work, or the plan explains why they are inapplicable
 - the plan reuses existing patterns and does not reimplement platform capabilities without justification
 - the plan does not invent behavior beyond the source of truth
-- compare the plan back to the approved design: a material decision about user-visible behavior, external dependencies, security, data, cost, assumptions, structure, or test limitations must not be hidden in the plan; require explicit user approval before implementation and a design update when applicable; routine implementation details do not need renewed approval
+- compare the plan to the approved design: a material decision about user-visible behavior, external dependencies, security, data, cost, assumptions, structure, or test limitations needs explicit user approval before implementation and a design update when applicable; routine implementation details do not need renewed approval
 - validation limits match the approved design and brief; gaps state what tests establish, what remains untested, and whether delivery is blocked or the user explicitly accepted the gap; an accepted gap cannot waive a required check
 - `## Skills loaded and used` records each skill applied during planning, its source, why it was loaded, and how it informed the plan, or explicitly records that none were needed
 - stop conditions, assumptions, and scope boundaries are explicit
@@ -79,8 +79,8 @@ Challenge scope against the smallest user-feedback slice, not only against the d
 
 ## Method
 
-1. Use `codebase-research` to locate the target area, analyze current behavior, and find similar patterns. Read files, diffs, and tests in bounded sections; if a tool response is truncated, retrieve the missing sections before drawing conclusions.
-2. Use the `skill-loader` skill to determine which language and domain skills to read based on the target files. Load them and their applicable references before evaluating findings. Keep a provenance record per the `## Provenance record` section of the `skill-loader` skill.
+1. Use `codebase-research` to locate the target, trace behavior, and find patterns. Read files, diffs, and tests in bounded sections; if a tool response is truncated, retrieve the missing sections before drawing conclusions.
+2. Use `skill-loader` to load target-specific language/domain skills and references before evaluating findings. Follow the `## Provenance record` section of the `skill-loader` skill.
 3. Identify languages, package boundaries, test/build commands, entry points, and guidance files.
 4. Map core files, tests, dependencies, callers, and ownership. For plans, read the sibling `design.md`.
 5. Check correctness, concurrency, security, performance, API/UX, tests, and maintainability.
@@ -93,10 +93,10 @@ Challenge scope against the smallest user-feedback slice, not only against the d
 
 Return a concise review with these sections:
 
-1. **Scope reviewed** — target, extra context used, files/components inspected. For PRs, include the PR URL, base ref, head SHA, and resolved worktree.
-2. **Discovery summary** — current behavior, existing patterns, and key assumptions from `codebase-research`.
-3. **Skills loaded and used** — recorded per the `## Provenance record` section of the `skill-loader` skill; explicitly state when none were needed.
-4. **Executive summary** — highest-risk themes in 3-5 bullets.
+1. **Scope reviewed** — target, context, files/components; for PRs, the PR URL, base ref, head SHA, and resolved worktree.
+2. **Discovery summary** — behavior, patterns, and assumptions from `codebase-research`.
+3. **Skills loaded and used** — per `skill-loader` provenance rules; explicitly state when none were needed.
+4. **Executive summary** — 3-5 highest-risk themes.
 5. **Findings** — sorted by severity. For each finding include:
    - Severity: Critical / High / Medium / Low
    - Evidence: file path and line/function references
@@ -115,11 +115,11 @@ This section does not apply to design-only reviews.
 
 After the report, propose fixes instead of leaving them entirely to the user:
 
-1. List fixable findings with the file, smallest change, and verification. Offer Critical and High findings first; explain which Low findings to leave unchanged.
+1. List fixable findings, files, smallest changes, and checks. Prioritize Critical and High; explain Low findings left unchanged.
 2. Ask the user which findings to apply. Do not edit before an explicit confirmation.
-3. For each confirmed fix, stay in the resolved target worktree, use the `skill-loader` skill for touched files, make the smallest change that satisfies the finding, and run the narrow relevant tests or checks. For PRs, stop if the reviewed head or clean state changed. Keep the fork-code execution restriction.
-4. Stop and ask if a fix is ambiguous, exceeds the finding, needs a design decision, or touches unrelated code.
-5. For a `plan.md` target, check that the worktree was clean before editing. If it was not clean, stop before editing and ask. When a confirmed fix disproves an initial planned approach, record a learning candidate in the plan with the `learning-candidates` skill. After applying confirmed fixes, rerun the plan review checklist against the updated plan, then commit only the plan file with a Conventional Commit message such as `docs: update <feature> implementation plan`. Do not include pre-existing changes or unconfirmed fixes. For other targets, leave confirmed changes uncommitted. Summarize what was fixed, committed, skipped, and why.
+3. Stay in the resolved worktree, use `skill-loader` for touched files, apply each confirmed fix minimally, and run focused checks. For PRs, stop if the reviewed head or clean state changed. Do not run fork code.
+4. Stop and ask if a fix is ambiguous, exceeds the finding, needs design decisions, or touches unrelated code.
+5. For `plan.md`, require a clean worktree before editing; otherwise stop and ask. If a confirmed fix disproves the planned approach, use the `learning-candidates` skill to record it. Rerun the plan checklist, then commit only confirmed plan changes with a Conventional Commit such as `docs: update <feature> implementation plan`. Exclude pre-existing changes. Leave other targets uncommitted. Summarize fixes, commits, skips, and reasons.
 
 ## Handoff
 Close with the recommended next step:
@@ -128,6 +128,6 @@ Close with the recommended next step:
   Review complete. Run /execute <absolute-path-to-plan.md> to implement it.
 - For a `plan.md` target with blocking findings, say exactly:
   Review complete. Address the blocking findings above, then re-run /systematic-review <absolute-path-to-plan.md>, or return to /plan to revise.
-- After applying confirmed fixes to a `plan.md`, commit those fixes as described in ## Fix findings. If blocking findings remain, use the blocking-findings handoff above. Otherwise, use the no-blocking-findings handoff above.
-- For a code-only target with no plan, say exactly:
+- After confirmed `plan.md` fixes, commit per ## Fix findings and use the applicable handoff above.
+- For code without a plan, say exactly:
   Review complete. Recommended next step: <highest-priority action>. I can apply the proposed fixes on request.

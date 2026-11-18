@@ -4,8 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "npm run test:copycat && npm run test:rex-naming && npm run test:unit && npm run test:prompts && npm run test:pr-validate-report && npm run test:pr-validate-collector && npm run test:skills && npm run test:pi-deps",
+    "test": "npm run test:copycat && npm run test:rex-recovery && npm run test:rex-naming && npm run test:unit && npm run test:prompts && npm run test:pr-validate-report && npm run test:pr-validate-collector && npm run test:skills && npm run test:pi-deps",
     "test:copycat": "sh -c 'ext=$([ -d exact_extensions ] && echo exact_extensions || echo extensions); node --import jiti/register --test \"$ext\"/copycat/test.ts'",
+    "test:rex-recovery": "sh -c 'ext=$([ -d exact_extensions ] && echo exact_extensions || echo extensions); node --test \"$ext\"/rex-recovery/recovery.test.mjs'",
     "test:rex-naming": "sh -c 'scripts=$([ -d exact_scripts ] && echo exact_scripts || echo scripts); node --test \"$scripts\"/rex-naming.test.mjs'",
     "test:all": "npm test && npm run test:smoke",
     "test:compute-guardrails": "sh -c 'ext=$([ -d exact_extensions ] && echo exact_extensions || echo extensions); node --experimental-strip-types --test \"$ext\"/compute-guardrails.test.mjs'",

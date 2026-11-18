@@ -189,7 +189,7 @@ The system SHALL stop at three reviewed heads or the per-head deadline and SHALL
 
 - [ ] Run `npm ci --ignore-scripts` in `dot_pi/agent` if not already current, then both focused commands, `npm test`, and `npm run test:all`. Keep dependencies until all gates and independent `/verify` finish; remove `dot_pi/agent/node_modules` afterward as repository guidance requires.
 - [x] Execute the disposable-worktree smoke from Test Strategy with candidate prompts/extensions and isolated remote boundaries. Record setup, invocation, observed typed transitions, cancellation outcome, and cleanup. Do not run unsigned commits or bypass approval/signing checks outside isolated test fixtures.
-- [ ] Establish production ARP evidence with an explicitly authorized suitable draft PR, or stop delivery and ask the user to accept the real-service evidence gap. Do not interpret mocked success as live MCP proof.
+- [x] Establish production ARP evidence with an explicitly authorized suitable draft PR, or stop delivery and ask the user to accept the real-service evidence gap. Do not interpret mocked success as live MCP proof.
 - [ ] Verify work/personal rendering and explicit target diffs using `chezmoi --source "$PWD"`; run `git diff --check` and confirm only intended changes. Apply only after independent `/verify`, with the live-evidence gap resolved or accepted. Commit/push according to repository completion rules.
 - [x] Record commands, outcomes, omissions, and exact verified candidate in the ledger; do not create an empty evidence-only commit unless required ledger changes exist.
 
@@ -258,6 +258,9 @@ The system SHALL stop at three reviewed heads or the per-head deadline and SHALL
   - Disposable local smoke: `env -u PI_LIFECYCLE_CHILD_CONFIG PATH="$PWD/node_modules/.bin:$PATH" node --experimental-strip-types /tmp/arp-terra-smoke.ae3oPm/smoke.mjs` used candidate prompts and RPC children, a bare local Git remote, and mocked ARP tools. The completion phase ran `pr-publish → arp-review(findings) → arp-fix → verify → pr-publish → arp-review(clean)`, pushed the verified head `a104e9a67ac483f552f84cea4f772e63545476ee`, resolved mock IDs `84171` and `84172`, and returned `verified`. This smoke preceded the final prompt-only ID conversion clarification and the later test-only bridge assertion; the focused prompt and ship-conductor suites passed after those changes.
   - The companion `/tmp/arp-terra-smoke.ae3oPm/cancel.mjs` run returned `cancelled` with confirmed child termination and no submitted outcome. The temporary smoke directory remains; no deletion guardrail was bypassed.
   - The profile template rendered for both profiles, 13 changed targets were checked with explicit `chezmoi --source "$PWD" diff` paths, and `git diff --check` and `git diff --cached --check` were clean. No target was applied and no production ARP write was made in this repair.
-- Open evidence gaps:
-  - A complete production coordinator run and permanent-settlement path have not been exercised; the manual boundary check above does not establish those paths.
-  - Independent `/verify` was not run in this correction pass, so Task 4 gates that depend on independent `/verify` and post-verify cleanup remain open.
+- Accepted production evidence limit:
+  - The user answered "Yes" to "Do you accept that remaining production evidence gap for this delivery?"
+  - Live production request, status, and findings were checked on `ddoghq/computecla-controllers#50` at `b18959b2582b766c31b01cbfed4da41861fb25e3`, review `01a1ee07-b95d-7284-99c0-fa1670d27065`.
+  - The complete automatic coordinator and permanent settlement path were verified only with real-RPC local fixtures and mocked remote boundaries, not in production. This is not production end-to-end proof.
+- Open evidence gap:
+  - Independent `/verify` was not run in this correction pass. Task 4 gates that depend on independent `/verify` remain open until fresh Gemini 4 verification returns `VERIFIED`; post-verify cleanup also remains open.

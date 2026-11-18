@@ -261,17 +261,19 @@ Slice 1 is complete; stop here. Slice 2 remains unstarted. Independent `/verify`
 - [x] Run the focused test and opt-in smoke commands from Test Strategy; expect both orientations to target the invoking pane and all tab behavior to remain green.
 
 The four focused split cases initially failed because the command rejected splits. The deterministic suite then passed 27 tests with three opt-in smoke cases skipped. The isolated smoke suite passed all 30 tests, including both orientations with a different active window; it verified source-anchored layout, focus, receipt, source bytes, and no launch-generated turn. TypeScript and test diagnostics and `git diff --check` passed.
-- [ ] Refactor only after green, rerun verification, and commit with `feat(pi): fork conversations into anchored rex splits`.
+- [x] Refactor only after green, rerun verification, and commit with `feat(pi): fork conversations into anchored rex splits` (`d1f4302`).
 
 ### Task 3: Document usage and future-agent constraints
+**Status:** In progress.
+
 **Delivers:** Command usage and failure handling match the tested behavior.
 **Blocked by:** Task 2
 **Traces to:** R1-R4 and the documentation requirement
 **Files:** `dot_pi/agent/exact_extensions/rex-fork/README.md`
 
-- [ ] Document the three commands, persisted/idle/local prerequisites, focus and zoom behavior, cwd retention, normal installed-Pi launch limits, and the absence of model prompts or approval transfer. (Failing test not practical: documentation task verified against command output and test contracts).
-- [ ] Document refusal versus created/unverified, snapshot/attempt inspection before manual retry, private metadata cleanup, isolated test commands, and targeted rollout/rollback coordination.
-- [ ] Review root `AGENTS.md` and `dot_pi/agent/AGENTS.md`; leave both unchanged because these extension-specific commands and traps belong in this README, not global instructions. Record any contrary review finding before widening file scope.
+- [x] Document the three commands, persisted/idle/local prerequisites, focus and zoom behavior, cwd retention, normal installed-Pi launch limits, and the absence of model prompts or approval transfer. (Failing test not practical: documentation task verified against command output and test contracts).
+- [x] Document refusal versus created/unverified, snapshot/attempt inspection before manual retry, private metadata cleanup, isolated test commands, and targeted rollout/rollback coordination.
+- [x] Review root `AGENTS.md` and `dot_pi/agent/AGENTS.md`; leave both unchanged because these extension-specific commands and traps belong in this README, not global instructions. Record any contrary review finding before widening file scope.
 - [ ] Compare every documented outcome with tests; commit with `docs(pi): document rex fork usage and recovery limits`.
 
 ### Task 4: Final verification

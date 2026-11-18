@@ -22,6 +22,40 @@
 | `learning-lookup` | prompt-required | Advisory planning evidence | Attempted a narrow lookup and recorded its failure rather than assuming advice. |
 | `obsidian-cli` | agent-selected | Learning lookup requires Obsidian | Used the CLI without reading the vault directly. |
 
+### Execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `skill-loader` | prompt-required | Execution guidance | Selected command, worktree, source-management, and research skills. |
+| `resolve-worktree` | prompt-required | Absolute plan path | Resolved the supplied path to this feature worktree. |
+| `feature-worktree` | prompt-required | Isolated execution | Confirmed `maruina/rex-fork` and a clean initial worktree. |
+| `chezmoi` | skill-loader | Managed extension | Kept deployed targets and shared runtime dependencies unchanged. |
+| `codebase-research` | skill-loader | Public Pi/Rex APIs | Checked session branching, terminal creation, and local identity APIs before implementation. |
+| `cli-best-practices` | skill-loader | Slash command | Applied explicit input and partial-failure requirements. |
+| `write` | skill-loader | Execution ledger | Recorded approval and evidence without changing scope. |
+| `rex` | agent-selected | Installed Rex behavior | Read the installed CLI guide and inspected API schemas. |
+| `learning-candidates` | prompt-required | Unexpected live-test behavior | Recorded the isolated TUI submission failure and startup metadata observation. |
+| `script-best-practices` | skill-loader | Shell command in `package.json` | Preserved the existing `sh` runner and quoted extension path when registering the suite. |
+
+Execution started on Slice 1 only. The user approved disposable dependency installation in this feature worktree and prohibited deployment, shared runtime dependency changes, and changes to the vendor-copycat or pi-restore worktrees. `npm ci --ignore-scripts --prefix dot_pi/agent` passed (246 packages; zero reported vulnerabilities). Worktree dependencies remain installed until the required suites finish. Task 1 initially stopped on isolated startup verification. The following blocker notes are historical; see Slice 1 completion evidence for the final state.
+
+#### Initial Slice 1 evidence and blocker
+- Added uncommitted `rex-fork/index.ts`, `_fork.ts`, and `rex-fork.test.mjs`. The command implementation, snapshot helper, and receipt protocol are incomplete candidates, not delivered functionality. Test registration in `package.json`, additional failure/race coverage, and the task commit remain pending.
+- The first focused tab run failed because `_fork.ts` did not exist. The snapshot implementation then passed. Adding compaction coverage exposed an assertion difference between absent JSON properties and in-memory `undefined` properties; comparing serialized branch metadata fixed the test representation without dropping compaction fields.
+- `node --experimental-strip-types --test exact_extensions/rex-fork/rex-fork.test.mjs` passed six deterministic tests before the live test was added. Both candidate TypeScript files had zero LSP diagnostics at that point.
+- The smoke baseline initially failed because Pi startup appended `thinking_level_change: off` to the synthetic fixture. The fixture now includes that metadata before startup; the source-byte invariant was not removed.
+- `PI_REX_FORK_SMOKE=1 node --experimental-strip-types --test exact_extensions/rex-fork/rex-fork.test.mjs` then passed the six deterministic cases but failed the live tab test in three focused attempts. The isolated source editor displayed `/rex-fork tab` after `rex send` and `rex send-key enter`, but the creation condition did not occur before the deadline. Adding source-screen diagnostics and a 250 ms delay before Enter did not resolve it. The screen also reported no available models and an offline `fd` warning; their causal role is not established. The available server log contains no candidate creation request. Stop under the repeated-verification-failure rule; do not infer that the command or destination startup works.
+- Each smoke run used a private temporary endpoint, state/config, HOME, agent directory, session store, and synthetic cwd with no credentials or prompts to a model. Teardown stopped only the test server and removed its temporary files. Shared runtime dependencies, deployed targets, and other worktrees were not changed.
+- No complete-suite evidence, verified live destination evidence, commit, push, or deployment exists. Disposable worktree dependencies remain installed.
+
+#### First approved blocker investigation
+The user approved investigation of isolated Rex/Pi input submission and continuation of Slice 1. A temporary test-only `onTerminalInput` probe confirmed registration of `/rex-fork` and receipt of Enter (`0d`). Pi's editor accepts argument completion on Enter without submitting when the completion prefix is an argument. The smoke driver now dismisses completion with Escape before Enter. This resolved submission; the isolated candidate creates one new tab and starts Pi. The driver also now pins `REX_SERVER` in the child environment, which was missing, and records destination screens on failure.
+
+The installed Pi process uses `dist/bundle/cli.js`, not only `dist/cli.js`. The candidate launcher now recognizes both installed layouts without accepting arbitrary launch wrappers or flags. This remains within the installed-Pi launch requirement.
+
+Startup receipt verification then failed in three focused attempts. The destination reports: expected its Node PID and UID 502, but Rex reports the foreground process as `/usr/bin/login`, UID 0, with a different PID and no cwd. The candidate `session.new_window` terminal options set `shell: none` but omit `login`; the installed terminal schema documents `login` as defaulting to true. Do not weaken the identity check. Proposed next step: explicitly set `login: false` to request the direct launch, then rerun isolated verification. This change has not been made because the repeated-failure stop gate was reached. User direction is required to resume.
+
+The latest smoke run still passed all six deterministic cases and failed the one live case. Tests, metadata cleanup, bounded polling/cancellation details, additional failure/race coverage, test registration, and commit readiness remain incomplete. No target apply, shared dependency operation, commit, or push occurred.
+
 ## Source and approval
 The latest user directive limits this work to `/rex-fork`. The user approved the planning alignment brief, its two slices, their dependency, focus behavior, and bounded startup verification with “Ok, do that.” This plan records that approved brief; there is no upstream design document for this feature.
 
@@ -159,6 +193,11 @@ The command SHALL make at most one creation request per invocation and distingui
 - WHEN the extension shuts down, the source session changes, or Rex's instance changes
 - THEN remaining pre-creation work stops; any already submitted creation remains uncertain and is not repeated or destroyed.
 
+## Learning candidates
+- 2026-11-18: A synthetic persisted Pi session without thinking metadata acquired a `thinking_level_change: off` entry during isolated TUI startup; initialize applicable metadata before measuring source-byte invariance — evidence: `dot_pi/agent/exact_extensions/rex-fork/rex-fork.test.mjs`, opt-in smoke baseline.
+- 2026-11-18: Pi argument completion consumes Enter to accept an argument without submitting the command; the isolated `/rex-fork tab` driver submits after Escape dismisses completion — evidence: `dot_pi/agent/exact_extensions/rex-fork/rex-fork.test.mjs`, input probe and subsequent live tab creation.
+- 2026-11-18: A Rex terminal created through `session.new_window` with `shell: none` and omitted `login` reported `/usr/bin/login` with UID 0 during Pi startup receipt verification. The terminal schema defaults `login` to true; direct-launch verification must account for this native wrapper rather than accept its identity as Pi — evidence: opt-in smoke destination screen and `rex block types --json`.
+
 ## Implementation tasks
 ### Slice 1: Fork a conversation into a verified tab
 **Delivers:** One independently usable tab command with snapshot isolation, source validation, startup verification, and bounded failures.
@@ -169,12 +208,29 @@ The command SHALL make at most one creation request per invocation and distingui
 **Traces to:** R1, R2, R3 tab behavior, R4
 **Files:** `dot_pi/agent/exact_extensions/rex-fork/index.ts`, `dot_pi/agent/exact_extensions/rex-fork/_fork.ts`, `dot_pi/agent/exact_extensions/rex-fork/rex-fork.test.mjs`, `dot_pi/agent/package.json`
 
-- [ ] Coordinate before dependency operations. Run `npm ci --ignore-scripts` only in this worktree's `dot_pi/agent` so disposable test dependencies exist for local test runs. Read the repository guidance and installed Pi public declarations. Use LSP for known symbols before edits and obtain candidate-file diagnostics. Do not install into the global runtime or colleague checkout.
-- [ ] Add the focused failing tab test through command registration and real temporary session managers. Cover R1/R2 refusals, source invariance, launch arguments, receipt mismatch, lost replies, and lifecycle races in the same vertical slice.
-- [ ] Implement the default factory and the smallest helper that passes. Add argument completion; in this slice reject not-yet-supported split targets explicitly without launching. Register the focused suite in `test:unit` without losing other entries.
-- [ ] Run `node --experimental-strip-types --test exact_extensions/rex-fork/rex-fork.test.mjs` from `dot_pi/agent`; expect passing deterministic tests and explicit skips for opt-in live cases.
-- [ ] Run the smoke command from Test Strategy with the tab case; expect exactly one new Pi at the saved snapshot/cwd, a matching receipt, no launch-generated turn, and cleanup limited to the temporary server.
-- [ ] Refactor only after green and rerun the focused tests. Commit with `feat(pi): fork conversations into verified rex tabs`.
+- [x] Coordinate before dependency operations. Run `npm ci --ignore-scripts` only in this worktree's `dot_pi/agent` so disposable test dependencies exist for local test runs. Read the repository guidance and installed Pi public declarations. Use LSP for known symbols before edits and obtain candidate-file diagnostics. Do not install into the global runtime or colleague checkout.
+- [x] Add the focused failing tab test through command registration and real temporary session managers. Cover R1/R2 refusals, source invariance, launch arguments, receipt mismatch, lost replies, and lifecycle races in the same vertical slice.
+- [x] Implement the default factory and the smallest helper that passes. Add argument completion; in this slice reject not-yet-supported split targets explicitly without launching. Register the focused suite in `test:unit` without losing other entries.
+- [x] Run `node --experimental-strip-types --test exact_extensions/rex-fork/rex-fork.test.mjs` from `dot_pi/agent`; expect passing deterministic tests and explicit skips for opt-in live cases.
+- [x] Run the smoke command from Test Strategy with the tab case; expect exactly one new Pi at the saved snapshot/cwd, a matching receipt, no launch-generated turn, and cleanup limited to the temporary server.
+- [x] Refactor only after green and rerun the focused tests. Commit with `feat(pi): fork conversations into verified rex tabs`.
+
+#### Slice 1 completion evidence
+The user approved setting `login: false` and resuming verification. That change removed the native login wrapper from destination startup. A further failing registration test reproduced macOS `/var` versus `/private/var` cwd aliases; canonical path comparison fixed the destination check without accepting a different directory or changing PID/UID/executable checks.
+
+The command now invalidates external-call continuations on source lifecycle changes and bounds verification subprocesses by the remaining 15-second receipt deadline. A failing cancellation test drove the continuation guard. A failing metadata-IO test drove reporting the retained snapshot path when attempt preparation fails. Startup publication checks destination generation and session identity before writing its receipt. Tests cover refused input/state, local identity, source isolation and model/compaction metadata, IO failures, launcher limits, overlap, generation changes before/after creation, server replacement, malformed/truncated replies, missing/wrong receipts, and uncertain creation without retries or resource deletion.
+
+Final implementation evidence from `dot_pi/agent`:
+- Focused deterministic suite: 23 passed, one opt-in smoke test skipped.
+- `PI_REX_FORK_SMOKE=1 node --experimental-strip-types --test exact_extensions/rex-fork/rex-fork.test.mjs`: 24 passed, zero skipped. The synthetic baseline stayed at one tab with unchanged source bytes. The candidate created and focused one new tab, published a matching startup receipt, retained the source cwd/session branch, preserved source bytes, and added no conversation turn through the additional 2-second settled window. Teardown stopped only the private test server and removed its temporary state.
+- `npm run test:unit`: 389 tests, 388 passed, zero failed, one opt-in smoke test skipped. Registration preserves all existing test entries.
+- LSP diagnostics for both TypeScript files and the test file: none. `git diff --check`: passed before the commit.
+
+Initial snapshot, direct-launch, canonical-cwd, cancellation, and metadata-IO regressions were observed failing before their fixes. Other refusal and uncertainty coverage was added around the implementation rather than through a separate failing run for each case. Temporary raw-input instrumentation was replaced with a startup registration assertion after the autocomplete cause was confirmed.
+
+No global deployment is approved or performed. Do not apply this worktree's targets. Root `AGENTS.md` and `dot_pi/agent/AGENTS.md` were inspected and remain unchanged. Slice 2 owns the README, split implementation, and complete-feature test suites. Disposable worktree dependencies remain installed for those suites. The command deliberately refuses non-foreground or custom-wrapper launch setups instead of inferring ancestry or replaying flags. All failures after creation dispatch remain conservatively unverified when the CLI cannot establish whether creation occurred; no retry or rollback is automatic.
+
+Slice 1 is complete; stop here. Slice 2 remains unstarted. Independent `/verify` has not run.
 
 ### Slice 2: Fork into right and below splits
 **Delivers:** The complete requested command, anchored splits, command reference, and final integration evidence.

@@ -243,13 +243,13 @@ Initial snapshot, direct-launch, canonical-cwd, cancellation, and metadata-IO re
 
 No global deployment is approved or performed. Do not apply this worktree's targets. Root `AGENTS.md` and `dot_pi/agent/AGENTS.md` were inspected and remain unchanged. Slice 2 owns the README, split implementation, and complete-feature test suites. Disposable worktree dependencies remain installed for those suites. The command deliberately refuses non-foreground or custom-wrapper launch setups instead of inferring ancestry or replaying flags. All failures after creation dispatch remain conservatively unverified when the CLI cannot establish whether creation occurred; no retry or rollback is automatic.
 
-Slice 1 is complete; stop here. Slice 2 remains unstarted. Independent `/verify` has not run.
+Slice 1 was complete at this handoff. Slice 2 and its independent verification had not started at that time.
 
 ### Slice 2: Fork into right and below splits
 **Delivers:** The complete requested command, anchored splits, command reference, and final integration evidence.
 
 ### Task 2: Add right and below destinations
-**Status:** In progress. Slice 1 received independent verification with no blocking findings. Copycat publication was merged as `9fefd1f`; the user previously approved worktree-only dependency installation. `npm ci --ignore-scripts --prefix dot_pi/agent` passed for Slice 2. No shared runtime files or targets were changed.
+**Status:** Complete. Slice 1 received independent verification with no blocking findings. Copycat publication was merged as `9fefd1f`; the user previously approved worktree-only dependency installation. `npm ci --ignore-scripts --prefix dot_pi/agent` passed for Slice 2. No shared runtime files or targets were changed.
 
 **Delivers:** Both split variants use the same verified snapshot/launch path and anchor to the invoking pane.
 **Blocked by:** Task 1
@@ -264,7 +264,7 @@ The four focused split cases initially failed because the command rejected split
 - [x] Refactor only after green, rerun verification, and commit with `feat(pi): fork conversations into anchored rex splits` (`d1f4302`).
 
 ### Task 3: Document usage and future-agent constraints
-**Status:** In progress.
+**Status:** Complete.
 
 **Delivers:** Command usage and failure handling match the tested behavior.
 **Blocked by:** Task 2
@@ -274,16 +274,33 @@ The four focused split cases initially failed because the command rejected split
 - [x] Document the three commands, persisted/idle/local prerequisites, focus and zoom behavior, cwd retention, normal installed-Pi launch limits, and the absence of model prompts or approval transfer. (Failing test not practical: documentation task verified against command output and test contracts).
 - [x] Document refusal versus created/unverified, snapshot/attempt inspection before manual retry, private metadata cleanup, isolated test commands, and targeted rollout/rollback coordination.
 - [x] Review root `AGENTS.md` and `dot_pi/agent/AGENTS.md`; leave both unchanged because these extension-specific commands and traps belong in this README, not global instructions. Record any contrary review finding before widening file scope.
-- [ ] Compare every documented outcome with tests; commit with `docs(pi): document rex fork usage and recovery limits`.
+- [x] Compare every documented outcome with tests; commit with `docs(pi): document rex fork usage and recovery limits` (`4156c40`).
 
 ### Task 4: Final verification
+**Status:** Complete with the user-approved baseline exception below. Fresh independent verification remains pending. No targets were applied.
+
 **Delivers:** Recorded feature-level evidence for all three destinations and their failure contracts.
 **Blocked by:** Task 1, Task 2, Task 3
 **Traces to:** R1-R4 and repository verification policy
 **Files:** `dot_pi/agent/exact_extensions/rex-fork/rex-fork.test.mjs`, `dot_pi/agent/package.json`, `dot_pi/agent/exact_extensions/rex-fork/README.md`, `plans/rex-fork/plan.md`
 
-- [ ] After coordinating with the parallel publisher, verify disposable dependencies in `dot_pi/agent` (rerun `npm ci --ignore-scripts` if needed) before `/verify`. Keep those disposable dependencies until both complete suites finish.
-- [ ] Run the focused suite, `npm run test:unit`, `npm test`, and `npm run test:all` from `dot_pi/agent`. Compare unrelated failures with the unchanged base using isolated dependencies only when needed. Earlier research observed unrelated lifecycle-prompt failures; do not silently fix them or count them as passing.
-- [ ] Run `PI_REX_FORK_SMOKE=1 node --experimental-strip-types --test exact_extensions/rex-fork/rex-fork.test.mjs`; require real tab/right/below startup evidence, matching cwd/session identity, no prompt-generated turns, preserved source state, and isolated cleanup.
-- [ ] Check candidate TypeScript diagnostics, `git diff --check`, changed-file scope, README accuracy, source/target separation, and that no colleague code, secrets, generated dependencies, or runtime attempt data entered Git.
-- [ ] Record verification commands/results and any blockers in this plan. Remove disposable worktree dependencies only after both complete suites finish. Do not apply global targets, change runtime dependencies, or claim delivery if required smoke evidence is missing.
+- [x] After coordinating with the parallel publisher, verify disposable dependencies in `dot_pi/agent` (rerun `npm ci --ignore-scripts` if needed) before `/verify`. Retain the dependencies for fresh independent verification as the user directed.
+- [x] Run the focused suite, `npm run test:unit`, `npm test`, and `npm run test:all` from `dot_pi/agent`. Compare unrelated failures with the unchanged base using isolated scratch state. Record the failures, not a passing result, and run the short-circuited checks separately.
+- [x] Run `PI_REX_FORK_SMOKE=1 node --experimental-strip-types --test exact_extensions/rex-fork/rex-fork.test.mjs`; require real tab/right/below startup evidence, matching cwd/session identity, no prompt-generated turns, preserved source state, and isolated cleanup.
+- [x] Check candidate TypeScript diagnostics, `git diff --check`, changed-file scope, README accuracy, source/target separation, and that no colleague code, secrets, generated dependencies, or runtime attempt data entered Git.
+- [x] Record verification commands/results and the approved exception in this plan. Do not apply global targets or change runtime dependencies. Retain disposable worktree dependencies for fresh independent verification.
+
+#### Final execution evidence and baseline exception
+The user approved an exception only for failures proven identical on unchanged base `8775893`. Feature regressions and missing feature checks remain blockers. An isolated `git archive 8775893` scratch tree ran `npm run test:prompts`: 92 passed and three failed. The candidate has no changes to `exact_scripts/lifecycle-prompts.test.mjs` or `exact_prompts` relative to that base, and its failures have the same test names and assertion messages:
+- `design approval requires a fresh comprehension review, not author self-review`: missing `/material.*revision.*fresh review/is`.
+- `design-only review isolates the document and bypasses general review`: missing `/stop after its verdict/i`.
+- `lifecycle prompts stay within prompt context budgets`: `systematic-review.md` is 13440 bytes; budget is 12500.
+
+From `dot_pi/agent`:
+- The focused deterministic suite passed 27 tests, with three opt-in cases skipped. `npm run test:unit` passed 392 tests, with those three skipped.
+- `npm test` and `npm run test:all` both exited 1 at the same three prompt failures. They did not run later scripts because the scripts use `&&`; neither command is recorded as passing.
+- The short-circuited checks passed separately: `npm run test:pr-validate-report` (35 tests), `npm run test:pr-validate-collector` (12 tests), `npm run test:skills`, and `npm run test:pi-deps`. `npm run test:smoke` passed with an empty temporary agent directory and temporary HOME, so it does not validate the installed global extension set.
+- `PI_REX_FORK_SMOKE=1 node --experimental-strip-types --test exact_extensions/rex-fork/rex-fork.test.mjs` passed all 30 tests. The isolated Rex/Pi cases verified tab, right, and below startup and receipt completion, snapshot/cwd, source bytes, no added conversation turns, and the two-second settled window. Both splits anchored to the invoking pane when another window was active.
+- TypeScript and test LSP diagnostics were empty. `git diff --check 8775893` passed. The changed files are the four extension files, `package.json` test registration, and this plan. No dependency tree or attempt metadata is tracked. A targeted secret-pattern scan found no matches. The README was checked against the implementation and tests.
+
+The user directed that disposable worktree dependencies remain for fresh independent verification. Do not deploy, push, open a PR, or start that verification from this execution session.

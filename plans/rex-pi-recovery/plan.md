@@ -70,14 +70,25 @@ The command SHALL preview restoration and require `--apply` before opening sessi
 **Traces to:** Exact checkpoints and Safe tab recovery
 **Files:** All files in Components Affected; this plan as execution ledger.
 
-- [ ] Add focused failing tests for checkpoint validation, preview, exact restore, duplicates, occupied panes, missing resources, corruption, and concurrent attempts.
-- [ ] Implement the smallest extension, helper, and Fish wrapper that pass.
-- [ ] Run `node --test dot_pi/agent/exact_extensions/rex-recovery/recovery.test.mjs` and Fish syntax checks.
-- [ ] Run isolated Rex/Pi integration checks; do not stop the active server or submit model prompts.
-- [ ] Inspect root and agent `AGENTS.md`; document runtime commands in the extension README rather than adding redundant global rules.
-- [ ] Run `npm ci --ignore-scripts`, `npm test`, and `npm run test:all` in `dot_pi/agent`; report unrelated failures without changing their expectations.
-- [ ] Run LSP diagnostics and `git diff --check`; update this ledger with evidence and limits.
-- [ ] Commit with `feat(pi): save and restore Rex Pi sessions` after verification. Apply only verified explicit targets; defer push/apply if required independent verification or baseline failures block completion.
+- [x] Add focused failing tests for checkpoint validation, preview, exact restore, duplicates, occupied panes, missing resources, corruption, and concurrent attempts.
+- [x] Implement the smallest extension, helper, and Fish wrapper that pass.
+- [x] Run `node --test dot_pi/agent/exact_extensions/rex-recovery/recovery.test.mjs` and Fish syntax checks.
+- [x] Run isolated Rex/Pi integration checks; do not stop the active server or submit model prompts.
+- [x] Inspect root and agent `AGENTS.md`; document runtime commands in the extension README rather than adding redundant global rules.
+- [x] Run `npm ci --ignore-scripts`, `npm test`, and `npm run test:all` in `dot_pi/agent`; report unrelated failures without changing their expectations.
+- [x] Run LSP diagnostics and `git diff --check`; update this ledger with evidence and limits.
+- [x] Commit with `feat(pi): save and restore Rex Pi sessions` after verification. Apply only verified explicit targets; defer push/apply if required independent verification or baseline failures block completion.
+
+### Execution evidence
+Implementation model: GPT-6.1 Sol (`openai/gpt-6.1-sol`). The planning skills above remained applicable during execution; `script-best-practices` controlled the Fish wrapper, `cli-best-practices` controlled preview/JSON/partial failures, and `chezmoi` controlled source-only changes and explicit-file previews. No unrelated symbols were changed.
+
+The first focused test failed because `core.mjs` did not exist. Final focused command: `node --test dot_pi/agent/exact_extensions/rex-recovery/recovery.test.mjs dot_pi/agent/exact_extensions/rex-recovery/smoke.test.mjs`: 12 passed. The smoke uses production Rex invocation code, an isolated server/socket/state directory, and a temporary Pi agent directory. It proves idle Pi startup, a real checkpoint, exact-file restoration, duplicate prevention, and missing-session recreation. A directory containing an apostrophe exercises shell quoting. No model prompt was submitted. Only fixture-owned sessions/server were stopped.
+
+`fish -n dot_config/private_fish/exact_functions/pi-restore.fish`, Node syntax checks, TypeScript `tsc --noEmit --skipLibCheck --allowJs --target ES2023 --module NodeNext --moduleResolution NodeNext exact_extensions/rex-recovery/index.ts`, LSP diagnostics, and `git diff --check` passed. The repository installs `tsc`, not `tsgo`; the attempted `tsgo` check was replaced with the installed compiler. LSP initially could not find TypeScript before `npm ci`; diagnostics passed after installation.
+
+`npm test` and `npm run test:all` both stopped at three lifecycle-prompt failures: fresh design comprehension review, design-only review isolation, and the systematic-review prompt byte budget (13,440 versus 12,500). Running `node --test dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs` on unchanged main reproduced all three. They are outside this feature and were not modified. Because test:all stops in npm test, its final installed-resource smoke was not reached; the feature-specific real Pi/Rex smoke passed separately.
+
+Chezmoi preview was run against the exact runtime extension and Fish target paths; no target was applied. Full logout/reboot, concurrent user input into target prompts, and arbitrary external Pi processes are not established by these checks. The README states these limits. Independent verification has not run. Apply and push are deferred until that handoff completes; this commit is the implementation candidate, not a claim of independent verification.
 
 ## Review
 Initial review: approved conversation is the requirements source. No shared symbols require behavior changes. Rex supports inspection and creation. Rex has no atomic run-if-idle operation: recheck foreground immediately before sending, and document that target panes must not be used during restore. Unknown running Pi instances and corrupt records block apply. Checkpointing and tab reconstruction share one execution unit because they share identity and retry handling. No code changed during review.

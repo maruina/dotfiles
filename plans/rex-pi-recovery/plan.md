@@ -1,0 +1,83 @@
+# Rex Pi Recovery Implementation Plan
+> Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Save exact Pi conversation references and restore them through Rex without model prompts.
+**Smallest user-feedback slice:** Automatic checkpoints and previewable restoration into tabs.
+**Out of Scope:** Split layouts, terminal history, tool-process recovery, automatic login restoration, and copycat changes.
+**Architecture:** A shared Pi extension writes private per-pane checkpoints. A Node helper reads checkpoints and uses the Rex CLI; a Fish function exposes `pi-restore`. Rex remains the owner of terminals.
+**Tech Stack:** TypeScript, Node standard library, Fish, and Rex CLI.
+
+## Skills loaded and used
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| skill-loader | prompt-required | Lifecycle | Selected domain guidance |
+| codebase-research | skill-loader | New integration | Traced Pi hooks and Rex CLI |
+| chezmoi | skill-loader | Managed files | Source-only edits and explicit targets |
+| feature-worktree | prompt-required | Isolation | Dedicated branch and worktree |
+| cli-best-practices | skill-loader | Restore command | Preview, JSON output, explicit mutation |
+| script-best-practices | skill-loader | Fish wrapper | Argument forwarding; Node for structured logic |
+| write | skill-loader | Plan and documentation | Precise contracts and limits |
+| learning-lookup | prompt-required | Advisory evidence | Lookup unavailable: CLI/helper failed; current source takes precedence |
+
+## Implementation Contract
+### Components Affected
+| Component | Files | Responsibility | Verification |
+|---|---|---|---|
+| Checkpoints | `dot_pi/agent/exact_extensions/rex-recovery/index.ts`, `dot_pi/agent/exact_extensions/rex-recovery/core.mjs` | Record exact file and verified local pane identity | Focused tests and isolated Rex smoke |
+| Restore | `dot_pi/agent/exact_extensions/rex-recovery/cli.mjs`, `dot_config/private_fish/exact_functions/pi-restore.fish` | Preview and restore matching local conversations | CLI tests, duplicate and occupied-pane checks |
+| Tests/docs | `dot_pi/agent/exact_extensions/rex-recovery/recovery.test.mjs`, `dot_pi/agent/exact_extensions/rex-recovery/README.md`, `dot_pi/agent/package.json` | Regression evidence and operating instructions | npm tests and Fish syntax check |
+
+### Key Decisions
+- Both profiles load the extension. No model calls, conversation text, or third-party dependencies are required.
+- Checkpoints refresh on session startup and agent activity. Retain the last checkpoint on shutdown, because Pi cannot reliably distinguish logout from deliberate exit.
+- Default command behavior is preview; `--apply` performs mutations. `--json` supports automation.
+- Preserve session grouping and tab labels, not split geometry. Names are presentation, never identity.
+- Use exact paths, not most-recent selection. Validate session files and directories before launch.
+- Serialize restores with an exclusive lock. Stop on uncertain launch results; never automatically retry a timed-out mutation.
+
+### Implementation Constraints
+Use `rex whoami` to verify inherited IDs and local host identity. Headless Pi children must not write records. Skip occupied panes and already-live conversations. Refuse recovery across another server/host. Bound checkpoint reads and external commands. Changes to existing public helpers are unnecessary.
+
+### Security and Observability Requirements
+Store records in a mode-0700 local state directory and mode-0600 files. Treat checkpoint fields as untrusted input. Invoke Rex with argument arrays and quote shell input. Report invalid records, missing files, skipped panes, and partial failures. Never put conversation text in checkpoints or send a prompt during restore.
+
+### Failure Modes to Handle
+Missing Rex, invalid inherited IDs, missing or corrupt records, missing conversation files, non-shell foreground processes, duplicate conversation references, partial restoration, and concurrent restore attempts. Records remain available after failure. A crash can lose the latest unsaved checkpoint; restoration cannot resume interrupted tools.
+
+### Rollout and Rollback
+Owner: Matteo. Preview explicit chezmoi targets, apply only verified changed targets, and reload Pi to enable checkpoints. Roll back by removing the extension and Fish function through chezmoi. Do not stop the user's Rex server. Existing sessions require `/reload` to begin saving; historical backfill is not part of this change.
+
+### Test Strategy
+Use Node's test runner with temporary state and mocked Rex process boundaries. Add an isolated real Rex smoke with a private socket/state directory; verify checkpoint identity, exact launch arguments, and a second restore that opens nothing. Do not make paid model requests. Full logout/reboot remains an accepted manual validation limit. Mock tests do not establish actual Pi TUI startup, so exercise an isolated real Pi session without submitting a prompt where possible.
+
+## Requirements
+### Requirement: Exact checkpoints
+The extension SHALL persist the exact session-file path for a verified local Rex pane.
+- GIVEN an interactive Pi session in Rex, WHEN startup or normal activity occurs, THEN its checkpoint identifies that session and pane.
+- GIVEN headless Pi or invalid Rex identity, WHEN the hook runs, THEN it SHALL NOT overwrite a valid checkpoint.
+
+### Requirement: Safe tab recovery
+The command SHALL preview restoration and require `--apply` before opening sessions.
+- GIVEN a saved conversation and idle original pane, WHEN recovery is applied, THEN it opens the exact conversation without a model prompt.
+- GIVEN missing Rex resources, WHEN recovery is applied, THEN it recreates session grouping and tabs, not split geometry.
+- GIVEN an occupied pane, duplicate live conversation, invalid checkpoint, or missing session file, WHEN recovery runs, THEN it SHALL skip or report that record without disturbing a program.
+- GIVEN an uncertain mutation result, WHEN recovery fails, THEN it SHALL report partial progress rather than automatically retry.
+
+## Scope
+### Task 1: Implement and validate tab recovery
+**Delivers:** Private automatic checkpoints and a previewable restore command for both profiles.
+**Blocked by:** None
+**Traces to:** Exact checkpoints and Safe tab recovery
+**Files:** All files in Components Affected; this plan as execution ledger.
+
+- [ ] Add focused failing tests for checkpoint validation, preview, exact restore, duplicates, occupied panes, missing resources, corruption, and concurrent attempts.
+- [ ] Implement the smallest extension, helper, and Fish wrapper that pass.
+- [ ] Run `node --test dot_pi/agent/exact_extensions/rex-recovery/recovery.test.mjs` and Fish syntax checks.
+- [ ] Run isolated Rex/Pi integration checks; do not stop the active server or submit model prompts.
+- [ ] Inspect root and agent `AGENTS.md`; document runtime commands in the extension README rather than adding redundant global rules.
+- [ ] Run `npm ci --ignore-scripts`, `npm test`, and `npm run test:all` in `dot_pi/agent`; report unrelated failures without changing their expectations.
+- [ ] Run LSP diagnostics and `git diff --check`; update this ledger with evidence and limits.
+- [ ] Commit with `feat(pi): save and restore Rex Pi sessions` after verification. Apply only verified explicit targets; defer push/apply if required independent verification or baseline failures block completion.
+
+## Review
+Initial review: approved conversation is the requirements source. No shared symbols require behavior changes. Rex supports inspection and creation. Rex has no atomic run-if-idle operation: recheck foreground immediately before sending, and document that target panes must not be used during restore. Unknown running Pi instances and corrupt records block apply. Checkpointing and tab reconstruction share one execution unit because they share identity and retry handling. No code changed during review.

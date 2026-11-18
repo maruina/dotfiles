@@ -281,6 +281,33 @@ function expectedCandidateMatches(outcome: LifecycleOutcomeEnvelope, candidate: 
   return sameCandidate(outcome.candidate, candidate);
 }
 
+function completionStageMutatesCandidate(stage: CompletionStage): boolean {
+  return stage === "arp-fix";
+}
+
+function collectWriterModelIds(record: RunRecord): string[] {
+  const values: string[] = [];
+  const seen = new Set<string>();
+  const add = (model: ModelIdentity | undefined) => {
+    if (!model) return;
+    const id = `${model.provider}/${model.id}`;
+    const key = id.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    values.push(id);
+  };
+
+  add(record.models.execute);
+  add(record.models.simplify);
+  for (const round of record.rounds) {
+    add(round.stages.execute.model);
+    add(round.stages.simplify.model);
+    for (const recovery of round.recoveries) add(recovery.model);
+  }
+
+  return values;
+}
+
 function emptyStage(model: ModelIdentity, thinkingLevel: string): StageRecord {
   return { status: "pending", model, thinkingLevel, progress: [], decisions: [] };
 }
@@ -1058,7 +1085,6 @@ export async function runImplement(
           if (!next.ok) {
             if (next.complete) {
               const completionAttempts = new Map<CompletionStage, number>();
-              const completionCandidate = candidateBeforeStage;
               const completion = await runCompletionPhase({
                 policy: deps.completionPolicy,
                 runId,
@@ -1070,13 +1096,20 @@ export async function runImplement(
                 baselinePlanBlob: initial.baseline.plan.blob,
                 baselineDesignPath: initial.baseline.design.path,
                 baselineDesignBlob: initial.baseline.design.blob,
-                candidate: completionCandidate,
+                candidate: candidateBeforeStage,
                 models,
-                thinkingLevel: thinkingLevels.execute,
+                writerModelIds: collectWriterModelIds(record),
+                thinkingLevels: { execute: thinkingLevels.execute, verify: thinkingLevels.verify },
                 signal,
                 now: () => new Date(now()),
                 dispatch: async ({ stage, config, signal: completionSignal }) => {
-                  const model = models.execute;
+                  if (config.scope !== "completion") {
+                    return { status: "failure", reason: `Completion stage ${stage} did not receive completion scope` };
+                  }
+
+                  const expectedCandidate = config.completion.candidate;
+                  const model = stage === "verify" ? models.verify : models.execute;
+                  const stageThinking = stage === "verify" ? thinkingLevels.verify : thinkingLevels.execute;
                   const attempt = (completionAttempts.get(stage) ?? 0) + 1;
                   completionAttempts.set(stage, attempt);
 
@@ -1086,10 +1119,10 @@ export async function runImplement(
                   } catch (error) {
                     return { status: "blocked", reason: `Candidate changed outside the coordinator before ${stage}: ${reasonOf(error)}` };
                   }
-                  if (!sameCandidate(completionCandidate, stageCandidate)) {
+                  if (!sameCandidate(expectedCandidate, stageCandidate)) {
                     return {
                       status: "blocked",
-                      reason: `Candidate changed outside the coordinator before ${stage}: expected ${completionCandidate.branch}@${completionCandidate.head}, observed ${stageCandidate.branch}@${stageCandidate.head}`,
+                      reason: `Candidate changed outside the coordinator before ${stage}: expected ${expectedCandidate.branch}@${expectedCandidate.head}, observed ${stageCandidate.branch}@${stageCandidate.head}`,
                     };
                   }
 
@@ -1107,15 +1140,15 @@ export async function runImplement(
                       .map((candidate) => ({ commandName: candidate, promptPath: deps.completionStagePaths[candidate] })),
                     bridgePath: deps.bridgePath,
                     model,
-                    thinkingLevel: thinkingLevels.execute,
+                    thinkingLevel: stageThinking,
                     candidateBefore: stageCandidate,
                   };
 
                   let observedSessionId: string | undefined;
-                  deps.ui.setStatus("lifecycle-coordinator", `${stage}: starting ${modelKey(model)} (${thinkingLevels.execute})`);
+                  deps.ui.setStatus("lifecycle-coordinator", `${stage}: starting ${modelKey(model)} (${stageThinking})`);
                   const stageResult = await deps.runStage(request, completionSignal, {
                     onObserved: async (state) => {
-                      const invalid = validateObservedState(stage, state, model, thinkingLevels.execute, seenSessions);
+                      const invalid = validateObservedState(stage, state, model, stageThinking, seenSessions);
                       if (invalid) throw new Error(invalid);
                       observedSessionId = state.sessionId;
                     },
@@ -1136,10 +1169,10 @@ export async function runImplement(
                   if (stageResult.observed) {
                     const invalid = observedSessionId
                       ? observedSessionId === stageResult.observed.sessionId && stageResult.observed.model.provider === model.provider &&
-                          stageResult.observed.model.id === model.id && stageResult.observed.thinkingLevel === thinkingLevels.execute
+                          stageResult.observed.model.id === model.id && stageResult.observed.thinkingLevel === stageThinking
                         ? undefined
                         : `Stage ${stage} returned observed state that contradicts its pre-dispatch record`
-                      : validateObservedState(stage, stageResult.observed, model, thinkingLevels.execute, seenSessions);
+                      : validateObservedState(stage, stageResult.observed, model, stageThinking, seenSessions);
                     if (invalid) return { status: "failure", reason: invalid };
                   }
 
@@ -1156,10 +1189,31 @@ export async function runImplement(
                   } catch (error) {
                     return { status: "blocked", reason: `Candidate changed outside the coordinator after ${stage} settled: ${reasonOf(error)}` };
                   }
-                  if (!sameCandidate(completionCandidate, afterCandidate)) {
+
+                  const stageAllowsMutation = completionStageMutatesCandidate(stage);
+                  if (!stageAllowsMutation && !sameCandidate(expectedCandidate, afterCandidate)) {
                     return {
                       status: "blocked",
-                      reason: `Candidate changed outside the coordinator after ${stage} settled: expected ${completionCandidate.branch}@${completionCandidate.head}, observed ${afterCandidate.branch}@${afterCandidate.head}`,
+                      reason: `Candidate changed outside the coordinator after ${stage} settled: expected ${expectedCandidate.branch}@${expectedCandidate.head}, observed ${afterCandidate.branch}@${afterCandidate.head}`,
+                    };
+                  }
+                  if (stageAllowsMutation && stageResult.outcome.outcome === "success" && sameCandidate(expectedCandidate, afterCandidate)) {
+                    return {
+                      status: "blocked",
+                      reason: `Stage ${stage} reported success without creating a new candidate commit`,
+                    };
+                  }
+                  if (stageAllowsMutation && stageResult.outcome.outcome === "blocked" && !sameCandidate(expectedCandidate, afterCandidate)) {
+                    return {
+                      status: "blocked",
+                      reason: `Stage ${stage} changed the candidate despite reporting blocked`,
+                    };
+                  }
+
+                  if (!expectedCandidateMatches(stageResult.outcome, afterCandidate)) {
+                    return {
+                      status: "failure",
+                      reason: `Stage ${stage} reported candidate ${stageResult.outcome.candidate.branch}@${stageResult.outcome.candidate.head} that does not match observed ${afterCandidate.branch}@${afterCandidate.head}`,
                     };
                   }
 
@@ -1180,11 +1234,20 @@ export async function runImplement(
                   ? completion.headSha
                   : candidateBeforeStage.head;
               const completionLocation = "prUrl" in completion && completion.prUrl ? completion.prUrl : `branch ${initial.branch}`;
+              const settledIds = "settledFindingIds" in completion && completion.settledFindingIds.length > 0
+                ? completion.settledFindingIds.join(", ")
+                : "none";
+              const reviewedHeads = "reviewedHeads" in completion && completion.reviewedHeads.length > 0
+                ? completion.reviewedHeads.join(", ")
+                : "none";
+              const remainingIds = "remainingFindingIds" in completion && completion.remainingFindingIds.length > 0
+                ? completion.remainingFindingIds.join(", ")
+                : "none";
               const completionNextAction = completion.status === "verified"
                 ? `Review the draft PR (${completion.prUrl}) and the silent ARP result for exact head ${completion.reviewedHead}.`
                 : completion.status === "skipped"
                   ? completion.reason
-                  : `Completion stopped at ${completion.stage} for ${completionLocation} (target head ${completionTarget}). Recover manually: publish or refresh the draft PR for ${completionTarget}, then run a silent exact-head ARP review and inspect structured findings state.`;
+                  : `Completion stopped at ${completion.stage} for ${completionLocation} (target head ${completionTarget}; settled finding IDs: ${settledIds}; remaining finding IDs: ${remainingIds}; reviewed heads: ${reviewedHeads}). Recover manually: confirm ${completionLocation} still points to ${completionTarget}, settle any remaining findings with explicit evidence, then rerun /implement '${initial.planPath}' to restart completion checks.`;
 
               const previousDeferStops = deferStops;
               deferStops = false;

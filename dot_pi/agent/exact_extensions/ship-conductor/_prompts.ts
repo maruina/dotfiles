@@ -1,7 +1,7 @@
 import { isAbsolute } from "node:path";
 
 export type LifecycleStage = "execute" | "simplify" | "verify";
-export type CompletionPromptStage = "pr-publish" | "arp-review";
+export type CompletionPromptStage = "pr-publish" | "arp-review" | "arp-fix" | "verify";
 
 type ParseResult = { ok: true; arguments: string[] } | { ok: false; reason: string };
 

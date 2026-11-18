@@ -12,10 +12,11 @@ import {
 
 const WORKTREE = "/tmp/lifecycle-worktree";
 const COMMIT = "a".repeat(40);
-const PLAN_BLOB = "b".repeat(40);
-const DESIGN_BLOB = "c".repeat(40);
+const NEXT_COMMIT = "b".repeat(40);
+const PLAN_BLOB = "c".repeat(40);
+const DESIGN_BLOB = "d".repeat(40);
 
-function validStageConfig(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+function validExecutionConfig(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     protocolVersion: PROTOCOL_VERSION,
     scope: "execution",
@@ -42,12 +43,12 @@ function validStageConfig(overrides: Record<string, unknown> = {}): Record<strin
   };
 }
 
-function validCompletionConfig(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+function validCompletionBase(stage: string): Record<string, unknown> {
   return {
     protocolVersion: PROTOCOL_VERSION,
     scope: "completion",
     runId: "run-test-123",
-    stage: "arp-review",
+    stage,
     worktree: WORKTREE,
     branch: "feature",
     planPath: `${WORKTREE}/plans/fixture/plan.md`,
@@ -61,11 +62,33 @@ function validCompletionConfig(overrides: Record<string, unknown> = {}): Record<
       simplify: { provider: "lifecycle-test", id: "simplifier" },
       verify: { provider: "lifecycle-test", id: "verifier" },
     },
-    stageModel: { provider: "lifecycle-test", id: "executor" },
+    stageModel: stage === "verify" ? { provider: "lifecycle-test", id: "verifier" } : { provider: "lifecycle-test", id: "executor" },
     thinkingLevel: "minimal",
     completion: {
       policy: "work",
-      candidate: { branch: "feature", head: COMMIT, stateDigest: "d".repeat(64) },
+      candidate: { branch: "feature", head: COMMIT, stateDigest: "e".repeat(64) },
+    },
+  };
+}
+
+function withCompletion(stage: "pr-publish" | "arp-review" | "arp-fix" | "verify", completionOverrides: Record<string, unknown> = {}): Record<string, unknown> {
+  const base = validCompletionBase(stage);
+  const completion = {
+    ...(base.completion as Record<string, unknown>),
+    ...completionOverrides,
+  };
+  return { ...base, completion };
+}
+
+describe("parseStageConfig", () => {
+  it("accepts a versioned execution stage contract pinned to the expected worktree", () => {
+    const config = validExecutionConfig();
+    assert.deepEqual(parseStageConfig(config, WORKTREE), config);
+  });
+
+  it("accepts completion configs for publish, review, fix, and feature verify", () => {
+    const publish = withCompletion("pr-publish");
+    const review = withCompletion("arp-review", {
       reviewRequest: {
         prUrl: "https://github.com/DataDog/repo/pull/123",
         expectedHeadSha: COMMIT,
@@ -74,52 +97,89 @@ function validCompletionConfig(overrides: Record<string, unknown> = {}): Record<
         pollIntervalsSeconds: [10, 30, 60],
         silent: true,
       },
-    },
-    ...overrides,
-  };
-}
+      pendingSettlements: [{ findingId: "finding-1", fixCommitSha: NEXT_COMMIT, fixChangeSummary: "summary", reason: "reason" }],
+    });
+    const fix = withCompletion("arp-fix", {
+      fixRequest: {
+        prUrl: "https://github.com/DataDog/repo/pull/123",
+        reviewedHeadSha: COMMIT,
+        findings: [{ findingId: "finding-1", filePath: "src/main.ts", startLine: 2, endLine: 4, reviewedSha: COMMIT, summary: "summary" }],
+      },
+    });
+    const verify = withCompletion("verify", {
+      verificationWriters: ["lifecycle-test/executor", "lifecycle-test/simplifier"],
+    });
 
-describe("parseStageConfig", () => {
-  it("accepts a versioned stage contract pinned to the expected worktree", () => {
-    const config = validStageConfig();
-    assert.deepEqual(parseStageConfig(config, WORKTREE), config);
+    assert.deepEqual(parseStageConfig(publish, WORKTREE), publish);
+    assert.deepEqual(parseStageConfig(review, WORKTREE), review);
+    assert.deepEqual(parseStageConfig(fix, WORKTREE), fix);
+    assert.deepEqual(parseStageConfig(verify, WORKTREE), verify);
   });
 
-  it("rejects an unsupported version, stage, or worktree", () => {
-    assert.throws(() => parseStageConfig(validStageConfig({ protocolVersion: PROTOCOL_VERSION + 1 }), WORKTREE));
-    assert.throws(() => parseStageConfig(validStageConfig({ stage: "repair" }), WORKTREE));
-    assert.throws(() => parseStageConfig(validStageConfig({ worktree: "/other" }), WORKTREE));
+  it("rejects completion configs with wrong stage metadata", () => {
+    assert.throws(() => parseStageConfig(withCompletion("pr-publish", {
+      reviewRequest: {
+        prUrl: "https://github.com/DataDog/repo/pull/123",
+        expectedHeadSha: COMMIT,
+        deadlineAt: "2026-01-01T00:20:00.000Z",
+        maxStatusChecks: 30,
+        pollIntervalsSeconds: [10, 30, 60],
+        silent: true,
+      },
+    }), WORKTREE), /pr-publish stage accepts only policy and candidate metadata/i);
+
+    assert.throws(() => parseStageConfig(withCompletion("arp-review"), WORKTREE), /requires review request metadata/i);
+
+    assert.throws(() => parseStageConfig(withCompletion("arp-fix", {
+      fixRequest: {
+        prUrl: "https://github.com/DataDog/repo/pull/123",
+        reviewedHeadSha: COMMIT,
+        findings: [],
+      },
+    }), WORKTREE), /invalid lifecycle stage configuration|requires actionable findings/i);
+
+    assert.throws(() => parseStageConfig(withCompletion("verify", {
+      verificationWriters: ["executor"],
+    }), WORKTREE), /canonical provider\/id identities/i);
+
+    assert.throws(() => parseStageConfig(withCompletion("verify", {
+      verificationWriters: ["lifecycle-test/verifier"],
+    }), WORKTREE), /includes the verifier identity/i);
   });
 
-  it("accepts feature-scoped completion stages with bounded review metadata", () => {
-    const config = validCompletionConfig();
-    assert.deepEqual(parseStageConfig(config, WORKTREE), config);
-  });
-
-  it("rejects completion stages missing required review bounds", () => {
-    assert.throws(() => parseStageConfig(validCompletionConfig({ completion: { policy: "work", candidate: { branch: "feature", head: COMMIT, stateDigest: "d".repeat(64) } } }), WORKTREE));
-    assert.throws(() => parseStageConfig(validCompletionConfig({ unitBase: COMMIT, unit: { heading: "bad", taskNumbers: [1] } }), WORKTREE));
+  it("rejects unsupported version, stage, or worktree", () => {
+    assert.throws(() => parseStageConfig(validExecutionConfig({ protocolVersion: PROTOCOL_VERSION + 1 }), WORKTREE));
+    assert.throws(() => parseStageConfig(validExecutionConfig({ stage: "repair" }), WORKTREE));
+    assert.throws(() => parseStageConfig(validExecutionConfig({ worktree: "/other" }), WORKTREE));
   });
 
   it("rejects scope and stage mismatches", () => {
-    assert.throws(() => parseStageConfig(validStageConfig({ scope: "completion" }), WORKTREE), /invalid lifecycle stage configuration|invalid for completion scope/i);
-    assert.throws(() => parseStageConfig(validCompletionConfig({ scope: "execution" }), WORKTREE), /invalid lifecycle stage configuration/i);
-    assert.throws(() => parseStageConfig(validCompletionConfig({ stage: "pr-publish" }), WORKTREE), /must not include review request metadata/);
+    assert.throws(() => parseStageConfig(validExecutionConfig({ scope: "completion" }), WORKTREE), /invalid lifecycle stage configuration|invalid for completion scope/i);
+    const reviewAsExecution = {
+      ...withCompletion("arp-review", {
+        reviewRequest: {
+          prUrl: "https://github.com/DataDog/repo/pull/123",
+          expectedHeadSha: COMMIT,
+          deadlineAt: "2026-01-01T00:20:00.000Z",
+          maxStatusChecks: 30,
+          pollIntervalsSeconds: [10, 30, 60],
+          silent: true,
+        },
+      }),
+      scope: "execution",
+    };
+    assert.throws(() => parseStageConfig(reviewAsExecution, WORKTREE), /invalid lifecycle stage configuration/i);
   });
 
   it("rejects incomplete or out-of-worktree baseline references", () => {
-    const missingBaseline = validStageConfig();
+    const missingBaseline = validExecutionConfig();
     delete missingBaseline.baseline;
     assert.throws(() => parseStageConfig(missingBaseline, WORKTREE));
 
-    const missingUnitBase = validStageConfig();
-    delete missingUnitBase.unitBase;
-    assert.throws(() => parseStageConfig(missingUnitBase, WORKTREE));
-    assert.throws(() => parseStageConfig(validStageConfig({ unitBase: "HEAD" }), WORKTREE));
-
-    const outsidePlan = validStageConfig({ planPath: "/other/plan.md" });
+    const outsidePlan = validExecutionConfig({ planPath: "/other/plan.md" });
     assert.throws(() => parseStageConfig(outsidePlan, WORKTREE));
-    const sameVerifier = validStageConfig({
+
+    const sameVerifier = validExecutionConfig({
       stage: "verify",
       models: {
         execute: { provider: "lifecycle-test", id: "executor" },
@@ -169,7 +229,7 @@ describe("parseDecisionResult", () => {
 describe("parseLifecycleOutcomeEnvelope", () => {
   const expected = {
     runId: "run-test-123",
-    stage: "execute" as const,
+    stage: "arp-fix" as const,
     sessionId: "child-session",
     model: { provider: "lifecycle-test", id: "driver" },
   };
@@ -177,28 +237,43 @@ describe("parseLifecycleOutcomeEnvelope", () => {
     schemaVersion: PROTOCOL_VERSION,
     ...expected,
     outcome: "success",
-    change: "changed",
-    candidate: { branch: "feature", head: COMMIT, stateDigest: "d".repeat(64) },
-    reportRef: "lifecycle-coordinator/runs/run-test-123/reports/execute.md",
-    commitRefs: [COMMIT],
+    change: "not-applicable",
+    candidate: { branch: "feature", head: NEXT_COMMIT, stateDigest: "f".repeat(64) },
+    reportRef: "lifecycle-coordinator/runs/run-test-123/reports/arp-fix.md",
+    commitRefs: [NEXT_COMMIT],
+    pendingSettlements: [{ findingId: "finding-1", fixCommitSha: NEXT_COMMIT, fixChangeSummary: "summary", reason: "reason" }],
   };
 
-  it("accepts a typed stage result with runtime identity and candidate state", () => {
+  it("accepts typed completion metadata for arp-fix", () => {
     assert.deepEqual(parseLifecycleOutcomeEnvelope(envelope, expected), envelope);
   });
 
-  it("rejects missing, mismatched, stale, or unsafe outcome data", () => {
-    for (const invalid of [
-      { ...envelope, stage: "verify" },
-      { ...envelope, sessionId: "other" },
-      { ...envelope, model: { provider: "other", id: "model" } },
-      { ...envelope, candidate: { ...envelope.candidate, head: "bad" } },
-      { ...envelope, candidate: { ...envelope.candidate, stateDigest: "bad" } },
-      { ...envelope, reportRef: "../../outside.md" },
-      { ...envelope, outcome: "VERIFIED" },
-    ]) {
-      assert.throws(() => parseLifecycleOutcomeEnvelope(invalid, expected));
-    }
+  it("accepts a typed execution outcome envelope", () => {
+    const executionExpected = {
+      runId: "run-test-123",
+      stage: "execute" as const,
+      sessionId: "child-session",
+      model: { provider: "lifecycle-test", id: "driver" },
+    };
+    const executionEnvelope = {
+      schemaVersion: PROTOCOL_VERSION,
+      ...executionExpected,
+      outcome: "success",
+      change: "changed",
+      candidate: { branch: "feature", head: COMMIT, stateDigest: "a".repeat(64) },
+      reportRef: "lifecycle-coordinator/runs/run-test-123/reports/execute.md",
+      commitRefs: [COMMIT],
+    };
+    assert.deepEqual(parseLifecycleOutcomeEnvelope(executionEnvelope, executionExpected), executionEnvelope);
+  });
+
+  it("rejects mismatched identity or unsafe report references", () => {
+    assert.throws(() => parseLifecycleOutcomeEnvelope({ ...envelope, stage: "arp-review" }, expected));
+    assert.throws(() => parseLifecycleOutcomeEnvelope({ ...envelope, sessionId: "other" }, expected));
+    assert.throws(() => parseLifecycleOutcomeEnvelope({ ...envelope, model: { provider: "other", id: "driver" } }, expected));
+    assert.throws(() => parseLifecycleOutcomeEnvelope({ ...envelope, reportRef: "../../outside.md" }, expected));
+    assert.throws(() => parseLifecycleOutcomeEnvelope({ ...envelope, candidate: { ...envelope.candidate, head: "bad" } }, expected));
+    assert.throws(() => parseLifecycleOutcomeEnvelope({ ...envelope, candidate: { ...envelope.candidate, stateDigest: "bad" } }, expected));
   });
 });
 
@@ -223,7 +298,7 @@ describe("parseDecisionInput", () => {
 });
 
 describe("parseLifecycleOutcome", () => {
-  it("accepts stage-appropriate outcomes and change classifications", () => {
+  it("accepts stage-appropriate outcomes and completion metadata", () => {
     assert.equal(
       parseLifecycleOutcome(
         { schemaVersion: PROTOCOL_VERSION, outcome: "success", change: "unchanged", report: "No candidate change." },
@@ -231,6 +306,7 @@ describe("parseLifecycleOutcome", () => {
       ).outcome,
       "success",
     );
+
     assert.equal(
       parseLifecycleOutcome(
         { schemaVersion: PROTOCOL_VERSION, outcome: "VERIFIED", change: "not-applicable", report: "Fresh verification passed." },
@@ -238,50 +314,7 @@ describe("parseLifecycleOutcome", () => {
       ).outcome,
       "VERIFIED",
     );
-    assert.equal(
-      parseLifecycleOutcome(
-        {
-          schemaVersion: PROTOCOL_VERSION,
-          outcome: "success",
-          change: "not-applicable",
-          report: "Silent ARP review is complete.",
-          reviewEvidence: {
-            targetHeadSha: COMMIT,
-            reviewedHeadSha: COMMIT,
-            captureState: "complete",
-            result: "clean",
-            actionableFindings: 0,
-            statusChecks: 3,
-            reusedReview: true,
-            silent: true,
-          },
-        },
-        "arp-review",
-      ).outcome,
-      "success",
-    );
-    assert.equal(
-      parseLifecycleOutcome(
-        {
-          schemaVersion: PROTOCOL_VERSION,
-          outcome: "blocked",
-          change: "not-applicable",
-          report: "Silent ARP review found stale data.",
-          reviewEvidence: {
-            targetHeadSha: COMMIT,
-            reviewedHeadSha: "f".repeat(40),
-            captureState: "review-in-progress",
-            result: "stale",
-            actionableFindings: 2,
-            statusChecks: 7,
-            reusedReview: true,
-            silent: false,
-          },
-        },
-        "arp-review",
-      ).outcome,
-      "blocked",
-    );
+
     assert.equal(
       parseLifecycleOutcome(
         {
@@ -291,69 +324,229 @@ describe("parseLifecycleOutcome", () => {
           report: "Draft PR is ready.",
           prUrl: "https://github.com/DataDog/repo/pull/123",
           publishedHeadSha: COMMIT,
+          commitRefs: [COMMIT],
         },
         "pr-publish",
       ).outcome,
       "success",
     );
+
+    assert.equal(
+      parseLifecycleOutcome(
+        {
+          schemaVersion: PROTOCOL_VERSION,
+          outcome: "blocked",
+          change: "not-applicable",
+          report: "Findings require fixes.",
+          reviewEvidence: {
+            targetHeadSha: COMMIT,
+            reviewedHeadSha: COMMIT,
+            captureState: "complete",
+            result: "findings",
+            actionableFindings: 1,
+            statusChecks: 3,
+            reusedReview: true,
+            silent: true,
+          },
+          actionableFindingDetails: [{ findingId: "finding-1", filePath: "src/main.ts", startLine: 10, endLine: 12, reviewedSha: COMMIT, summary: "summary" }],
+          settledFindingIds: ["false-positive-1"],
+        },
+        "arp-review",
+      ).outcome,
+      "blocked",
+    );
+
+    assert.equal(
+      parseLifecycleOutcome(
+        {
+          schemaVersion: PROTOCOL_VERSION,
+          outcome: "success",
+          change: "not-applicable",
+          report: "Applied fix commit.",
+          commitRefs: [NEXT_COMMIT],
+          pendingSettlements: [{ findingId: "finding-1", fixCommitSha: NEXT_COMMIT, fixChangeSummary: "summary", reason: "reason" }],
+        },
+        "arp-fix",
+      ).outcome,
+      "success",
+    );
   });
 
-  it("rejects unsupported versions and stage/outcome mismatches", () => {
+  it("rejects unsupported versions and stage/outcome metadata mismatches", () => {
     assert.throws(() =>
       parseLifecycleOutcome(
         { schemaVersion: PROTOCOL_VERSION + 1, outcome: "success", change: "changed", report: "invalid version" },
         "execute",
       ),
     );
+
     assert.throws(() =>
       parseLifecycleOutcome(
         { schemaVersion: PROTOCOL_VERSION, outcome: "VERIFIED", change: "not-applicable", report: "wrong stage" },
         "execute",
       ),
     );
-    assert.throws(() =>
-      parseLifecycleOutcome(
-        { schemaVersion: PROTOCOL_VERSION, outcome: "success", change: "unchanged", report: "wrong stage" },
-        "verify",
-      ),
-    );
+
     assert.throws(() =>
       parseLifecycleOutcome(
         {
           schemaVersion: PROTOCOL_VERSION,
           outcome: "success",
           change: "not-applicable",
-          report: "missing review evidence",
+          report: "missing commit refs",
+          prUrl: "https://github.com/DataDog/repo/pull/123",
+          publishedHeadSha: COMMIT,
         },
-        "arp-review",
+        "pr-publish",
       ),
     );
+
     assert.throws(() =>
       parseLifecycleOutcome(
         {
           schemaVersion: PROTOCOL_VERSION,
           outcome: "blocked",
           change: "not-applicable",
-          report: "missing blocked evidence",
+          report: "findings without details",
+          reviewEvidence: {
+            targetHeadSha: COMMIT,
+            reviewedHeadSha: COMMIT,
+            captureState: "complete",
+            result: "findings",
+            actionableFindings: 1,
+            statusChecks: 3,
+            reusedReview: true,
+            silent: true,
+          },
         },
         "arp-review",
       ),
     );
+
+    assert.throws(() =>
+      parseLifecycleOutcome(
+        {
+          schemaVersion: PROTOCOL_VERSION,
+          outcome: "blocked",
+          change: "not-applicable",
+          report: "findings capture incomplete",
+          reviewEvidence: {
+            targetHeadSha: COMMIT,
+            reviewedHeadSha: COMMIT,
+            captureState: "review-in-progress",
+            result: "findings",
+            actionableFindings: 1,
+            statusChecks: 3,
+            reusedReview: true,
+            silent: true,
+          },
+          actionableFindingDetails: [{ findingId: "finding-1", filePath: "src/main.ts", startLine: 10, endLine: 12, reviewedSha: COMMIT, summary: "summary" }],
+        },
+        "arp-review",
+      ),
+      /captureState complete/i,
+    );
+
+    assert.throws(() =>
+      parseLifecycleOutcome(
+        {
+          schemaVersion: PROTOCOL_VERSION,
+          outcome: "blocked",
+          change: "not-applicable",
+          report: "findings not silent",
+          reviewEvidence: {
+            targetHeadSha: COMMIT,
+            reviewedHeadSha: COMMIT,
+            captureState: "complete",
+            result: "findings",
+            actionableFindings: 1,
+            statusChecks: 3,
+            reusedReview: true,
+            silent: false,
+          },
+          actionableFindingDetails: [{ findingId: "finding-1", filePath: "src/main.ts", startLine: 10, endLine: 12, reviewedSha: COMMIT, summary: "summary" }],
+        },
+        "arp-review",
+      ),
+      /silent review evidence/i,
+    );
+
     assert.throws(() =>
       parseLifecycleOutcome(
         {
           schemaVersion: PROTOCOL_VERSION,
           outcome: "success",
           change: "not-applicable",
-          report: "missing published head",
-          prUrl: "https://github.com/DataDog/repo/pull/123",
+          report: "fix without pending settlements",
+          commitRefs: [NEXT_COMMIT],
         },
-        "pr-publish",
+        "arp-fix",
+      ),
+    );
+
+    assert.throws(() =>
+      parseLifecycleOutcome(
+        {
+          schemaVersion: PROTOCOL_VERSION,
+          outcome: "success",
+          change: "not-applicable",
+          report: "fix duplicate commits",
+          commitRefs: [NEXT_COMMIT, NEXT_COMMIT],
+          pendingSettlements: [{ findingId: "finding-1", fixCommitSha: NEXT_COMMIT, fixChangeSummary: "summary", reason: "reason" }],
+        },
+        "arp-fix",
+      ),
+      /commitRefs must be unique/i,
+    );
+
+    assert.throws(() =>
+      parseLifecycleOutcome(
+        {
+          schemaVersion: PROTOCOL_VERSION,
+          outcome: "success",
+          change: "not-applicable",
+          report: "fix duplicate settlement ids",
+          commitRefs: [NEXT_COMMIT],
+          pendingSettlements: [
+            { findingId: "finding-1", fixCommitSha: NEXT_COMMIT, fixChangeSummary: "summary", reason: "reason" },
+            { findingId: "finding-1", fixCommitSha: NEXT_COMMIT, fixChangeSummary: "summary", reason: "reason" },
+          ],
+        },
+        "arp-fix",
+      ),
+      /pending settlement IDs must be unique/i,
+    );
+
+    assert.throws(() =>
+      parseLifecycleOutcome(
+        {
+          schemaVersion: PROTOCOL_VERSION,
+          outcome: "success",
+          change: "not-applicable",
+          report: "fix settlement commit missing",
+          commitRefs: [NEXT_COMMIT],
+          pendingSettlements: [{ findingId: "finding-1", fixCommitSha: COMMIT, fixChangeSummary: "summary", reason: "reason" }],
+        },
+        "arp-fix",
+      ),
+      /settlement commit must be included in commitRefs/i,
+    );
+
+    assert.throws(() =>
+      parseLifecycleOutcome(
+        {
+          schemaVersion: PROTOCOL_VERSION,
+          outcome: "blocked",
+          change: "not-applicable",
+          report: "bad metadata for verify",
+          settledFindingIds: ["finding-1"],
+        },
+        "verify",
       ),
     );
   });
 
-  it("rejects reports that exceed the byte cap even when their character count is lower", () => {
+  it("rejects reports that exceed the byte cap even when character count is lower", () => {
     const report = "🧪".repeat(Math.floor(MAX_STAGE_REPORT_BYTES / 4) + 1);
     assert.ok(report.length < MAX_STAGE_REPORT_BYTES);
     assert.ok(Buffer.byteLength(report, "utf8") > MAX_STAGE_REPORT_BYTES);

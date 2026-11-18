@@ -35,9 +35,16 @@ test("completion publication prompt is orchestrated-only and does not duplicate 
   }
 });
 
-test("completion ARP review prompt enforces silent bounded exact-head review", () => {
+test("completion ARP review prompt enforces silent bounded exact-head review with structured settlements", () => {
   const text = prompt("arp-review");
-  for (const marker of ["skill-loader", "PI_LIFECYCLE_CHILD_CONFIG", "tool_search", "Expected review head SHA", "silent: true", "Max status checks", "Status poll intervals", "Do not resolve findings", "Never settle findings"]) {
+  for (const marker of ["skill-loader", "PI_LIFECYCLE_CHILD_CONFIG", "tool_search", "Expected review head SHA", "silent: true", "Max status checks", "Status poll intervals", "settledFindingIds", "actionableFindingDetails", "Pending settlement IDs"]) {
     assert.ok(text.includes(marker), `arp-review must include ${marker}`);
+  }
+});
+
+test("completion ARP fix prompt is orchestrated-only and returns pending settlements", () => {
+  const text = prompt("arp-fix");
+  for (const marker of ["skill-loader", "PI_LIFECYCLE_CHILD_CONFIG", "Fix target PR", "Fix reviewed head SHA", "pendingSettlements", "commitRefs", "Do not push", "Verification and publication happen in later orchestrated stages"]) {
+    assert.ok(text.includes(marker), `arp-fix must include ${marker}`);
   }
 });

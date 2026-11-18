@@ -207,6 +207,18 @@ export function stageContract(config: StageConfig): string {
       lines.push(`Status poll intervals (seconds): ${config.completion.reviewRequest.pollIntervalsSeconds.join(", ")}`);
       lines.push(`Silent ARP request: ${config.completion.reviewRequest.silent}`);
     }
+    if (config.completion.fixRequest) {
+      lines.push(`Fix target PR: ${config.completion.fixRequest.prUrl}`);
+      lines.push(`Fix reviewed head SHA: ${config.completion.fixRequest.reviewedHeadSha}`);
+      lines.push(`Fix findings count: ${config.completion.fixRequest.findings.length}`);
+    }
+    if (config.completion.pendingSettlements && config.completion.pendingSettlements.length > 0) {
+      lines.push(`Pending addressed settlements: ${config.completion.pendingSettlements.length}`);
+      lines.push(`Pending settlement IDs: ${config.completion.pendingSettlements.map((entry) => entry.findingId).join(", ")}`);
+    }
+    if (config.completion.verificationWriters && config.completion.verificationWriters.length > 0) {
+      lines.push(`Completion verification writers: ${config.completion.verificationWriters.join(", ")}`);
+    }
   }
 
   lines.push("Use lifecycle_request_decision for user decisions. Submit exactly one final result with lifecycle_submit_outcome after the stage is complete.");
@@ -297,6 +309,79 @@ function validateCommitRefs(config: StageConfig, refs: string[] | undefined): st
     if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(commit)) throw new Error(`Commit reference did not resolve to a Git object: ${ref}`);
     return commit;
   });
+}
+
+function isAncestorCommit(worktree: string, ancestor: string, descendant: string): boolean {
+  try {
+    gitText(worktree, ["merge-base", "--is-ancestor", ancestor, descendant]);
+    return true;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException & { status?: number }).status;
+    if (code === 1) return false;
+    throw new Error(`Git merge-base failed: ${errorMessage(error)}`);
+  }
+}
+
+function validateArpFixSuccessMetadata(
+  config: StageConfig,
+  params: ReturnType<typeof parseLifecycleOutcome>,
+  commitRefs: string[] | undefined,
+  candidate: CandidateSnapshot,
+): string | undefined {
+  if (config.scope !== "completion" || config.stage !== "arp-fix" || params.outcome !== "success") return undefined;
+  const reviewedCandidate = config.completion.candidate;
+  const requestedFindings = config.completion.fixRequest?.findings ?? [];
+  if (requestedFindings.length === 0) return "arp-fix stage configuration does not include actionable findings";
+  if (!params.pendingSettlements || params.pendingSettlements.length === 0) {
+    return "arp-fix success must include pending settlements";
+  }
+  if (!commitRefs || commitRefs.length === 0) {
+    return "arp-fix success must include commit references";
+  }
+  if (candidate.branch !== reviewedCandidate.branch) {
+    return `arp-fix changed candidate branch from ${reviewedCandidate.branch} to ${candidate.branch}`;
+  }
+  if (!isAncestorCommit(config.worktree, reviewedCandidate.head, candidate.head)) {
+    return `arp-fix candidate head ${candidate.head} is not a descendant of reviewed head ${reviewedCandidate.head}`;
+  }
+
+  const uniqueCommitRefs = new Set(commitRefs);
+  if (uniqueCommitRefs.size !== commitRefs.length) {
+    return "arp-fix commitRefs contains duplicate commits";
+  }
+  for (const commitRef of commitRefs) {
+    if (!isAncestorCommit(config.worktree, reviewedCandidate.head, commitRef)) {
+      return `arp-fix commit ${commitRef} is outside reviewed candidate ancestry`;
+    }
+    if (!isAncestorCommit(config.worktree, commitRef, candidate.head)) {
+      return `arp-fix commit ${commitRef} is not present in reported candidate ancestry`;
+    }
+  }
+
+  const requestedFindingIds = new Set(requestedFindings.map((finding) => finding.findingId));
+  const settlementFixCommits = validateCommitRefs(config, params.pendingSettlements.map((settlement) => settlement.fixCommitSha)) ?? [];
+  const seenSettlementIds = new Set<string>();
+  for (const [index, settlement] of params.pendingSettlements.entries()) {
+    if (seenSettlementIds.has(settlement.findingId)) {
+      return `arp-fix reported duplicate pending settlement ID ${settlement.findingId}`;
+    }
+    seenSettlementIds.add(settlement.findingId);
+    if (!requestedFindingIds.has(settlement.findingId)) {
+      return `arp-fix reported pending settlement for unrelated finding ${settlement.findingId}`;
+    }
+    const fixCommitSha = settlementFixCommits[index];
+    if (!fixCommitSha || !uniqueCommitRefs.has(fixCommitSha)) {
+      return `arp-fix settlement ${settlement.findingId} references commit outside commitRefs`;
+    }
+    if (!isAncestorCommit(config.worktree, reviewedCandidate.head, fixCommitSha)) {
+      return `arp-fix settlement ${settlement.findingId} references commit outside reviewed candidate ancestry`;
+    }
+    if (!isAncestorCommit(config.worktree, fixCommitSha, candidate.head)) {
+      return `arp-fix settlement ${settlement.findingId} references commit not present in candidate ancestry`;
+    }
+  }
+
+  return undefined;
 }
 
 function ensurePrivateDirectory(path: string): void {
@@ -441,6 +526,8 @@ function registerBridge(pi: ExtensionAPI, config: StageConfig): void {
           ? validateCommitRefs(config, [params.publishedHeadSha])?.[0]
           : undefined;
         const candidate = await candidateSnapshot(config, signal);
+        const arpFixValidationProblem = validateArpFixSuccessMetadata(config, params, commitRefs, candidate);
+        if (arpFixValidationProblem) return failedToolResult(arpFixValidationProblem);
         signal?.throwIfAborted();
         const reportRef = writeStageReport(config, params.report);
         const details = {
@@ -457,6 +544,9 @@ function registerBridge(pi: ExtensionAPI, config: StageConfig): void {
           ...(commitRefs ? { commitRefs } : {}),
           ...(publishedHeadSha ? { publishedHeadSha } : {}),
           ...(params.reviewEvidence ? { reviewEvidence: params.reviewEvidence } : {}),
+          ...(params.actionableFindingDetails ? { actionableFindingDetails: params.actionableFindingDetails } : {}),
+          ...(params.settledFindingIds ? { settledFindingIds: params.settledFindingIds } : {}),
+          ...(params.pendingSettlements ? { pendingSettlements: params.pendingSettlements } : {}),
         };
         outcomeSubmitted = true;
         return {

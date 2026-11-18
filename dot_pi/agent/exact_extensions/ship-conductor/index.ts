@@ -152,6 +152,8 @@ export default function implementCoordinator(pi: ExtensionAPI): void {
           const completionStagePaths: Record<CompletionStage, string> = {
             "pr-publish": join(agentDirectory, "prompts", "pr-publish.md"),
             "arp-review": join(agentDirectory, "prompts", "arp-review.md"),
+            "arp-fix": join(agentDirectory, "prompts", "arp-fix.md"),
+            verify: join(agentDirectory, "prompts", "verify.md"),
           };
           const gitRunner = createGitRunner();
           const modelUI: ModelSelectionUI = {

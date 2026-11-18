@@ -58,5 +58,7 @@ describe("buildCompletionPrompt", () => {
   it("dispatches completion prompts without mutable arguments", () => {
     assert.equal(buildCompletionPrompt("pr-publish"), "/pr-publish");
     assert.equal(buildCompletionPrompt("arp-review"), "/arp-review");
+    assert.equal(buildCompletionPrompt("arp-fix"), "/arp-fix");
+    assert.equal(buildCompletionPrompt("verify"), "/verify");
   });
 });

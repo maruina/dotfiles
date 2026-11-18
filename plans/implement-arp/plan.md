@@ -163,11 +163,11 @@ The system SHALL stop at three reviewed heads or the per-head deadline and SHALL
 **Traces to:** R3, R4, R5
 **Files:** `dot_pi/agent/exact_extensions/ship-conductor/_completion.ts`, `dot_pi/agent/exact_extensions/ship-conductor/_completion.test.ts`, `dot_pi/agent/exact_extensions/ship-conductor/_protocol.ts`, `dot_pi/agent/exact_extensions/ship-conductor/_protocol.test.ts`, `dot_pi/agent/exact_extensions/ship-conductor/_bridge.ts`, `dot_pi/agent/exact_extensions/ship-conductor/_bridge.test.ts`, `dot_pi/agent/exact_extensions/ship-conductor/_conductor.ts`, `dot_pi/agent/exact_extensions/ship-conductor/_conductor.test.ts`, `dot_pi/agent/exact_extensions/ship-conductor/_prompts.ts`, `dot_pi/agent/exact_extensions/ship-conductor/_prompts.test.ts`, `dot_pi/agent/exact_extensions/ship-conductor/_state.ts`, `dot_pi/agent/exact_extensions/ship-conductor/_state.test.ts`, `dot_pi/agent/exact_extensions/ship-conductor/_rpc.test.ts`, `dot_pi/agent/exact_extensions/ship-conductor/_fixtures/rpc-driver.ts`, `dot_pi/agent/exact_prompts/arp-review.md`, `dot_pi/agent/exact_prompts/arp-fix.md`, `dot_pi/agent/exact_prompts/pr-publish.md`, `dot_pi/agent/exact_prompts/verify.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`, `dot_pi/agent/exact_scripts/arp-prompts.test.mjs`.
 
-- [ ] Add failing tests for valid/invalid/ambiguous findings, old-head unresolved findings, unchanged dismissal-only results, verified fix publication, writer independence, failed verification, partial settlement, candidate drift, and the third-head stop.
-- [ ] Implement bounded structured finding handoff (`findingId`, `filePath`, `startLine`, `endLine`, `reviewedSha`, `summary`), immediate `invalid` false-positive settlement (`settledFindingIds`) in `arp-review`, and the orchestrated-only `arp-fix` child returning `commitRefs` and pending settlements (`findingId`, `fixCommitSha`, `fixChangeSummary`, `reason`). Verify the full feature against pinned requirements in a fresh `verify.md` child supporting feature-scope completion configs after each fix; preserve all relevant writer identities.
-- [ ] Publish only after verification passes and candidate comparison succeeds. Pass verified pending settlements into the post-publish `arp-review` config so it calls `agentic_review_resolve_finding(resolution="addressed", ...)` with verified commit references before inspecting the new head. Handle partial failures by recording `settledFindingIds` and re-reading state, not contradictory permanent writes.
-- [ ] Re-enter exact-head silent review after publication, at most three reviewed heads total. Do not make a fix on the third reviewed head when that would require an unavailable fourth review. Avoid empty commits and redundant reviews when only dispositions change.
-- [ ] Extend `_fixtures/rpc-driver.ts` (via `pi.registerTool`) and `_rpc.test.ts` to prove fix, fresh verify, push, settlement, and re-review ordering and negative paths without network writes. Run both focused commands and LSP diagnostics; expect passing tests.
+- [x] Add failing tests for valid/invalid/ambiguous findings, old-head unresolved findings, unchanged dismissal-only results, verified fix publication, writer independence, failed verification, partial settlement, candidate drift, and the third-head stop.
+- [x] Implement bounded structured finding handoff (`findingId`, `filePath`, `startLine`, `endLine`, `reviewedSha`, `summary`), immediate `invalid` false-positive settlement (`settledFindingIds`) in `arp-review`, and the orchestrated-only `arp-fix` child returning `commitRefs` and pending settlements (`findingId`, `fixCommitSha`, `fixChangeSummary`, `reason`). Verify the full feature against pinned requirements in a fresh `verify.md` child supporting feature-scope completion configs after each fix; preserve all relevant writer identities.
+- [x] Publish only after verification passes and candidate comparison succeeds. Pass verified pending settlements into the post-publish `arp-review` config so it calls `agentic_review_resolve_finding(resolution="addressed", ...)` with verified commit references before inspecting the new head. Handle partial failures by recording `settledFindingIds` and re-reading state, not contradictory permanent writes.
+- [x] Re-enter exact-head silent review after publication, at most three reviewed heads total. Do not make a fix on the third reviewed head when that would require an unavailable fourth review. Avoid empty commits and redundant reviews when only dispositions change.
+- [x] Extend `_fixtures/rpc-driver.ts` (via `pi.registerTool`) and `_rpc.test.ts` to prove fix, fresh verify, push, settlement, and re-review ordering and negative paths without network writes. Run both focused commands and LSP diagnostics; expect passing tests.
 - [ ] Commit with `feat(pi): automate verified ARP fixes and re-reviews`.
 
 ### Task 3: Document operation and inspect future-agent guidance
@@ -176,9 +176,9 @@ The system SHALL stop at three reviewed heads or the per-head deadline and SHALL
 **Traces to:** R1-R5 and confirmed documentation requirement
 **Files:** `dot_pi/agent/exact_extensions/ship-conductor/README.md`, `AGENTS.md`, `dot_pi/agent/AGENTS.md`.
 
-- [ ] Update the README with work/personal behavior, invocation authorization, stage order, the three-head/20-minute limits, authentication failure, remote-review cancellation limits, partial resolutions, and recovery commands.
-- [ ] Inspect both listed `AGENTS.md` files; add only durable lifecycle contract or testing traps, or record why no change is needed. Do not duplicate prompt-owned judgment policy.
-- [ ] Review changed prompt descriptions and command help for consistency. Ensure no text claims production behavior that only fixtures establish.
+- [x] Update the README with work/personal behavior, invocation authorization, stage order, the three-head/20-minute limits, authentication failure, remote-review cancellation limits, partial resolutions, and recovery commands.
+- [x] Inspect both listed `AGENTS.md` files; add only durable lifecycle contract or testing traps, or record why no change is needed. Do not duplicate prompt-owned judgment policy.
+- [x] Review changed prompt descriptions and command help for consistency. Ensure no text claims production behavior that only fixtures establish.
 - [ ] Commit with `docs(pi): document automatic ARP completion` when documentation changes are required.
 
 ### Task 4: Final verification
@@ -188,10 +188,52 @@ The system SHALL stop at three reviewed heads or the per-head deadline and SHALL
 **Files:** All implementation files above; `plans/implement-arp/plan.md` as the evidence ledger.
 
 - [ ] Run `npm ci --ignore-scripts` in `dot_pi/agent` if not already current, then both focused commands, `npm test`, and `npm run test:all`. Keep dependencies until all gates and independent `/verify` finish; remove `dot_pi/agent/node_modules` afterward as repository guidance requires.
-- [ ] Execute the disposable-worktree smoke from Test Strategy with candidate prompts/extensions and isolated remote boundaries. Record setup, invocation, observed typed transitions, cancellation outcome, and cleanup. Do not run unsigned commits or bypass approval/signing checks outside isolated test fixtures.
+- [x] Execute the disposable-worktree smoke from Test Strategy with candidate prompts/extensions and isolated remote boundaries. Record setup, invocation, observed typed transitions, cancellation outcome, and cleanup. Do not run unsigned commits or bypass approval/signing checks outside isolated test fixtures.
 - [ ] Establish production ARP evidence with an explicitly authorized suitable draft PR, or stop delivery and ask the user to accept the real-service evidence gap. Do not interpret mocked success as live MCP proof.
 - [ ] Verify work/personal rendering and explicit target diffs using `chezmoi --source "$PWD"`; run `git diff --check` and confirm only intended changes. Apply only after independent `/verify`, with the live-evidence gap resolved or accepted. Commit/push according to repository completion rules.
-- [ ] Record commands, outcomes, omissions, and exact verified candidate in the ledger; do not create an empty evidence-only commit unless required ledger changes exist.
+- [x] Record commands, outcomes, omissions, and exact verified candidate in the ledger; do not create an empty evidence-only commit unless required ledger changes exist.
 
 ## Learning candidates
 - 2026-11-17: Running `node --experimental-strip-types --test 'exact_extensions/ship-conductor/*.test.ts'` in a fresh `dot_pi/agent` worktree fails with `ERR_MODULE_NOT_FOUND` unless `npm ci --ignore-scripts` runs in Task 1, and fails `assertPi150` in `_rpc.test.ts` when global `pi` is newer than `1.5.0` unless `PATH="$PWD/node_modules/.bin:$PATH"` prepends the lockfile-pinned Pi binary — evidence: `dot_pi/agent/exact_extensions/ship-conductor/_rpc.test.ts:174` and `dot_pi/agent/package-lock.json:558`.
+
+## Evidence ledger
+- 2026-11-17 — Parent review corrections addressed in source (Task 2):
+  - Enforced findings-evidence gating before `/arp-fix` (`captureState` complete + silent established), preserved settled IDs and remaining IDs across blocked/deadline paths, and kept one-deadline-per-head behavior while still recording post-deadline settlements.
+  - Added coordinator and bridge validation for arp-fix metadata: branch preservation, reviewed-head ancestry, commitRefs uniqueness/ancestry checks, pending-settlement ID uniqueness, and requested-finding correspondence.
+  - Wired completion verify to use verify thinking/model provenance and canonical `provider/id` writer metadata.
+  - Added blocked-summary context with settled and remaining finding IDs.
+- 2026-11-17 — Restored regression coverage after wholesale test rewrites:
+  - `_completion.test.ts` restored baseline scenarios (`runs publication then silent exact-head review for work policy`, `does not retry a failed arp-review dispatch outside one review session`, `rejects arp-review success without typed review evidence`) and added correction regressions for incomplete/non-silent findings evidence, unrelated settlement metadata, post-deadline settlement preservation, and cancellation before arp-fix dispatch.
+  - `_protocol.test.ts` restored/expanded stage-config and envelope mismatch coverage, plus negative checks for arp-review findings capture/silent requirements and arp-fix duplicate/invalid settlement metadata.
+  - `_rpc.test.ts` + `_fixtures/rpc-driver.ts` added real-loop rejection coverage for invalid arp-fix settlement metadata.
+- 2026-11-17 — Diagnostics and focused gates:
+  - `lsp_diagnostics` on `_completion.ts`, `_protocol.ts`, `_conductor.ts`, `_bridge.ts`, and `_fixtures/rpc-driver.ts` → pass (no diagnostics).
+  - `env -u PI_LIFECYCLE_CHILD_CONFIG PATH="$PWD/node_modules/.bin:$PATH" node --experimental-strip-types --test 'exact_extensions/ship-conductor/*.test.ts'` → pass (183 tests, 28 suites, 0 fail).
+  - `env -u PI_LIFECYCLE_CHILD_CONFIG PATH="$PWD/node_modules/.bin:$PATH" node --test exact_scripts/lifecycle-prompts.test.mjs exact_scripts/arp-prompts.test.mjs` → pass (66 tests, 0 fail).
+- 2026-11-17 — Full local gates:
+  - `env -u PI_LIFECYCLE_CHILD_CONFIG npm ci --ignore-scripts` in `dot_pi/agent` → success.
+  - `env -u PI_LIFECYCLE_CHILD_CONFIG PATH="$PWD/node_modules/.bin:$PATH" npm test` → pass (`test:unit` 409 tests / 42 suites / 0 fail; `test:prompts` 98 pass; `test:pr-validate-report` 35 pass; `test:pr-validate-collector` 12 pass; `test:skills` 46 validated; `test:pi-deps` pass).
+  - `env -u PI_LIFECYCLE_CHILD_CONFIG PATH="$PWD/node_modules/.bin:$PATH" npm run test:all` → pass (same counts as `npm test`, plus `test:smoke` output `No models matching "__pi_smoke_no_match__"` and no `[Extension issues]`).
+- 2026-11-17 — Disposable-worktree smoke with candidate prompts/extensions (remote boundaries stubbed):
+  - Setup: temporary repo with committed `plans/feature/plan.md` + `design.md`, `origin/main` + `refs/remotes/origin/HEAD`, feature branch, temporary `PI_CODING_AGENT_DIR` prompts (`execute`, `simplify`, `verify`, `pr-publish`, `arp-review`, `arp-fix`), work profile file, and fixture extension symlink.
+  - Invocation: `pi --mode rpc --no-session --provider lifecycle-test --model driver --thinking minimal -e dot_pi/agent/exact_extensions/ship-conductor/index.ts -e dot_pi/agent/exact_extensions/ship-conductor/_fixtures/rpc-driver.ts` with `PI_LIFECYCLE_TEST_STAGE=auto`.
+  - Success run temp path: `/var/folders/f6/7hy2r0151cq2873fn35mmp_w0000gp/T/implement-smoke-success-final-3oii17i3`.
+  - Typed stage order observed: `execute -> simplify -> verify -> pr-publish -> arp-review(findings) -> arp-fix -> completion verify -> pr-publish -> arp-review(clean)`; final summary status `verified`.
+  - Cancellation run temp path: `/var/folders/f6/7hy2r0151cq2873fn35mmp_w0000gp/T/implement-smoke-cancel-final-n6r2d3no`.
+  - Cancellation behavior observed: execute stage requested a decision, dismissal returned `cancelled`, and no later stages ran.
+  - Cleanup attempt: `rm -rf <temp paths>` was blocked by compute-guardrails; no alternate deletion tool was used.
+  - Retained temporary directories:
+    - `/var/folders/f6/7hy2r0151cq2873fn35mmp_w0000gp/T/implement-smoke-success-final-3oii17i3`
+    - `/var/folders/f6/7hy2r0151cq2873fn35mmp_w0000gp/T/implement-smoke-cancel-final-n6r2d3no`
+  - Limitation: this smoke validates local orchestration behavior only; it is not live production ARP evidence.
+- 2026-11-17 — Rendering and explicit target diff checks:
+  - `chezmoi --source "$PWD" execute-template --file --override-data '{"profile":"work"}' dot_pi/agent/ship-conductor-profile.json.tmpl` → rendered `"profile": "work"`.
+  - `chezmoi --source "$PWD" execute-template --file --override-data '{"profile":"personal"}' dot_pi/agent/ship-conductor-profile.json.tmpl` → rendered `"profile": "personal"`.
+  - Explicit target diffs run per changed source path under `dot_pi/agent` via `chezmoi --source "$PWD" target-path <source>` + `chezmoi --source "$PWD" diff <target>` (21 changed targets checked).
+  - `git diff --check` and `git diff --cached --check` → clean.
+- 2026-11-17 — AGENTS inspection:
+  - `AGENTS.md` updated with a durable completion ordering trap.
+  - `dot_pi/agent/AGENTS.md` re-read; no additional durable global rule change required.
+- Open evidence gaps:
+  - Production ARP evidence remains open (no explicit authorization + no suitable draft PR in this session).
+  - Independent `/verify` was not run in this correction pass, so Task 4 gates that depend on independent `/verify` and post-verify cleanup remain open.

@@ -292,6 +292,8 @@ function baseDeps(fixture: ReturnType<typeof createRepo>, overrides: Partial<Con
   const completionStagePaths = {
     "pr-publish": "/agent/prompts/pr-publish.md",
     "arp-review": "/agent/prompts/arp-review.md",
+    "arp-fix": "/agent/prompts/arp-fix.md",
+    verify: "/agent/prompts/verify.md",
   };
   const deps: ConductorDeps = {
     resolvePlan: (input, cwd) => resolvePlan(input, cwd, gitRunner),
@@ -448,6 +450,312 @@ describe("runImplement", () => {
     assert.match(outcome.summary, /PR: https:\/\/github.com\/DataDog\/repo\/pull\/123/);
   });
 
+  it("runs fix verification before re-publish and settles addressed findings before re-review", async () => {
+    const fixture = createRepo(UNGROUPED_PLAN);
+    const depsState = baseDeps(fixture, { completionPolicy: { kind: "work" } });
+    const stages = stageRunner(fixture.root, fixture.planPath);
+    const completionCalls: Array<{ stage: string; head: string; pendingSettlements?: string[]; model: string }> = [];
+    let secondReviewSawSettlements = false;
+
+    depsState.deps.runStage = async (request, signal, callbacks) => {
+      if (request.stage === "pr-publish") {
+        completionCalls.push({ stage: request.stage, head: request.candidateBefore.head, model: `${request.model.provider}/${request.model.id}` });
+        return {
+          status: "settled",
+          outcome: {
+            schemaVersion: PROTOCOL_VERSION,
+            runId: request.runId,
+            stage: request.stage,
+            sessionId: `session-pr-publish-${completionCalls.length}`,
+            model: request.model,
+            outcome: "success",
+            change: "not-applicable",
+            candidate: request.candidateBefore,
+            reportRef: `lifecycle-coordinator/runs/${request.runId}/reports/pr-publish.md`,
+            prUrl: "https://github.com/DataDog/repo/pull/123",
+            publishedHeadSha: request.candidateBefore.head,
+            commitRefs: [request.candidateBefore.head],
+          },
+          promptStarted: true,
+          observed: { sessionId: `session-pr-publish-${completionCalls.length}`, model: request.model, thinkingLevel: request.thinkingLevel, messageCount: 1 },
+          decisions: [],
+          progress: [],
+          stderr: "",
+          terminationConfirmed: true,
+        };
+      }
+
+      if (request.stage === "arp-review") {
+        const pendingSettlements = request.config.scope === "completion"
+          ? request.config.completion.pendingSettlements?.map((entry) => entry.findingId)
+          : undefined;
+        completionCalls.push({ stage: request.stage, head: request.candidateBefore.head, pendingSettlements, model: `${request.model.provider}/${request.model.id}` });
+        if (pendingSettlements && pendingSettlements.includes("bug-1")) secondReviewSawSettlements = true;
+        const firstReview = !pendingSettlements;
+        return {
+          status: "settled",
+          outcome: {
+            schemaVersion: PROTOCOL_VERSION,
+            runId: request.runId,
+            stage: request.stage,
+            sessionId: `session-arp-review-${completionCalls.length}`,
+            model: request.model,
+            outcome: firstReview ? "blocked" : "success",
+            change: "not-applicable",
+            candidate: request.candidateBefore,
+            reportRef: `lifecycle-coordinator/runs/${request.runId}/reports/arp-review.md`,
+            reviewEvidence: {
+              targetHeadSha: request.candidateBefore.head,
+              reviewedHeadSha: request.candidateBefore.head,
+              captureState: "complete",
+              result: firstReview ? "findings" : "clean",
+              actionableFindings: firstReview ? 1 : 0,
+              statusChecks: 4,
+              reusedReview: true,
+              silent: true,
+            },
+            ...(firstReview
+              ? {
+                  actionableFindingDetails: [{
+                    findingId: "bug-1",
+                    filePath: "src/execute.txt",
+                    startLine: 1,
+                    endLine: 1,
+                    reviewedSha: request.candidateBefore.head,
+                    summary: "Fix deterministic bug",
+                  }],
+                  settledFindingIds: ["invalid-1"],
+                }
+              : {
+                  settledFindingIds: ["bug-1"],
+                }),
+          },
+          promptStarted: true,
+          observed: { sessionId: `session-arp-review-${completionCalls.length}`, model: request.model, thinkingLevel: request.thinkingLevel, messageCount: 1 },
+          decisions: [],
+          progress: [],
+          stderr: "",
+          terminationConfirmed: true,
+        };
+      }
+
+      if (request.stage === "arp-fix") {
+        completionCalls.push({ stage: request.stage, head: request.candidateBefore.head, model: `${request.model.provider}/${request.model.id}` });
+        writeFileSync(join(fixture.root, "src", "completion-fix.txt"), "completion fix\n");
+        git(fixture.root, ["add", "."]);
+        git(fixture.root, ["commit", "--quiet", "-m", "apply completion fix"]);
+        const candidateAfterFix = captureCleanCandidate(fixture.root, createGitRunner());
+        return {
+          status: "settled",
+          outcome: {
+            schemaVersion: PROTOCOL_VERSION,
+            runId: request.runId,
+            stage: request.stage,
+            sessionId: `session-arp-fix-${completionCalls.length}`,
+            model: request.model,
+            outcome: "success",
+            change: "not-applicable",
+            candidate: candidateAfterFix,
+            reportRef: `lifecycle-coordinator/runs/${request.runId}/reports/arp-fix.md`,
+            commitRefs: [candidateAfterFix.head],
+            pendingSettlements: [{
+              findingId: "bug-1",
+              fixCommitSha: candidateAfterFix.head,
+              fixChangeSummary: "Add completion fix",
+              reason: "verified by completion verify",
+            }],
+          },
+          promptStarted: true,
+          observed: { sessionId: `session-arp-fix-${completionCalls.length}`, model: request.model, thinkingLevel: request.thinkingLevel, messageCount: 1 },
+          decisions: [],
+          progress: [],
+          stderr: "",
+          terminationConfirmed: true,
+        };
+      }
+
+      if (request.stage === "verify" && request.config.scope === "completion") {
+        completionCalls.push({ stage: "completion-verify", head: request.candidateBefore.head, model: `${request.model.provider}/${request.model.id}` });
+        return {
+          status: "settled",
+          outcome: {
+            schemaVersion: PROTOCOL_VERSION,
+            runId: request.runId,
+            stage: request.stage,
+            sessionId: `session-completion-verify-${completionCalls.length}`,
+            model: request.model,
+            outcome: "VERIFIED",
+            change: "not-applicable",
+            candidate: request.candidateBefore,
+            reportRef: `lifecycle-coordinator/runs/${request.runId}/reports/verify-completion.md`,
+          },
+          promptStarted: true,
+          observed: { sessionId: `session-completion-verify-${completionCalls.length}`, model: request.model, thinkingLevel: request.thinkingLevel, messageCount: 1 },
+          decisions: [],
+          progress: [],
+          stderr: "",
+          terminationConfirmed: true,
+        };
+      }
+
+      return stages.runner(request, signal, callbacks);
+    };
+
+    const outcome = await runImplement(`'${fixture.planPath}'`, fixture.root, depsState.deps, undefined);
+
+    assertOutcomeStatus(outcome, "verified");
+    assert.equal(secondReviewSawSettlements, true);
+    assert.deepEqual(completionCalls.map((entry) => entry.stage), ["pr-publish", "arp-review", "arp-fix", "completion-verify", "pr-publish", "arp-review"]);
+    const completionVerify = completionCalls.find((entry) => entry.stage === "completion-verify");
+    assert.equal(completionVerify?.model, "fixture/reviewer");
+  });
+
+  it("stops after completion verify BLOCKED and does not publish or re-review", async () => {
+    const fixture = createRepo(UNGROUPED_PLAN);
+    const depsState = baseDeps(fixture, { completionPolicy: { kind: "work" } });
+    const stages = stageRunner(fixture.root, fixture.planPath);
+    const completionCalls: string[] = [];
+
+    depsState.deps.runStage = async (request, signal, callbacks) => {
+      if (request.stage === "pr-publish") {
+        completionCalls.push(request.stage);
+        return {
+          status: "settled",
+          outcome: {
+            schemaVersion: PROTOCOL_VERSION,
+            runId: request.runId,
+            stage: request.stage,
+            sessionId: "session-pr-publish",
+            model: request.model,
+            outcome: "success",
+            change: "not-applicable",
+            candidate: request.candidateBefore,
+            reportRef: `lifecycle-coordinator/runs/${request.runId}/reports/pr-publish.md`,
+            prUrl: "https://github.com/DataDog/repo/pull/123",
+            publishedHeadSha: request.candidateBefore.head,
+            commitRefs: [request.candidateBefore.head],
+          },
+          promptStarted: true,
+          observed: { sessionId: "session-pr-publish", model: request.model, thinkingLevel: request.thinkingLevel, messageCount: 1 },
+          decisions: [],
+          progress: [],
+          stderr: "",
+          terminationConfirmed: true,
+        };
+      }
+
+      if (request.stage === "arp-review") {
+        completionCalls.push(request.stage);
+        return {
+          status: "settled",
+          outcome: {
+            schemaVersion: PROTOCOL_VERSION,
+            runId: request.runId,
+            stage: request.stage,
+            sessionId: "session-arp-review",
+            model: request.model,
+            outcome: "blocked",
+            change: "not-applicable",
+            candidate: request.candidateBefore,
+            reportRef: `lifecycle-coordinator/runs/${request.runId}/reports/arp-review.md`,
+            reviewEvidence: {
+              targetHeadSha: request.candidateBefore.head,
+              reviewedHeadSha: request.candidateBefore.head,
+              captureState: "complete",
+              result: "findings",
+              actionableFindings: 1,
+              statusChecks: 2,
+              reusedReview: true,
+              silent: true,
+            },
+            actionableFindingDetails: [{
+              findingId: "bug-1",
+              filePath: "src/execute.txt",
+              startLine: 1,
+              endLine: 1,
+              reviewedSha: request.candidateBefore.head,
+              summary: "Fix deterministic bug",
+            }],
+          },
+          promptStarted: true,
+          observed: { sessionId: "session-arp-review", model: request.model, thinkingLevel: request.thinkingLevel, messageCount: 1 },
+          decisions: [],
+          progress: [],
+          stderr: "",
+          terminationConfirmed: true,
+        };
+      }
+
+      if (request.stage === "arp-fix") {
+        completionCalls.push(request.stage);
+        writeFileSync(join(fixture.root, "src", "completion-fix.txt"), "completion fix\n");
+        git(fixture.root, ["add", "."]);
+        git(fixture.root, ["commit", "--quiet", "-m", "apply completion fix"]);
+        const candidateAfterFix = captureCleanCandidate(fixture.root, createGitRunner());
+        return {
+          status: "settled",
+          outcome: {
+            schemaVersion: PROTOCOL_VERSION,
+            runId: request.runId,
+            stage: request.stage,
+            sessionId: "session-arp-fix",
+            model: request.model,
+            outcome: "success",
+            change: "not-applicable",
+            candidate: candidateAfterFix,
+            reportRef: `lifecycle-coordinator/runs/${request.runId}/reports/arp-fix.md`,
+            commitRefs: [candidateAfterFix.head],
+            pendingSettlements: [{
+              findingId: "bug-1",
+              fixCommitSha: candidateAfterFix.head,
+              fixChangeSummary: "Add completion fix",
+              reason: "verified by completion verify",
+            }],
+          },
+          promptStarted: true,
+          observed: { sessionId: "session-arp-fix", model: request.model, thinkingLevel: request.thinkingLevel, messageCount: 1 },
+          decisions: [],
+          progress: [],
+          stderr: "",
+          terminationConfirmed: true,
+        };
+      }
+
+      if (request.stage === "verify" && request.config.scope === "completion") {
+        completionCalls.push("completion-verify");
+        return {
+          status: "settled",
+          outcome: {
+            schemaVersion: PROTOCOL_VERSION,
+            runId: request.runId,
+            stage: request.stage,
+            sessionId: "session-completion-verify",
+            model: request.model,
+            outcome: "BLOCKED",
+            change: "not-applicable",
+            candidate: request.candidateBefore,
+            reportRef: `lifecycle-coordinator/runs/${request.runId}/reports/verify-completion.md`,
+          },
+          promptStarted: true,
+          observed: { sessionId: "session-completion-verify", model: request.model, thinkingLevel: request.thinkingLevel, messageCount: 1 },
+          decisions: [],
+          progress: [],
+          stderr: "",
+          terminationConfirmed: true,
+        };
+      }
+
+      return stages.runner(request, signal, callbacks);
+    };
+
+    const outcome = await runImplement(`'${fixture.planPath}'`, fixture.root, depsState.deps, undefined);
+
+    assertOutcomeStatus(outcome, "blocked");
+    assert.deepEqual(completionCalls, ["pr-publish", "arp-review", "arp-fix", "completion-verify"]);
+    assert.match(outcome.summary, /Independent feature verification returned BLOCKED/i);
+    assert.match(outcome.summary, /remaining finding IDs: bug-1/i);
+  });
+
   it("does not start completion for intermediate slices", async () => {
     const fixture = createRepo();
     const depsState = baseDeps(fixture, { completionPolicy: { kind: "work" } });
@@ -591,8 +899,8 @@ describe("runImplement", () => {
               targetHeadSha: request.candidateBefore.head,
               reviewedHeadSha: request.candidateBefore.head,
               captureState: "review-in-progress",
-              result: "findings",
-              actionableFindings: 2,
+              result: "error",
+              actionableFindings: 0,
               statusChecks: 6,
               reusedReview: true,
               silent: true,

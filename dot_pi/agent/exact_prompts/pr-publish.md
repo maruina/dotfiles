@@ -14,7 +14,7 @@ Refuse direct invocation. If `PI_LIFECYCLE_CHILD_CONFIG` is absent, malformed, m
 </HARD-GATE>
 
 ## Lifecycle mode
-Use the bridge only when the injected stage contract validates protocol version 2, run ID, stage `pr-publish`, pinned baseline, pinned completion candidate, selected model, and both `lifecycle_request_decision` and `lifecycle_submit_outcome` tools.
+Use the bridge only when the injected stage contract validates protocol version 3, run ID, stage `pr-publish`, pinned baseline, pinned completion candidate, selected model, and both `lifecycle_request_decision` and `lifecycle_submit_outcome` tools.
 
 The candidate is already verified implementation output. Keep repository state unchanged except for publishing to GitHub. Do not open a non-draft PR, mark a PR ready, merge, or rewrite stack structure.
 

@@ -39,7 +39,7 @@ function run(command: string, args: string[], cwd: string): string {
   return execFileSync(command, args, { cwd, encoding: "utf8" }).trim();
 }
 
-function createFixture(stage: "execute" | "simplify" | "verify" | "pr-publish" | "arp-review" = "execute"): Fixture {
+function createFixture(stage: "execute" | "simplify" | "verify" | "pr-publish" | "arp-review" | "arp-fix" = "execute"): Fixture {
   const root = mkdtempSync(join(tmpdir(), "pi-lifecycle-rpc-"));
   chmodSync(root, 0o700);
   const worktree = join(root, "repo");
@@ -63,7 +63,7 @@ function createFixture(stage: "execute" | "simplify" | "verify" | "pr-publish" |
     const baselineCommit = run("git", ["rev-parse", "HEAD"], worktree);
     const planBlob = run("git", ["rev-parse", "HEAD:plans/fixture/plan.md"], worktree);
     const designBlob = run("git", ["rev-parse", "HEAD:plans/fixture/design.md"], worktree);
-    const completionStage = stage === "pr-publish" || stage === "arp-review";
+    const completionStage = stage === "pr-publish" || stage === "arp-review" || stage === "arp-fix";
     writeFileSync(
       configPath,
       JSON.stringify(
@@ -102,7 +102,24 @@ function createFixture(stage: "execute" | "simplify" | "verify" | "pr-publish" |
                         silent: true,
                       },
                     }
-                  : {}),
+                  : stage === "arp-fix"
+                    ? {
+                        fixRequest: {
+                          prUrl: "https://github.com/DataDog/repo/pull/123",
+                          reviewedHeadSha: baselineCommit,
+                          findings: [
+                            {
+                              findingId: "finding-1",
+                              filePath: "src/main.ts",
+                              startLine: 10,
+                              endLine: 12,
+                              reviewedSha: baselineCommit,
+                              summary: "Fixture finding",
+                            },
+                          ],
+                        },
+                      }
+                    : {}),
               },
             }
           : {
@@ -246,7 +263,19 @@ function assertPi150(): void {
 
 function startRpc(
   fixture: Fixture,
-  outcomeMode: "success" | "error" | "missing" | "dirty" | "expansion" | "arp-success" | "arp-stale-head" | "arp-request-error" | "arp-discovery-missing",
+  outcomeMode:
+    | "success"
+    | "error"
+    | "missing"
+    | "dirty"
+    | "expansion"
+    | "arp-success"
+    | "arp-stale-head"
+    | "arp-request-error"
+    | "arp-discovery-missing"
+    | "arp-fix-success"
+    | "arp-fix-ambiguous"
+    | "arp-fix-invalid-settlement",
   promptTemplatePath?: string,
   childConfigPath: string | false = fixture.configPath,
   extraEnv: NodeJS.ProcessEnv = {},
@@ -460,6 +489,60 @@ async function runArpReviewFixture(mode: "arp-success" | "arp-stale-head" | "arp
     const settled = await rpc.waitFor((record) => record.type === "agent_settled", "agent_settled event");
     assert.equal(settled.aborted, false);
     return { fixture, rpc, outcome, request };
+  } catch (error) {
+    await rpc.close();
+    rmSync(fixture.root, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+async function runArpFixFixture(mode: "arp-fix-success" | "arp-fix-ambiguous" | "arp-fix-invalid-settlement") {
+  const fixture = createFixture("arp-fix");
+  const rpc = startRpc(
+    fixture,
+    mode,
+    undefined,
+    fixture.configPath,
+    {
+      PI_LIFECYCLE_TEST_STAGE: "arp-fix",
+      PI_LIFECYCLE_TEST_EXPECTED_HEAD: fixture.baselineCommit,
+    },
+  );
+  try {
+    const stateResponse = await rpc.request("get_state");
+    const state = stateResponse.data;
+    assert.equal(state.model.provider, "lifecycle-test");
+    assert.equal(state.model.id, "driver");
+
+    const prompt = await rpc.request("prompt", { message: "Run the deterministic arp-fix fixture." });
+    assert.equal(prompt.data.disposition, "started");
+
+    const outcome = await rpc.waitFor(
+      (record) => record.type === "tool_execution_end" && record.toolName === "lifecycle_submit_outcome",
+      "lifecycle_submit_outcome result",
+    );
+
+    if (mode === "arp-fix-invalid-settlement") {
+      assert.equal(outcome.isError, true);
+      const text = outcome.result.content.map((part: { text?: string }) => part.text ?? "").join("\n");
+      assert.match(text, /unrelated finding/i);
+    } else {
+      assert.equal(outcome.isError, false);
+      assert.equal(outcome.result.details.stage, "arp-fix");
+      assert.equal(outcome.result.details.change, "not-applicable");
+      if (mode === "arp-fix-success") {
+        assert.equal(outcome.result.details.outcome, "success");
+        assert.deepEqual(outcome.result.details.commitRefs, [fixture.baselineCommit]);
+        assert.equal(outcome.result.details.pendingSettlements?.[0]?.findingId, "finding-1");
+      } else {
+        assert.equal(outcome.result.details.outcome, "blocked");
+        assert.equal(outcome.result.details.pendingSettlements, undefined);
+      }
+    }
+
+    const settled = await rpc.waitFor((record) => record.type === "agent_settled", "agent_settled event");
+    assert.equal(settled.aborted, false);
+    return { fixture, rpc, outcome };
   } catch (error) {
     await rpc.close();
     rmSync(fixture.root, { recursive: true, force: true });
@@ -837,6 +920,38 @@ describe("Pi 1.5.0 lifecycle bridge RPC contract", () => {
       assert.equal(startedRequest, false);
       assert.equal(run.outcome.result.details.outcome, "blocked");
       assert.equal(run.outcome.result.details.reviewEvidence.result, "error");
+    } finally {
+      await run.rpc.close();
+      rmSync(run.fixture.root, { recursive: true, force: true });
+    }
+  });
+
+  it("returns structured arp-fix success metadata through the real RPC loop", { timeout: 60_000 }, async () => {
+    const run = await runArpFixFixture("arp-fix-success");
+    try {
+      assert.equal(run.outcome.result.details.outcome, "success");
+      assert.equal(run.outcome.result.details.pendingSettlements?.[0]?.findingId, "finding-1");
+    } finally {
+      await run.rpc.close();
+      rmSync(run.fixture.root, { recursive: true, force: true });
+    }
+  });
+
+  it("reports arp-fix ambiguity as blocked without pending settlements", { timeout: 60_000 }, async () => {
+    const run = await runArpFixFixture("arp-fix-ambiguous");
+    try {
+      assert.equal(run.outcome.result.details.outcome, "blocked");
+      assert.equal(run.outcome.result.details.pendingSettlements, undefined);
+    } finally {
+      await run.rpc.close();
+      rmSync(run.fixture.root, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects invalid arp-fix settlement metadata through the real RPC loop", { timeout: 60_000 }, async () => {
+    const run = await runArpFixFixture("arp-fix-invalid-settlement");
+    try {
+      assert.equal(run.outcome.isError, true);
     } finally {
       await run.rpc.close();
       rmSync(run.fixture.root, { recursive: true, force: true });

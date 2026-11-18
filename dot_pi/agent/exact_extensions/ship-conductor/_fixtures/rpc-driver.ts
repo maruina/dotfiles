@@ -81,22 +81,57 @@ function latestToolResult(
   return matches.length === 0 ? undefined : matches[matches.length - 1];
 }
 
+function messageText(content: unknown): string {
+  return typeof content === "string"
+    ? content
+    : Array.isArray(content)
+      ? content
+          .filter((part): part is { type: string; text?: string } => typeof part === "object" && part !== null && "type" in part)
+          .filter((part) => part.type === "text")
+          .map((part) => part.text ?? "")
+          .join("")
+      : "";
+}
+
 function latestUserText(context: { messages: Array<{ role: string; content?: unknown }> }): string {
   for (const message of [...context.messages].reverse()) {
     if (message.role !== "user") continue;
-    const content =
-      typeof message.content === "string"
-        ? message.content
-        : Array.isArray(message.content)
-          ? message.content
-              .filter((part): part is { type: string; text?: string } => typeof part === "object" && part !== null && "type" in part)
-              .filter((part) => part.type === "text")
-              .map((part) => part.text ?? "")
-              .join("")
-          : "";
+    const content = messageText(message.content);
     if (content && !content.startsWith("Protocol version:")) return content;
   }
   return "";
+}
+
+function latestStageContract(context: { messages: Array<{ role: string; content?: unknown }> }): string | undefined {
+  for (const message of [...context.messages].reverse()) {
+    if (message.role !== "user") continue;
+    const content = messageText(message.content);
+    if (content.startsWith("Protocol version:")) return content;
+  }
+  return undefined;
+}
+
+function contractValue(contract: string | undefined, label: string): string | undefined {
+  if (!contract) return undefined;
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = contract.match(new RegExp(`^${escaped}:\\s*(.+)$`, "m"));
+  return match?.[1]?.trim();
+}
+
+function contractStage(contract: string | undefined): string | undefined {
+  return contractValue(contract, "Stage");
+}
+
+function contractPendingSettlementIds(contract: string | undefined): string[] {
+  const raw = contractValue(contract, "Pending settlement IDs");
+  if (!raw || raw === "none") return [];
+  return raw.split(",").map((value) => value.trim()).filter(Boolean);
+}
+
+function extractCommitHash(value: unknown): string | undefined {
+  const text = typeof value === "string" ? value : value === undefined ? "" : JSON.stringify(value);
+  const match = text.match(/[0-9a-f]{40}|[0-9a-f]{64}/);
+  return match?.[0];
 }
 
 function makeToolCall(id: string, name: string, args: ToolCall["arguments"]): ToolCall {
@@ -120,7 +155,7 @@ export default function lifecycleRpcDriver(pi: ExtensionAPI): void {
   let callNumber = 0;
   let statusChecks = 0;
   const outcomeMode = process.env.PI_LIFECYCLE_TEST_OUTCOME ?? "success";
-  const stage = process.env.PI_LIFECYCLE_TEST_STAGE ?? "execute";
+  const configuredStage = process.env.PI_LIFECYCLE_TEST_STAGE ?? "execute";
   const expectedHeadSha = process.env.PI_LIFECYCLE_TEST_EXPECTED_HEAD ?? "a".repeat(40);
   const staleHeadSha = process.env.PI_LIFECYCLE_TEST_STALE_HEAD ?? "f".repeat(40);
 
@@ -142,6 +177,7 @@ export default function lifecycleRpcDriver(pi: ExtensionAPI): void {
           tools: [
             { name: "agentic_review_get_status" },
             { name: "agentic_review_request_review" },
+            { name: "agentic_review_resolve_finding" },
           ],
         },
       };
@@ -195,6 +231,19 @@ export default function lifecycleRpcDriver(pi: ExtensionAPI): void {
     },
   });
 
+  pi.registerTool({
+    name: "agentic_review_resolve_finding",
+    label: "Fixture ARP resolve",
+    description: "Fixture ARP resolve",
+    parameters: { type: "object", additionalProperties: true } as const,
+    async execute(_toolCallId, params) {
+      return {
+        content: [{ type: "text" as const, text: "fixture finding resolved" }],
+        details: params,
+      };
+    },
+  });
+
   pi.registerProvider(PROVIDER, {
     name: "Lifecycle RPC fixture",
     baseUrl: "http://127.0.0.1",
@@ -210,13 +259,277 @@ export default function lifecycleRpcDriver(pi: ExtensionAPI): void {
         contextWindow: 8192,
         maxTokens: 1024,
       },
+      {
+        id: "reviewer",
+        name: "Lifecycle RPC reviewer fixture",
+        reasoning: true,
+        input: ["text"],
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: 8192,
+        maxTokens: 1024,
+      },
     ],
     streamSimple(model, context) {
       if (outcomeMode === "expansion") {
         return streamText(model, `fixture-expanded:${JSON.stringify(latestUserText(context))}`);
       }
 
-      if (stage === "arp-review") {
+      const contract = latestStageContract(context);
+      const activeStage = configuredStage === "auto" ? contractStage(contract) ?? "execute" : configuredStage;
+      const contractCandidateHead = contractValue(contract, "Pinned completion candidate")?.split("@").at(-1);
+      const contractExpectedReviewHead = contractValue(contract, "Expected review head SHA");
+      const contractReviewedHead = contractValue(contract, "Fix reviewed head SHA");
+
+      if (configuredStage === "auto") {
+        const outcome = latestToolResult(context, "lifecycle_submit_outcome");
+        const bashResult = latestToolResult(context, "bash");
+        const pendingSettlementIds = contractPendingSettlementIds(contract);
+
+        if (activeStage === "execute") {
+          if (outcomeMode === "smoke-cancel") {
+            const decision = latestToolResult(context, "lifecycle_request_decision");
+            if (!decision) {
+              return streamToolCall(
+                model,
+                makeToolCall(`fixture-call-${++callNumber}`, "lifecycle_request_decision", {
+                  question: "May I proceed?",
+                  evidence: "Smoke cancellation fixture reached the execute decision gate.",
+                  proposal: "Continue the stage.",
+                  context: "Dismissing this dialog should cancel the stage before outcome submission.",
+                }),
+              );
+            }
+            return streamText(model, "fixture cancelled execute stage");
+          }
+          if (!outcome) {
+            if (!bashResult) {
+              const planPath = contractValue(contract, "Plan") ?? "plans/feature/plan.md";
+              const command = [
+                `python3 - <<'PY'`,
+                `from pathlib import Path`,
+                `path = Path(${JSON.stringify(planPath)})`,
+                `text = path.read_text()`,
+                `path.write_text(text.replace('- [ ]', '- [x]', 1))`,
+                `PY`,
+                `mkdir -p src`,
+                `echo 'fixture execute change' > src/execute.txt`,
+                `git add -- ${JSON.stringify(planPath)} src/execute.txt`,
+                `git commit --quiet -m 'fixture execute change'`,
+                `git rev-parse HEAD`,
+              ].join("\n");
+              return streamToolCall(model, makeToolCall(`fixture-call-${++callNumber}`, "bash", { command }));
+            }
+            const newHead = extractCommitHash(bashResult) ?? expectedHeadSha;
+            return streamToolCall(
+              model,
+              makeToolCall(`fixture-call-${++callNumber}`, "lifecycle_submit_outcome", {
+                schemaVersion: PROTOCOL_VERSION,
+                outcome: "success",
+                change: "changed",
+                report: "Fixture execute stage committed the selected unit.",
+                commitRefs: [newHead],
+              }),
+            );
+          }
+          return streamText(model, outcome.isError ? "fixture observed execute outcome tool error" : "fixture observed execute success");
+        }
+
+        if (activeStage === "simplify") {
+          if (!outcome) {
+            return streamToolCall(
+              model,
+              makeToolCall(`fixture-call-${++callNumber}`, "lifecycle_submit_outcome", {
+                schemaVersion: PROTOCOL_VERSION,
+                outcome: "success",
+                change: "unchanged",
+                report: "Fixture simplify stage left candidate unchanged.",
+              }),
+            );
+          }
+          return streamText(model, outcome.isError ? "fixture observed simplify outcome tool error" : "fixture observed simplify success");
+        }
+
+        if (activeStage === "verify") {
+          if (!outcome) {
+            return streamToolCall(
+              model,
+              makeToolCall(`fixture-call-${++callNumber}`, "lifecycle_submit_outcome", {
+                schemaVersion: PROTOCOL_VERSION,
+                outcome: "VERIFIED",
+                change: "not-applicable",
+                report: "Fixture verify stage passed.",
+              }),
+            );
+          }
+          return streamText(model, outcome.isError ? "fixture observed verify outcome tool error" : "fixture observed verify success");
+        }
+
+        if (activeStage === "pr-publish") {
+          if (!outcome) {
+            const publishedHead = contractCandidateHead ?? expectedHeadSha;
+            return streamToolCall(
+              model,
+              makeToolCall(`fixture-call-${++callNumber}`, "lifecycle_submit_outcome", {
+                schemaVersion: PROTOCOL_VERSION,
+                outcome: "success",
+                change: "not-applicable",
+                report: "Fixture published the current candidate head.",
+                prUrl: "https://github.com/DataDog/repo/pull/123",
+                publishedHeadSha: publishedHead,
+                commitRefs: [publishedHead],
+              }),
+            );
+          }
+          return streamText(model, outcome.isError ? "fixture observed pr-publish outcome tool error" : "fixture observed pr-publish success");
+        }
+
+        if (activeStage === "arp-review") {
+          if (!outcome) {
+            const reviewHead = contractExpectedReviewHead ?? contractCandidateHead ?? expectedHeadSha;
+            if (pendingSettlementIds.length > 0) {
+              return streamToolCall(
+                model,
+                makeToolCall(`fixture-call-${++callNumber}`, "lifecycle_submit_outcome", {
+                  schemaVersion: PROTOCOL_VERSION,
+                  outcome: "success",
+                  change: "not-applicable",
+                  report: "Fixture completed re-review on the post-fix head.",
+                  reviewEvidence: {
+                    targetHeadSha: reviewHead,
+                    reviewedHeadSha: reviewHead,
+                    captureState: "complete",
+                    result: "clean",
+                    actionableFindings: 0,
+                    statusChecks: 2,
+                    reusedReview: true,
+                    silent: true,
+                  },
+                  settledFindingIds: pendingSettlementIds,
+                }),
+              );
+            }
+            return streamToolCall(
+              model,
+              makeToolCall(`fixture-call-${++callNumber}`, "lifecycle_submit_outcome", {
+                schemaVersion: PROTOCOL_VERSION,
+                outcome: "blocked",
+                change: "not-applicable",
+                report: "Fixture review found one actionable issue and one false positive.",
+                reviewEvidence: {
+                  targetHeadSha: reviewHead,
+                  reviewedHeadSha: reviewHead,
+                  captureState: "complete",
+                  result: "findings",
+                  actionableFindings: 1,
+                  statusChecks: 2,
+                  reusedReview: true,
+                  silent: true,
+                },
+                actionableFindingDetails: [{
+                  findingId: "finding-1",
+                  filePath: "src/execute.txt",
+                  startLine: 1,
+                  endLine: 1,
+                  reviewedSha: reviewHead,
+                  summary: "Fixture actionable finding",
+                }],
+                settledFindingIds: ["invalid-1"],
+              }),
+            );
+          }
+          return streamText(model, outcome.isError ? "fixture observed arp-review outcome tool error" : "fixture observed arp-review completion");
+        }
+
+        if (activeStage === "arp-fix") {
+          if (!outcome) {
+            if (!bashResult) {
+              const command = [
+                `mkdir -p src`,
+                `echo 'fixture arp-fix change' >> src/fix.txt`,
+                `git add -- src/fix.txt`,
+                `git commit --quiet -m 'fixture arp-fix change'`,
+                `git rev-parse HEAD`,
+              ].join("\n");
+              return streamToolCall(model, makeToolCall(`fixture-call-${++callNumber}`, "bash", { command }));
+            }
+            const fixHead = extractCommitHash(bashResult) ?? contractReviewedHead ?? expectedHeadSha;
+            return streamToolCall(
+              model,
+              makeToolCall(`fixture-call-${++callNumber}`, "lifecycle_submit_outcome", {
+                schemaVersion: PROTOCOL_VERSION,
+                outcome: "success",
+                change: "not-applicable",
+                report: "Fixture applied one deterministic fix commit.",
+                commitRefs: [fixHead],
+                pendingSettlements: [{
+                  findingId: "finding-1",
+                  fixCommitSha: fixHead,
+                  fixChangeSummary: "Fixture applied deterministic fix",
+                  reason: "Fixture verified the fix locally.",
+                }],
+              }),
+            );
+          }
+          return streamText(model, outcome.isError ? "fixture observed arp-fix outcome tool error" : "fixture observed arp-fix success");
+        }
+      }
+
+      if (activeStage === "arp-fix") {
+        const outcome = latestToolResult(context, "lifecycle_submit_outcome");
+        if (!outcome) {
+          if (outcomeMode === "arp-fix-ambiguous") {
+            return streamToolCall(
+              model,
+              makeToolCall(`fixture-call-${++callNumber}`, "lifecycle_submit_outcome", {
+                schemaVersion: PROTOCOL_VERSION,
+                outcome: "blocked",
+                change: "not-applicable",
+                report: "Fixture could not map findings to a safe in-scope fix.",
+              }),
+            );
+          }
+          if (outcomeMode === "arp-fix-invalid-settlement") {
+            return streamToolCall(
+              model,
+              makeToolCall(`fixture-call-${++callNumber}`, "lifecycle_submit_outcome", {
+                schemaVersion: PROTOCOL_VERSION,
+                outcome: "success",
+                change: "not-applicable",
+                report: "Fixture intentionally submitted invalid settlement metadata.",
+                commitRefs: [expectedHeadSha],
+                pendingSettlements: [{
+                  findingId: "finding-unrelated",
+                  fixCommitSha: expectedHeadSha,
+                  fixChangeSummary: "Fixture invalid settlement",
+                  reason: "Fixture mode validates bridge-side settlement checks.",
+                }],
+              }),
+            );
+          }
+          return streamToolCall(
+            model,
+            makeToolCall(`fixture-call-${++callNumber}`, "lifecycle_submit_outcome", {
+              schemaVersion: PROTOCOL_VERSION,
+              outcome: "success",
+              change: "not-applicable",
+              report: "Fixture applied a scoped ARP fix commit.",
+              commitRefs: [expectedHeadSha],
+              pendingSettlements: [{
+                findingId: "finding-1",
+                fixCommitSha: expectedHeadSha,
+                fixChangeSummary: "Fixture fix summary",
+                reason: "Fixture verified the fix locally.",
+              }],
+            }),
+          );
+        }
+        return streamText(
+          model,
+          outcome.isError ? "fixture observed an arp-fix outcome tool error" : "fixture observed a successful arp-fix outcome",
+        );
+      }
+
+      if (activeStage === "arp-review") {
         const discovery = latestToolResult(context, "fixture_discover_agentic_review_tools");
         const status = toolResults(context, "agentic_review_get_status");
         const request = latestToolResult(context, "agentic_review_request_review");

@@ -7,7 +7,7 @@ export const MAX_RUN_RECORD_BYTES = 256 * 1024;
 export const MAX_COMPLETED_RUNS = 100;
 const MAX_RUN_DIRECTORIES = 1000;
 const TERMINAL_STATUSES = new Set(["verified", "blocked", "process-failure", "cancelled"]);
-const STAGES = new Set(["execute", "simplify", "verify", "pr-publish", "arp-review"]);
+const STAGES = new Set(["execute", "simplify", "verify", "pr-publish", "arp-review", "arp-fix"]);
 
 type LockOwner = {
   schemaVersion: 1;

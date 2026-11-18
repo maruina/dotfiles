@@ -3,9 +3,10 @@ import { Type, type Static } from "@sinclair/typebox";
 import { realpathSync } from "node:fs";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 export const MAX_DECISION_CONTEXT_BYTES = 16 * 1024;
 export const MAX_STAGE_REPORT_BYTES = 64 * 1024;
+const MAX_FINDING_ITEMS = 200;
 
 export const StageSchema = Type.Union([
   Type.Literal("execute"),
@@ -13,17 +14,18 @@ export const StageSchema = Type.Union([
   Type.Literal("verify"),
   Type.Literal("pr-publish"),
   Type.Literal("arp-review"),
+  Type.Literal("arp-fix"),
 ]);
 export type Stage = Static<typeof StageSchema>;
 export type ExecutionStage = Extract<Stage, "execute" | "simplify" | "verify">;
-export type CompletionStage = Extract<Stage, "pr-publish" | "arp-review">;
+export type CompletionStage = "pr-publish" | "arp-review" | "arp-fix" | "verify";
 
 export function isExecutionStage(stage: Stage): stage is ExecutionStage {
   return stage === "execute" || stage === "simplify" || stage === "verify";
 }
 
 export function isCompletionStage(stage: Stage): stage is CompletionStage {
-  return stage === "pr-publish" || stage === "arp-review";
+  return stage === "pr-publish" || stage === "arp-review" || stage === "arp-fix" || stage === "verify";
 }
 
 const GitObjectIdSchema = Type.String({ pattern: "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" });
@@ -46,6 +48,29 @@ const CandidateSnapshotSchema = Type.Object(
   },
   { additionalProperties: false },
 );
+
+const FindingIdSchema = Type.String({ minLength: 1, maxLength: 256 });
+const FindingDetailSchema = Type.Object(
+  {
+    findingId: FindingIdSchema,
+    filePath: Type.String({ minLength: 1, maxLength: 4096 }),
+    startLine: Type.Integer({ minimum: 1, maximum: 10_000_000 }),
+    endLine: Type.Integer({ minimum: 1, maximum: 10_000_000 }),
+    reviewedSha: GitObjectIdSchema,
+    summary: Type.String({ minLength: 1, maxLength: 4096 }),
+  },
+  { additionalProperties: false },
+);
+const PendingSettlementSchema = Type.Object(
+  {
+    findingId: FindingIdSchema,
+    fixCommitSha: GitObjectIdSchema,
+    fixChangeSummary: Type.String({ minLength: 1, maxLength: 4096 }),
+    reason: Type.String({ minLength: 1, maxLength: 4096 }),
+  },
+  { additionalProperties: false },
+);
+
 const ReviewRequestConfigSchema = Type.Object(
   {
     prUrl: Type.String({ maxLength: 2048 }),
@@ -58,11 +83,23 @@ const ReviewRequestConfigSchema = Type.Object(
   { additionalProperties: false },
 );
 
+const FixRequestConfigSchema = Type.Object(
+  {
+    prUrl: Type.String({ maxLength: 2048 }),
+    reviewedHeadSha: GitObjectIdSchema,
+    findings: Type.Array(FindingDetailSchema, { minItems: 1, maxItems: MAX_FINDING_ITEMS }),
+  },
+  { additionalProperties: false },
+);
+
 const CompletionConfigSchema = Type.Object(
   {
     policy: Type.Literal("work"),
     candidate: CandidateSnapshotSchema,
     reviewRequest: Type.Optional(ReviewRequestConfigSchema),
+    fixRequest: Type.Optional(FixRequestConfigSchema),
+    pendingSettlements: Type.Optional(Type.Array(PendingSettlementSchema, { maxItems: MAX_FINDING_ITEMS })),
+    verificationWriters: Type.Optional(Type.Array(Type.String({ minLength: 1, maxLength: 1024 }), { minItems: 1, maxItems: 64 })),
   },
   { additionalProperties: false },
 );
@@ -88,7 +125,12 @@ const ModelsSchema = Type.Object(
 );
 
 const ExecutionStageSchema = Type.Union([Type.Literal("execute"), Type.Literal("simplify"), Type.Literal("verify")]);
-const CompletionStageSchema = Type.Union([Type.Literal("pr-publish"), Type.Literal("arp-review")]);
+const CompletionStageSchema = Type.Union([
+  Type.Literal("pr-publish"),
+  Type.Literal("arp-review"),
+  Type.Literal("arp-fix"),
+  Type.Literal("verify"),
+]);
 
 const StageConfigSchema = Type.Union([
   Type.Object(
@@ -169,6 +211,9 @@ export const LifecycleOutcomeInputSchema = Type.Object(
     commitRefs: Type.Optional(Type.Array(Type.String({ minLength: 1, maxLength: 256 }), { maxItems: 128 })),
     publishedHeadSha: Type.Optional(GitObjectIdSchema),
     reviewEvidence: Type.Optional(ReviewEvidenceSchema),
+    actionableFindingDetails: Type.Optional(Type.Array(FindingDetailSchema, { maxItems: MAX_FINDING_ITEMS })),
+    settledFindingIds: Type.Optional(Type.Array(FindingIdSchema, { maxItems: MAX_FINDING_ITEMS })),
+    pendingSettlements: Type.Optional(Type.Array(PendingSettlementSchema, { maxItems: MAX_FINDING_ITEMS })),
   },
   { additionalProperties: false },
 );
@@ -189,6 +234,9 @@ const LifecycleOutcomeEnvelopeSchema = Type.Object(
     commitRefs: Type.Optional(Type.Array(GitObjectIdSchema, { maxItems: 128 })),
     publishedHeadSha: Type.Optional(GitObjectIdSchema),
     reviewEvidence: Type.Optional(ReviewEvidenceSchema),
+    actionableFindingDetails: Type.Optional(Type.Array(FindingDetailSchema, { maxItems: MAX_FINDING_ITEMS })),
+    settledFindingIds: Type.Optional(Type.Array(FindingIdSchema, { maxItems: MAX_FINDING_ITEMS })),
+    pendingSettlements: Type.Optional(Type.Array(PendingSettlementSchema, { maxItems: MAX_FINDING_ITEMS })),
   },
   { additionalProperties: false },
 );
@@ -239,6 +287,20 @@ function sameModel(left: { provider: string; id: string }, right: { provider: st
   return left.provider === right.provider && left.id === right.id;
 }
 
+function sameKnownModelReference(model: { provider: string; id: string }, reference: string): boolean {
+  const normalized = reference.trim().toLowerCase();
+  if (!normalized) return false;
+  return normalized === `${model.provider}/${model.id}`.toLowerCase();
+}
+
+function hasItems<T>(value: T[] | undefined): value is T[] {
+  return Array.isArray(value) && value.length > 0;
+}
+
+function isCanonicalModelReference(reference: string): boolean {
+  return /^[^/\s]+\/[^/\s]+$/.test(reference.trim());
+}
+
 export function parseStageConfig(value: unknown, expectedWorktree: string): StageConfig {
   const config = validate<StageConfig>(StageConfigSchema, value, "lifecycle stage configuration");
   if (!isAbsolute(config.worktree) || !isAbsolute(expectedWorktree) || canonicalPath(config.worktree) !== canonicalPath(expectedWorktree)) {
@@ -270,24 +332,68 @@ export function parseStageConfig(value: unknown, expectedWorktree: string): Stag
   if (!isCompletionStage(config.stage)) {
     throw new Error(`Lifecycle stage ${config.stage} is invalid for completion scope`);
   }
+
+  const completion = config.completion;
+  if (config.stage === "verify") {
+    if (!sameModel(config.stageModel, config.models.verify)) {
+      throw new Error("Lifecycle completion stage verify must run with the selected verify model");
+    }
+    if (completion.reviewRequest || completion.fixRequest || completion.pendingSettlements) {
+      throw new Error("Lifecycle completion verify stage accepts only verification writer metadata");
+    }
+    if (!hasItems(completion.verificationWriters)) {
+      throw new Error("Lifecycle completion verify stage requires verification writer metadata");
+    }
+    if (completion.verificationWriters.some((writer) => !isCanonicalModelReference(writer))) {
+      throw new Error("Lifecycle completion verify writer metadata must use canonical provider/id identities");
+    }
+    if (completion.verificationWriters.some((writer) => sameKnownModelReference(config.models.verify, writer))) {
+      throw new Error("Lifecycle completion verify writer metadata includes the verifier identity");
+    }
+    return config;
+  }
+
   if (!sameModel(config.stageModel, config.models.execute)) {
     throw new Error(`Lifecycle completion stage ${config.stage} must run with the selected execute model`);
   }
 
-  const reviewRequest = config.completion.reviewRequest;
+  const reviewRequest = completion.reviewRequest;
+  const fixRequest = completion.fixRequest;
+  const pendingSettlements = completion.pendingSettlements;
+  const verificationWriters = completion.verificationWriters;
+
   if (config.stage === "pr-publish") {
-    if (reviewRequest) throw new Error("Lifecycle pr-publish stage must not include review request metadata");
+    if (reviewRequest || fixRequest || hasItems(pendingSettlements) || hasItems(verificationWriters)) {
+      throw new Error("Lifecycle pr-publish stage accepts only policy and candidate metadata");
+    }
     return config;
   }
 
-  if (!reviewRequest) {
-    throw new Error("Lifecycle arp-review stage requires review request metadata");
+  if (config.stage === "arp-review") {
+    if (!reviewRequest) throw new Error("Lifecycle arp-review stage requires review request metadata");
+    if (fixRequest) throw new Error("Lifecycle arp-review stage must not include fix request metadata");
+    if (hasItems(verificationWriters)) {
+      throw new Error("Lifecycle arp-review stage must not include verification writer metadata");
+    }
+    if (!Number.isFinite(Date.parse(reviewRequest.deadlineAt))) {
+      throw new Error("Lifecycle arp-review deadline is invalid");
+    }
+    if (reviewRequest.silent !== true) {
+      throw new Error("Lifecycle arp-review stage requires silent review mode");
+    }
+    return config;
   }
-  if (!Number.isFinite(Date.parse(reviewRequest.deadlineAt))) {
-    throw new Error("Lifecycle arp-review deadline is invalid");
+
+  if (reviewRequest) throw new Error("Lifecycle arp-fix stage must not include review request metadata");
+  if (hasItems(pendingSettlements)) {
+    throw new Error("Lifecycle arp-fix stage must not include pending settlement metadata");
   }
-  if (reviewRequest.silent !== true) {
-    throw new Error("Lifecycle arp-review stage requires silent review mode");
+  if (hasItems(verificationWriters)) {
+    throw new Error("Lifecycle arp-fix stage must not include verification writer metadata");
+  }
+  if (!fixRequest) throw new Error("Lifecycle arp-fix stage requires fix request metadata");
+  if (!hasItems(fixRequest.findings)) {
+    throw new Error("Lifecycle arp-fix stage requires actionable findings");
   }
   return config;
 }
@@ -335,41 +441,96 @@ function validateStageOutcome(stage: Stage, outcome: LifecycleOutcomeInput["outc
   }
 }
 
-function validateCompletionOutcomeMetadata(
-  stage: Stage,
-  input: Pick<LifecycleOutcomeInput, "outcome" | "prUrl" | "publishedHeadSha" | "reviewEvidence">,
-): void {
-  if (isExecutionStage(stage)) {
-    if (input.publishedHeadSha || input.reviewEvidence) {
+type CompletionOutcomeMetadata = Pick<
+  LifecycleOutcomeInput,
+  "outcome" | "prUrl" | "commitRefs" | "publishedHeadSha" | "reviewEvidence" | "actionableFindingDetails" | "settledFindingIds" | "pendingSettlements"
+>;
+
+function validateCompletionOutcomeMetadata(stage: Stage, input: CompletionOutcomeMetadata): void {
+  if (stage === "execute" || stage === "simplify" || stage === "verify") {
+    if (input.publishedHeadSha || input.reviewEvidence || hasItems(input.actionableFindingDetails) || hasItems(input.pendingSettlements) || hasItems(input.settledFindingIds)) {
       throw new Error(`Lifecycle stage ${stage} does not accept completion outcome metadata`);
     }
     return;
   }
 
   if (stage === "pr-publish") {
-    if (input.reviewEvidence) throw new Error("Lifecycle pr-publish outcome must not include review evidence");
+    if (input.reviewEvidence || hasItems(input.actionableFindingDetails) || hasItems(input.pendingSettlements) || hasItems(input.settledFindingIds)) {
+      throw new Error("Lifecycle pr-publish outcome must not include review or settlement metadata");
+    }
     if (input.outcome === "success") {
       if (!input.prUrl) throw new Error("Lifecycle pr-publish success outcome requires prUrl");
       if (!input.publishedHeadSha) throw new Error("Lifecycle pr-publish success outcome requires publishedHeadSha");
+      if (!hasItems(input.commitRefs)) throw new Error("Lifecycle pr-publish success outcome requires commitRefs");
+    }
+    return;
+  }
+
+  if (stage === "arp-fix") {
+    if (input.reviewEvidence || input.publishedHeadSha || hasItems(input.actionableFindingDetails) || hasItems(input.settledFindingIds) || input.prUrl) {
+      throw new Error("Lifecycle arp-fix outcome must not include review metadata");
+    }
+    if (input.outcome === "success") {
+      if (!hasItems(input.commitRefs)) throw new Error("Lifecycle arp-fix success outcome requires commitRefs");
+      if (!hasItems(input.pendingSettlements)) throw new Error("Lifecycle arp-fix success outcome requires pending settlements");
+
+      const commitRefs = new Set(input.commitRefs);
+      if (commitRefs.size !== input.commitRefs.length) throw new Error("Lifecycle arp-fix success outcome commitRefs must be unique");
+      const settlementIds = new Set<string>();
+      for (const settlement of input.pendingSettlements) {
+        if (settlementIds.has(settlement.findingId)) {
+          throw new Error("Lifecycle arp-fix success outcome pending settlement IDs must be unique");
+        }
+        settlementIds.add(settlement.findingId);
+        if (!commitRefs.has(settlement.fixCommitSha)) {
+          throw new Error("Lifecycle arp-fix success outcome settlement commit must be included in commitRefs");
+        }
+      }
+    }
+    if (input.outcome === "blocked" && hasItems(input.pendingSettlements)) {
+      throw new Error("Lifecycle arp-fix blocked outcome must not include pending settlements");
     }
     return;
   }
 
   if (input.publishedHeadSha) throw new Error("Lifecycle arp-review outcome must not include publishedHeadSha");
+  if (hasItems(input.pendingSettlements)) throw new Error("Lifecycle arp-review outcome must not include pending settlements");
   if (!input.reviewEvidence) throw new Error("Lifecycle arp-review outcomes require reviewEvidence");
+
+  const findings = input.actionableFindingDetails ?? [];
+  const evidence = input.reviewEvidence;
   if (input.outcome === "success") {
-    if (input.reviewEvidence.captureState !== "complete") {
+    if (evidence.captureState !== "complete") {
       throw new Error("Lifecycle arp-review success outcome requires captureState complete");
     }
-    if (input.reviewEvidence.result !== "clean") {
+    if (evidence.result !== "clean") {
       throw new Error("Lifecycle arp-review success outcome requires result clean");
     }
-    if (input.reviewEvidence.actionableFindings !== 0) {
+    if (evidence.actionableFindings !== 0 || findings.length > 0) {
       throw new Error("Lifecycle arp-review success outcome requires zero actionable findings");
     }
-    if (input.reviewEvidence.silent !== true) {
+    if (evidence.silent !== true) {
       throw new Error("Lifecycle arp-review success outcome requires silent review evidence");
     }
+    return;
+  }
+
+  if (evidence.result === "findings") {
+    if (evidence.captureState !== "complete") {
+      throw new Error("Lifecycle arp-review findings outcome requires captureState complete");
+    }
+    if (evidence.silent !== true) {
+      throw new Error("Lifecycle arp-review findings outcome requires silent review evidence");
+    }
+    if (findings.length === 0) throw new Error("Lifecycle arp-review findings outcome requires structured finding details");
+    if (evidence.actionableFindings !== findings.length) {
+      throw new Error("Lifecycle arp-review findings outcome count does not match structured details");
+    }
+    return;
+  }
+
+  if (findings.length > 0) {
+    throw new Error("Lifecycle arp-review non-findings outcome must not include structured finding details");
   }
 }
 

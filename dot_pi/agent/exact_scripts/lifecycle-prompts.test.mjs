@@ -335,7 +335,7 @@ test("lifecycle prompts stay within prompt context budgets", () => {
     ["plan.md", 16_800],
     ["systematic-review.md", 12_500],
     ["execute.md", 14_500],
-    ["verify.md", 13_000],
+    ["verify.md", 13_700],
     ["simplify.md", 9_500],
   ]);
 

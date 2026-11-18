@@ -98,9 +98,9 @@ To roll back, remove only this extension's deployed files through the correspond
 ### Test Strategy
 Use the public command registration seam with a fake `ExtensionAPI`, the real public `SessionManager` on temporary transcripts, and injected Rex command execution at the external-process boundary. Tests must show that the source file bytes, active ID/leaf, and independent fork do not change when later source messages are appended. Cover compaction/model metadata and exclusion of an abandoned branch without multiplying unrelated fixture dimensions.
 
-From `dot_pi/agent`, the narrow failing command is `node --import jiti/register --test exact_extensions/rex-fork/rex-fork.test.mjs`. Add a named tab test first, then run it with `--test-name-pattern=tab`. Each focused test must fail for the relevant missing behavior before implementation and pass afterward. Do not change existing test scripts beyond registering this suite.
+From `dot_pi/agent`, the narrow failing command is `node --experimental-strip-types --test exact_extensions/rex-fork/rex-fork.test.mjs` (or with `--import jiti/register` once dependencies exist). Add a named tab test first, then run it with `--test-name-pattern=tab`. Each focused test must fail for the relevant missing behavior before implementation and pass afterward. Do not change existing test scripts beyond registering this suite.
 
-The opt-in command is `PI_REX_FORK_SMOKE=1 node --import jiti/register --test exact_extensions/rex-fork/rex-fork.test.mjs`. Smoke mode must create a private temporary Rex socket/state/config, temporary Pi agent/session directories, and candidate-extension loading. Start only the test server via its explicit socket and `--state-dir`; pin that endpoint on every child and cleanup call. Reject the user's server endpoint. Use the installed Pi and candidate extension in both source and destination, without credentials, inherited recovery/conductor state, real project hooks, or model prompts. Teardown only test-owned processes/server/files, including on timeout. Startup and teardown must have fixed deadlines.
+The opt-in command is `PI_REX_FORK_SMOKE=1 node --experimental-strip-types --test exact_extensions/rex-fork/rex-fork.test.mjs`. Smoke mode must create a private temporary Rex socket/state/config, temporary Pi agent/session directories, and candidate-extension loading. Start only the test server via its explicit socket and `--state-dir`; pin that endpoint on every child and cleanup call. Reject the user's server endpoint. Use the installed Pi and candidate extension in both source and destination, without credentials, inherited recovery/conductor state, real project hooks, or model prompts. Teardown only test-owned processes/server/files, including on timeout. Startup and teardown must have fixed deadlines.
 
 For the comparable baseline, open the synthetic source session in the same isolated Pi/Rex setup without invoking the command; assert one pane and no new turns. For the candidate, invoke the slash command from that TUI, inspect the created resource and receipt, and assert one new Pi with the exact snapshot/cwd and no user/assistant turns added by the launch. Exercise tab, right, and below independently with clean fixtures. Observe each candidate through receipt completion and a further 2-second settled window. There is no inference-performance claim and no production telemetry requirement.
 
@@ -161,7 +161,6 @@ The command SHALL make at most one creation request per invocation and distingui
 
 ## Implementation tasks
 ### Slice 1: Fork a conversation into a verified tab
-**Blocked by:** None
 **Delivers:** One independently usable tab command with snapshot isolation, source validation, startup verification, and bounded failures.
 
 ### Task 1: Deliver the verified tab fork
@@ -170,15 +169,14 @@ The command SHALL make at most one creation request per invocation and distingui
 **Traces to:** R1, R2, R3 tab behavior, R4
 **Files:** `dot_pi/agent/exact_extensions/rex-fork/index.ts`, `dot_pi/agent/exact_extensions/rex-fork/_fork.ts`, `dot_pi/agent/exact_extensions/rex-fork/rex-fork.test.mjs`, `dot_pi/agent/package.json`
 
-- [ ] Coordinate before dependency operations. Read the repository guidance and installed Pi public declarations. Use LSP for known symbols before edits and obtain candidate-file diagnostics. Do not install into the global runtime or colleague checkout.
+- [ ] Coordinate before dependency operations. Run `npm ci --ignore-scripts` only in this worktree's `dot_pi/agent` so disposable test dependencies exist for local test runs. Read the repository guidance and installed Pi public declarations. Use LSP for known symbols before edits and obtain candidate-file diagnostics. Do not install into the global runtime or colleague checkout.
 - [ ] Add the focused failing tab test through command registration and real temporary session managers. Cover R1/R2 refusals, source invariance, launch arguments, receipt mismatch, lost replies, and lifecycle races in the same vertical slice.
 - [ ] Implement the default factory and the smallest helper that passes. Add argument completion; in this slice reject not-yet-supported split targets explicitly without launching. Register the focused suite in `test:unit` without losing other entries.
-- [ ] Run `node --import jiti/register --test exact_extensions/rex-fork/rex-fork.test.mjs` from `dot_pi/agent`; expect passing deterministic tests and explicit skips for opt-in live cases.
+- [ ] Run `node --experimental-strip-types --test exact_extensions/rex-fork/rex-fork.test.mjs` from `dot_pi/agent`; expect passing deterministic tests and explicit skips for opt-in live cases.
 - [ ] Run the smoke command from Test Strategy with the tab case; expect exactly one new Pi at the saved snapshot/cwd, a matching receipt, no launch-generated turn, and cleanup limited to the temporary server.
 - [ ] Refactor only after green and rerun the focused tests. Commit with `feat(pi): fork conversations into verified rex tabs`.
 
 ### Slice 2: Fork into right and below splits
-**Blocked by:** Slice 1
 **Delivers:** The complete requested command, anchored splits, command reference, and final integration evidence.
 
 ### Task 2: Add right and below destinations
@@ -198,7 +196,7 @@ The command SHALL make at most one creation request per invocation and distingui
 **Traces to:** R1-R4 and the documentation requirement
 **Files:** `dot_pi/agent/exact_extensions/rex-fork/README.md`
 
-- [ ] Document the three commands, persisted/idle/local prerequisites, focus and zoom behavior, cwd retention, normal installed-Pi launch limits, and the absence of model prompts or approval transfer.
+- [ ] Document the three commands, persisted/idle/local prerequisites, focus and zoom behavior, cwd retention, normal installed-Pi launch limits, and the absence of model prompts or approval transfer. (Failing test not practical: documentation task verified against command output and test contracts).
 - [ ] Document refusal versus created/unverified, snapshot/attempt inspection before manual retry, private metadata cleanup, isolated test commands, and targeted rollout/rollback coordination.
 - [ ] Review root `AGENTS.md` and `dot_pi/agent/AGENTS.md`; leave both unchanged because these extension-specific commands and traps belong in this README, not global instructions. Record any contrary review finding before widening file scope.
 - [ ] Compare every documented outcome with tests; commit with `docs(pi): document rex fork usage and recovery limits`.
@@ -209,8 +207,8 @@ The command SHALL make at most one creation request per invocation and distingui
 **Traces to:** R1-R4 and repository verification policy
 **Files:** `dot_pi/agent/exact_extensions/rex-fork/rex-fork.test.mjs`, `dot_pi/agent/package.json`, `dot_pi/agent/exact_extensions/rex-fork/README.md`, `plans/rex-fork/plan.md`
 
-- [ ] After coordinating with the parallel publisher, run `npm ci --ignore-scripts` only in this worktree's `dot_pi/agent` before `/verify`. Keep those disposable dependencies until both complete suites finish.
+- [ ] After coordinating with the parallel publisher, verify disposable dependencies in `dot_pi/agent` (rerun `npm ci --ignore-scripts` if needed) before `/verify`. Keep those disposable dependencies until both complete suites finish.
 - [ ] Run the focused suite, `npm run test:unit`, `npm test`, and `npm run test:all` from `dot_pi/agent`. Compare unrelated failures with the unchanged base using isolated dependencies only when needed. Earlier research observed unrelated lifecycle-prompt failures; do not silently fix them or count them as passing.
-- [ ] Run `PI_REX_FORK_SMOKE=1 node --import jiti/register --test exact_extensions/rex-fork/rex-fork.test.mjs`; require real tab/right/below startup evidence, matching cwd/session identity, no prompt-generated turns, preserved source state, and isolated cleanup.
+- [ ] Run `PI_REX_FORK_SMOKE=1 node --experimental-strip-types --test exact_extensions/rex-fork/rex-fork.test.mjs`; require real tab/right/below startup evidence, matching cwd/session identity, no prompt-generated turns, preserved source state, and isolated cleanup.
 - [ ] Check candidate TypeScript diagnostics, `git diff --check`, changed-file scope, README accuracy, source/target separation, and that no colleague code, secrets, generated dependencies, or runtime attempt data entered Git.
 - [ ] Record verification commands/results and any blockers in this plan. Remove disposable worktree dependencies only after both complete suites finish. Do not apply global targets, change runtime dependencies, or claim delivery if required smoke evidence is missing.

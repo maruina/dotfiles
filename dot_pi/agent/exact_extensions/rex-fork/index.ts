@@ -9,6 +9,17 @@ export default function rexFork(pi: ExtensionAPI) {
   pi.on("session_shutdown", invalidate);
   pi.on("session_start", async (_event, ctx) => {
     invalidate();
+    if (ctx.mode === "tui") {
+      ctx.ui.addAutocompleteProvider(current => ({
+        triggerCharacters: current.triggerCharacters,
+        getSuggestions(lines, line, col, options) {
+          const text = (lines[line] ?? "").slice(0, col).trimStart();
+          return current.getSuggestions(lines, line, col, /^\/rex-fork(?: |$)/.test(text) ? { ...options, force: false } : options);
+        },
+        applyCompletion: (lines, line, col, item, prefix) => current.applyCompletion(lines, line, col, item, prefix),
+        shouldTriggerFileCompletion: (lines, line, col) => current.shouldTriggerFileCompletion?.(lines, line, col) ?? true,
+      }));
+    }
     const epoch = generation;
     try { await publishStartupReceipt(pi, ctx, () => generation === epoch); }
     catch (error) { ctx.ui.notify(`Rex fork startup receipt failed: ${String(error)}`, "warning"); }

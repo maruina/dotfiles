@@ -20,7 +20,7 @@ Run one command in the source Pi TUI:
 
 The source must be a local Rex TUI with a persisted conversation and an active persisted branch. Pi must be idle, with no pending messages, active UI prompt, or other fork operation. The extension checks the local socket, Rex server, session, pane, foreground process, and user before it creates a snapshot. It retains the source working directory and agent directory.
 
-The command supports a directly foreground Pi process started with the installed Pi CLI, with no extra launch arguments other than `--session`. Custom wrappers and other flags are not replayed. The source conversation remains open and unchanged.
+The command supports a directly foreground Pi process started with the installed Pi CLI. Source startup options can include `--provider`, `--model`, `--models`, `--thinking`, `--session`, `--session-id`, `--session-dir`, `--fork`, `--name`, `-n`, `--continue`, `-c`, `--resume`, and `-r`, as well as initial messages and the `--` message delimiter. Options that require values reject missing values and values that start with `-`. Unknown options and `--option=value` syntax are rejected. Custom wrappers are unsupported. The destination receives only the snapshot session, not the source options or messages. The source conversation remains open and unchanged.
 
 ## Failure recovery
 A refusal occurs before a Rex creation request. Correct the reported prerequisite before retrying. A snapshot preparation failure can leave a snapshot; the notification gives its path.

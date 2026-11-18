@@ -20,6 +20,18 @@
 | `feature-worktree` | prompt-required | Isolated change | Created `maruina/fix-rex-fork-inputs` from fetched main. |
 | `write` | skill-loader | Plan and README | State concrete behavior and test limits. |
 
+### Execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `skill-loader` | prompt-required | Execution workflow | Selected skills for affected files. |
+| `resolve-worktree` | prompt-required | Plan path | Resolved the plan to its feature worktree. |
+| `feature-worktree` | prompt-required | Worktree policy | Continued in the plan's feature worktree. |
+| `codebase-research` | skill-loader | Existing launch and completion behavior | Traced validation, creation, and tests before editing. |
+| `chezmoi` | skill-loader | Managed extension | Changed source files only and stopped before deployment. |
+| `cli-best-practices` | skill-loader | Launch input validation | Rejected unsupported options without exposing values. |
+| `write` | skill-loader | Plan and README | Kept the launch constraints explicit. |
+| `diataxis` | skill-loader | README | Described supported inputs as reference information. |
+
 ## Evidence and decisions
 - Existing `_fork.ts:launcher` rejects every source argv except empty or exactly `--session <path>`. Ordinary `--provider`, `--model`, and initial slash-command messages therefore fail.
 - Pi 1.5.2 `Editor.handleTabCompletion()` passes `force: true` after a command's first space. `CombinedAutocompleteProvider` skips command argument callbacks when forced. A direct reproduction returned all three options without force and zero callback calls with force.
@@ -33,35 +45,40 @@
 **Delivers:** Both reported failures corrected without weakening pane identity or replaying prompts/configuration.
 
 ### Task 1: Allow valid source model and session startup options in _fork.ts
+**Status:** Complete. The focused suite passed: 34 tests passed and 3 smoke tests were skipped.
 **Delivers:** Source Pi instances started with model/session selectors or initial messages can fork safely without replaying options/messages to the child.
 **Blocked by:** None
 **Traces to:** Requirement: Safe normal launches
 **Files:** `dot_pi/agent/exact_extensions/rex-fork/_fork.ts`, `dot_pi/agent/exact_extensions/rex-fork/rex-fork.test.mjs`, `dot_pi/agent/exact_extensions/rex-fork/README.md`
 
-- [ ] Install disposable dependencies with `npm ci --ignore-scripts` only in this worktree's `dot_pi/agent`. Use LSP context/references before changing known symbols.
-- [ ] Add failing tests in `rex-fork.test.mjs` for source model/session options combined with initial messages; assert the destination argv still ends with only `--session <snapshot>` and contains none of the source options/messages. Assert rejection of unknown configuration/tool/extension flags, `--option=value` syntax, missing values, and values starting with `-` (option as value).
-- [ ] Implement the allowlist parser in `_fork.ts:launcher()`. Reject unknown flags, missing arguments, and `--option=value` without printing private values. Update `README.md` launch constraints to describe accepted startup options and rejection behavior.
-- [ ] Verify focused deterministic tests pass with `node --experimental-strip-types --test exact_extensions/rex-fork/rex-fork.test.mjs`.
+- [x] Install disposable dependencies with `npm ci --ignore-scripts` only in this worktree's `dot_pi/agent`. Use LSP context/references before changing known symbols.
+- [x] Add failing tests in `rex-fork.test.mjs` for source model/session options combined with initial messages; assert the destination argv still ends with only `--session <snapshot>` and contains none of the source options/messages. Assert rejection of unknown configuration/tool/extension flags, `--option=value` syntax, missing values, and values starting with `-` (option as value).
+- [x] Implement the allowlist parser in `_fork.ts:launcher()`. Reject unknown flags, missing arguments, and `--option=value` without printing private values. Update `README.md` launch constraints to describe accepted startup options and rejection behavior.
+- [x] Verify focused deterministic tests pass with `node --experimental-strip-types --test exact_extensions/rex-fork/rex-fork.test.mjs`.
 
 ### Task 2: Register autocomplete provider wrapper for forced Tab completion in index.ts
+**Status:** Complete. The focused suite passed: 35 tests passed and 3 smoke tests were skipped.
 **Delivers:** Pressing Tab after `/rex-fork ` offers `tab`, `right`, and `below`.
 **Blocked by:** Task 1
 **Traces to:** Requirement: Tab shows argument options
 **Files:** `dot_pi/agent/exact_extensions/rex-fork/index.ts`, `dot_pi/agent/exact_extensions/rex-fork/rex-fork.test.mjs`
 
-- [ ] Add a failing test using real `CombinedAutocompleteProvider` with `force: true` and the registered provider wrapper. Assert all three options for `/rex-fork `, partial filtering, correct insertion, normal completion, and delegation for unrelated commands/paths. Assert that registration runs on `session_start` in TUI mode and is skipped in non-TUI mode (`ctx.mode !== "tui"`).
-- [ ] Implement wrapper registration via `ctx.ui.addAutocompleteProvider()` on `session_start` in `index.ts` when `ctx.mode === "tui"`. Intercept `/rex-fork` and `/rex-fork ` lines to delegate with `force: false`. Preserve `getArgumentCompletions` on the command registration.
-- [ ] Verify focused deterministic tests pass with `node --experimental-strip-types --test exact_extensions/rex-fork/rex-fork.test.mjs`.
+- [x] Add a failing test using real `CombinedAutocompleteProvider` with `force: true` and the registered provider wrapper. Assert all three options for `/rex-fork `, partial filtering, correct insertion, normal completion, and delegation for unrelated commands/paths. Assert that registration runs on `session_start` in TUI mode and is skipped in non-TUI mode (`ctx.mode !== "tui"`).
+- [x] Implement wrapper registration via `ctx.ui.addAutocompleteProvider()` on `session_start` in `index.ts` when `ctx.mode === "tui"`. Intercept `/rex-fork` and `/rex-fork ` lines to delegate with `force: false`. Preserve `getArgumentCompletions` on the command registration.
+- [x] Verify focused deterministic tests pass with `node --experimental-strip-types --test exact_extensions/rex-fork/rex-fork.test.mjs`.
 
 ### Task 3: Feature-level final verification and regression test suites
+**Status:** Complete. The extension README covers the behavior; `AGENTS.md` was inspected and needs no change. Worktree dependency cleanup is deferred as a manual-only operational step.
 **Delivers:** End-to-end verification across deterministic tests, opt-in Rex smoke tests, and full test suites with clean diagnostics.
 **Blocked by:** Task 2
 **Traces to:** Both acceptance requirements, verification criteria, and clean worktree state
 **Files:** `dot_pi/agent/exact_extensions/rex-fork/rex-fork.test.mjs`
 
-- [ ] Run isolated Rex smoke tests with `PI_REX_FORK_SMOKE=1 node --experimental-strip-types --test exact_extensions/rex-fork/rex-fork.test.mjs` from `dot_pi/agent`. Extend smoke coverage to prove a source started with model/session selectors and an initial message forks into an independent pane without generating child model turns or network requests.
-- [ ] Run `npm test` and `npm run test:all` from `dot_pi/agent`. If confirmed baseline lifecycle-prompt failures occur, verify them against baseline before treating as exceptions.
-- [ ] Verify zero LSP diagnostics on touched TypeScript files and verify `git diff --check` passes. Keep disposable dependencies installed until independent verification completes.
+- [x] Run isolated Rex smoke tests with `PI_REX_FORK_SMOKE=1 node --experimental-strip-types --test exact_extensions/rex-fork/rex-fork.test.mjs` from `dot_pi/agent`. Extend smoke coverage to prove a source started with model/session selectors and an initial message forks into an independent pane without generating child model turns or network requests.
+- [x] Run `npm test` and `npm run test:all` from `dot_pi/agent`. If confirmed baseline lifecycle-prompt failures occur, verify them against baseline before treating as exceptions.
+- [x] Verify zero LSP diagnostics on touched TypeScript files and verify `git diff --check` passes.
+  - Both TypeScript files had zero LSP diagnostics. Both npm suites passed. The isolated smoke suite passed all 38 tests, including startup selector and no-model-event checks.
+  - `compute-guardrails` blocked worktree dependency removal and requires a manual terminal command. Per user instruction, retain the isolated dependencies for independent verification; cleanup remains a manual-only operational step.
 
 ## Acceptance contracts
 ### Requirement: Safe normal launches

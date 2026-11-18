@@ -90,5 +90,22 @@ The first focused test failed because `core.mjs` did not exist. Final focused co
 
 Chezmoi preview was run against the exact runtime extension and Fish target paths; no target was applied. Full logout/reboot, concurrent user input into target prompts, and arbitrary external Pi processes are not established by these checks. The README states these limits. Independent verification has not run. Apply and push are deferred until that handoff completes; this commit is the implementation candidate, not a claim of independent verification.
 
+### Task 2: Repair baseline verification blockers
+**Delivers:** Passing required repository checks without waiving gates or changing recovery behavior.
+**Blocked by:** Task 1
+**Traces to:** User instruction after Gemini returned BLOCKED: make the fixes and verify again.
+**Files:** `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`, `dot_pi/agent/exact_prompts/systematic-review.md`, this ledger.
+
+The user approved fixing the three baseline failures. Two assertions were stale after the design reviewer took ownership of approval: material revisions still require a fresh review, but the words occur in the reverse order; the reviewer must now ask for approval and record it rather than stop immediately after its verdict. Update assertions to enforce that existing contract, not change the contract. Shorten redundant review prose below the unchanged 12,500-byte budget without removing safety requirements.
+
+Acceptance: GIVEN the existing reviewer-owned approval flow, WHEN lifecycle checks run, THEN they enforce fresh review after material revisions, explicit approval before recording Approved, and the design-to-plan handoff. GIVEN the review prompt, WHEN byte-budget validation runs, THEN it stays below 12,500 bytes and its existing safety checks still pass. GIVEN all source changes, WHEN `npm test` and `npm run test:all` run, THEN both exit successfully; a failed required check remains blocking.
+
+- [x] Reproduce the three reported failures before editing.
+- [x] Align approval assertions with current prompt ownership and remove redundant review prose; retain safety gates and the byte budget.
+- [x] Run focused lifecycle tests, both required npm suites, recovery smoke, and diff checks.
+- [ ] Commit the repair and run fresh independent verification under Gemini 3.8 Flash. Do not apply or push before that verification passes.
+
+Repair evidence: the focused lifecycle suite passes all 60 tests. `npm test` and `npm run test:all` both exit 0, including the latter's installed-resource smoke. The isolated Rex/Pi recovery smoke also passes. `systematic-review.md` is 12,479 bytes against the unchanged 12,500-byte limit. LSP reports no diagnostics for the edited test file; `git diff --check` passes. Chezmoi previews cover the two changed runtime targets. Approval hash checks remain in the planning-stage test, where the current workflow compares the review report with the approved design; brainstorming tests now enforce its handoff and reviewer ownership instead. The reviewer approval test requires explicit approval, recording Approved, and the `/plan` handoff rather than its obsolete stop-before-approval rule. Compression preserves the approval, clean-worktree, fork-code, provenance, bounded-evidence, and confirmed-fix restrictions. Initial compression attempts exposed exact-phrase safety assertions; their required wording was restored rather than weakening those checks. Skills applied: `skill-loader` (routing), `codebase-research` (approval consumers), `chezmoi` (source/target separation), and `write` (prose compression). All recovery behavior is unchanged. This evidence supersedes the original baseline-failure evidence but does not establish independent verification.
+
 ## Review
 Initial review: approved conversation is the requirements source. No shared symbols require behavior changes. Rex supports inspection and creation. Rex has no atomic run-if-idle operation: recheck foreground immediately before sending, and document that target panes must not be used during restore. Unknown running Pi instances and corrupt records block apply. Checkpointing and tab reconstruction share one execution unit because they share identity and retry handling. No code changed during review.

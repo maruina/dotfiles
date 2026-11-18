@@ -237,6 +237,15 @@ The system SHALL stop at three reviewed heads or the per-head deadline and SHALL
 - Commit completion:
   - Task 2 was committed as `7f791b1` (`feat(pi): automate verified ARP fixes and re-reviews`) with normal Git signing.
   - Task 3 documentation and the commit checklist updates are included in `docs(pi): document automatic ARP completion`.
+- Protocol consistency correction:
+  - Updated `execute.md` and `simplify.md` to require protocol version 3. Added a regression test that compares all six lifecycle/completion prompts with `PROTOCOL_VERSION`.
+  - The new test failed against the previous prompts (expected 3, actual 2), then passed after the correction. Focused prompt suites passed 67/67; `npm run test:all` passed; language-server diagnostics were empty.
+- Authorized production ARP boundary check on `ddoghq/computecla-controllers#50`:
+  - The original head `facb2c98616f748a9a4811dbf0f90a333cd1c285` had a completed visible review and `REVIEW_ACTION_NONE`; no unsupported request was made for that head.
+  - At the user's request, corrected the missing-legacy-CR design inconsistency and pushed signed commit `b18959b2582b766c31b01cbfed4da41861fb25e3`. GitHub and ARP both reported that exact head; the PR remained draft.
+  - ARP allowed `review_anyway`. Requested with `silent: true` and `expected_head_sha: b18959b2582b766c31b01cbfed4da41861fb25e3`; review `01a1ee07-b95d-7284-99c0-fa1670d27065` was queued with `reused: false` and completed as `REVIEW_STATUS_NO_ISSUES_FOUND`.
+  - PR-wide capture reported `reviewed_sha` equal to the new head and `review_in_progress: false`; head-scoped findings (`status: all`) returned zero findings. The earlier head's finding `438053` remains open; no permanent resolution was requested or recorded.
+  - This is live evidence of the request/status/findings MCP boundary, not a production run of the complete `/implement` coordinator or its fix/verify/settlement loop.
 - Open evidence gaps:
-  - Production ARP evidence remains open (no explicit authorization + no suitable draft PR in this session).
+  - A complete production coordinator run and permanent-settlement path have not been exercised; the manual boundary check above does not establish those paths.
   - Independent `/verify` was not run in this correction pass, so Task 4 gates that depend on independent `/verify` and post-verify cleanup remain open.

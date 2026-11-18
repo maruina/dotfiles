@@ -8,7 +8,7 @@ Execution input:
 > $ARGUMENTS
 
 ## Lifecycle mode
-Only use the bridge when the injected stage contract validates protocol version 2, run ID, stage `execute`, fixed unit, pinned baseline, model, thinking, and both `lifecycle_request_decision` and `lifecycle_submit_outcome` tools are available. If a present contract is malformed/mismatched or a tool is missing, stop and ask. Otherwise, use ordinary conversational approvals and manual handoffs.
+Only use the bridge when the injected stage contract validates protocol version 3, run ID, stage `execute`, fixed unit, pinned baseline, model, thinking, and both `lifecycle_request_decision` and `lifecycle_submit_outcome` tools are available. If a present contract is malformed/mismatched or a tool is missing, stop and ask. Otherwise, use ordinary conversational approvals and manual handoffs.
 
 Validate the `Pinned baseline commit`, `Unit base commit`, `Pinned plan blob`, `Pinned design blob`, `Selected unit`, and `Selected task numbers`. Pinned requirements govern; the current plan is only a ledger. Work only on the fixed unit, scoped from `Unit base commit`. Use `lifecycle_request_decision` only for in-scope decisions. A rejected or dismissed decision stops the stage without success. For another blocker, submit the stage-appropriate `blocked` outcome. After authorized work, checks, commits, and pushes, submit exactly one `success` outcome with `change: changed` or `change: unchanged`; never use prose as the result.
 

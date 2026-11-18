@@ -1093,6 +1093,19 @@ test("execute offers simplify and direct verify handoffs with stable writer iden
   ]);
 });
 
+test("lifecycle prompt protocol versions match the bridge protocol", () => {
+  const extensionsDir = existsSync(path.join(agentDir, "exact_extensions"))
+    ? path.join(agentDir, "exact_extensions")
+    : path.join(agentDir, "extensions");
+  const protocol = readFileSync(path.join(extensionsDir, "ship-conductor", "_protocol.ts"), "utf8");
+  const version = protocol.match(/export const PROTOCOL_VERSION = (\d+);/)?.[1];
+  assert.ok(version, "Missing protocol version declaration");
+  for (const file of ["execute.md", "simplify.md", "verify.md", "pr-publish.md", "arp-review.md", "arp-fix.md"]) {
+    const versions = [...prompt(file).matchAll(/protocol version (\d+)/g)].map((match) => match[1]);
+    assert.deepEqual(versions, [version], `${file} must require the current bridge protocol version`);
+  }
+});
+
 test("lifecycle templates use bridge tools only with validated orchestration context", () => {
   for (const file of ["execute.md", "simplify.md", "verify.md"]) {
     const text = prompt(file);

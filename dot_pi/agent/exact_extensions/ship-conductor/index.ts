@@ -5,12 +5,13 @@ import { getSupportedThinkingLevels, type Api, type Model } from "@earendil-work
 import { getAgentDir, type ExtensionAPI, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { Box, Text } from "@earendil-works/pi-tui";
 import { runImplement, type ConductorDeps, type ConductorUI, type LifecycleStageRunner } from "./_conductor.ts";
+import { loadCompletionPolicy, type CompletionPolicy } from "./_completion.ts";
 import type { ModelSelectionUI } from "./_models.ts";
 import { createSessionRecovery, type SessionRecovery } from "./_recovery.ts";
 import { buildRpcChildEnvironment, buildRpcStageArgs, getPiInvocation, runRpcLifecycleStage, type RpcSpawner, type RpcStageUI } from "./_spawn.ts";
 import { LifecycleStateStore } from "./_state.ts";
 import { captureCleanCandidate, createGitRunner, resolvePlan } from "./_worktree.ts";
-import type { Stage } from "./_protocol.ts";
+import type { CompletionStage, ExecutionStage } from "./_protocol.ts";
 import { reportLifecycleActivity, type LifecycleRestingState } from "./_activity.ts";
 
 const CHILD_CONFIG_ENV = "PI_LIFECYCLE_CHILD_CONFIG";
@@ -42,6 +43,10 @@ function combineSignals(signals: Array<AbortSignal | undefined>): { signal: Abor
 
 function currentIdentity(ctx: ExtensionCommandContext): { provider: string; id: string } | undefined {
   return ctx.model ? { provider: ctx.model.provider, id: ctx.model.id } : undefined;
+}
+
+export function readCompletionPolicyForAgentDir(agentDirectory: string): CompletionPolicy {
+  return loadCompletionPolicy(agentDirectory);
 }
 
 function raceWithAbort<T>(operation: Promise<T>, signal: AbortSignal | undefined, fallback: T): Promise<T> {
@@ -139,9 +144,15 @@ export default function implementCoordinator(pi: ExtensionAPI): void {
             });
           }
           const agentDirectory = getAgentDir();
-          const stagePaths: Record<Stage, string> = {
+          const stagePaths: Record<ExecutionStage, string> = {
             execute: join(agentDirectory, "prompts", "execute.md"),
             simplify: join(agentDirectory, "prompts", "simplify.md"),
+            verify: join(agentDirectory, "prompts", "verify.md"),
+          };
+          const completionStagePaths: Record<CompletionStage, string> = {
+            "pr-publish": join(agentDirectory, "prompts", "pr-publish.md"),
+            "arp-review": join(agentDirectory, "prompts", "arp-review.md"),
+            "arp-fix": join(agentDirectory, "prompts", "arp-fix.md"),
             verify: join(agentDirectory, "prompts", "verify.md"),
           };
           const gitRunner = createGitRunner();
@@ -234,6 +245,8 @@ export default function implementCoordinator(pi: ExtensionAPI): void {
             coordinatorSessionId: ctx.sessionManager.getSessionId(),
             thinkingLevel: ctx.thinkingLevel ?? "",
             stagePaths,
+            completionStagePaths,
+            completionPolicy: readCompletionPolicyForAgentDir(agentDirectory),
             bridgePath: join(extensionDirectory, "_bridge.ts"),
             captureCandidate: (root) => captureCleanCandidate(root, gitRunner),
             runStage,

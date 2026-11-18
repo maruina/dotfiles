@@ -8,6 +8,9 @@ import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import lifecycleBridge from "./_bridge.ts";
+import { runCompletionPhase } from "./_completion.ts";
+import { captureCleanCandidate, createGitRunner } from "./_worktree.ts";
+import { PROTOCOL_VERSION } from "./_protocol.ts";
 import {
   buildRpcStageArgs,
   preflightRpcStage,
@@ -38,7 +41,7 @@ function run(command: string, args: string[], cwd: string): string {
   return execFileSync(command, args, { cwd, encoding: "utf8" }).trim();
 }
 
-function createFixture(stage: "execute" | "simplify" | "verify" = "execute"): Fixture {
+function createFixture(stage: "execute" | "simplify" | "verify" | "pr-publish" | "arp-review" | "arp-fix" = "execute"): Fixture {
   const root = mkdtempSync(join(tmpdir(), "pi-lifecycle-rpc-"));
   chmodSync(root, 0o700);
   const worktree = join(root, "repo");
@@ -62,30 +65,96 @@ function createFixture(stage: "execute" | "simplify" | "verify" = "execute"): Fi
     const baselineCommit = run("git", ["rev-parse", "HEAD"], worktree);
     const planBlob = run("git", ["rev-parse", "HEAD:plans/fixture/plan.md"], worktree);
     const designBlob = run("git", ["rev-parse", "HEAD:plans/fixture/design.md"], worktree);
+    const completionStage = stage === "pr-publish" || stage === "arp-review" || stage === "arp-fix";
     writeFileSync(
       configPath,
       JSON.stringify(
-        {
-          protocolVersion: 1,
-          runId: "run-test-123",
-          stage,
-          worktree,
-          branch: "fixture",
-          planPath,
-          baseline: {
-            commit: baselineCommit,
-            plan: { path: planPath, blob: planBlob },
-            design: { path: designPath, blob: designBlob },
-          },
-          unitBase: baselineCommit,
-          unit: { heading: "Fixture task", taskNumbers: [1] },
-          models: {
-            execute: { provider: "lifecycle-test", id: stage === "execute" ? "driver" : "executor" },
-            simplify: { provider: "lifecycle-test", id: stage === "simplify" ? "driver" : "simplifier" },
-            verify: { provider: "lifecycle-test", id: stage === "verify" ? "driver" : "verifier" },
-          },
-          thinkingLevel: "minimal",
-        },
+        completionStage
+          ? {
+              protocolVersion: PROTOCOL_VERSION,
+              scope: "completion",
+              runId: "run-test-123",
+              stage,
+              worktree,
+              branch: "fixture",
+              planPath,
+              baseline: {
+                commit: baselineCommit,
+                plan: { path: planPath, blob: planBlob },
+                design: { path: designPath, blob: designBlob },
+              },
+              models: {
+                execute: { provider: "lifecycle-test", id: "driver" },
+                simplify: { provider: "lifecycle-test", id: "simplifier" },
+                verify: { provider: "lifecycle-test", id: "verifier" },
+              },
+              stageModel: { provider: "lifecycle-test", id: "driver" },
+              thinkingLevel: "minimal",
+              completion: {
+                policy: "work",
+                candidate: { branch: "fixture", head: baselineCommit, stateDigest: "d".repeat(64) },
+                ...(stage === "arp-review"
+                  ? {
+                      reviewRequest: {
+                        prUrl: "https://github.com/DataDog/repo/pull/123",
+                        expectedHeadSha: baselineCommit,
+                        deadlineAt: "2099-01-01T00:20:00.000Z",
+                        maxStatusChecks: 30,
+                        pollIntervalsSeconds: [10, 30, 60],
+                        silent: true,
+                      },
+                    }
+                  : stage === "arp-fix"
+                    ? {
+                        fixRequest: {
+                          prUrl: "https://github.com/DataDog/repo/pull/123",
+                          reviewedHeadSha: baselineCommit,
+                          findings: [
+                            {
+                              findingId: "finding-alpha",
+                              filePath: "src/main.ts",
+                              startLine: 10,
+                              endLine: 12,
+                              reviewedSha: baselineCommit,
+                              summary: "Fixture finding alpha",
+                            },
+                            {
+                              findingId: "finding-beta",
+                              filePath: "src/other.ts",
+                              startLine: 20,
+                              endLine: 21,
+                              reviewedSha: baselineCommit,
+                              summary: "Fixture finding beta",
+                            },
+                          ],
+                        },
+                      }
+                    : {}),
+              },
+            }
+          : {
+              protocolVersion: PROTOCOL_VERSION,
+              scope: "execution",
+              runId: "run-test-123",
+              stage,
+              worktree,
+              branch: "fixture",
+              planPath,
+              baseline: {
+                commit: baselineCommit,
+                plan: { path: planPath, blob: planBlob },
+                design: { path: designPath, blob: designBlob },
+              },
+              unitBase: baselineCommit,
+              unit: { heading: "Fixture task", taskNumbers: [1] },
+              models: {
+                execute: { provider: "lifecycle-test", id: stage === "execute" ? "driver" : "executor" },
+                simplify: { provider: "lifecycle-test", id: stage === "simplify" ? "driver" : "simplifier" },
+                verify: { provider: "lifecycle-test", id: stage === "verify" ? "driver" : "verifier" },
+              },
+              stageModel: { provider: "lifecycle-test", id: "driver" },
+              thinkingLevel: "minimal",
+            },
         null,
         2,
       ),
@@ -97,6 +166,13 @@ function createFixture(stage: "execute" | "simplify" | "verify" = "execute"): Fi
     rmSync(root, { recursive: true, force: true });
     throw error;
   }
+}
+
+function rewriteStageConfig(path: string, mutator: (config: Record<string, unknown>) => Record<string, unknown>): void {
+  const current = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
+  const updated = mutator(current);
+  writeFileSync(path, JSON.stringify(updated, null, 2), { mode: 0o600 });
+  chmodSync(path, 0o600);
 }
 
 class RpcProcess {
@@ -204,9 +280,23 @@ function assertPi150(): void {
 
 function startRpc(
   fixture: Fixture,
-  outcomeMode: "success" | "error" | "missing" | "dirty" | "expansion",
+  outcomeMode:
+    | "success"
+    | "error"
+    | "missing"
+    | "dirty"
+    | "expansion"
+    | "arp-success"
+    | "arp-stale-head"
+    | "arp-request-error"
+    | "arp-discovery-missing"
+    | "arp-fix-success"
+    | "arp-fix-ambiguous"
+    | "arp-fix-invalid-settlement"
+    | "auto-partial-resolution",
   promptTemplatePath?: string,
   childConfigPath: string | false = fixture.configPath,
+  extraEnv: NodeJS.ProcessEnv = {},
 ): RpcProcess {
   assertPi150();
   const args = [
@@ -222,6 +312,7 @@ function startRpc(
     PI_CODING_AGENT_DIR: fixture.agentDir,
     PI_OFFLINE: "1",
     PI_LIFECYCLE_TEST_OUTCOME: outcomeMode,
+    ...extraEnv,
   };
   if (childConfigPath !== false) env.PI_LIFECYCLE_CHILD_CONFIG = childConfigPath;
   return new RpcProcess(args, fixture.worktree, env);
@@ -290,7 +381,7 @@ async function runFixture(outcomeMode: "success" | "error" | "missing" | "dirty"
       }
       if (outcomeMode === "success") {
         const details = outcomeResult.result.details;
-        assert.equal(details.schemaVersion, 1);
+        assert.equal(details.schemaVersion, PROTOCOL_VERSION);
         assert.equal(details.runId, "run-test-123");
         assert.equal(details.stage, "execute");
         assert.equal(details.sessionId, state.sessionId);
@@ -324,6 +415,175 @@ async function runFixture(outcomeMode: "success" | "error" | "missing" | "dirty"
           : /without a structured outcome/,
     );
     return { fixture, rpc, outcomeResult, settled };
+  } catch (error) {
+    await rpc.close();
+    rmSync(fixture.root, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+async function runArpReviewFixture(
+  mode: "arp-success" | "arp-stale-head" | "arp-request-error" | "arp-discovery-missing" | "auto-partial-resolution",
+  options: {
+    pendingSettlements?: Array<{ findingId: string; fixCommitSha: string; fixChangeSummary: string; reason: string }>;
+    expectedHeadSha?: string;
+  } = {},
+) {
+  const fixture = createFixture("arp-review");
+  const expectedHeadSha = options.expectedHeadSha ?? fixture.baselineCommit;
+  if (options.pendingSettlements && options.pendingSettlements.length > 0) {
+    rewriteStageConfig(fixture.configPath, (config) => {
+      const completion = { ...((config.completion as Record<string, unknown> | undefined) ?? {}) };
+      completion.pendingSettlements = options.pendingSettlements;
+      return { ...config, completion };
+    });
+  }
+  const rpc = startRpc(
+    fixture,
+    mode,
+    undefined,
+    fixture.configPath,
+    {
+      PI_LIFECYCLE_TEST_STAGE: "arp-review",
+      PI_LIFECYCLE_TEST_EXPECTED_HEAD: expectedHeadSha,
+    },
+  );
+  try {
+    const stateResponse = await rpc.request("get_state");
+    const state = stateResponse.data;
+    assert.equal(state.model.provider, "lifecycle-test");
+    assert.equal(state.model.id, "driver");
+
+    const prompt = await rpc.request("prompt", { message: "Run the deterministic arp-review fixture." });
+    assert.equal(prompt.data.disposition, "started");
+
+    const discovery = await rpc.waitFor(
+      (record) => record.type === "tool_execution_end" && record.toolName === "fixture_discover_agentic_review_tools",
+      "fixture_discover_agentic_review_tools result",
+    );
+    assert.equal(discovery.isError, false);
+    const discoveredTools = (discovery.result.details?.tools as Array<{ name?: string }> | undefined) ?? [];
+    const discoveredToolNames = discoveredTools.map((tool) => tool.name);
+    assert.ok(discoveredToolNames.includes("agentic_review_get_status"));
+    assert.ok(discoveredToolNames.includes("agentic_review_get_findings"));
+    if (mode === "arp-discovery-missing") {
+      assert.equal(discoveredToolNames.includes("agentic_review_request_review"), false);
+      assert.equal(discoveredToolNames.includes("agentic_review_resolve_finding"), false);
+    } else {
+      assert.ok(discoveredToolNames.includes("agentic_review_request_review"));
+      assert.ok(discoveredToolNames.includes("agentic_review_resolve_finding"));
+    }
+
+    const status = mode === "arp-discovery-missing"
+      ? undefined
+      : await rpc.waitFor(
+          (record) => record.type === "tool_execution_end" && record.toolName === "agentic_review_get_status",
+          "agentic_review_get_status result",
+        );
+    if (status) assert.equal(status.isError, false);
+
+    let request: RpcRecord | undefined;
+    if (mode === "arp-success" || mode === "arp-request-error") {
+      request = await rpc.waitFor(
+        (record) => record.type === "tool_execution_end" && record.toolName === "agentic_review_request_review",
+        "agentic_review_request_review result",
+      );
+      if (mode === "arp-success") {
+        assert.equal(request.isError, false);
+        assert.equal(request.result.details.action, "review_anyway");
+        assert.equal(request.result.details.expected_head_sha, expectedHeadSha);
+        assert.equal(request.result.details.silent, true);
+      } else {
+        assert.equal(request.isError, true);
+      }
+    }
+
+    const outcome = await rpc.waitFor(
+      (record) => record.type === "tool_execution_end" && record.toolName === "lifecycle_submit_outcome",
+      "lifecycle_submit_outcome result",
+    );
+    assert.equal(outcome.isError, false);
+    assert.equal(outcome.result.details.stage, "arp-review");
+    assert.equal(outcome.result.details.change, "not-applicable");
+    assert.equal(outcome.result.details.reviewEvidence.targetHeadSha, expectedHeadSha);
+    if (mode === "arp-success") {
+      assert.equal(outcome.result.details.outcome, "success");
+      assert.equal(outcome.result.details.reviewEvidence.reviewedHeadSha, expectedHeadSha);
+      assert.equal(outcome.result.details.reviewEvidence.captureState, "complete");
+      assert.equal(outcome.result.details.reviewEvidence.result, "clean");
+      assert.equal(outcome.result.details.reviewEvidence.silent, true);
+    } else if (mode === "arp-stale-head") {
+      assert.equal(outcome.result.details.outcome, "blocked");
+      assert.notEqual(outcome.result.details.reviewEvidence.reviewedHeadSha, expectedHeadSha);
+      assert.equal(outcome.result.details.reviewEvidence.result, "stale");
+    } else if (mode === "auto-partial-resolution") {
+      assert.equal(outcome.result.details.outcome, "blocked");
+      assert.equal(outcome.result.details.reviewEvidence.result, "error");
+    } else {
+      assert.equal(outcome.result.details.outcome, "blocked");
+      assert.equal(outcome.result.details.reviewEvidence.result, "error");
+    }
+
+    const settled = await rpc.waitFor((record) => record.type === "agent_settled", "agent_settled event");
+    assert.equal(settled.aborted, false);
+    return { fixture, rpc, outcome, request };
+  } catch (error) {
+    await rpc.close();
+    rmSync(fixture.root, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+async function runArpFixFixture(mode: "arp-fix-success" | "arp-fix-ambiguous" | "arp-fix-invalid-settlement") {
+  const fixture = createFixture("arp-fix");
+  const rpc = startRpc(
+    fixture,
+    mode,
+    undefined,
+    fixture.configPath,
+    {
+      PI_LIFECYCLE_TEST_STAGE: "arp-fix",
+      PI_LIFECYCLE_TEST_EXPECTED_HEAD: fixture.baselineCommit,
+    },
+  );
+  try {
+    const stateResponse = await rpc.request("get_state");
+    const state = stateResponse.data;
+    assert.equal(state.model.provider, "lifecycle-test");
+    assert.equal(state.model.id, "driver");
+
+    const prompt = await rpc.request("prompt", { message: "Run the deterministic arp-fix fixture." });
+    assert.equal(prompt.data.disposition, "started");
+
+    const outcome = await rpc.waitFor(
+      (record) => record.type === "tool_execution_end" && record.toolName === "lifecycle_submit_outcome",
+      "lifecycle_submit_outcome result",
+    );
+
+    if (mode === "arp-fix-invalid-settlement") {
+      assert.equal(outcome.isError, true);
+      const text = outcome.result.content.map((part: { text?: string }) => part.text ?? "").join("\n");
+      assert.match(text, /unrelated finding/i);
+    } else {
+      assert.equal(outcome.isError, false);
+      assert.equal(outcome.result.details.stage, "arp-fix");
+      assert.equal(outcome.result.details.change, "not-applicable");
+      if (mode === "arp-fix-success") {
+        assert.equal(outcome.result.details.outcome, "success");
+        assert.deepEqual(outcome.result.details.commitRefs, [fixture.baselineCommit]);
+        assert.deepEqual(
+          (outcome.result.details.pendingSettlements ?? []).map((entry: { findingId: string }) => entry.findingId).sort(),
+          ["finding-alpha", "finding-beta"],
+        );
+      } else {
+        assert.equal(outcome.result.details.outcome, "blocked");
+        assert.equal(outcome.result.details.pendingSettlements, undefined);
+      }
+    }
+
+    const settled = await rpc.waitFor((record) => record.type === "agent_settled", "agent_settled event");
+    assert.equal(settled.aborted, false);
+    return { fixture, rpc, outcome };
   } catch (error) {
     await rpc.close();
     rmSync(fixture.root, { recursive: true, force: true });
@@ -649,6 +909,227 @@ describe("Pi 1.5.0 lifecycle bridge RPC contract", () => {
     try {
       assert.equal(run.outcomeResult, undefined);
       assert.equal(run.settled.aborted, false);
+    } finally {
+      await run.rpc.close();
+      rmSync(run.fixture.root, { recursive: true, force: true });
+    }
+  });
+
+  it("exercises deferred discovery and exact-head silent ARP requests through the real RPC loop", { timeout: 60_000 }, async () => {
+    const run = await runArpReviewFixture("arp-success");
+    try {
+      const startedDiscovery = run.rpc.records.some(
+        (record) => record.type === "tool_execution_start" && record.toolName === "fixture_discover_agentic_review_tools",
+      );
+      assert.equal(startedDiscovery, true);
+      const startedStatus = run.rpc.records.some(
+        (record) => record.type === "tool_execution_start" && record.toolName === "agentic_review_get_status",
+      );
+      assert.equal(startedStatus, true);
+      const startedRequest = run.rpc.records.some(
+        (record) => record.type === "tool_execution_start" && record.toolName === "agentic_review_request_review",
+      );
+      assert.equal(startedRequest, true);
+      const startedFindings = run.rpc.records.some(
+        (record) => record.type === "tool_execution_start" && record.toolName === "agentic_review_get_findings",
+      );
+      assert.equal(startedFindings, true);
+      assert.equal(run.outcome.result.details.outcome, "success");
+    } finally {
+      await run.rpc.close();
+      rmSync(run.fixture.root, { recursive: true, force: true });
+    }
+  });
+
+  it("blocks stale-head ARP status without issuing a silent review request", { timeout: 60_000 }, async () => {
+    const run = await runArpReviewFixture("arp-stale-head");
+    try {
+      const startedRequest = run.rpc.records.some(
+        (record) => record.type === "tool_execution_start" && record.toolName === "agentic_review_request_review",
+      );
+      assert.equal(startedRequest, false);
+      assert.equal(run.outcome.result.details.outcome, "blocked");
+      assert.equal(run.outcome.result.details.reviewEvidence.result, "stale");
+    } finally {
+      await run.rpc.close();
+      rmSync(run.fixture.root, { recursive: true, force: true });
+    }
+  });
+
+  it("blocks when discovery does not return required ARP tool identities", { timeout: 60_000 }, async () => {
+    const run = await runArpReviewFixture("arp-discovery-missing");
+    try {
+      const startedRequest = run.rpc.records.some(
+        (record) => record.type === "tool_execution_start" && record.toolName === "agentic_review_request_review",
+      );
+      assert.equal(startedRequest, false);
+      assert.equal(run.outcome.result.details.outcome, "blocked");
+      assert.equal(run.outcome.result.details.reviewEvidence.result, "error");
+    } finally {
+      await run.rpc.close();
+      rmSync(run.fixture.root, { recursive: true, force: true });
+    }
+  });
+
+  it("returns structured arp-fix success metadata through the real RPC loop", { timeout: 60_000 }, async () => {
+    const run = await runArpFixFixture("arp-fix-success");
+    try {
+      assert.equal(run.outcome.result.details.outcome, "success");
+      assert.deepEqual(
+        (run.outcome.result.details.pendingSettlements ?? []).map((entry: { findingId: string }) => entry.findingId).sort(),
+        ["finding-alpha", "finding-beta"],
+      );
+    } finally {
+      await run.rpc.close();
+      rmSync(run.fixture.root, { recursive: true, force: true });
+    }
+  });
+
+  it("reports arp-fix ambiguity as blocked without pending settlements", { timeout: 60_000 }, async () => {
+    const run = await runArpFixFixture("arp-fix-ambiguous");
+    try {
+      assert.equal(run.outcome.result.details.outcome, "blocked");
+      assert.equal(run.outcome.result.details.pendingSettlements, undefined);
+    } finally {
+      await run.rpc.close();
+      rmSync(run.fixture.root, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects invalid arp-fix settlement metadata through the real RPC loop", { timeout: 60_000 }, async () => {
+    const run = await runArpFixFixture("arp-fix-invalid-settlement");
+    try {
+      assert.equal(run.outcome.isError, true);
+    } finally {
+      await run.rpc.close();
+      rmSync(run.fixture.root, { recursive: true, force: true });
+    }
+  });
+
+  it("uses structured pending settlements to call addressed resolution with exact arguments", { timeout: 120_000 }, async () => {
+    const pendingSettlement = {
+      findingId: "51842",
+      fixCommitSha: "b".repeat(40),
+      fixChangeSummary: "Fixture applied deterministic fix for finding 51842",
+      reason: "Fixture verified the fix locally.",
+    };
+    const run = await runArpReviewFixture("arp-success", { pendingSettlements: [pendingSettlement] });
+    try {
+      const findingsCallIndex = run.rpc.records.findIndex(
+        (record) => record.type === "tool_execution_end" && record.toolName === "agentic_review_get_findings",
+      );
+      const resolveCall = run.rpc.records.find(
+        (record) => record.type === "tool_execution_end" && record.toolName === "agentic_review_resolve_finding",
+      );
+      assert.ok(resolveCall, "expected addressed resolution call");
+      assert.equal(resolveCall.isError, false);
+      assert.deepEqual(resolveCall.result.details, {
+        owner: "DataDog",
+        repo: "repo",
+        finding_id: 51842,
+        resolution: "addressed",
+        fix_commit_sha: pendingSettlement.fixCommitSha,
+        fix_change_summary: pendingSettlement.fixChangeSummary,
+        reason: pendingSettlement.reason,
+      });
+
+      const resolveCallIndex = run.rpc.records.indexOf(resolveCall);
+      const requestCallIndex = run.rpc.records.findIndex(
+        (record) => record.type === "tool_execution_start" && record.toolName === "agentic_review_request_review",
+      );
+      assert.ok(requestCallIndex > resolveCallIndex, "addressed settlement must complete before requesting re-review");
+      const captureIndex = run.rpc.records.findIndex(
+        (record, index) => index > requestCallIndex && record.type === "tool_execution_end" && record.toolName === "agentic_review_get_findings",
+      );
+      assert.ok(captureIndex > requestCallIndex, "re-review findings must be captured after the request");
+      const outcomeCallIndex = run.rpc.records.findIndex(
+        (record) => record.type === "tool_execution_end" && record.toolName === "lifecycle_submit_outcome",
+      );
+      assert.ok(findingsCallIndex >= 0 && resolveCallIndex > findingsCallIndex, "resolution must follow PR-wide findings retrieval");
+      assert.ok(outcomeCallIndex > captureIndex, "outcome must follow complete re-review capture");
+      assert.equal(run.outcome.result.details.outcome, "success");
+      assert.ok((run.outcome.result.details.settledFindingIds ?? []).includes("51842"));
+    } finally {
+      await run.rpc.close();
+      rmSync(run.fixture.root, { recursive: true, force: true });
+    }
+  });
+
+  it("runs fix, fresh verification, local push, settlement, and re-review through RPC children", { timeout: 120_000 }, async () => {
+    const fixture = createFixture("arp-review");
+    const remote = join(fixture.root, "remote.git");
+    run("git", ["init", "--bare", "--quiet", remote], fixture.root);
+    run("git", ["remote", "add", "origin", remote], fixture.worktree);
+    const stages: Array<{ stage: string; records: RpcRecord[] }> = [];
+    const driver = { provider: "lifecycle-test", id: "driver" };
+    const reviewer = { provider: "lifecycle-test", id: "reviewer" };
+    const plan = join(fixture.worktree, "plans/fixture/plan.md");
+    const design = join(fixture.worktree, "plans/fixture/design.md");
+    try {
+      const result = await runCompletionPhase({
+        policy: { kind: "work" }, runId: "run-test-123", worktree: fixture.worktree, branch: "fixture", planPath: plan,
+        baselineCommit: fixture.baselineCommit, baselinePlanPath: plan,
+        baselinePlanBlob: run("git", ["rev-parse", "HEAD:plans/fixture/plan.md"], fixture.worktree),
+        baselineDesignPath: design, baselineDesignBlob: run("git", ["rev-parse", "HEAD:plans/fixture/design.md"], fixture.worktree),
+        candidate: captureCleanCandidate(fixture.worktree, createGitRunner()),
+        models: { execute: driver, simplify: driver, verify: reviewer }, writerModelIds: ["lifecycle-test/driver"],
+        thinkingLevels: { execute: "minimal", verify: "minimal" },
+        dispatch: async ({ stage, config }) => {
+          writeFileSync(fixture.configPath, JSON.stringify(config), { mode: 0o600 });
+          const args = ["--no-extensions", "--no-prompt-templates", ...buildRpcStageArgs(config.stageModel.provider, config.stageModel.id, "minimal", BRIDGE_PATH), "-e", DRIVER_PATH];
+          const rpc = new RpcProcess(args, fixture.worktree, { ...process.env, PI_CODING_AGENT_DIR: fixture.agentDir, PI_OFFLINE: "1", PI_LIFECYCLE_CHILD_CONFIG: fixture.configPath, PI_LIFECYCLE_TEST_STAGE: "auto" });
+          try {
+            await rpc.request("prompt", { message: "Run the deterministic completion fixture." });
+            const submitted = await rpc.waitFor((record) => record.type === "tool_execution_end" && record.toolName === "lifecycle_submit_outcome", `${stage} outcome`);
+            assert.equal(submitted.isError, false);
+            await rpc.waitFor((record) => record.type === "agent_settled", `${stage} settled`);
+            stages.push({ stage, records: [...rpc.records] });
+            return { status: "settled", outcome: submitted.result.details };
+          } finally {
+            await rpc.close();
+          }
+        },
+      });
+      assert.equal(result.status, "verified");
+      assert.deepEqual(stages.map((stage) => stage.stage), ["pr-publish", "arp-review", "arp-fix", "verify", "pr-publish", "arp-review"]);
+      const calls = (index: number, name: string) => stages[index]!.records.filter((record) => record.type === "tool_execution_start" && record.toolName === name);
+      assert.equal(calls(0, "bash")[0]?.args.command, "git push origin HEAD");
+      assert.deepEqual(calls(1, "agentic_review_resolve_finding")[0]?.args, { owner: "DataDog", repo: "repo", finding_id: 84171, resolution: "invalid", reason: "False positive: fixture evidence does not reproduce on the expected head." });
+      assert.equal(calls(2, "bash").length, 1);
+      assert.equal(calls(3, "lifecycle_submit_outcome")[0]?.args.outcome, "VERIFIED");
+      assert.equal(calls(4, "bash")[0]?.args.command, "git push origin HEAD");
+      const review = stages[5]!.records;
+      const resolutionIndex = review.findIndex((record) => record.type === "tool_execution_start" && record.toolName === "agentic_review_resolve_finding");
+      const requestIndex = review.findIndex((record) => record.type === "tool_execution_start" && record.toolName === "agentic_review_request_review");
+      assert.ok(resolutionIndex >= 0 && requestIndex > resolutionIndex);
+      const resolution = review[resolutionIndex]!.args;
+      assert.deepEqual(resolution, { owner: "DataDog", repo: "repo", finding_id: 84172, resolution: "addressed", fix_commit_sha: result.status === "verified" ? result.reviewedHead : "", fix_change_summary: "Fixture applied deterministic fix for 84172", reason: "Fixture verified the fix locally." });
+      assert.ok(review.some((record, index) => index > requestIndex && record.type === "tool_execution_end" && record.toolName === "agentic_review_get_findings"));
+      assert.equal(run("git", ["rev-parse", "refs/heads/fixture"], remote), result.status === "verified" ? result.reviewedHead : "");
+    } finally {
+      rmSync(fixture.root, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps partial addressed-resolution failures blocked with remaining findings", { timeout: 120_000 }, async () => {
+    const pendingSettlements = ["51842", "51843"].map((findingId) => ({
+      findingId,
+      fixCommitSha: "b".repeat(40),
+      fixChangeSummary: `Fixture applied deterministic fix for finding ${findingId}`,
+      reason: "Fixture verified the fix locally.",
+    }));
+    const run = await runArpReviewFixture("auto-partial-resolution", { pendingSettlements });
+    try {
+      const resolutionCalls = run.rpc.records.filter(
+        (record) => record.type === "tool_execution_end" && record.toolName === "agentic_review_resolve_finding",
+      );
+      assert.equal(resolutionCalls.length, 2);
+      assert.deepEqual(resolutionCalls.map((record) => record.isError), [false, true]);
+      assert.deepEqual(resolutionCalls.map((record) => record.result.details.finding_id), [51842, 51843]);
+      assert.equal(run.outcome.result.details.outcome, "blocked");
+      assert.deepEqual(run.outcome.result.details.settledFindingIds, ["51842"]);
+      assert.equal(run.rpc.records.filter((record) => record.type === "tool_execution_end" && record.toolName === "agentic_review_get_findings").length, 2);
+      assert.equal(run.rpc.records.some((record) => record.type === "tool_execution_start" && record.toolName === "agentic_review_request_review"), false);
     } finally {
       await run.rpc.close();
       rmSync(run.fixture.root, { recursive: true, force: true });

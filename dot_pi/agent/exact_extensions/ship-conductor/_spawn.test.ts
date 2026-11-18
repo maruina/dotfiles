@@ -14,6 +14,7 @@ import {
   type RpcRecord,
   type RpcStageUI,
 } from "./_spawn.ts";
+import { PROTOCOL_VERSION } from "./_protocol.ts";
 
 describe("getPiInvocation", () => {
   it("invokes the current script under the current runtime when one exists", () => {
@@ -237,7 +238,7 @@ const STAGE_OPTIONS = {
 
 function lifecycleOutcome(): RpcRecord {
   return {
-    schemaVersion: 1,
+    schemaVersion: PROTOCOL_VERSION,
     runId: "run-1",
     stage: "execute",
     sessionId: "session-fixture",
@@ -251,7 +252,7 @@ function lifecycleOutcome(): RpcRecord {
 
 function decisionResult(decision: "approved" | "rejected" | "cancelled", runId = "run-1"): RpcRecord {
   return {
-    protocolVersion: 1,
+    protocolVersion: PROTOCOL_VERSION,
     runId,
     stage: "execute",
     sessionId: "session-fixture",

@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import implementCoordinator from "./index.ts";
+import implementCoordinator, { readCompletionPolicyForAgentDir } from "./index.ts";
 import type { ProgramStatus, TUI } from "@earendil-works/pi-tui";
 
 type CommandOptions = Parameters<ExtensionAPI["registerCommand"]>[1];
@@ -56,6 +56,51 @@ function createRepo(): { root: string; planPath: string; tempRoot: string } {
 const CHILD_CONFIG_ENV = "PI_LIFECYCLE_CHILD_CONFIG";
 
 describe("/implement extension command", () => {
+  it("reads work and personal completion profiles from an isolated PI_CODING_AGENT_DIR and rejects missing or invalid policy files", () => {
+    const tempRoot = mkdtempSync(join(tmpdir(), "implement-profile-"));
+    const previous = process.env.PI_CODING_AGENT_DIR;
+    try {
+      const workDir = join(tempRoot, "work");
+      mkdirSync(workDir, { recursive: true });
+      writeFileSync(join(workDir, "ship-conductor-profile.json"), JSON.stringify({ schemaVersion: 1, profile: "work" }));
+      process.env.PI_CODING_AGENT_DIR = workDir;
+      assert.deepEqual(readCompletionPolicyForAgentDir(workDir), { kind: "work" });
+
+      const personalDir = join(tempRoot, "personal");
+      mkdirSync(personalDir, { recursive: true });
+      writeFileSync(join(personalDir, "ship-conductor-profile.json"), JSON.stringify({ schemaVersion: 1, profile: "personal" }));
+      process.env.PI_CODING_AGENT_DIR = personalDir;
+      assert.deepEqual(readCompletionPolicyForAgentDir(personalDir), { kind: "personal" });
+
+      const missingDir = join(tempRoot, "missing");
+      mkdirSync(missingDir, { recursive: true });
+      process.env.PI_CODING_AGENT_DIR = missingDir;
+      const missing = readCompletionPolicyForAgentDir(missingDir);
+      assert.equal(missing.kind, "invalid");
+      assert.match(missing.reason, /cannot read ship-conductor-profile\.json/i);
+
+      const malformedDir = join(tempRoot, "malformed");
+      mkdirSync(malformedDir, { recursive: true });
+      writeFileSync(join(malformedDir, "ship-conductor-profile.json"), "{not-json\n");
+      process.env.PI_CODING_AGENT_DIR = malformedDir;
+      const malformed = readCompletionPolicyForAgentDir(malformedDir);
+      assert.equal(malformed.kind, "invalid");
+      assert.match(malformed.reason, /cannot read ship-conductor-profile\.json/i);
+
+      const wrongSchemaDir = join(tempRoot, "wrong-schema");
+      mkdirSync(wrongSchemaDir, { recursive: true });
+      writeFileSync(join(wrongSchemaDir, "ship-conductor-profile.json"), JSON.stringify({ schemaVersion: 2, profile: "work" }));
+      process.env.PI_CODING_AGENT_DIR = wrongSchemaDir;
+      const wrongSchema = readCompletionPolicyForAgentDir(wrongSchemaDir);
+      assert.equal(wrongSchema.kind, "invalid");
+      assert.match(wrongSchema.reason, /schemaVersion must be 1/i);
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true });
+      if (previous === undefined) delete process.env.PI_CODING_AGENT_DIR;
+      else process.env.PI_CODING_AGENT_DIR = previous;
+    }
+  });
+
   it("registers /implement without a /ship alias and refuses child-stage dispatch", async () => {
     const previousConfig = process.env[CHILD_CONFIG_ENV];
     process.env[CHILD_CONFIG_ENV] = "/tmp/stage.json";

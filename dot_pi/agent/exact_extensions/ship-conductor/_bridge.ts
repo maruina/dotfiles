@@ -88,18 +88,20 @@ function readStageConfig(configPath: string, cwd: string): StageConfig {
   if (planBlob !== config.baseline.plan.blob || designBlob !== config.baseline.design.blob) {
     throw new Error("Lifecycle baseline blob IDs do not match the pinned commit");
   }
-  try {
-    gitText(canonicalWorktree, ["merge-base", "--is-ancestor", config.baseline.commit, config.unitBase]);
-    gitText(canonicalWorktree, ["merge-base", "--is-ancestor", config.unitBase, "HEAD"]);
-  } catch {
-    throw new Error("Lifecycle unit base commit is not between the pinned baseline commit and HEAD");
+  if (config.scope === "execution") {
+    try {
+      gitText(canonicalWorktree, ["merge-base", "--is-ancestor", config.baseline.commit, config.unitBase]);
+      gitText(canonicalWorktree, ["merge-base", "--is-ancestor", config.unitBase, "HEAD"]);
+    } catch {
+      throw new Error("Lifecycle unit base commit is not between the pinned baseline commit and HEAD");
+    }
   }
   return config;
 }
 
 function assertRuntimeContext(config: StageConfig, ctx: { cwd: string; model: { provider: string; id: string } | undefined; thinkingLevel?: string; sessionManager: { getSessionId(): string } }): RuntimeIdentity {
   if (realpathSync(ctx.cwd) !== realpathSync(config.worktree)) throw new Error("Lifecycle child working directory changed");
-  const expectedModel = config.models[config.stage];
+  const expectedModel = config.stageModel;
   if (!ctx.model || ctx.model.provider !== expectedModel.provider || ctx.model.id !== expectedModel.id) {
     throw new Error("Lifecycle child model does not match the pinned stage configuration");
   }
@@ -172,27 +174,62 @@ export function stageContract(config: StageConfig): string {
       : []),
     "The working-tree plan is the progress ledger: after earlier rounds it differs from the pinned plan blob, which is expected. Requirements come from the pinned blobs.",
   ];
-  return [
+
+  const lines = [
     `Protocol version: ${config.protocolVersion}`,
     `Run ID: ${config.runId}`,
     `Stage: ${config.stage}`,
     `Plan: ${config.planPath}`,
     `Pinned branch: ${config.branch}`,
     `Pinned baseline commit: ${config.baseline.commit}`,
-    `Unit base commit: ${config.unitBase}`,
     `Pinned plan blob: ${config.baseline.plan.blob} (${planRelative})`,
     designLine,
     ...pinnedReadLines,
-    `Selected unit: ${config.unit.heading}`,
-    `Selected task numbers: ${config.unit.taskNumbers.join(", ")}`,
     `Execute model: ${config.models.execute.provider}/${config.models.execute.id}`,
     `Simplify model: ${config.models.simplify.provider}/${config.models.simplify.id}`,
     `Verify model: ${config.models.verify.provider}/${config.models.verify.id}`,
-    `Selected model: ${config.models[config.stage].provider}/${config.models[config.stage].id}`,
+    `Selected model: ${config.stageModel.provider}/${config.stageModel.id}`,
     `Effective thinking level: ${config.thinkingLevel}`,
-    "Use lifecycle_request_decision for user decisions. Submit exactly one final result with lifecycle_submit_outcome after the stage is complete.",
-    "Only the bridge's structured tool result controls stage completion. Prose, exit status, and verdict text do not submit an outcome.",
-  ].join("\n");
+  ];
+
+  if (config.scope === "execution") {
+    lines.push(`Unit base commit: ${config.unitBase}`);
+    lines.push(`Selected unit: ${config.unit.heading}`);
+    lines.push(`Selected task numbers: ${config.unit.taskNumbers.join(", ")}`);
+  } else {
+    lines.push(`Completion policy: ${config.completion.policy}`);
+    lines.push(`Pinned completion candidate: ${config.completion.candidate.branch}@${config.completion.candidate.head}`);
+    if (config.completion.reviewRequest) {
+      lines.push(`Target PR: ${config.completion.reviewRequest.prUrl}`);
+      lines.push(`Expected review head SHA: ${config.completion.reviewRequest.expectedHeadSha}`);
+      lines.push(`Review deadline (UTC): ${config.completion.reviewRequest.deadlineAt}`);
+      lines.push(`Max status checks: ${config.completion.reviewRequest.maxStatusChecks}`);
+      lines.push(`Status poll intervals (seconds): ${config.completion.reviewRequest.pollIntervalsSeconds.join(", ")}`);
+      lines.push(`Silent ARP request: ${config.completion.reviewRequest.silent}`);
+    }
+    if (config.completion.fixRequest) {
+      lines.push(`Fix target PR: ${config.completion.fixRequest.prUrl}`);
+      lines.push(`Fix reviewed head SHA: ${config.completion.fixRequest.reviewedHeadSha}`);
+      lines.push(`Fix findings count: ${config.completion.fixRequest.findings.length}`);
+      for (const finding of config.completion.fixRequest.findings) {
+        lines.push(`Fix finding: ${JSON.stringify(finding)}`);
+      }
+    }
+    if (config.completion.pendingSettlements && config.completion.pendingSettlements.length > 0) {
+      lines.push(`Pending addressed settlements: ${config.completion.pendingSettlements.length}`);
+      lines.push(`Pending settlement IDs: ${config.completion.pendingSettlements.map((entry) => entry.findingId).join(", ")}`);
+      for (const settlement of config.completion.pendingSettlements) {
+        lines.push(`Pending settlement: ${JSON.stringify(settlement)}`);
+      }
+    }
+    if (config.completion.verificationWriters && config.completion.verificationWriters.length > 0) {
+      lines.push(`Completion verification writers: ${config.completion.verificationWriters.join(", ")}`);
+    }
+  }
+
+  lines.push("Use lifecycle_request_decision for user decisions. Submit exactly one final result with lifecycle_submit_outcome after the stage is complete.");
+  lines.push("Only the bridge's structured tool result controls stage completion. Prose, exit status, and verdict text do not submit an outcome.");
+  return lines.join("\n");
 }
 
 function updateUntrackedDigest(hash: ReturnType<typeof createHash>, worktree: string, signal: AbortSignal | undefined): Promise<void> {
@@ -278,6 +315,79 @@ function validateCommitRefs(config: StageConfig, refs: string[] | undefined): st
     if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(commit)) throw new Error(`Commit reference did not resolve to a Git object: ${ref}`);
     return commit;
   });
+}
+
+function isAncestorCommit(worktree: string, ancestor: string, descendant: string): boolean {
+  try {
+    gitText(worktree, ["merge-base", "--is-ancestor", ancestor, descendant]);
+    return true;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException & { status?: number }).status;
+    if (code === 1) return false;
+    throw new Error(`Git merge-base failed: ${errorMessage(error)}`);
+  }
+}
+
+function validateArpFixSuccessMetadata(
+  config: StageConfig,
+  params: ReturnType<typeof parseLifecycleOutcome>,
+  commitRefs: string[] | undefined,
+  candidate: CandidateSnapshot,
+): string | undefined {
+  if (config.scope !== "completion" || config.stage !== "arp-fix" || params.outcome !== "success") return undefined;
+  const reviewedCandidate = config.completion.candidate;
+  const requestedFindings = config.completion.fixRequest?.findings ?? [];
+  if (requestedFindings.length === 0) return "arp-fix stage configuration does not include actionable findings";
+  if (!params.pendingSettlements || params.pendingSettlements.length === 0) {
+    return "arp-fix success must include pending settlements";
+  }
+  if (!commitRefs || commitRefs.length === 0) {
+    return "arp-fix success must include commit references";
+  }
+  if (candidate.branch !== reviewedCandidate.branch) {
+    return `arp-fix changed candidate branch from ${reviewedCandidate.branch} to ${candidate.branch}`;
+  }
+  if (!isAncestorCommit(config.worktree, reviewedCandidate.head, candidate.head)) {
+    return `arp-fix candidate head ${candidate.head} is not a descendant of reviewed head ${reviewedCandidate.head}`;
+  }
+
+  const uniqueCommitRefs = new Set(commitRefs);
+  if (uniqueCommitRefs.size !== commitRefs.length) {
+    return "arp-fix commitRefs contains duplicate commits";
+  }
+  for (const commitRef of commitRefs) {
+    if (!isAncestorCommit(config.worktree, reviewedCandidate.head, commitRef)) {
+      return `arp-fix commit ${commitRef} is outside reviewed candidate ancestry`;
+    }
+    if (!isAncestorCommit(config.worktree, commitRef, candidate.head)) {
+      return `arp-fix commit ${commitRef} is not present in reported candidate ancestry`;
+    }
+  }
+
+  const requestedFindingIds = new Set(requestedFindings.map((finding) => finding.findingId));
+  const settlementFixCommits = validateCommitRefs(config, params.pendingSettlements.map((settlement) => settlement.fixCommitSha)) ?? [];
+  const seenSettlementIds = new Set<string>();
+  for (const [index, settlement] of params.pendingSettlements.entries()) {
+    if (seenSettlementIds.has(settlement.findingId)) {
+      return `arp-fix reported duplicate pending settlement ID ${settlement.findingId}`;
+    }
+    seenSettlementIds.add(settlement.findingId);
+    if (!requestedFindingIds.has(settlement.findingId)) {
+      return `arp-fix reported pending settlement for unrelated finding ${settlement.findingId}`;
+    }
+    const fixCommitSha = settlementFixCommits[index];
+    if (!fixCommitSha || !uniqueCommitRefs.has(fixCommitSha)) {
+      return `arp-fix settlement ${settlement.findingId} references commit outside commitRefs`;
+    }
+    if (!isAncestorCommit(config.worktree, reviewedCandidate.head, fixCommitSha)) {
+      return `arp-fix settlement ${settlement.findingId} references commit outside reviewed candidate ancestry`;
+    }
+    if (!isAncestorCommit(config.worktree, fixCommitSha, candidate.head)) {
+      return `arp-fix settlement ${settlement.findingId} references commit not present in candidate ancestry`;
+    }
+  }
+
+  return undefined;
 }
 
 function ensurePrivateDirectory(path: string): void {
@@ -418,7 +528,12 @@ function registerBridge(pi: ExtensionAPI, config: StageConfig): void {
         const writerProblem = writerSuccessProblem(config, params.outcome, params.change);
         if (writerProblem) return failedToolResult(writerProblem);
         const commitRefs = validateCommitRefs(config, params.commitRefs);
+        const publishedHeadSha = params.publishedHeadSha
+          ? validateCommitRefs(config, [params.publishedHeadSha])?.[0]
+          : undefined;
         const candidate = await candidateSnapshot(config, signal);
+        const arpFixValidationProblem = validateArpFixSuccessMetadata(config, params, commitRefs, candidate);
+        if (arpFixValidationProblem) return failedToolResult(arpFixValidationProblem);
         signal?.throwIfAborted();
         const reportRef = writeStageReport(config, params.report);
         const details = {
@@ -433,6 +548,11 @@ function registerBridge(pi: ExtensionAPI, config: StageConfig): void {
           reportRef,
           ...(params.prUrl ? { prUrl: params.prUrl } : {}),
           ...(commitRefs ? { commitRefs } : {}),
+          ...(publishedHeadSha ? { publishedHeadSha } : {}),
+          ...(params.reviewEvidence ? { reviewEvidence: params.reviewEvidence } : {}),
+          ...(params.actionableFindingDetails ? { actionableFindingDetails: params.actionableFindingDetails } : {}),
+          ...(params.settledFindingIds ? { settledFindingIds: params.settledFindingIds } : {}),
+          ...(params.pendingSettlements ? { pendingSettlements: params.pendingSettlements } : {}),
         };
         outcomeSubmitted = true;
         return {

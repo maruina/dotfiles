@@ -168,7 +168,7 @@ The system SHALL stop at three reviewed heads or the per-head deadline and SHALL
 - [x] Publish only after verification passes and candidate comparison succeeds. Pass verified pending settlements into the post-publish `arp-review` config so it calls `agentic_review_resolve_finding(resolution="addressed", ...)` with verified commit references before inspecting the new head. Handle partial failures by recording `settledFindingIds` and re-reading state, not contradictory permanent writes.
 - [x] Re-enter exact-head silent review after publication, at most three reviewed heads total. Do not make a fix on the third reviewed head when that would require an unavailable fourth review. Avoid empty commits and redundant reviews when only dispositions change.
 - [x] Extend `_fixtures/rpc-driver.ts` (via `pi.registerTool`) and `_rpc.test.ts` to prove fix, fresh verify, push, settlement, and re-review ordering and negative paths without network writes. Run both focused commands and LSP diagnostics; expect passing tests.
-- [ ] Commit with `feat(pi): automate verified ARP fixes and re-reviews`.
+- [x] Commit with `feat(pi): automate verified ARP fixes and re-reviews`.
 
 ### Task 3: Document operation and inspect future-agent guidance
 **Delivers:** Accurate user and maintainer instructions for automation, bounds, failures, and rollback.
@@ -179,7 +179,7 @@ The system SHALL stop at three reviewed heads or the per-head deadline and SHALL
 - [x] Update the README with work/personal behavior, invocation authorization, stage order, the three-head/20-minute limits, authentication failure, remote-review cancellation limits, partial resolutions, and recovery commands.
 - [x] Inspect both listed `AGENTS.md` files; add only durable lifecycle contract or testing traps, or record why no change is needed. Do not duplicate prompt-owned judgment policy.
 - [x] Review changed prompt descriptions and command help for consistency. Ensure no text claims production behavior that only fixtures establish.
-- [ ] Commit with `docs(pi): document automatic ARP completion` when documentation changes are required.
+- [x] Commit with `docs(pi): document automatic ARP completion` when documentation changes are required.
 
 ### Task 4: Final verification
 **Delivers:** Feature-level evidence that automation satisfies the confirmed scope without weakening existing lifecycle safety.
@@ -234,6 +234,9 @@ The system SHALL stop at three reviewed heads or the per-head deadline and SHALL
 - 2026-11-17 — AGENTS inspection:
   - `AGENTS.md` updated with a durable completion ordering trap.
   - `dot_pi/agent/AGENTS.md` re-read; no additional durable global rule change required.
+- Commit completion:
+  - Task 2 was committed as `7f791b1` (`feat(pi): automate verified ARP fixes and re-reviews`) with normal Git signing.
+  - Task 3 documentation and the commit checklist updates are included in `docs(pi): document automatic ARP completion`.
 - Open evidence gaps:
   - Production ARP evidence remains open (no explicit authorization + no suitable draft PR in this session).
   - Independent `/verify` was not run in this correction pass, so Task 4 gates that depend on independent `/verify` and post-verify cleanup remain open.

@@ -12,7 +12,7 @@ import { createJiti } from "jiti";
 
 const jiti = createJiti(import.meta.url);
 const { SessionManager } = await jiti.import("@earendil-works/pi-coding-agent");
-const { CombinedAutocompleteProvider } = await jiti.import("@earendil-works/pi-tui");
+const { CombinedAutocompleteProvider, Editor } = await jiti.import("@earendil-works/pi-tui");
 const { snapshotBranch } = await jiti.import("./_fork.ts");
 const { default: register } = await jiti.import("./index.ts");
 
@@ -101,6 +101,35 @@ test("session startup wraps forced rex-fork completion and delegates other input
     await complete(text);
     assert.equal(delegated.at(-1).options, options);
   }
+});
+
+test("editor Tab after rex-fork space displays destinations and inserts a selection", async () => {
+  const app = extension();
+  let wrap;
+  app.ctx.ui.addAutocompleteProvider = factory => { wrap = factory; };
+  await app.events.get("session_start")({}, app.ctx);
+  const base = new CombinedAutocompleteProvider([{ name: "rex-fork", getArgumentCompletions: app.command.getArgumentCompletions }], process.cwd());
+  const provider = wrap(base);
+  for (const text of ["/other", "./some-path", "/rex-forked "]) {
+    assert.equal(provider.shouldTriggerFileCompletion([text], 0, text.length), base.shouldTriggerFileCompletion([text], 0, text.length));
+  }
+  const plain = text => text;
+  const editor = new Editor({ terminal: { rows: 30 }, requestRender() {} }, {
+    borderColor: plain,
+    selectList: { selectedPrefix: plain, selectedText: plain, description: plain, scrollInfo: plain, noMatch: plain },
+  });
+  editor.setAutocompleteProvider(provider);
+  editor.setText("/rex-fork ");
+  editor.handleInput("\t");
+  let rendered = "";
+  for (let i = 0; i < 50; i++) {
+    rendered = editor.render(80).join("\n");
+    if (["tab", "right", "below"].every(option => rendered.includes(option))) break;
+    await sleep(10);
+  }
+  for (const option of ["tab", "right", "below"]) assert.ok(rendered.includes(option), `Tab did not display ${option}: ${rendered}`);
+  editor.handleInput("\t");
+  assert.equal(editor.getText(), "/rex-fork tab");
 });
 
 test("tab snapshot refuses absent and partially persisted conversations", () => {

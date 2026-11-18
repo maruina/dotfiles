@@ -57,7 +57,7 @@
 - [x] Verify focused deterministic tests pass with `node --experimental-strip-types --test exact_extensions/rex-fork/rex-fork.test.mjs`.
 
 ### Task 2: Register autocomplete provider wrapper for forced Tab completion in index.ts
-**Status:** Complete. The focused suite passed: 35 tests passed and 3 smoke tests were skipped.
+**Status:** Complete after the editor-level follow-up: 36 tests passed and 3 smoke tests were skipped. The real editor Tab test failed before overriding the early completion gate, then passed with all destinations visible and selection inserted.
 **Delivers:** Pressing Tab after `/rex-fork ` offers `tab`, `right`, and `below`.
 **Blocked by:** Task 1
 **Traces to:** Requirement: Tab shows argument options
@@ -77,7 +77,7 @@
 - [x] Run isolated Rex smoke tests with `PI_REX_FORK_SMOKE=1 node --experimental-strip-types --test exact_extensions/rex-fork/rex-fork.test.mjs` from `dot_pi/agent`. Extend smoke coverage to prove a source started with model/session selectors and an initial message forks into an independent pane without generating child model turns or network requests.
 - [x] Run `npm test` and `npm run test:all` from `dot_pi/agent`. If confirmed baseline lifecycle-prompt failures occur, verify them against baseline before treating as exceptions.
 - [x] Verify zero LSP diagnostics on touched TypeScript files and verify `git diff --check` passes.
-  - Both TypeScript files had zero LSP diagnostics. Both npm suites passed. The isolated smoke suite passed all 38 tests, including startup selector and no-model-event checks.
+  - Both TypeScript files had zero LSP diagnostics. Both npm suites passed. The isolated smoke suite passed all 39 tests, including the real editor Tab regression, startup selector, and no-model-event checks.
   - `compute-guardrails` blocked worktree dependency removal and requires a manual terminal command. Per user instruction, retain the isolated dependencies for independent verification; cleanup remains a manual-only operational step.
 
 ## Acceptance contracts
@@ -107,7 +107,7 @@ The extension SHALL offer `tab`, `right`, and `below` through Pi's forced-comple
 
 ## Validation limits and rollout
 ### Validation limits
-Real provider tests establish Tab dispatch behavior; the isolated Rex/Pi tests establish launch/receipt behavior. Mocked callback tests alone are insufficient. Do not send test model prompts, stop the user's Rex server, or change global dependencies. Keep the base checkout on main.
+A real `Editor.handleInput("\t")` test establishes Tab dispatch through the early file-completion gate, the provider wrapper, the rendered destinations, and insertion. Provider-only tests missed that Pi trims `/rex-fork ` before that gate and returns false. The isolated Rex/Pi tests establish launch/receipt behavior. Mocked callback tests alone are insufficient. Do not send test model prompts, stop the user's Rex server, or change global dependencies. Keep the base checkout on main.
 
 ### Rollout and rollback
 1. Obtain fresh independent verification before deployment.
@@ -117,3 +117,6 @@ Real provider tests establish Tab dispatch behavior; the isolated Rex/Pi tests e
 5. In existing Pi sessions, run `/reload` to load the updated extension.
 6. Commit source changes and push branch after explicit user authorization.
 7. To roll back, restore previous `rex-fork` extension files and `/reload`.
+
+## Learning candidates
+- 2026-11-18: Direct `CombinedAutocompleteProvider.getSuggestions` tests missed Pi's earlier `shouldTriggerFileCompletion` gate; the real `Editor.handleInput` Tab test reproduced the deployed failure and passed after the command-scoped gate override — evidence: `dot_pi/agent/exact_extensions/rex-fork/rex-fork.test.mjs`, test `editor Tab after rex-fork space displays destinations and inserts a selection`.

@@ -17,7 +17,9 @@ export default function rexFork(pi: ExtensionAPI) {
           return current.getSuggestions(lines, line, col, /^\/rex-fork(?: |$)/.test(text) ? { ...options, force: false } : options);
         },
         applyCompletion: (lines, line, col, item, prefix) => current.applyCompletion(lines, line, col, item, prefix),
-        shouldTriggerFileCompletion: (lines, line, col) => current.shouldTriggerFileCompletion?.(lines, line, col) ?? true,
+        // Pi checks this gate before suggestions and trims the command's trailing space.
+        shouldTriggerFileCompletion: (lines, line, col) => /^\/rex-fork(?: |$)/.test((lines[line] ?? "").slice(0, col).trimStart())
+          || (current.shouldTriggerFileCompletion?.(lines, line, col) ?? true),
       }));
     }
     const epoch = generation;

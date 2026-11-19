@@ -114,11 +114,11 @@ else
     set _asdf_shims "$ASDF_DATA_DIR/shims"
 end
 
-# Do not use fish_add_path (added in Fish 3.2) because it
-# potentially changes the order of items in PATH
-if not contains $_asdf_shims $PATH
-    set -gx --prepend PATH $_asdf_shims
+# Login shells can inherit the shim directory after system paths.
+while set -l shim_index (contains --index -- "$_asdf_shims" $PATH)
+    set --erase PATH[$shim_index]
 end
+set -gx --prepend PATH "$_asdf_shims"
 set --erase _asdf_shims
 
 {{- if eq .profile "work" }}
@@ -130,6 +130,12 @@ fish_add_path "{{ .chezmoi.homeDir }}/.bun/bin"
 set -l jetbrains_toolbox_scripts "{{ .chezmoi.homeDir }}/Library/Application Support/JetBrains/Toolbox/scripts"
 if test -d "$jetbrains_toolbox_scripts"
     fish_add_path --append "$jetbrains_toolbox_scripts"
+end
+
+# Make the Rex CLI available outside Rex terminals.
+set -l rex_bin "{{ .chezmoi.homeDir }}/Library/Application Support/com.superlogical.rex/RexServer/Versions/Current/Rex Server.app/Contents/MacOS"
+if test -x "$rex_bin/rex"
+    fish_add_path --path --append "$rex_bin"
 end
 
 # Add obsidian CLI

@@ -31,6 +31,9 @@
 | `chezmoi` | `skill-loader` | Managed Pi files | Used the source worktree and kept rendered targets out of scope. |
 | `write` | `skill-loader` | Plan ledger and prompts | Kept the stop diagnosis explicit and condensed the execute posture without raising the prompt budget. |
 | `learning-candidates` | `prompt-required` | Prompt budget assumption | Recorded the context budget failure and how to check it before editing. |
+| `rex` | `agent-selected` | Live Pi UI | Ran the smoke check in a separate Rex pane without changing the active session. |
+| `diataxis` | `skill-loader` | Recovery how-to and protocol reference | Documented the operator choices separately from the outcome contract. |
+| `script-best-practices` | `agent-selected` | Smoke launcher and evidence commands | Passed the candidate paths explicitly and checked command results. |
 
 ## Implementation Contract
 ### Components affected
@@ -92,10 +95,25 @@ Evidence: The focused protocol, RPC, coordinator, and prompt tests failed before
 **Traces to:** R1, R2, rollout and rollback.
 **Files:** `dot_pi/agent/exact_extensions/ship-conductor/README.md`, `AGENTS.md`, `dot_pi/agent/AGENTS.md`, this plan ledger.
 
-- [ ] In a disposable worktree and isolated candidate Pi agent directory, run a committed smoke plan whose execute child stops on an intentionally absent local prerequisite. Check the concrete reason in the summary after stopping. Retry the smoke scenario, choose recovery without changing the candidate or prerequisite, and check the available actions. Decline the external-prerequisite confirmation and check that no retry starts. Do not simulate approval by editing the run record or modify rendered Pi targets. Record exact invocation, candidate, observations, and cleanup in the plan ledger.
-- [ ] Update the coordinator README with the new recovery options and their limits. Inspect both `AGENTS.md` files and record why no change is needed unless they lack durable guidance required for this path.
-- [ ] Run `git diff --check`, `npm test`, and `npm run test:all` from `dot_pi/agent`. Use the isolated candidate agent directory for the Pi smoke command. Record results and leave apply and publication to verified closeout.
-- [ ] Commit with `docs(pi): explain execute blocker recovery`.
+- [x] In a disposable worktree and isolated candidate Pi agent directory, run a committed smoke plan whose execute child stops on an intentionally absent local prerequisite. Check the concrete reason in the summary after stopping. Retry the smoke scenario, choose recovery without changing the candidate or prerequisite, and check the available actions. Decline the external-prerequisite confirmation and check that no retry starts. Do not simulate approval by editing the run record or modify rendered Pi targets. Record exact invocation, candidate, observations, and cleanup in the plan ledger.
+- [x] Update the coordinator README with the new recovery options and their limits. Inspect both `AGENTS.md` files and record why no change is needed unless they lack durable guidance required for this path.
+- [x] Run `git diff --check`, `npm test`, and `npm run test:all` from `dot_pi/agent`. Use the isolated candidate agent directory for the Pi smoke command. Record results and leave apply and publication to verified closeout.
+- [x] Commit with `docs(pi): explain execute blocker recovery`.
+
+Live smoke: The disposable worktree started from implementation commit `3341308` and had smoke plan commit `51aafe71a6c16dbeb16f34c1f39be7611bca1d8f`. The isolated agent directory used the candidate prompts and `pi-client-session-id`, loaded only the gateway package, and did not load MCP servers. Launch:
+
+```sh
+rex run -s "$REX_SESSION" -c /tmp/pi-execute-recovery.wcGhuL0D/worktree --label 'Execute recovery smoke' --focus=false --keep-open --json -- env PI_CODING_AGENT_DIR=/tmp/pi-execute-recovery.wcGhuL0D/agent /Users/matteo.ruina/.local/bin/pi --no-mcp --no-session --models gpt-6.2-sol,gpt-6.2-astra --model gpt-6.2-sol --thinking low --extension /tmp/pi-execute-recovery.wcGhuL0D/worktree/dot_pi/agent/exact_extensions/ship-conductor/index.ts
+```
+
+- Ran `/implement /tmp/pi-execute-recovery.wcGhuL0D/worktree/plans/smoke-execute-recovery/plan.md` twice in Pi 1.5.2. Selected Sol for execute and simplify, Astra for verify, and low thinking for all stages.
+- First run `4ae7c1b1-7a8d-4d5e-bdde-49cabd0b84c0`: selected **Stop**. The summary said `Reason: Operator prerequisite file is missing` and gave the direct `/execute` handoff for the smoke plan.
+- Second run `5a804961-5f56-45c7-84af-d4e2939c5c8e`: selected **Recover**. The session model confirmed the file was still absent and did not change Git. The menu showed **Recover again**, **Stop**, and **Confirm external prerequisite changed**, with no direct retry. Selected confirmation, then **Keep stopped**. The two runs each had one execute config, zero verification attempts, and no later stage. `HEAD` still matched `candidateAtStop.head`, `git status --porcelain` was empty, and no coordinator lock remained. Only the UI supplied operator choices.
+- Cleanup: Pi exited with code 0. Closed the smoke Rex tab and removed the disposable worktree and its branch. Kept the private agent directory and captures under `/tmp/pi-execute-recovery.wcGhuL0D` because the shell guard prohibits recursive deletion. No rendered target changed.
+- Guidance inspection: `AGENTS.md` already requires the isolated live test, real Pi 1.5.0 RPC coverage, and structured lifecycle outcomes. `dot_pi/agent/AGENTS.md` already assigns lifecycle rules to the templates. Neither needs a change.
+
+Final checks: `git diff --check`, `npm test`, and `npm run test:all` passed. Ran both npm commands serially from `dot_pi/agent` with Pi 1.5.0 first on `PATH` and the isolated `PI_CODING_AGENT_DIR`; the agent directory also discovered the candidate coordinator for `test:smoke`. The unit suite reported 472 passes and three unrelated Rex startup skips, with no failures. The first parallel run of the two suites failed because both TypeScript LSP integration tests wrote `node_modules/.pi-lsp-integration.ts`. The serial rerun passed without code or test changes. Dependencies remain available for independent verification.
 
 ## Learning candidates
 - 2026-11-19: `execute.md` had only two bytes of headroom before this change. Check the per-template byte budget before adding lifecycle policy; condense existing instructions without weakening them — evidence: `npm run test:prompts` first rejected 14,930 bytes against the 14,500-byte limit in `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`.
+- 2026-11-19: Run `npm test` and `npm run test:all` serially in one Pi source worktree. Both runs of the TypeScript integration test write `node_modules/.pi-lsp-integration.ts` — evidence: simultaneous runs failed in `dot_pi/agent/exact_extensions/lsp/__tests__/lsp.test.mjs`; both commands passed serially without code changes.

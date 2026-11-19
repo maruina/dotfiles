@@ -60,6 +60,7 @@ The dotfiles owner controls rollout. Do not apply rendered targets before indepe
 - GIVEN recovery changes the committed candidate and passes existing safety checks, WHEN the user chooses retry, THEN the coordinator starts a fresh execute child. A dirty worktree or a disallowed plan change must still block retry.
 
 ## Tasks
+### Slice 1: Deterministic execute recovery
 ### Task 1: Implement and test typed execute blockers and recovery choices
 **Delivers:** Concrete blocker details and no immediate same-candidate retry after cleanup alone.
 **Blocked by:** None
@@ -67,7 +68,7 @@ The dotfiles owner controls rollout. Do not apply rendered targets before indepe
 **Files:** `dot_pi/agent/exact_extensions/ship-conductor/_protocol.ts`, `dot_pi/agent/exact_extensions/ship-conductor/_bridge.ts`, `dot_pi/agent/exact_extensions/ship-conductor/_conductor.ts`, `dot_pi/agent/exact_extensions/ship-conductor/_protocol.test.ts`, `dot_pi/agent/exact_extensions/ship-conductor/_conductor.test.ts`, `dot_pi/agent/exact_extensions/ship-conductor/_rpc.test.ts`, `dot_pi/agent/exact_extensions/ship-conductor/_fixtures/rpc-driver.ts`, `dot_pi/agent/exact_prompts/execute.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`.
 
 - [ ] Add focused failing protocol, RPC, coordinator, and prompt tests for R1 and R2. Cover absent and invalid blocker data, cleanup after a pre-stop baseline merge, external confirmation and dismissal, and unchanged behavior for non-execute stops.
-- [ ] Implement the smallest passing protocol, coordinator, and prompt changes. Check TypeScript diagnostics and rerun focused tests after any refactoring.
+- [ ] Implement the smallest passing protocol, coordinator, and prompt changes. Record the exact candidate snapshot at outcome submission (`candidateAtStop`) in stage/stop records so the post-recovery check compares against that commit rather than `candidateBeforeStage`. Check TypeScript diagnostics and rerun focused tests after any refactoring.
 - [ ] From `dot_pi/agent`, run `npm ci --ignore-scripts`, `node --experimental-strip-types --test 'exact_extensions/ship-conductor/*.test.ts'`, and `npm run test:prompts`. Require the Pi 1.5.0 RPC tests to run and pass, not skip. Keep dependencies until independent verification and the full suites finish.
 - [ ] Commit with `fix(pi): make execute blocker recovery deterministic`. Do not apply or publish yet.
 

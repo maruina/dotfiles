@@ -24,6 +24,18 @@
 | `write` | `skill-loader` | Prepare the brief and plan | Used observable contracts and explicit stop conditions. |
 | `diataxis` | `skill-loader` | Scope the pilot guide | Separated operating and rollback instructions from decision evidence. |
 
+### Execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `skill-loader` | `prompt-required` | Select execution guidance | Matched affected source and ledger files to skills. |
+| `resolve-worktree` | `prompt-required` | Resolve the supplied plan | Selected its owning feature worktree. |
+| `feature-worktree` | `prompt-required` | Keep implementation off `main` | Continued on the plan's feature branch. |
+| `chezmoi` | `skill-loader` | Modify managed files | Use the feature source and explicit target previews. |
+| `script-best-practices` | `skill-loader` | Modify the installer and Fish entry | Preserve existing script style and validate shell syntax. |
+| `cli-best-practices` | `skill-loader` | Integrate a CLI | Check coexistence, exit status, and observable Git state. |
+| `codebase-research` | `skill-loader` | Understand the shell integration | Inspected the installer, profile roots, and legacy `wt`. |
+| `write` | `skill-loader` | Update the plan ledger | Record evidence and limits precisely. |
+
 ## Implementation Contract
 ### Components Affected
 | Component | Files | Responsibility | Verification |
@@ -132,11 +144,13 @@ The pilot SHALL provide a decision for each legacy command without moving or rem
 **Traces to:** R1.
 **Files:** `run_onchange_brew-install.sh.tmpl`, `dot_config/private_fish/conf.d/worktrunk.fish`; test against `dot_config/private_fish/exact_functions/wt.fish`.
 
-- [ ] Run the focused before-change command. Add the formula to the shared Darwin Brew bundle and manage the alternate Fish integration with the documented shell initializer. Guard the initializer when the binary is absent. Do not use `wt config shell install` to write Fish targets.
-- [ ] Render the installer for `work` and `personal` with `chezmoi --source "$PWD" --override-data '{"profile":"work"}' execute-template < run_onchange_brew-install.sh.tmpl` and the personal equivalent. Check each captured render with `bash -n` and confirm exactly one `brew "worktrunk"` declaration. Run `fish -n dot_config/private_fish/conf.d/worktrunk.fish`.
-- [ ] Resolve the installer with `chezmoi --source "$PWD" target-path --source-path run_onchange_brew-install.sh.tmpl`. Preview that target with `chezmoi --source "$PWD" apply --dry-run --verbose --include=scripts "$HOME/brew-install.sh"`. Review all package actions the script can take, stop on unreviewed actions, then run `chezmoi --source "$PWD" apply --include=scripts "$HOME/brew-install.sh"`. Preview and apply the Fish entry with `chezmoi diff dot_config/private_fish/conf.d/worktrunk.fish` and `chezmoi apply dot_config/private_fish/conf.d/worktrunk.fish`.
-- [ ] In fresh Fish processes, verify `type -a git-wt`, `type -a wt`, and `command wt --version`. Test both commands against the same worktree registered by Git, compare `$PWD` and porcelain registration, and rerun the pilot switch to prove reuse. Test missing binary using isolated Fish startup and a restricted `PATH`, not by removing the Homebrew package. Verify the base checkout's branch and SHA did not change.
-- [ ] Commit with `feat(chezmoi): add a side-by-side Worktrunk pilot`.
+**Evidence.** The baseline `fish -c 'type -q git-wt'` exited 1. `brew bundle check` identified pending updates to `b2-tools`, `gawk`, `gh`, `git`, `go`, `helm`, `typescript-language-server`, and `uv`; Matteo approved those updates and their dependencies before the script apply. The first `git-wt --version` returned 127 because the generated alternate function searches for a `git-wt` binary. The entry supplies Worktrunk's `WORKTRUNK_BIN` override when none is already set.
+
+- [x] Run the focused before-change command. Add the formula to the shared Darwin Brew bundle and manage the alternate Fish integration with the documented shell initializer. Guard the initializer when the binary is absent. Do not use `wt config shell install` to write Fish targets. Baseline exited 1; added the formula and guarded initializer.
+- [x] Render the installer for `work` and `personal` with `chezmoi --source "$PWD" --override-data '{"profile":"work"}' execute-template < run_onchange_brew-install.sh.tmpl` and the personal equivalent. Check each captured render with `bash -n` and confirm exactly one `brew "worktrunk"` declaration. Run `fish -n dot_config/private_fish/conf.d/worktrunk.fish`. Both renders passed `bash -n` and contained one declaration; Fish syntax passed.
+- [x] Resolve the installer with `chezmoi --source "$PWD" target-path --source-path run_onchange_brew-install.sh.tmpl`. Preview that target with `chezmoi --source "$PWD" apply --dry-run --verbose --include=scripts "$HOME/brew-install.sh"`. Review all package actions the script can take, stop on unreviewed actions, then run `chezmoi --source "$PWD" apply --include=scripts "$HOME/brew-install.sh"`. Preview and apply the Fish entry with `chezmoi diff dot_config/private_fish/conf.d/worktrunk.fish` and `chezmoi apply dot_config/private_fish/conf.d/worktrunk.fish`. Applied the reviewed installer with Homebrew auto-update and cleanup disabled; it upgraded the eight approved formulas and installed Worktrunk v0.82.0. The standalone packages were already installed. Applied and verified the explicit Fish target.
+- [x] In fresh Fish processes, verify `type -a git-wt`, `type -a wt`, and `command wt --version`. Test both commands against the same worktree registered by Git, compare `$PWD` and porcelain registration, and rerun the pilot switch to prove reuse. Test missing binary using isolated Fish startup and a restricted `PATH`, not by removing the Homebrew package. Verify the base checkout's branch and SHA did not change. Worktrunk v0.82.0 and both Fish functions were present. In a disposable repository, candidate, legacy, and repeated candidate switches reached the same registered path; registration, base branch, and HEAD stayed unchanged. An isolated Fish with `/usr/bin:/bin` started silently and ran legacy `wt` without the binary. A final `fish -n` command first used a misspelled path; the corrected command passed.
+- [x] Commit with `feat(chezmoi): add a side-by-side Worktrunk pilot`.
 
 ### Slice 2: Establish path and setup parity
 #### Task 2: Preserve legacy paths and local guidance for new worktrees

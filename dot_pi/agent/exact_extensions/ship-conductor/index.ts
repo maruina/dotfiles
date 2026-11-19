@@ -150,7 +150,6 @@ export default function implementCoordinator(pi: ExtensionAPI): void {
             verify: join(agentDirectory, "prompts", "verify.md"),
           };
           const completionStagePaths: Record<CompletionStage, string> = {
-            "pr-publish": join(agentDirectory, "prompts", "pr-publish.md"),
             "arp-review": join(agentDirectory, "prompts", "arp-review.md"),
             "arp-fix": join(agentDirectory, "prompts", "arp-fix.md"),
             verify: join(agentDirectory, "prompts", "verify.md"),

@@ -9,6 +9,9 @@ import {
   type StageConfig,
 } from "./_protocol.ts";
 import type { CandidateSnapshot } from "./_worktree.ts";
+import type { Publisher } from "./_publish.ts";
+
+export type CompletionStep = CompletionStage | "pr-publish";
 import { sameKnownModel, type ModelIdentity } from "./_models.ts";
 
 const PROFILE_FILE = "ship-conductor-profile.json";
@@ -45,7 +48,7 @@ export type CompletionPhaseResult =
     }
   | {
       status: "blocked";
-      stage: CompletionStage | "transition";
+      stage: CompletionStep | "transition";
       reason: string;
       prUrl?: string;
       headSha?: string;
@@ -55,7 +58,7 @@ export type CompletionPhaseResult =
     }
   | {
       status: "cancelled" | "process-failure";
-      stage: CompletionStage;
+      stage: CompletionStep;
       reason: string;
       prUrl?: string;
       headSha?: string;
@@ -81,6 +84,7 @@ export type CompletionPhaseInput = {
   thinkingLevels: { execute: string; verify: string };
   now?: () => Date;
   signal?: AbortSignal;
+  publish: Publisher;
   dispatch: CompletionStageDispatch;
 };
 
@@ -245,7 +249,7 @@ function buildConfig(
 }
 
 function blocked(
-  stage: CompletionStage | "transition",
+  stage: CompletionStep | "transition",
   reason: string,
   context: { prUrl?: string; headSha?: string; settledFindingIds: string[]; reviewedHeads: string[]; remainingFindingIds: string[] },
 ): CompletionPhaseResult {
@@ -263,7 +267,7 @@ function blocked(
 
 function stopped(
   status: "cancelled" | "process-failure",
-  stage: CompletionStage,
+  stage: CompletionStep,
   reason: string,
   context: { prUrl?: string; headSha?: string; settledFindingIds: string[]; reviewedHeads: string[]; remainingFindingIds: string[] },
 ): CompletionPhaseResult {
@@ -346,7 +350,7 @@ export async function runCompletionPhase(input: CompletionPhaseInput): Promise<C
     remainingFindingIds: [...remainingFindingIds],
   });
 
-  const cancelledBefore = (stage: CompletionStage): CompletionPhaseResult | undefined => {
+  const cancelledBefore = (stage: CompletionStep): CompletionPhaseResult | undefined => {
     if (!input.signal?.aborted) return undefined;
     return stopped("cancelled", stage, `Cancelled before ${stage} started`, context());
   };
@@ -355,47 +359,14 @@ export async function runCompletionPhase(input: CompletionPhaseInput): Promise<C
     const cancelBeforePublish = cancelledBefore("pr-publish");
     if (cancelBeforePublish) return cancelBeforePublish;
 
-    const publishConfig = buildConfig(input, "pr-publish", {
-      policy: "work",
-      candidate: currentCandidate,
-    });
-    const publish = await input.dispatch({
-      stage: "pr-publish",
-      prompt: "/pr-publish",
-      config: publishConfig,
-      signal: input.signal,
-    });
-    const publishError = validateOutcome("pr-publish", publish);
-    if (publishError) return stopped("process-failure", "pr-publish", publishError, context());
+    const publish = await input.publish({ worktree: input.worktree, candidate: currentCandidate, signal: input.signal });
+    if (publish.prUrl) prUrl = publish.prUrl;
     if (publish.status === "cancelled") return stopped("cancelled", "pr-publish", publish.reason, context());
-    if (publish.status === "failure") return stopped("process-failure", "pr-publish", publish.reason, context());
-    if (publish.status === "blocked") return blocked("pr-publish", publish.reason, context());
-    if (publish.status !== "settled") {
-      return stopped("process-failure", "pr-publish", "pr-publish returned an unknown status", context());
+    if (publish.status !== "published") return blocked("pr-publish", publish.reason, context());
+    if (publish.headSha !== currentCandidate.head) {
+      return blocked("pr-publish", `Published head ${publish.headSha} does not match the verified candidate head ${currentCandidate.head}`, context());
     }
-
-    const publishOutcome = publish.outcome;
-    if (publishOutcome.outcome === "blocked") {
-      return blocked("pr-publish", "pr-publish reported a lifecycle blocker", context());
-    }
-    if (!sameCandidate(publishOutcome.candidate, currentCandidate)) {
-      return blocked("pr-publish", "pr-publish changed the candidate state", context());
-    }
-    if (!publishOutcome.prUrl) {
-      return blocked("pr-publish", "pr-publish did not return a PR URL", context());
-    }
-    if (!publishOutcome.publishedHeadSha) {
-      return stopped("process-failure", "pr-publish", "pr-publish did not report the pushed PR head SHA", context());
-    }
-    if (publishOutcome.publishedHeadSha !== currentCandidate.head) {
-      return blocked(
-        "pr-publish",
-        `pr-publish head ${publishOutcome.publishedHeadSha} does not match the verified candidate head ${currentCandidate.head}`,
-        context(),
-      );
-    }
-    const cyclePrUrl = publishOutcome.prUrl;
-    prUrl = cyclePrUrl;
+    const cyclePrUrl = publish.prUrl;
 
     const cancelBeforeReview = cancelledBefore("arp-review");
     if (cancelBeforeReview) return cancelBeforeReview;

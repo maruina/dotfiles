@@ -504,33 +504,6 @@ export default function lifecycleRpcDriver(pi: ExtensionAPI): void {
           return streamText(model, outcome.isError ? "fixture observed verify outcome tool error" : "fixture observed verify success");
         }
 
-        if (activeStage === "pr-publish") {
-          if (!outcome) {
-            if (!bashResult) {
-              return streamToolCall(model, makeToolCall(`fixture-call-${++callNumber}`, "bash", { command: "git push origin HEAD" }));
-            }
-            if (bashResult.isError) {
-              return streamToolCall(model, makeToolCall(`fixture-call-${++callNumber}`, "lifecycle_submit_outcome", {
-                schemaVersion: PROTOCOL_VERSION, outcome: "blocked", change: "not-applicable", report: "Fixture push failed.",
-              }));
-            }
-            const publishedHead = contractCandidateHead ?? expectedHeadSha;
-            return streamToolCall(
-              model,
-              makeToolCall(`fixture-call-${++callNumber}`, "lifecycle_submit_outcome", {
-                schemaVersion: PROTOCOL_VERSION,
-                outcome: "success",
-                change: "not-applicable",
-                report: "Fixture published the current candidate head.",
-                prUrl: "https://github.com/DataDog/repo/pull/123",
-                publishedHeadSha: publishedHead,
-                commitRefs: [publishedHead],
-              }),
-            );
-          }
-          return streamText(model, outcome.isError ? "fixture observed pr-publish outcome tool error" : "fixture observed pr-publish success");
-        }
-
         if (activeStage === "arp-review") {
           if (!outcome) {
             const reviewHead = contractExpectedReviewHead ?? contractCandidateHead ?? expectedHeadSha;

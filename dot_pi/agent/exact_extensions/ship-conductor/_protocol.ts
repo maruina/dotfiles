@@ -12,20 +12,19 @@ export const StageSchema = Type.Union([
   Type.Literal("execute"),
   Type.Literal("simplify"),
   Type.Literal("verify"),
-  Type.Literal("pr-publish"),
   Type.Literal("arp-review"),
   Type.Literal("arp-fix"),
 ]);
 export type Stage = Static<typeof StageSchema>;
 export type ExecutionStage = Extract<Stage, "execute" | "simplify" | "verify">;
-export type CompletionStage = "pr-publish" | "arp-review" | "arp-fix" | "verify";
+export type CompletionStage = "arp-review" | "arp-fix" | "verify";
 
 export function isExecutionStage(stage: Stage): stage is ExecutionStage {
   return stage === "execute" || stage === "simplify" || stage === "verify";
 }
 
 export function isCompletionStage(stage: Stage): stage is CompletionStage {
-  return stage === "pr-publish" || stage === "arp-review" || stage === "arp-fix" || stage === "verify";
+  return stage === "arp-review" || stage === "arp-fix" || stage === "verify";
 }
 
 const GitObjectIdSchema = Type.String({ pattern: "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" });
@@ -126,7 +125,6 @@ const ModelsSchema = Type.Object(
 
 const ExecutionStageSchema = Type.Union([Type.Literal("execute"), Type.Literal("simplify"), Type.Literal("verify")]);
 const CompletionStageSchema = Type.Union([
-  Type.Literal("pr-publish"),
   Type.Literal("arp-review"),
   Type.Literal("arp-fix"),
   Type.Literal("verify"),
@@ -209,7 +207,6 @@ export const LifecycleOutcomeInputSchema = Type.Object(
     report: Type.String({ minLength: 1, maxLength: MAX_STAGE_REPORT_BYTES }),
     prUrl: Type.Optional(Type.String({ maxLength: 2048 })),
     commitRefs: Type.Optional(Type.Array(Type.String({ minLength: 1, maxLength: 256 }), { maxItems: 128 })),
-    publishedHeadSha: Type.Optional(GitObjectIdSchema),
     reviewEvidence: Type.Optional(ReviewEvidenceSchema),
     actionableFindingDetails: Type.Optional(Type.Array(FindingDetailSchema, { maxItems: MAX_FINDING_ITEMS })),
     settledFindingIds: Type.Optional(Type.Array(FindingIdSchema, { maxItems: MAX_FINDING_ITEMS })),
@@ -232,7 +229,6 @@ const LifecycleOutcomeEnvelopeSchema = Type.Object(
     reportRef: Type.String({ minLength: 1, maxLength: 4096 }),
     prUrl: Type.Optional(Type.String({ maxLength: 2048 })),
     commitRefs: Type.Optional(Type.Array(GitObjectIdSchema, { maxItems: 128 })),
-    publishedHeadSha: Type.Optional(GitObjectIdSchema),
     reviewEvidence: Type.Optional(ReviewEvidenceSchema),
     actionableFindingDetails: Type.Optional(Type.Array(FindingDetailSchema, { maxItems: MAX_FINDING_ITEMS })),
     settledFindingIds: Type.Optional(Type.Array(FindingIdSchema, { maxItems: MAX_FINDING_ITEMS })),
@@ -376,13 +372,6 @@ export function parseStageConfig(value: unknown, expectedWorktree: string): Stag
   const pendingSettlements = completion.pendingSettlements;
   const verificationWriters = completion.verificationWriters;
 
-  if (config.stage === "pr-publish") {
-    if (reviewRequest || fixRequest || hasItems(pendingSettlements) || hasItems(verificationWriters)) {
-      throw new Error("Lifecycle pr-publish stage accepts only policy and candidate metadata");
-    }
-    return config;
-  }
-
   if (config.stage === "arp-review") {
     if (!reviewRequest) throw new Error("Lifecycle arp-review stage requires review request metadata");
     if (fixRequest) throw new Error("Lifecycle arp-review stage must not include fix request metadata");
@@ -457,31 +446,19 @@ function validateStageOutcome(stage: Stage, outcome: LifecycleOutcomeInput["outc
 
 type CompletionOutcomeMetadata = Pick<
   LifecycleOutcomeInput,
-  "outcome" | "prUrl" | "commitRefs" | "publishedHeadSha" | "reviewEvidence" | "actionableFindingDetails" | "settledFindingIds" | "pendingSettlements"
+  "outcome" | "prUrl" | "commitRefs" | "reviewEvidence" | "actionableFindingDetails" | "settledFindingIds" | "pendingSettlements"
 >;
 
 function validateCompletionOutcomeMetadata(stage: Stage, input: CompletionOutcomeMetadata): void {
   if (stage === "execute" || stage === "simplify" || stage === "verify") {
-    if (input.publishedHeadSha || input.reviewEvidence || hasItems(input.actionableFindingDetails) || hasItems(input.pendingSettlements) || hasItems(input.settledFindingIds)) {
+    if (input.reviewEvidence || hasItems(input.actionableFindingDetails) || hasItems(input.pendingSettlements) || hasItems(input.settledFindingIds)) {
       throw new Error(`Lifecycle stage ${stage} does not accept completion outcome metadata`);
     }
     return;
   }
 
-  if (stage === "pr-publish") {
-    if (input.reviewEvidence || hasItems(input.actionableFindingDetails) || hasItems(input.pendingSettlements) || hasItems(input.settledFindingIds)) {
-      throw new Error("Lifecycle pr-publish outcome must not include review or settlement metadata");
-    }
-    if (input.outcome === "success") {
-      if (!input.prUrl) throw new Error("Lifecycle pr-publish success outcome requires prUrl");
-      if (!input.publishedHeadSha) throw new Error("Lifecycle pr-publish success outcome requires publishedHeadSha");
-      if (!hasItems(input.commitRefs)) throw new Error("Lifecycle pr-publish success outcome requires commitRefs");
-    }
-    return;
-  }
-
   if (stage === "arp-fix") {
-    if (input.reviewEvidence || input.publishedHeadSha || hasItems(input.actionableFindingDetails) || hasItems(input.settledFindingIds) || input.prUrl) {
+    if (input.reviewEvidence || hasItems(input.actionableFindingDetails) || hasItems(input.settledFindingIds) || input.prUrl) {
       throw new Error("Lifecycle arp-fix outcome must not include review metadata");
     }
     if (input.outcome === "success") {
@@ -507,7 +484,6 @@ function validateCompletionOutcomeMetadata(stage: Stage, input: CompletionOutcom
     return;
   }
 
-  if (input.publishedHeadSha) throw new Error("Lifecycle arp-review outcome must not include publishedHeadSha");
   if (hasItems(input.pendingSettlements)) throw new Error("Lifecycle arp-review outcome must not include pending settlements");
   if (!input.reviewEvidence) throw new Error("Lifecycle arp-review outcomes require reviewEvidence");
 

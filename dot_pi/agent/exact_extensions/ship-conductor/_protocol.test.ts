@@ -71,7 +71,7 @@ function validCompletionBase(stage: string): Record<string, unknown> {
   };
 }
 
-function withCompletion(stage: "pr-publish" | "arp-review" | "arp-fix" | "verify", completionOverrides: Record<string, unknown> = {}): Record<string, unknown> {
+function withCompletion(stage: "arp-review" | "arp-fix" | "verify", completionOverrides: Record<string, unknown> = {}): Record<string, unknown> {
   const base = validCompletionBase(stage);
   const completion = {
     ...(base.completion as Record<string, unknown>),
@@ -86,8 +86,7 @@ describe("parseStageConfig", () => {
     assert.deepEqual(parseStageConfig(config, WORKTREE), config);
   });
 
-  it("accepts completion configs for publish, review, fix, and feature verify", () => {
-    const publish = withCompletion("pr-publish");
+  it("accepts completion configs for review, fix, and feature verify", () => {
     const review = withCompletion("arp-review", {
       reviewRequest: {
         prUrl: "https://github.com/DataDog/repo/pull/123",
@@ -110,7 +109,6 @@ describe("parseStageConfig", () => {
       verificationWriters: ["lifecycle-test/executor", "lifecycle-test/simplifier"],
     });
 
-    assert.deepEqual(parseStageConfig(publish, WORKTREE), publish);
     assert.deepEqual(parseStageConfig(review, WORKTREE), review);
     assert.deepEqual(parseStageConfig(fix, WORKTREE), fix);
     assert.deepEqual(parseStageConfig(verify, WORKTREE), verify);
@@ -136,16 +134,7 @@ describe("parseStageConfig", () => {
   });
 
   it("rejects completion configs with wrong stage metadata", () => {
-    assert.throws(() => parseStageConfig(withCompletion("pr-publish", {
-      reviewRequest: {
-        prUrl: "https://github.com/DataDog/repo/pull/123",
-        expectedHeadSha: COMMIT,
-        deadlineAt: "2026-01-01T00:20:00.000Z",
-        maxStatusChecks: 30,
-        pollIntervalsSeconds: [10, 30, 60],
-        silent: true,
-      },
-    }), WORKTREE), /pr-publish stage accepts only policy and candidate metadata/i);
+    assert.throws(() => parseStageConfig({ ...withCompletion("arp-review"), stage: "pr-publish" }, WORKTREE), /invalid lifecycle stage configuration/i);
 
     assert.throws(() => parseStageConfig(withCompletion("arp-review"), WORKTREE), /requires review request metadata/i);
 
@@ -350,22 +339,6 @@ describe("parseLifecycleOutcome", () => {
       parseLifecycleOutcome(
         {
           schemaVersion: PROTOCOL_VERSION,
-          outcome: "success",
-          change: "not-applicable",
-          report: "Draft PR is ready.",
-          prUrl: "https://github.com/DataDog/repo/pull/123",
-          publishedHeadSha: COMMIT,
-          commitRefs: [COMMIT],
-        },
-        "pr-publish",
-      ).outcome,
-      "success",
-    );
-
-    assert.equal(
-      parseLifecycleOutcome(
-        {
-          schemaVersion: PROTOCOL_VERSION,
           outcome: "blocked",
           change: "not-applicable",
           report: "Findings require fixes.",
@@ -415,20 +388,6 @@ describe("parseLifecycleOutcome", () => {
       parseLifecycleOutcome(
         { schemaVersion: PROTOCOL_VERSION, outcome: "VERIFIED", change: "not-applicable", report: "wrong stage" },
         "execute",
-      ),
-    );
-
-    assert.throws(() =>
-      parseLifecycleOutcome(
-        {
-          schemaVersion: PROTOCOL_VERSION,
-          outcome: "success",
-          change: "not-applicable",
-          report: "missing commit refs",
-          prUrl: "https://github.com/DataDog/repo/pull/123",
-          publishedHeadSha: COMMIT,
-        },
-        "pr-publish",
       ),
     );
 

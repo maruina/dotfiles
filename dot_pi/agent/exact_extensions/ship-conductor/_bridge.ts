@@ -528,9 +528,6 @@ function registerBridge(pi: ExtensionAPI, config: StageConfig): void {
         const writerProblem = writerSuccessProblem(config, params.outcome, params.change);
         if (writerProblem) return failedToolResult(writerProblem);
         const commitRefs = validateCommitRefs(config, params.commitRefs);
-        const publishedHeadSha = params.publishedHeadSha
-          ? validateCommitRefs(config, [params.publishedHeadSha])?.[0]
-          : undefined;
         const candidate = await candidateSnapshot(config, signal);
         const arpFixValidationProblem = validateArpFixSuccessMetadata(config, params, commitRefs, candidate);
         if (arpFixValidationProblem) return failedToolResult(arpFixValidationProblem);
@@ -548,7 +545,6 @@ function registerBridge(pi: ExtensionAPI, config: StageConfig): void {
           reportRef,
           ...(params.prUrl ? { prUrl: params.prUrl } : {}),
           ...(commitRefs ? { commitRefs } : {}),
-          ...(publishedHeadSha ? { publishedHeadSha } : {}),
           ...(params.reviewEvidence ? { reviewEvidence: params.reviewEvidence } : {}),
           ...(params.actionableFindingDetails ? { actionableFindingDetails: params.actionableFindingDetails } : {}),
           ...(params.settledFindingIds ? { settledFindingIds: params.settledFindingIds } : {}),

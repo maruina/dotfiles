@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
+import { parsePullRequestUrl } from "./github-url.mjs";
 
 const HELP = `Usage: node collect.mjs <GitHub pull request URL>
 
@@ -57,27 +58,6 @@ const SOURCE_NAMES = [
   "reviewThreads",
   "checks",
 ];
-
-function parsePullRequestUrl(value) {
-  let url;
-  try {
-    url = new URL(value);
-  } catch {
-    throw new Error("invalid_url");
-  }
-
-  if (url.protocol !== "https:" || url.hostname !== "github.com" || url.username || url.password || url.port) {
-    throw new Error("invalid_url");
-  }
-
-  const match = /^\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)\/pull\/([0-9]+)\/?$/.exec(url.pathname);
-  if (!match) throw new Error("invalid_url");
-  const number = Number(match[3]);
-  if (!Number.isSafeInteger(number) || number < 1) throw new Error("invalid_url");
-
-  const [, owner, repo] = match;
-  return { owner, repo, number, url: `https://github.com/${owner}/${repo}/pull/${number}` };
-}
 
 function runGh(args, { allowPendingExit = false } = {}) {
   return new Promise((resolve) => {

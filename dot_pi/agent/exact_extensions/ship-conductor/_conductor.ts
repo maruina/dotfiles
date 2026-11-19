@@ -33,7 +33,8 @@ import {
   type RpcStageUI,
 } from "./_spawn.ts";
 import { LifecycleRunLease, LifecycleStateStore } from "./_state.ts";
-import { runCompletionPhase, type CompletionPolicy } from "./_completion.ts";
+import { runCompletionPhase, type CompletionPolicy, type CompletionStep } from "./_completion.ts";
+import { publishDraft, type Publisher } from "./_publish.ts";
 import { remainingUnitHeadings, selectExecutionUnit, validatePlanProgress, type UnitDescriptor } from "./_unit.ts";
 import type { CandidateSnapshot, ResolvePlanResult } from "./_worktree.ts";
 
@@ -82,6 +83,7 @@ export type ConductorDeps = {
   bridgePath: string;
   captureCandidate(root: string): CandidateSnapshot;
   runStage: LifecycleStageRunner;
+  publish?: Publisher;
   /** User-chosen recovery with the coordinating session's model; absent means no recovery is offered. */
   recovery?: {
     sessionModel(): ModelIdentity | undefined;
@@ -195,7 +197,7 @@ export type ConductorOutcome =
       status: "cancelled";
       runId?: string;
       recordPath?: string;
-      stage?: Stage | "transition";
+      stage?: Exclude<TerminalStage, "preflight">;
       reason: string;
       verificationAttempts: number;
       blockedVerdicts: number;
@@ -210,7 +212,7 @@ export type ConductorOutcome =
       summary: string;
     };
 
-type TerminalStage = Stage | "preflight" | "transition";
+type TerminalStage = Stage | CompletionStep | "preflight" | "transition";
 
 const STAGES: ExecutionStage[] = ["execute", "simplify", "verify"];
 // deliberate: at most two recoveries per run, so a stage that keeps failing ends instead of looping with the user.
@@ -1102,6 +1104,26 @@ export async function runImplement(
                 thinkingLevels: { execute: thinkingLevels.execute, verify: thinkingLevels.verify },
                 signal,
                 now: () => new Date(now()),
+                publish: async (publication) => {
+                  deps.ui.setStatus("lifecycle-coordinator", "pr-publish: publishing verified draft");
+                  const checkCandidate = (when: string) => {
+                    try {
+                      if (sameCandidate(publication.candidate, deps.captureCandidate(initial.root))) return undefined;
+                    } catch { /* A dirty or unreadable worktree is also drift. */ }
+                    return `Candidate changed outside the coordinator ${when}`;
+                  };
+                  const before = checkCandidate("before pr-publish");
+                  if (before) return { status: "blocked", reason: before };
+                  const result = await (deps.publish ?? publishDraft)(publication);
+                  if (result.prUrl) {
+                    record.prUrl = result.prUrl;
+                    record.prPresence = "present";
+                    persist();
+                  }
+                  if (result.status !== "published") return result;
+                  const after = checkCandidate("after pr-publish settled");
+                  return after ? { status: "blocked", reason: after, prUrl: result.prUrl } : result;
+                },
                 dispatch: async ({ stage, config, signal: completionSignal }) => {
                   if (config.scope !== "completion") {
                     return { status: "failure", reason: `Completion stage ${stage} did not receive completion scope` };

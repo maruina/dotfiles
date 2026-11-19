@@ -648,10 +648,8 @@ test("PR validation prompt defines a safe delegated review contract", () => {
     provenanceReference,
     /verify the base-repository remote/i,
     /existing worktree.*clean.*including untracked/is,
-    /HEAD.*headRefOid/is,
-    /refs\/pull\/(?:PR_NUMBER|\$PR_NUMBER)\/head/,
-    /FETCH_HEAD.*headRefOid/is,
-    /~\/dd\/\.worktrees\/REPO\/pr-PR_NUMBER-review/,
+    /workspace\.mjs.*preflight.*pr\.headRefOid.*fetched head/is,
+    /`HEAD_REF_OID` to `headOid`/,
     /~\/\.pi\/agent\/pr-validate-reports\/REPO-PR_NUMBER\.html/,
     /only permitted writes are the report data.*the HTML report.*scratch files/is,
     /fetched PR objects.*checkout updates to the clean, verified review worktree/is,
@@ -670,23 +668,17 @@ test("PR validation uses one collector for GitHub evidence", () => {
   const phase2 = text.slice(text.indexOf("## Phase 2"), text.indexOf("## Pass 1"));
 
   requireMarkers(text, [
-    /collector.*once.*after verifying the base-repository remote.*before.*worktree/is,
-    /`umask 077`/,
-    /mode `0700`/,
-    /`evidence\.json`/,
-    /`pr\.headRefOid`/,
-    /missing.*`headRefOid`.*Coverage gap/is,
+    /collector once.*checks `pr\.headRefOid` against the fetched head/is,
+    /preflight fails.*Coverage gap and stop/is,
+    /`evidenceFile`/,
     /external queries.*Datadog.*Atlas/is,
     /DDCI CI-status tools/i,
   ]);
 
-  assert.equal((text.match(/scripts\/pr-validate-report\/collect\.mjs/g) ?? []).length, 1);
-  assert.ok(phase1.indexOf("base-repository remote") < phase1.indexOf("collect.mjs"));
-  assert.ok(phase1.indexOf("collect.mjs") < phase1.indexOf("Set the review worktree path"));
-  assert.ok(phase1.indexOf("collect.mjs") < phase1.indexOf("Fetch `refs/pull/$PR_NUMBER/head`"));
-  assert.ok(phase1.indexOf("Fetch `refs/pull/$PR_NUMBER/head`") < phase1.indexOf("If the expected path exists"));
+  assert.equal((phase1.match(/scripts\/pr-validate-report\/workspace\.mjs/g) ?? []).length, 1);
+  assert.ok(phase1.indexOf("workspace.mjs") < phase1.indexOf("If the expected path exists"));
   assert.ok(phase1.indexOf("existing worktree is clean") < phase1.indexOf("HEAD` differs"));
-  assert.ok(phase1.indexOf("umask 077") < phase1.indexOf("collect.mjs"));
+  assert.doesNotMatch(phase1, /FETCH_HEAD|rm -rf|collect\.mjs/);
   assert.doesNotMatch(phase2, /\bgh (?:pr (?:view|diff|checks)|api)\b/);
   assert.match(phase2, /external queries.*Datadog.*Atlas/is);
   assert.match(phase2, /DDCI CI-status tools/i);
@@ -702,7 +694,7 @@ test("PR validation reads Git objects by default and does not run untrusted PR c
     /Create or reuse the review worktree only when/i,
     /record the reason in Coverage/i,
   ]);
-  assert.ok(phase1.indexOf("Choose the read mode") > phase1.indexOf("Fetch `refs/pull/$PR_NUMBER/head`"));
+  assert.ok(phase1.indexOf("Choose the read mode") > phase1.indexOf("workspace.mjs"));
   assert.ok(phase1.indexOf("Choose the read mode") < phase1.indexOf("If the expected path exists"));
 
   requireMarkers(text, [
@@ -943,12 +935,9 @@ test("PR validation marketplace discovery is bounded, local, and read-only", () 
   ]);
 });
 
-test("PR validation and cleanup share the review-worktree path", () => {
-  const paths = ["pr-validate.md", "pr-cleanup.md"]
-    .flatMap((name) => [...prompt(name).matchAll(/~\/dd\/\.worktrees\/[^\s`")]+/g)])
-    .map(([path]) => path);
-
-  assert.deepEqual([...new Set(paths)].sort(), ["~/dd/.worktrees/REPO/pr-PR_NUMBER-review"]);
+test("PR validation and cleanup delegate worktree identity to the same script", () => {
+  assert.match(prompt("pr-validate.md"), /workspace\.mjs" preflight/);
+  assert.match(prompt("pr-cleanup.md"), /workspace\.mjs" cleanup/);
 });
 
 test("PR creation derives explanations from the change and checks final references", () => {
@@ -1009,9 +998,8 @@ test("PR commands have distinct roles and aligned review artifacts", () => {
   assert.doesNotMatch(create, /@codex review/);
   assert.doesNotMatch(update, /@codex review/);
   assert.match(cleanup, /created by `\/pr-validate`/);
-  assert.match(cleanup, /git worktree remove "\$WORKTREE"/);
-  assert.doesNotMatch(cleanup, /\bHTML\b/);
-  assert.doesNotMatch(cleanup, /git worktree remove[^\n]*--force/);
+  assert.match(cleanup, /workspace\.mjs" cleanup "\$PR_URL"/);
+  assert.doesNotMatch(cleanup, /\bHTML\b|git worktree remove/);
 });
 
 test("worktree and PR checkout procedures live in skills, not prompts", () => {
@@ -1109,7 +1097,7 @@ test("lifecycle prompt protocol versions match the bridge protocol", () => {
   const protocol = readFileSync(path.join(extensionsDir, "ship-conductor", "_protocol.ts"), "utf8");
   const version = protocol.match(/export const PROTOCOL_VERSION = (\d+);/)?.[1];
   assert.ok(version, "Missing protocol version declaration");
-  for (const file of ["execute.md", "simplify.md", "verify.md", "pr-publish.md", "arp-review.md", "arp-fix.md"]) {
+  for (const file of ["execute.md", "simplify.md", "verify.md", "arp-review.md", "arp-fix.md"]) {
     const versions = [...prompt(file).matchAll(/protocol version (\d+)/g)].map((match) => match[1]);
     assert.deepEqual(versions, [version], `${file} must require the current bridge protocol version`);
   }

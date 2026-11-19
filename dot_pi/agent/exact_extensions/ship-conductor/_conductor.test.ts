@@ -290,7 +290,6 @@ function baseDeps(fixture: ReturnType<typeof createRepo>, overrides: Partial<Con
     verify: "/agent/prompts/verify.md",
   };
   const completionStagePaths = {
-    "pr-publish": "/agent/prompts/pr-publish.md",
     "arp-review": "/agent/prompts/arp-review.md",
     "arp-fix": "/agent/prompts/arp-fix.md",
     verify: "/agent/prompts/verify.md",
@@ -309,6 +308,7 @@ function baseDeps(fixture: ReturnType<typeof createRepo>, overrides: Partial<Con
     completionPolicy: { kind: "personal" },
     bridgePath: "/agent/extensions/ship-conductor/_bridge.ts",
     captureCandidate: (root) => captureCleanCandidate(root, gitRunner),
+    publish: async ({ candidate }) => ({ status: "published", prUrl: "https://github.com/DataDog/repo/pull/123", headSha: candidate.head }),
     runStage: async () => { throw new Error("test must supply a stage runner"); },
     createRunId: () => "run-test",
     ...overrides,
@@ -382,33 +382,12 @@ describe("runImplement", () => {
     const depsState = baseDeps(fixture, { completionPolicy: { kind: "work" } });
     const stages = stageRunner(fixture.root, fixture.planPath);
     const calls: string[] = [];
+    depsState.deps.publish = async ({ candidate }) => {
+      calls.push("pr-publish");
+      return { status: "published", prUrl: "https://github.com/DataDog/repo/pull/123", headSha: candidate.head };
+    };
     depsState.deps.runStage = async (request, signal, callbacks) => {
       calls.push(request.stage);
-      if (request.stage === "pr-publish") {
-        return {
-          status: "settled",
-          outcome: {
-            schemaVersion: PROTOCOL_VERSION,
-            runId: request.runId,
-            stage: request.stage,
-            sessionId: "session-pr-publish",
-            model: request.model,
-            outcome: "success",
-            change: "not-applicable",
-            candidate: request.candidateBefore,
-            reportRef: `lifecycle-coordinator/runs/${request.runId}/reports/pr-publish.md`,
-            prUrl: "https://github.com/DataDog/repo/pull/123",
-            publishedHeadSha: request.candidateBefore.head,
-            commitRefs: [request.candidateBefore.head],
-          },
-          promptStarted: true,
-          observed: { sessionId: "session-pr-publish", model: request.model, thinkingLevel: request.thinkingLevel, messageCount: 1 },
-          decisions: [],
-          progress: [],
-          stderr: "",
-          terminationConfirmed: true,
-        };
-      }
       if (request.stage === "arp-review") {
         return {
           status: "settled",
@@ -457,33 +436,11 @@ describe("runImplement", () => {
     const completionCalls: Array<{ stage: string; head: string; pendingSettlements?: string[]; model: string }> = [];
     let secondReviewSawSettlements = false;
 
+    depsState.deps.publish = async ({ candidate }) => {
+      completionCalls.push({ stage: "pr-publish", head: candidate.head, model: "none" });
+      return { status: "published", prUrl: "https://github.com/DataDog/repo/pull/123", headSha: candidate.head };
+    };
     depsState.deps.runStage = async (request, signal, callbacks) => {
-      if (request.stage === "pr-publish") {
-        completionCalls.push({ stage: request.stage, head: request.candidateBefore.head, model: `${request.model.provider}/${request.model.id}` });
-        return {
-          status: "settled",
-          outcome: {
-            schemaVersion: PROTOCOL_VERSION,
-            runId: request.runId,
-            stage: request.stage,
-            sessionId: `session-pr-publish-${completionCalls.length}`,
-            model: request.model,
-            outcome: "success",
-            change: "not-applicable",
-            candidate: request.candidateBefore,
-            reportRef: `lifecycle-coordinator/runs/${request.runId}/reports/pr-publish.md`,
-            prUrl: "https://github.com/DataDog/repo/pull/123",
-            publishedHeadSha: request.candidateBefore.head,
-            commitRefs: [request.candidateBefore.head],
-          },
-          promptStarted: true,
-          observed: { sessionId: `session-pr-publish-${completionCalls.length}`, model: request.model, thinkingLevel: request.thinkingLevel, messageCount: 1 },
-          decisions: [],
-          progress: [],
-          stderr: "",
-          terminationConfirmed: true,
-        };
-      }
 
       if (request.stage === "arp-review") {
         const pendingSettlements = request.config.scope === "completion"
@@ -616,33 +573,11 @@ describe("runImplement", () => {
     const stages = stageRunner(fixture.root, fixture.planPath);
     const completionCalls: string[] = [];
 
+    depsState.deps.publish = async ({ candidate }) => {
+      completionCalls.push("pr-publish");
+      return { status: "published", prUrl: "https://github.com/DataDog/repo/pull/123", headSha: candidate.head };
+    };
     depsState.deps.runStage = async (request, signal, callbacks) => {
-      if (request.stage === "pr-publish") {
-        completionCalls.push(request.stage);
-        return {
-          status: "settled",
-          outcome: {
-            schemaVersion: PROTOCOL_VERSION,
-            runId: request.runId,
-            stage: request.stage,
-            sessionId: "session-pr-publish",
-            model: request.model,
-            outcome: "success",
-            change: "not-applicable",
-            candidate: request.candidateBefore,
-            reportRef: `lifecycle-coordinator/runs/${request.runId}/reports/pr-publish.md`,
-            prUrl: "https://github.com/DataDog/repo/pull/123",
-            publishedHeadSha: request.candidateBefore.head,
-            commitRefs: [request.candidateBefore.head],
-          },
-          promptStarted: true,
-          observed: { sessionId: "session-pr-publish", model: request.model, thinkingLevel: request.thinkingLevel, messageCount: 1 },
-          decisions: [],
-          progress: [],
-          stderr: "",
-          terminationConfirmed: true,
-        };
-      }
 
       if (request.stage === "arp-review") {
         completionCalls.push(request.stage);
@@ -769,33 +704,12 @@ describe("runImplement", () => {
     const depsState = baseDeps(fixture, { completionPolicy: { kind: "work" } });
     const stages = stageRunner(fixture.root, fixture.planPath);
     const completionCalls: string[] = [];
+    depsState.deps.publish = async ({ candidate }) => {
+      completionCalls.push("pr-publish");
+      return { status: "published", prUrl: "https://github.com/DataDog/repo/pull/123", headSha: candidate.head };
+    };
     depsState.deps.runStage = async (request, signal, callbacks) => {
-      if (request.stage === "pr-publish" || request.stage === "arp-review") completionCalls.push(request.stage);
-      if (request.stage === "pr-publish") {
-        return {
-          status: "settled",
-          outcome: {
-            schemaVersion: PROTOCOL_VERSION,
-            runId: request.runId,
-            stage: request.stage,
-            sessionId: "session-pr-publish",
-            model: request.model,
-            outcome: "success",
-            change: "not-applicable",
-            candidate: request.candidateBefore,
-            reportRef: `lifecycle-coordinator/runs/${request.runId}/reports/pr-publish.md`,
-            prUrl: "https://github.com/DataDog/repo/pull/123",
-            publishedHeadSha: request.candidateBefore.head,
-            commitRefs: [request.candidateBefore.head],
-          },
-          promptStarted: true,
-          observed: { sessionId: "session-pr-publish", model: request.model, thinkingLevel: request.thinkingLevel, messageCount: 1 },
-          decisions: [],
-          progress: [],
-          stderr: "",
-          terminationConfirmed: true,
-        };
-      }
+      if (request.stage === "arp-review") completionCalls.push(request.stage);
       if (request.stage === "arp-review") {
         return {
           status: "settled",
@@ -865,31 +779,6 @@ describe("runImplement", () => {
     });
     const stages = stageRunner(fixture.root, fixture.planPath);
     depsState.deps.runStage = async (request, signal, callbacks) => {
-      if (request.stage === "pr-publish") {
-        return {
-          status: "settled",
-          outcome: {
-            schemaVersion: PROTOCOL_VERSION,
-            runId: request.runId,
-            stage: request.stage,
-            sessionId: "session-pr-publish",
-            model: request.model,
-            outcome: "success",
-            change: "not-applicable",
-            candidate: request.candidateBefore,
-            reportRef: `lifecycle-coordinator/runs/${request.runId}/reports/pr-publish.md`,
-            prUrl: "https://github.com/DataDog/repo/pull/123",
-            publishedHeadSha: request.candidateBefore.head,
-            commitRefs: [request.candidateBefore.head],
-          },
-          promptStarted: true,
-          observed: { sessionId: "session-pr-publish", model: request.model, thinkingLevel: request.thinkingLevel, messageCount: 1 },
-          decisions: [],
-          progress: [],
-          stderr: "",
-          terminationConfirmed: true,
-        };
-      }
       if (request.stage === "arp-review") {
         return {
           status: "settled",
@@ -941,31 +830,6 @@ describe("runImplement", () => {
     });
     const stages = stageRunner(fixture.root, fixture.planPath);
     depsState.deps.runStage = async (request, signal, callbacks) => {
-      if (request.stage === "pr-publish") {
-        return {
-          status: "settled",
-          outcome: {
-            schemaVersion: PROTOCOL_VERSION,
-            runId: request.runId,
-            stage: request.stage,
-            sessionId: "session-pr-publish",
-            model: request.model,
-            outcome: "success",
-            change: "not-applicable",
-            candidate: request.candidateBefore,
-            reportRef: `lifecycle-coordinator/runs/${request.runId}/reports/pr-publish.md`,
-            prUrl: "https://github.com/DataDog/repo/pull/123",
-            publishedHeadSha: request.candidateBefore.head,
-            commitRefs: [request.candidateBefore.head],
-          },
-          promptStarted: true,
-          observed: { sessionId: "session-pr-publish", model: request.model, thinkingLevel: request.thinkingLevel, messageCount: 1 },
-          decisions: [],
-          progress: [],
-          stderr: "",
-          terminationConfirmed: true,
-        };
-      }
       if (request.stage === "arp-review") {
         return {
           status: "failure",
@@ -997,31 +861,6 @@ describe("runImplement", () => {
     });
     const stages = stageRunner(fixture.root, fixture.planPath);
     depsState.deps.runStage = async (request, signal, callbacks) => {
-      if (request.stage === "pr-publish") {
-        return {
-          status: "settled",
-          outcome: {
-            schemaVersion: PROTOCOL_VERSION,
-            runId: request.runId,
-            stage: request.stage,
-            sessionId: "session-pr-publish",
-            model: request.model,
-            outcome: "success",
-            change: "not-applicable",
-            candidate: request.candidateBefore,
-            reportRef: `lifecycle-coordinator/runs/${request.runId}/reports/pr-publish.md`,
-            prUrl: "https://github.com/DataDog/repo/pull/123",
-            publishedHeadSha: request.candidateBefore.head,
-            commitRefs: [request.candidateBefore.head],
-          },
-          promptStarted: true,
-          observed: { sessionId: "session-pr-publish", model: request.model, thinkingLevel: request.thinkingLevel, messageCount: 1 },
-          decisions: [],
-          progress: [],
-          stderr: "",
-          terminationConfirmed: true,
-        };
-      }
       if (request.stage === "arp-review") {
         return {
           status: "cancelled",
@@ -1047,36 +886,14 @@ describe("runImplement", () => {
     const depsState = baseDeps(fixture, { completionPolicy: { kind: "work" } });
     const stages = stageRunner(fixture.root, fixture.planPath);
     const completionCalls: string[] = [];
+    depsState.deps.publish = async ({ candidate }) => {
+      completionCalls.push("pr-publish");
+      writeFileSync(join(fixture.root, "src", "completion-post-outcome.txt"), "unexpected completion mutation\n");
+      git(fixture.root, ["add", "."]);
+      git(fixture.root, ["commit", "--quiet", "-m", "unexpected completion mutation"]);
+      return { status: "published", prUrl: "https://github.com/DataDog/repo/pull/123", headSha: candidate.head };
+    };
     depsState.deps.runStage = async (request, signal, callbacks) => {
-      if (request.stage === "pr-publish") {
-        completionCalls.push(request.stage);
-        writeFileSync(join(fixture.root, "src", "completion-post-outcome.txt"), "unexpected completion mutation\n");
-        git(fixture.root, ["add", "."]);
-        git(fixture.root, ["commit", "--quiet", "-m", "unexpected completion mutation"]);
-        return {
-          status: "settled",
-          outcome: {
-            schemaVersion: PROTOCOL_VERSION,
-            runId: request.runId,
-            stage: request.stage,
-            sessionId: "session-pr-publish",
-            model: request.model,
-            outcome: "success",
-            change: "not-applicable",
-            candidate: request.candidateBefore,
-            reportRef: `lifecycle-coordinator/runs/${request.runId}/reports/pr-publish.md`,
-            prUrl: "https://github.com/DataDog/repo/pull/123",
-            publishedHeadSha: request.candidateBefore.head,
-            commitRefs: [request.candidateBefore.head],
-          },
-          promptStarted: true,
-          observed: { sessionId: "session-pr-publish", model: request.model, thinkingLevel: request.thinkingLevel, messageCount: 1 },
-          decisions: [],
-          progress: [],
-          stderr: "",
-          terminationConfirmed: true,
-        };
-      }
       if (request.stage === "arp-review") completionCalls.push(request.stage);
       return stages.runner(request, signal, callbacks);
     };
@@ -1110,34 +927,12 @@ describe("runImplement", () => {
     });
     const stages = stageRunner(fixture.root, fixture.planPath);
     const completionCalls: string[] = [];
+    depsState.deps.publish = async ({ candidate }) => {
+      completionCalls.push("pr-publish");
+      publishSettled = true;
+      return { status: "published", prUrl: "https://github.com/DataDog/repo/pull/123", headSha: candidate.head };
+    };
     depsState.deps.runStage = async (request, signal, callbacks) => {
-      if (request.stage === "pr-publish") {
-        completionCalls.push(request.stage);
-        publishSettled = true;
-        return {
-          status: "settled",
-          outcome: {
-            schemaVersion: PROTOCOL_VERSION,
-            runId: request.runId,
-            stage: request.stage,
-            sessionId: "session-pr-publish",
-            model: request.model,
-            outcome: "success",
-            change: "not-applicable",
-            candidate: request.candidateBefore,
-            reportRef: `lifecycle-coordinator/runs/${request.runId}/reports/pr-publish.md`,
-            prUrl: "https://github.com/DataDog/repo/pull/123",
-            publishedHeadSha: request.candidateBefore.head,
-            commitRefs: [request.candidateBefore.head],
-          },
-          promptStarted: true,
-          observed: { sessionId: "session-pr-publish", model: request.model, thinkingLevel: request.thinkingLevel, messageCount: 1 },
-          decisions: [],
-          progress: [],
-          stderr: "",
-          terminationConfirmed: true,
-        };
-      }
       if (request.stage === "arp-review") completionCalls.push(request.stage);
       return stages.runner(request, signal, callbacks);
     };
@@ -1155,38 +950,14 @@ describe("runImplement", () => {
     const stages = stageRunner(fixture.root, fixture.planPath);
     const completionCalls: string[] = [];
     depsState.deps.runStage = async (request, signal, callbacks) => {
-      if (request.stage === "pr-publish") {
+      if (request.stage === "arp-review") {
         completionCalls.push(request.stage);
         return {
-          status: "settled",
-          outcome: {
-            schemaVersion: PROTOCOL_VERSION,
-            runId: request.runId,
-            stage: request.stage,
-            sessionId: "session-pr-publish",
-            model: request.model,
-            outcome: "success",
-            change: "not-applicable",
-            candidate: request.candidateBefore,
-            reportRef: `lifecycle-coordinator/runs/${request.runId}/reports/pr-publish.md`,
-            prUrl: "https://github.com/DataDog/repo/pull/123",
-            publishedHeadSha: request.candidateBefore.head,
-            commitRefs: [request.candidateBefore.head],
-          },
-          promptStarted: true,
-          observed: {
-            sessionId: "session-verify-1-3",
-            model: request.model,
-            thinkingLevel: request.thinkingLevel,
-            messageCount: 1,
-          },
-          decisions: [],
-          progress: [],
-          stderr: "",
-          terminationConfirmed: true,
+          status: "failure", reason: "unexpected fixture stage state", terminationConfirmed: true,
+          observed: { sessionId: "session-verify-1-3", model: request.model, thinkingLevel: request.thinkingLevel, messageCount: 1 },
+          promptStarted: true, decisions: [], progress: [], stderr: "",
         };
       }
-      if (request.stage === "arp-review") completionCalls.push(request.stage);
       return stages.runner(request, signal, callbacks);
     };
 
@@ -1194,7 +965,7 @@ describe("runImplement", () => {
 
     assertOutcomeStatus(outcome, "process-failure");
     assert.match(outcome.summary, /reused a prior RPC session ID/i);
-    assert.deepEqual(completionCalls, ["pr-publish"]);
+    assert.deepEqual(completionCalls, ["arp-review"]);
   });
 
   it("shows a progress widget for the active round and stage, then clears it", async () => {

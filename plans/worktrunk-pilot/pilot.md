@@ -1,4 +1,50 @@
 # Worktrunk pilot
+## Use the pilot
+`git-wt` is an alternate Fish command; `wt` and `wtpr` remain available. In a fresh Fish shell, switch to a registered worktree with `git-wt switch feature`. For a new branch, fetch the base and select it explicitly:
+
+```fish
+git fetch origin main
+git-wt switch --create Feature/Example --base origin/main
+```
+
+Replace `Feature/Example` with an unused branch name. `git-wt` requires `WORKTREES_ROOT`, which the profile sets in `config.fish`. The user-level `pre-start` hook also applies to direct `wt` binary invocations. Inspect project hooks before creating a worktree; `--no-hooks` disables the guidance link as well as other hooks.
+
+Worktrunk does not select a GitHub account. Before a GitHub operation, capture the active login with `gh auth status --json hosts`. Use `matteo-ruina_ddog` for `ddoghq/*` and `ddoghq-sandbox/*`; use `maruina` for other repositories, including `DataDog/*`. Switch with `gh auth switch --hostname github.com --user` and the required login. After success or failure, switch back to the captured login and verify it with `gh auth status --json hosts`. Do not treat a PR checkout as valid until the repository and HEAD match independently collected PR metadata.
+
+To preview Worktrunk cleanup without deleting a worktree or branch, run:
+
+```fish
+git-wt step prune --dry-run --format=json --min-age=0s
+```
+
+The `--min-age=0s` option includes young candidates in the preview. It does not make Worktrunk's integration policy equivalent to `git worktrees-gone`.
+
+## Roll back the pilot
+Use a feature worktree for the chezmoi source. Inspect the two target files for local changes before removing them. From that source worktree, convert the managed files to removal entries and preview the two targets:
+
+```sh
+mv dot_config/private_fish/conf.d/worktrunk.fish dot_config/private_fish/conf.d/remove_worktrunk.fish
+mv dot_config/worktrunk/config.toml dot_config/worktrunk/remove_config.toml
+chezmoi --source "$PWD" apply --dry-run --verbose "$HOME/.config/fish/conf.d/worktrunk.fish" "$HOME/.config/worktrunk/config.toml"
+```
+
+If the preview contains only the intended removals, apply those targets:
+
+```sh
+chezmoi --source "$PWD" apply "$HOME/.config/fish/conf.d/worktrunk.fish" "$HOME/.config/worktrunk/config.toml"
+```
+
+Remove the `brew "worktrunk"` declaration from the source if other machines must not install the pilot. Do not run the installer to uninstall the binary; an inert installed binary can remain. Start a fresh Fish shell after rollback. A scratch-source and scratch-destination test confirmed that the removal entries delete the two pilot files and leave `wt` and `wtpr` available.
+
+## Decisions
+| Legacy command | Decision | Evidence and remaining gate |
+|---|---|---|
+| `wt` | Retain | Existing-worktree reuse and profile path fixtures passed, but linked-worktree creation uses a different repository-name rule. Matteo must approve any cutover. |
+| `wtpr` | Retain | Public same-repository and fork checks passed, but a foreign URL resolved against the current repository and a stale local branch was reused. A later wrapper must validate repository identity, compare HEAD with current PR metadata, and preserve account routing; test private access separately. |
+| `git worktrees-gone` | Retain | Its gone-upstream policy removed an unmerged branch that Worktrunk did not nominate. Worktrunk nominated an integrated branch that the legacy command retained. |
+
+The pilot does not change repository `AGENTS.md`, Pi `AGENTS.md`, or the Pi worktree skills. The legacy policy and lifecycle contracts remain authoritative. Git worktree registration remains the source for discovery. When `/pr-validate` needs a review worktree, it uses the fixed `~/dd/.worktrees/REPO/pr-PR_NUMBER-review` path and verifies HEAD against PR metadata. It creates new review worktrees with detached HEAD; `/pr-cleanup` targets that review path. No existing Worktrunk README or runbook was found that needs migration.
+
 ## Evidence
 All checks used Worktrunk v0.82.0 on the work profile. The work and personal path checks used separate temporary homes; they do not prove a personal-machine install. No check pushed to a real remote or ran PR code.
 

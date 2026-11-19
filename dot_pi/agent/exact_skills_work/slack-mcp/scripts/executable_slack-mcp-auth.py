@@ -26,6 +26,7 @@ import webbrowser
 import sys
 import getpass
 import time
+from typing import Optional
 
 CLIENT_ID = "1601185624273.8899143856786"
 CALLBACK_PORT = 3118
@@ -146,7 +147,7 @@ def run_local_server(expected_state: str) -> str:
     return code_holder.get("code", "")
 
 
-def token_entry(access_token: str, refresh_token: str, expires_in: int | None) -> dict:
+def token_entry(access_token: str, refresh_token: str, expires_in: Optional[int]) -> dict:
     entry = {
         "serverName": "slack",
         "serverUrl": "https://mcp.slack.com/mcp",

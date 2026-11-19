@@ -63,17 +63,6 @@ The auto-clone boundary is exactly three orgs:
 When the task calls `gh`, follow the account rule in `~/.pi/agent/AGENTS.md` (Tool Use). Use `matteo-ruina_ddog` only for `ddoghq/*` and `ddoghq-sandbox/*`; use `maruina` for everything else, including `DataDog/*`. The account affects `gh` API calls only; clones use the existing SSH agent. Never run `gh auth status --show-token`.
 
 ## Branch handoff
-When a branch or PR is involved, create a worktree instead of checking out the branch in the main clone. The convention comes from `wt.fish`, which is the source of truth:
-
-- Path: `$WORKTREES_ROOT/<repo>/<branch-slug>`.
-- `<repo>` is the repository directory name (the basename of the checkout).
-- `<branch-slug>` lowercases the branch name and replaces `/` with `-`.
-- `$WORKTREES_ROOT` is `~/dd/.worktrees` on the work profile and `~/src/.worktrees` on the personal profile.
-
-Create the worktree with:
-```bash
-mkdir -p "$WORKTREES_ROOT/REPO"
-git -C <checkout> worktree add "$WORKTREES_ROOT/REPO/<branch-slug>" <branch>
-```
+When a branch or PR is involved, use the `feature-worktree` skill instead of checking out the branch in the main clone. For normal feature branches, it uses Worktrunk and captures its JSON result. Worktrunk's configured root is `~/dd/.worktrees` for the work profile and `~/src/.worktrees` for the personal profile; the branch slug is lowercase with `/` replaced by `-`. `WORKTREES_ROOT` alone does not override the Worktrunk path.
 
 To find an existing worktree for a branch, use the `resolve-worktree` skill.

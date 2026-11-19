@@ -47,6 +47,51 @@ function fixture(profile) {
   }
 }
 
+test("fresh Fish uses native Worktrunk and navigates without legacy functions", () => {
+  const f = fixture("work");
+  try {
+    const result = f.run("fish", ["--no-config", "-c", 'source "$FIXTURE_FISH"; functions -q wt; or exit 1; functions -q wtpr; and exit 2; functions -q git-worktrees-gone; and exit 3; wt --version; or exit 4; wt switch --create feature/navigation --base main --yes; or exit 5; pwd'], { env: { ...f.env, FIXTURE_FISH: fishConfig } });
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /wt v0\.82\.0/);
+    assert.equal(realpathSync(result.stdout.trim().split("\n").at(-1)), realpathSync(join(f.worktrees, "repo 'space", "feature-navigation")));
+  } finally { rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test("Fish starts without Worktrunk in PATH", () => {
+  const f = fixture("work");
+  try {
+    const fish = execFileSync("which", ["fish"], { encoding: "utf8" }).trim();
+    const result = f.run(fish, ["--no-config", "-c", 'source "$FIXTURE_FISH"; functions -q wt; and exit 1; echo ready'], { env: { ...f.env, PATH: f.root, FIXTURE_FISH: fishConfig } });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout.trim(), "ready");
+    assert.equal(result.stderr, "");
+  } finally { rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test("cleanup preview parses and leaves refs and registrations unchanged", () => {
+  const f = fixture("work");
+  try {
+    const created = switchWorktree(f, "preview/candidate");
+    assert.equal(created.status, 0, created.stderr);
+    const refs = f.git("show-ref");
+    const worktrees = f.git("worktree", "list", "--porcelain");
+    const result = f.run("wt", ["step", "prune", "--dry-run", "--format=json", "--min-age=0s"]);
+    assert.equal(result.status, 0, result.stderr);
+    const candidates = JSON.parse(result.stdout);
+    assert.ok(Array.isArray(candidates), result.stdout);
+    assert.ok(candidates.some((candidate) => candidate.branch === "preview/candidate"));
+    assert.equal(f.git("show-ref"), refs);
+    assert.equal(f.git("worktree", "list", "--porcelain"), worktrees);
+  } finally { rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test("retired functions and Git cleanup alias are absent from the source", () => {
+  for (const name of ["wt.fish", "wtpr.fish", "git-worktrees-gone.fish"]) {
+    assert.equal(existsSync(join(source, "dot_config/private_fish/exact_functions", name)), false, name);
+  }
+  assert.doesNotMatch(readFileSync(join(source, "dot_gitconfig.tmpl"), "utf8"), /^\s*worktrees-gone\s*=/m);
+});
+
 for (const profile of ["work", "personal"]) for (const shell of ["bash", "fish"]) {
   test(`${profile}: ${shell} creates the configured worktree and guidance link`, () => {
     const f = fixture(profile);
@@ -75,7 +120,7 @@ for (const profile of ["work", "personal"]) for (const shell of ["bash", "fish"]
       if (shell === "bash") {
         result = f.run("bash", ["-c", 'exec wt "$@"', "fixture", "switch", "--create", branch, "--base", "origin/main", "--no-cd", "--format=json", "--yes"]);
       } else {
-        result = f.run("fish", ["--no-config", "-c", 'source "$FIXTURE_FISH"; git-wt $argv', "switch", "--create", branch, "--base", "origin/main", "--no-cd", "--format=json", "--yes"], { env: { ...f.env, WORKTREES_ROOT: f.worktrees, FIXTURE_FISH: fishConfig } });
+        result = f.run("fish", ["--no-config", "-c", 'source "$FIXTURE_FISH"; wt $argv', "switch", "--create", branch, "--base", "origin/main", "--no-cd", "--format=json", "--yes"], { env: { ...f.env, WORKTREES_ROOT: f.worktrees, FIXTURE_FISH: fishConfig } });
       }
       assert.equal(result.status, 0, result.stderr);
       const output = JSON.parse(result.stdout);

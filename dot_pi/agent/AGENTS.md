@@ -30,7 +30,7 @@ Each lifecycle prompt is the source of truth for its stage.
 - Use Conventional Commits.
 - Start from an updated `main` and keep the base repository checkout on `main`.
 - Keep Datadog repositories under `~/dd`.
-- Create Datadog worktrees under `~/dd/.worktrees/<repo>/<branch-slug>`; `wt.fish` converts branch names to lowercase and replaces `/` with `-`. `wt` reads the root from `$WORKTREES_ROOT` (`~/dd/.worktrees` for work and `~/src/.worktrees` for personal use).
+- Worktrunk uses `~/dd/.worktrees/<repo>/<branch-slug>` for the work profile and `~/src/.worktrees/<repo>/<branch-slug>` for the personal profile. It lowercases branch names and replaces `/` with `-`. `WORKTREES_ROOT` alone does not change the Worktrunk path; set `WORKTRUNK_WORKTREE_PATH` explicitly to override it.
 - Use one worktree for each feature branch or pull request.
 - Open the worktree directory in JetBrains IDEs such as GoLand.
 

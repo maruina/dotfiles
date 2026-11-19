@@ -38,7 +38,13 @@ Use the design, brief, issue, PR feedback, or request for WHAT, and the reposito
 - Investigate discoverable facts yourself; ask the user only for decisions, priorities, or unavailable context.
 - Trace every task to a goal, requirement, or instruction. Preserve source-defined non-goals and deliberate deferrals in the brief and plan; do not change scope.
 
-For a Medium or Large/Risky upstream design, require a fresh design-only review report naming the reviewed design revision and final user approval. Compare `git hash-object <design-path>` with the report's blob or content hash. If approval or the report is missing, or hashes differ, stop and request `/new` followed by `/systematic-review <absolute-path-to-design.md>` and renewed approval before planning.
+For a Medium or Large/Risky upstream design, require `/systematic-review`'s status-only approval commit. Do not require the review report or transcript.
+
+- In the owning worktree, find the most recent commit that changed the design: `git log -1 --first-parent --full-history --format=%H -- <design-path>`.
+- The commit must have one parent and modify only that design file. Its entire diff must change `Status: Draft` to `Status: Approved` in the header, with no mode change.
+- The working blob (`git hash-object <design-path>`) must match both `HEAD`'s design blob and the approved blob. Reject staged or unstaged design changes.
+
+If any check fails, stop and request `/new` followed by `/systematic-review <absolute-path-to-design.md>` and explicit approval. If already marked Approved, ask the user to commit `Status: Draft` first.
 
 Compare the plan back to the approved design for each material decision: user-visible behavior, external dependencies, security, data, cost, assumptions, structure, and test limitations. Surface anything that could change the user's approval; obtain explicit approval before implementation and update the design when applicable. Routine implementation details do not need renewed design approval. With no upstream design, present material decisions in the planning alignment brief.
 

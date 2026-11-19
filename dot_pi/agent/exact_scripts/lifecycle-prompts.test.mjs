@@ -181,12 +181,19 @@ test("design approval requires a fresh comprehension review, not author self-rev
     /reviewer session owns.*records user approval/is,
     /Do not substitute author self-review/i,
   ]);
+});
+
+test("plan uses the committed design approval without the review transcript", () => {
   requireMarkers(prompt("plan.md"), [
-    /fresh design-only review/i,
-    /reviewed.*revision/i,
+    /status-only approval commit/i,
+    /Do not require the review report or transcript/i,
+    /most recent commit that changed the design/i,
+    /one parent/i,
+    /only that design file/i,
+    /`Status: Draft` to `Status: Approved`/,
     /git hash-object <design-path>/,
-    /hashes differ.*stop/is,
-    /missing.*stop/is,
+    /must match both .*`HEAD`.*approved blob/i,
+    /If any check fails, stop and request `\/new` followed by `\/systematic-review/i,
   ]);
 });
 
@@ -334,7 +341,7 @@ test("lifecycle stages enforce negative scenarios, consumer maps, behavioral che
 test("lifecycle prompts stay within prompt context budgets", () => {
   const budgets = new Map([
     ["brainstorm.md", 14_000],
-    ["plan.md", 16_800],
+    ["plan.md", 17_200],
     ["systematic-review.md", 12_500],
     ["execute.md", 14_500],
     ["verify.md", 13_700],

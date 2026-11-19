@@ -183,16 +183,8 @@ When a committed `design.md` exists and framing shifts, update it when intent is
 Stop and ask when the goal, success criteria, evidence, ownership, or next constraining decision is unclear; multiple plausible interpretations remain; scope is unreviewable; or proceeding would silently choose a material product or design decision.
 
 ## Handoff
-Report the exact handoff phrase below.
+Use one exact command per standalone `md` fenced block. Quote paths with spaces. Keep prose outside. Omit commands with missing arguments.
 
-For chat-only brainstorming, end with:
-
-If this captures the problem and first slice, I can turn it into a plan next.
-
-For durable brainstorming subject to the design comprehension gate, say exactly:
-
-Design draft committed and saved to `<absolute-path-to-design.md>`. Run `/systematic-review <absolute-path-to-design.md>` in a fresh session; the reviewer session applies confirmed fixes and records your approval before `/plan`.
-
-For durable brainstorming with no comprehension review (Small designs and explicit chat-only brainstorming), say exactly:
-
-Spec complete, committed, and saved to `<absolute-path-to-design.md>`. Review it before handing off to `/plan <absolute-path-to-design.md>`, or run `/plan` with no arguments to choose from discovered design specs.
+- For chat-only brainstorming, offer to turn the brief into a plan without a command.
+- For a committed design draft subject to the design comprehension gate, report the absolute design path. Show `/new` and then `/systematic-review <absolute-path-to-design.md>` in separate blocks. Explain that the reviewer session applies confirmed fixes and records user approval before planning.
+- For a durable design with no comprehension review, report the absolute path of the committed design and ask the user to review it before planning. Show `/plan <absolute-path-to-design.md>`. If you offer `/plan` without arguments to choose from discovered designs, put it in a separate block.

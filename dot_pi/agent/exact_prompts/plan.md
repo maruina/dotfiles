@@ -44,7 +44,7 @@ For a Medium or Large/Risky upstream design, require `/systematic-review`'s stat
 - The commit must have one parent and modify only that design file. Its entire diff must change `Status: Draft` to `Status: Approved` in the header, with no mode change.
 - The working blob (`git hash-object <design-path>`) must match both `HEAD`'s design blob and the approved blob. Reject staged or unstaged design changes.
 
-If any check fails, stop and request `/new` followed by `/systematic-review <absolute-path-to-design.md>` and explicit approval. If already marked Approved, ask the user to commit `Status: Draft` first.
+If any check fails, stop and request `/new` followed by `/systematic-review <absolute-path-to-design.md>` and explicit approval. Use the `## Handoff` format. If already marked Approved, ask the user to commit `Status: Draft` first.
 
 Compare the plan back to the approved design for each material decision: user-visible behavior, external dependencies, security, data, cost, assumptions, structure, and test limitations. Surface anything that could change the user's approval; obtain explicit approval before implementation and update the design when applicable. Routine implementation details do not need renewed design approval. With no upstream design, present material decisions in the planning alignment brief.
 
@@ -207,12 +207,7 @@ Before committing, self-review as a skeptical implementer and fix issues inline:
 When `/systematic-review` findings or reviewer feedback disprove an initial approach and change the design or plan, record a learning candidate in the plan with the `learning-candidates` skill.
 
 ## Handoff
-Report the exact handoff phrase below.
+Use one exact command per standalone `md` fenced block. Quote paths with spaces. Keep prose outside. Omit commands with missing arguments.
 
-After saving and committing a durable plan, say exactly:
-
-Plan complete, committed, and saved to `<absolute-path-to-plan.md>`. Run `/systematic-review <absolute-path-to-plan.md>` to validate it before handing off to `/execute <absolute-path-to-plan.md>`.
-
-For a chat-only plan, end with:
-
-Plan complete. If you want to execute it with the standard workflow, I can write this to a durable `plan.md` next.
+- After committing a durable plan, report its path and show `/systematic-review <absolute-path-to-plan.md>`, not an execution command. Explain that review comes first.
+- For a chat-only plan, offer to write `plan.md` without a command.

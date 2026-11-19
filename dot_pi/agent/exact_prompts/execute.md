@@ -66,8 +66,7 @@ For a plan with `### Slice N` headings, read the plan, find the first slice with
 10. For each task, update plan checkboxes as work progresses, run the specified verification, and mark steps complete only after verification passes. For plan-based work, maintain an `### Execution` subsection under `## Skills loaded and used`, preserving the planning record; if no execution skill was needed, record that explicitly. For trivial bare prompts, track progress and skill provenance in chat.
 11. Complete the plan's documentation and future-agent guidance task, including every required `AGENTS.md` inspection (or decide whether docs are unnecessary for trivial bare prompts).
 12. **Prepare verification handoff —** Run the final implementation-evidence commands, inspect `git status`, and confirm plan fidelity (every task in the current execution unit is complete, requirements and operational checks match the plan's risk level, no unapproved scope added, and deviations documented in the plan ledger).
-13. In direct mode, optionally suggest `/simplify`; orchestration runs simplify and fresh verify. Do not run simplify automatically in direct mode.
-14. Report the exact handoff phrase below.
+13. Follow `## Handoff`. Do not run `/simplify` automatically in direct mode.
 
 The terminal state is implemented, verified changes with the plan updated as the progress ledger when a plan exists.
 
@@ -114,12 +113,14 @@ Use the plan file as the progress ledger:
 For bare-prompt trivial work, report progress in chat and do not create a plan ledger.
 
 ## Handoff
-After the unit is complete, evidence passes, and `git status` is checked, summarize changed files, commands and outcomes, skills with source, loading reason, and effect on execution, plus follow-ups. Do not claim independent verification.
+After the final checks, report changed files, commands and results, skills (source, loading reason, and effect on execution), and follow-ups. Do not claim independent verification.
 
-In orchestrated mode, submit the structured result. In direct mode, name the implementation model and stable provider-qualified ID from `## Current Model`; if absent, say so without guessing.
+In orchestrated mode, submit the structured result without manual handoff commands. In direct mode, name the implementation model and stable provider-qualified ID from `## Current Model`; if absent, say so without guessing.
 
 Implementation model: `<name> (<provider-qualified-id>)`
 
-In direct mode, emit an optional `/simplify` handoff: `/simplify <absolute-plan-path> --implemented-by <id>` or planless `/simplify --implemented-by <id> --task <quoted-original-request>`. If skipped, select another model with `/model`, start `/new`, confirm `## Current Model`, then run `/verify <absolute-plan-path> --implemented-by <id>` or planless `/verify --implemented-by <id> --task <quoted-original-request>`.
+Use one exact command per standalone `md` fenced block. Quote paths with spaces. Keep prose outside. Omit commands with missing arguments.
+
+In direct mode, offer an optional `/simplify` handoff: `/simplify <absolute-plan-path> --implemented-by <id>` or planless `/simplify --implemented-by <id> --task <quoted-original-request>`. If skipped, select another model with `/model`, start `/new`, confirm `## Current Model`, then run `/verify <absolute-plan-path> --implemented-by <id>` or planless `/verify --implemented-by <id> --task <quoted-original-request>`. Show only the applicable form.
 
 If simplify runs, follow its verify handoff with both writer IDs. Preserve the original plan path or exact original task; pass a task as one native Pi argument, single-quoted, and replace each embedded apostrophe with `'"'"'`; quote paths with whitespace. Do not backslash-escape quotes. If the requirements source or writer ID is missing, ask; do not guess. `/verify` collects fresh evidence. Do not ask it to commit, apply, repair, or reuse this execution evidence.

@@ -124,9 +124,9 @@ Chezmoi SHALL remove the three legacy Fish functions and make Worktrunk's native
 **Traces to:** R1
 **Files:** `dot_pi/agent/exact_extensions/worktrunk.ts`, `dot_pi/agent/exact_extensions/worktrunk/`, `dot_pi/agent/package.json`
 
-- [ ] Inspect the exact extension directory target and upstream license. Confirm installed Worktrunk v0.82.0's embedded extension matches the stated SHA-256 in a temporary `PI_CODING_AGENT_DIR`; do not install directly into the managed target.
+- [ ] Inspect the exact extension directory target and upstream license. Confirm installed Worktrunk v0.82.0's embedded extension matches the stated SHA-256 in a temporary `PI_CODING_AGENT_DIR` using `PI_CODING_AGENT_DIR="$TMP_AGENT" wt config plugins pi install --yes`; do not install directly into the managed target.
 - [ ] Add focused failing tests in `dot_pi/agent/exact_extensions/worktrunk/activity.test.ts` for `agent_start`, `agent_settled`, `session_shutdown`, missing binary, and multiple sessions on one branch. Test the documented shared-marker limitation rather than asserting per-session isolation.
-- [ ] Vendor the unmodified upstream extension with source, version, hash, license attribution, and refresh procedure under `dot_pi/agent/exact_extensions/worktrunk/`. Add the test to `test:unit` in `dot_pi/agent/package.json`.
+- [ ] Vendor the unmodified upstream extension directly as `dot_pi/agent/exact_extensions/worktrunk.ts` (matching the stated SHA-256 for Pi's top-level extension discovery) and place source attribution, version, hash, and refresh instructions under `dot_pi/agent/exact_extensions/worktrunk/README.md`. Add the test to `test:unit` in `dot_pi/agent/package.json`.
 - [ ] Add an isolated RPC fixture with a local mock provider, following `dot_pi/agent/exact_extensions/ship-conductor/_fixtures/rpc-driver.ts`. Have `activity.test.ts` launch Pi in RPC mode with the managed extension and the mock provider, drive a prompt, inspect the real branch marker after `agent_start` and `agent_settled`, and verify it clears after shutdown; do not use a network model. Run `cd dot_pi/agent && npm ci --ignore-scripts && node --experimental-strip-types --test exact_extensions/worktrunk/activity.test.ts`; expect all tests to pass.
 - [ ] Preview and apply only the extension target when the exact-directory preview is safe. Verify its managed content and leave dependencies installed until full Pi verification completes.
 - [ ] Commit with `feat(pi): manage Worktrunk activity extension`.
@@ -136,11 +136,11 @@ Chezmoi SHALL remove the three legacy Fish functions and make Worktrunk's native
 **Delivers:** A profile-rendered Worktrunk path and the existing synchronous guidance hook for direct binary invocations and the pilot Fish command.
 **Blocked by:** Task 1
 **Traces to:** R2
-**Files:** `dot_config/worktrunk/config.toml`, `dot_config/worktrunk/config.toml.tmpl`, `dot_pi/agent/exact_scripts/worktrunk-cutover.test.mjs`
+**Files:** `dot_config/worktrunk/config.toml`, `dot_config/worktrunk/config.toml.tmpl`, `dot_pi/agent/exact_scripts/worktrunk-cutover.test.mjs`, `dot_pi/agent/package.json`
 
-- [ ] Add a failing fixture test for both profile roots and direct Bash invocation, including spaces, apostrophes, mixed-case and multi-slash branches, a registered worktree, source guidance, collision, dirty state, existing guidance, and absent source.
-- [ ] Convert the Worktrunk user config to a chezmoi template with profile-specific native `worktree-path`; retain the synchronous pre-start hook. Preserve Worktrunk's literal template syntax through chezmoi rendering.
-- [ ] Run `node --test dot_pi/agent/exact_scripts/worktrunk-cutover.test.mjs`; expect passing direct Bash and pilot Fish scenarios for both profile renders. Assert a separate `WORKTRUNK_WORKTREE_PATH` override works and that a bare `WORKTREES_ROOT` override is not presented as supported by direct Worktrunk.
+- [ ] Add a failing fixture test in `dot_pi/agent/exact_scripts/worktrunk-cutover.test.mjs` for both profile roots and direct Bash invocation, including spaces, apostrophes, mixed-case and multi-slash branches, a registered worktree, source guidance, collision, dirty state, existing guidance, and absent source.
+- [ ] Replace `dot_config/worktrunk/config.toml` with `dot_config/worktrunk/config.toml.tmpl` to prevent duplicate-target errors, configuring profile-specific native `worktree-path` and retaining the synchronous pre-start hook. Preserve Worktrunk's literal template syntax through chezmoi rendering.
+- [ ] Add `test:worktrunk` to `dot_pi/agent/package.json` to execute `worktrunk-cutover.test.mjs`. Run `node --test dot_pi/agent/exact_scripts/worktrunk-cutover.test.mjs`; expect passing direct Bash and pilot Fish scenarios for both profile renders. Assert a separate `WORKTRUNK_WORKTREE_PATH` override works and that a bare `WORKTREES_ROOT` override is not presented as supported by direct Worktrunk.
 - [ ] In a fixture, launch an isolated Pi process after creating a worktree and verify that it sees the link. Check SHA, refs, registrations, dirty files, and base HEAD before and after.
 - [ ] Preview and apply the config target only if the preview shows no unrelated changes; verify the explicit target. Commit with `feat(chezmoi): configure Worktrunk paths for agents`.
 
@@ -155,7 +155,7 @@ Chezmoi SHALL remove the three legacy Fish functions and make Worktrunk's native
 - [ ] Replace the pilot Fish wrapper with the native Worktrunk initializer; remove the three legacy functions. Update profile guidance and existing Pi skills to invoke Worktrunk directly for normal feature worktrees. Preserve verified PR identity, SHA, account routing, and detached review behavior; keep `/pr-validate` and `/pr-cleanup` unchanged if their existing contracts remain correct.
 - [ ] Update `plans/worktrunk-pilot/pilot.md` to distinguish historical pilot decisions from current operating instructions, document preview-only cleanup, the `WORKTREES_ROOT` override limitation, and the extension's shared-branch marker limitation. Do not remove pilot evidence.
 - [ ] Run `node --test dot_pi/agent/exact_scripts/worktrunk-cutover.test.mjs dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`; expect all checks to pass. Run `fish -n dot_config/private_fish/conf.d/worktrunk.fish`.
-- [ ] Inspect and preview explicit changed targets and the exact Fish functions directory. Apply only if all removals are reviewed and no unrelated files are affected. Verify with a fresh Fish shell and `chezmoi --source "$PWD" verify` on explicit target files.
+- [ ] Inspect and preview explicit changed targets and the exact Fish functions directory (`chezmoi --source "$PWD" diff ~/.config/fish/functions`). Apply `~/.config/fish/functions` only if all removals are reviewed and no unrelated files are affected. Verify with a fresh Fish shell, assert file absence (`test ! -e`) for the removed legacy functions (`wt.fish`, `wtpr.fish`, `git-worktrees-gone.fish`), and run `chezmoi --source "$PWD" verify` on retained explicit target files.
 - [ ] Commit with `feat(chezmoi): adopt Worktrunk worktree workflows`.
 
 ### Slice 4: Verify the full cutover
@@ -166,6 +166,6 @@ Chezmoi SHALL remove the three legacy Fish functions and make Worktrunk's native
 **Files:** `plans/worktrunk-adoption/plan.md`
 
 - [ ] Run `git diff --check origin/main...HEAD` and inspect `git diff --stat origin/main...HEAD`; confirm every changed file maps to this plan or the verified pilot.
-- [ ] Run `cd dot_pi/agent && npm test && npm run test:all`; preserve dependencies until both complete. Run the focused fixture tests and Pi diagnostics after nontrivial TypeScript edits. Remove disposable source dependencies only after the tests complete, per repository guidance.
+- [ ] Run `cd dot_pi/agent && npm test && npm run test:all`; preserve dependencies until both complete. Run the focused fixture tests (`node --test dot_pi/agent/exact_scripts/worktrunk-cutover.test.mjs`) and Pi diagnostics after nontrivial TypeScript edits. Remove disposable source dependencies only after the tests complete, per repository guidance.
 - [ ] Verify explicit chezmoi targets, both profile renders, fresh Fish, direct Bash, non-destructive cleanup preview, guidance hook, markers, account restoration, and the legacy function removals. Record exact commands and results; do not infer private-access or personal-machine success.
 - [ ] Commit the final evidence if the plan changes, with `docs(chezmoi): record Worktrunk cutover verification`. Request independent `/verify` before publishing or merging.

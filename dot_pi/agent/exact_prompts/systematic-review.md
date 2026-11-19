@@ -31,9 +31,7 @@ Report the design path, reviewed Git blob from `git hash-object <design-path>` (
 
 On `NEEDS CLARIFICATION`, propose a fix for each blocker, apply the fixes the user confirms, and commit only the design file with `docs: revise <feature> design for review findings`. Route a fix back to `/brainstorm` when it needs a design decision about user-visible behavior, external dependencies, security, data, cost, or scope instead of a comprehension clarification. After applying confirmed fixes, rerun this comprehension check against the revised design in this session when the revision is mechanical: clarifications, wording, and added facts. A revision that changes design intent is material: commit it and request a fresh session review before any approval. Report the revised blob with the final verdict. Do not emit `## Fix findings` or the general `Review complete` handoff.
 
-On `READY FOR USER APPROVAL`, ask the user to approve the design. On explicit approval, set the design's status header to Approved, commit only that change with `docs: approve <feature> design`, and say exactly:
-
-Design approved and saved to `<absolute-path-to-design.md>`. Run `/plan <absolute-path-to-design.md>` to create the implementation plan.
+On `READY FOR USER APPROVAL`, ask the user to approve the design. On explicit approval, set the design's status header to Approved, commit only that change with `docs: approve <feature> design`, then show `/plan <absolute-path-to-design.md>` in a standalone `md` fenced block.
 
 ## Code review checklist
 
@@ -87,7 +85,7 @@ Challenge scope against the smallest user-feedback slice, not only against the d
 6. Prefer structural findings over nits.
 7. Validate findings with code references, tests, types, or command output where practical.
 8. Avoid speculation. State assumptions and confidence.
-9. Report the exact handoff phrase below.
+9. Close with the next action from `## Handoff`.
 
 ## Output format
 
@@ -122,12 +120,9 @@ After the report, propose fixes instead of leaving them entirely to the user:
 5. For `plan.md`, require a clean worktree before editing; otherwise stop and ask. If a confirmed fix disproves the planned approach, use the `learning-candidates` skill to record it. Rerun the plan checklist, then commit only confirmed plan changes with a Conventional Commit such as `docs: update <feature> implementation plan`. Exclude pre-existing changes. Leave other targets uncommitted. Summarize fixes, commits, skips, and reasons.
 
 ## Handoff
-Close with the recommended next step:
+Use one exact command per standalone `md` fenced block. Quote paths with spaces. Keep prose outside. Omit commands with missing arguments.
 
-- For a `plan.md` target with no blocking findings, say exactly:
-  Review complete. Run /execute <absolute-path-to-plan.md> to implement it.
-- For a `plan.md` target with blocking findings, say exactly:
-  Review complete. Address the blocking findings above, then re-run /systematic-review <absolute-path-to-plan.md>, or return to /plan to revise.
-- After confirmed `plan.md` fixes, commit per ## Fix findings and use the applicable handoff above.
-- For code without a plan, say exactly:
-  Review complete. Recommended next step: <highest-priority action>. I can apply the proposed fixes on request.
+- For a `plan.md` target with no blocking findings, show `/execute <absolute-path-to-plan.md>`.
+- For a `plan.md` target with blocking findings, explain that the user can address the findings and then rerun `/systematic-review <absolute-path-to-plan.md>`, or return to `/plan` to revise the plan. Do not offer `/execute`.
+- After confirmed `plan.md` fixes, commit per `## Fix findings` and use the applicable handoff above.
+- For code without a plan, recommend the highest-priority next action and offer to apply the proposed fixes on request.

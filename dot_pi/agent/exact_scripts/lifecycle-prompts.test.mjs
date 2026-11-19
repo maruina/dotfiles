@@ -212,7 +212,7 @@ test("design-only review isolates the document and bypasses general review", () 
     /contradictory user-visible behavior is a comprehension blocker/i,
     /On `READY FOR USER APPROVAL`, ask the user to approve the design/,
     /On explicit approval, set the design's status header to Approved, commit only that change/,
-    /Design approved and saved.*Run `\/plan/is,
+    /On explicit approval, set the design's status header to Approved[^\n]*commit only that change[^\n]*show `\/plan <absolute-path-to-design\.md>`/,
     /Do not emit `## Fix findings` or the general `Review complete` handoff/,
     /This section does not apply to design-only reviews/,
     /missing.*not.*guess/is,
@@ -552,25 +552,41 @@ test("simplify and PR validation report skill provenance", () => {
   }
 });
 
-// verify.md and learn.md are terminal stages: no downstream handoff by design.
-const pipelineHandoffPrompts = [
-  "brainstorm.md",
-  "plan.md",
-  "systematic-review.md",
-  "execute.md",
-  "simplify.md",
-];
-
-test("pipeline prompts close with a wired lifecycle handoff", () => {
-  for (const file of pipelineHandoffPrompts) {
+test("interactive lifecycle handoffs isolate runnable commands for Copycat", () => {
+  for (const file of ["brainstorm.md", "plan.md", "systematic-review.md", "execute.md"]) {
     const text = prompt(file);
-    assert.match(text, /## Handoff/, `${file} must have a ## Handoff section`);
-    assert.match(
-      text,
-      /Report the exact handoff phrase below/,
-      `${file} must wire the handoff into its workflow or output contract`,
-    );
+    const handoff = text.split(/^## Handoff\n/m)[1];
+    assert.ok(handoff, `${file} must have a ## Handoff section`);
+    requireMarkers(handoff, [
+      /one exact command per standalone `md` fenced block/i,
+      /quote paths with spaces/i,
+      /keep prose outside/i,
+      /omit commands with missing arguments/i,
+    ]);
+    assert.doesNotMatch(text, /Report the exact handoff phrase below/, file);
   }
+
+  assert.match(prompt("simplify.md"), /## Handoff\nReport the exact handoff phrase below/);
+});
+
+test("copyable handoffs preserve review gates and chat-only behavior", () => {
+  requireMarkers(prompt("brainstorm.md"), [
+    /For chat-only brainstorming, offer to turn the brief into a plan without a command/,
+    /subject to the design comprehension gate[^\n]*`\/new`[^\n]*`\/systematic-review <absolute-path-to-design\.md>`/,
+    /For a durable design with no comprehension review[^\n]*`\/plan <absolute-path-to-design\.md>`/,
+  ]);
+  requireMarkers(prompt("plan.md"), [
+    /After committing a durable plan[^\n]*show `\/systematic-review <absolute-path-to-plan\.md>`, not an execution command/,
+    /For a chat-only plan[^\n]*without a command/,
+  ]);
+  requireMarkers(prompt("systematic-review.md"), [
+    /with no blocking findings, show `\/execute <absolute-path-to-plan\.md>`/,
+    /with blocking findings[^\n]*`\/systematic-review <absolute-path-to-plan\.md>`[^\n]*Do not offer `\/execute`/,
+  ]);
+  requireMarkers(prompt("execute.md"), [
+    /In orchestrated mode, submit the structured result without manual handoff commands/,
+    /If skipped, select another model with `\/model`, start `\/new`, confirm `## Current Model`/,
+  ]);
 });
 
 test("handoff prompt is read-only and emits a neutral brief", () => {

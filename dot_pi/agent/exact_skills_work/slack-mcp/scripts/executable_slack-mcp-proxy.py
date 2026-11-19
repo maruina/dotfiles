@@ -27,6 +27,7 @@ import subprocess
 import urllib.request
 import urllib.error
 import urllib.parse
+from typing import Optional
 
 MCP_URL = "https://mcp.slack.com/mcp"
 TOKEN_ENDPOINT = "https://slack.com/api/oauth.v2.user.access"
@@ -128,7 +129,7 @@ def refresh_token(refresh_tok: str) -> tuple[str, str]:
 # HTTP helper
 # ---------------------------------------------------------------------------
 
-def http_post(body: bytes, token: str, session_id: str | None) -> tuple[int, str, str | None, bytes]:
+def http_post(body: bytes, token: str, session_id: Optional[str]) -> tuple[int, str, Optional[str], bytes]:
     headers = {
         "Accept": "application/json, text/event-stream",
         "Content-Type": "application/json",
@@ -194,7 +195,7 @@ def response_messages(content_type: str, response: bytes) -> list[bytes]:
 def main():
     log("Starting — reading token from keychain")
     access_token, refresh_tok = get_tokens()
-    session_id: str | None = None
+    session_id: Optional[str] = None
 
     if not access_token:
         log("ERROR: No Slack access token found in keychain.")

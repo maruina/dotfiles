@@ -163,6 +163,8 @@ async function tabFixture(run, mode = "success") {
     const app = extension(async (program, args) => {
       calls.push([program, args]);
       if (program === "ps") return { code: 0, stdout: String(process.getuid()) };
+      if (program === "/usr/bin/which" && args[0] === "fish") return mode === "missing-fish"
+        ? { code: 1, stdout: "" } : { code: 0, stdout: "/opt/test bin/fish\n" };
       let value;
       if (args.includes("whoami")) {
         const inspections = calls.filter(([, args]) => args.includes("whoami")).length;
@@ -210,8 +212,8 @@ test("tab registration launches one independent snapshot without a prompt and ve
     const request = payload();
     assert.equal(request.session_id, "session:aaaa");
     assert.equal(request.focus, true);
-    assert.equal(request.layout.block.options.shell, "none");
-    assert.equal(request.layout.block.options.login, false);
+    assert.equal(request.layout.block.options.shell, "/opt/test bin/fish");
+    assert.equal(request.layout.block.options.login, true);
     const command = request.layout.block.options.command;
     assert.equal(command.at(-2), "--session");
     assert.notEqual(command.at(-1), source.getSessionFile());
@@ -325,6 +327,15 @@ test("tab snapshot IO failure does not submit creation", { skip: process.getuid?
   });
 });
 
+test("missing Fish is reported before creating a snapshot or pane", async () => {
+  await tabFixture(async ({ root, app, calls }) => {
+    await app.command.handler("tab", app.ctx);
+    assert.equal(calls.some(([, args]) => args.includes("session.new_window")), false);
+    assert.equal(readdirSync(root).filter(file => file.endsWith(".jsonl")).length, 1);
+    assert.match(app.notifications.at(-1).message, /Fish must be installed/);
+  }, "missing-fish");
+});
+
 for (const mode of ["missing-endpoint", "tcp-endpoint", "launcher-flags"]) test(`tab refuses ${mode} without creation`, async () => {
   await tabFixture(async ({ app, calls }) => {
     if (mode === "missing-endpoint") delete process.env.REX_SERVER;
@@ -349,7 +360,7 @@ for (const destination of ["tab", "right", "below"]) test(`${destination} isolat
   const root = mkdtempSync(join(tmpdir(), "rxf-"));
   const endpoint = `unix://${join(root, "rex.sock")}`;
   assert.notEqual(endpoint, process.env.REX_SERVER);
-  const env = { HOME: root, PATH: process.env.PATH, TERM: "xterm-256color", TMPDIR: root, REX_SERVER: endpoint, PI_CODING_AGENT_DIR: join(root, "agent"), PI_OFFLINE: "1" };
+  const env = { HOME: root, XDG_CONFIG_HOME: join(root, "config"), PATH: process.env.PATH, TERM: "xterm-256color", TMPDIR: root, REX_SERVER: endpoint, PI_CODING_AGENT_DIR: join(root, "agent"), PI_OFFLINE: "1" };
   const run = promisify(execFile);
   const rex = async (...args) => (await run("rex", ["--autostart=false", "--timeout", "5s", "--server", endpoint, ...args], { env, timeout: 7000, maxBuffer: 1024 * 1024, signal: t.signal })).stdout;
   const json = async (...args) => JSON.parse(await rex(...args));
@@ -372,6 +383,13 @@ for (const destination of ["tab", "right", "below"]) test(`${destination} isolat
     mkdirSync(env.PI_CODING_AGENT_DIR, { mode: 0o700 });
     mkdirSync(join(env.PI_CODING_AGENT_DIR, "extensions"));
     symlinkSync(fileURLToPath(new URL(".", import.meta.url)), join(env.PI_CODING_AGENT_DIR, "extensions", "rex-fork"));
+    const fishBin = join(root, "fish startup bin");
+    mkdirSync(fishBin);
+    writeFileSync(join(fishBin, "rex-fork-auth-probe"), "#!/bin/sh\necho rex-fork-test-key\n", { mode: 0o700 });
+    const fishConfig = join(env.XDG_CONFIG_HOME, "fish");
+    mkdirSync(fishConfig, { recursive: true });
+    writeFileSync(join(fishConfig, "config.fish"), `if status is-login\n    set -gx PATH ${JSON.stringify(fishBin)} $PATH\nend\n`);
+    writeFileSync(join(env.PI_CODING_AGENT_DIR, "models.json"), JSON.stringify({ providers: { anthropic: { apiKey: "!rex-fork-auth-probe" } } }));
     writeFileSync(join(env.PI_CODING_AGENT_DIR, "extensions", "startup-proof.ts"), `import { appendFileSync } from "node:fs";
 export default function(pi) {
   pi.registerCommand("startup-proof", { description: "Record startup command", handler: async () => {
@@ -380,8 +398,9 @@ export default function(pi) {
   for (const event of ["agent_start", "before_provider_request"]) pi.on(event, () => {
     appendFileSync(${JSON.stringify(join(root, "model-events.jsonl"))}, JSON.stringify({event, pid:process.pid}) + "\\n", {mode: 0o600});
   });
-  pi.on("session_start", (_event, ctx) => {
-    appendFileSync(${JSON.stringify(join(root, "startup.jsonl"))}, JSON.stringify({mode:ctx.mode, pid:process.pid, commands:pi.getCommands().map(command => command.name)}) + "\\n", {mode: 0o600});
+  pi.on("session_start", async (_event, ctx) => {
+    const authResolved = await ctx.modelRegistry.getApiKeyForProvider("anthropic") === "rex-fork-test-key";
+    appendFileSync(${JSON.stringify(join(root, "startup.jsonl"))}, JSON.stringify({mode:ctx.mode, pid:process.pid, authResolved, commands:pi.getCommands().map(command => command.name)}) + "\\n", {mode: 0o600});
   });
 }`);
     writeFileSync(join(env.PI_CODING_AGENT_DIR, "settings.json"), JSON.stringify({ packages: [], quietStartup: true }), { mode: 0o600 });
@@ -409,6 +428,7 @@ export default function(pi) {
     await waitFor(() => existsSync(join(root, "initial-command.jsonl")), 7000);
     assert.equal(JSON.parse(readFileSync(join(root, "initial-command.jsonl"), "utf8").trim()).pid, registration.pid);
     assert.equal(registration.mode, "tui");
+    assert.equal(registration.authResolved, false, "the auth helper is only on the Fish startup PATH");
     assert.equal(registration.commands.includes("rex-fork"), true);
     const baseline = await json("session", "inspect", session, "--json");
     assert.equal(baseline.windows.length, 1);
@@ -465,6 +485,7 @@ export default function(pi) {
     const registrations = readFileSync(join(root, "startup.jsonl"), "utf8").trim().split("\n").map(line => JSON.parse(line));
     assert.equal(registrations.length, 2);
     assert.notEqual(registrations[0].pid, registrations[1].pid);
+    assert.equal(registrations[1].authResolved, true, "forked Pi can resolve the test API key");
     assert.equal(readFileSync(join(root, "initial-command.jsonl"), "utf8").trim().split("\n").length, 1);
     assert.equal(existsSync(join(root, "model-events.jsonl")), false);
   } catch (error) {

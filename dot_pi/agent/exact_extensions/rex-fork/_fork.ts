@@ -154,6 +154,9 @@ export async function runTabFork(api: ExtensionAPI, ctx: ExtensionContext, curre
   if (peer.session_id !== process.env.REX_SESSION || peer.block_id !== process.env.REX_BLOCK) throw new Error("Inherited Rex IDs do not match the invoking pane.");
   await inspectOwnPane(pi, peer, ctx.cwd);
   const command = launcher();
+  const fish = await pi.exec("/usr/bin/which", ["fish"], { timeout: 7000 });
+  const shell = fish.stdout.trim();
+  if (fish.code !== 0 || fish.killed || !isAbsolute(shell) || shell.includes("\n")) throw new Error("Fish must be installed and on the source Pi's PATH.");
   if (realpathSync(ctx.cwd) !== realpathSync(ctx.sessionManager.getCwd())) throw new Error("Source cwd does not match the session cwd.");
   const rechecked = await identity(pi, endpoint);
   const sourceWindow = await inspectOwnPane(pi, rechecked, ctx.cwd);
@@ -180,7 +183,7 @@ export async function runTabFork(api: ExtensionAPI, ctx: ExtensionContext, curre
   try {
     if (!settled()) throw new Error("Source changed before creation.");
     const layout = { block: { flavor: "com.superlogical.terminal.shell", options: {
-      shell: "none", login: false, cwd: ctx.cwd,
+      shell, login: true, cwd: ctx.cwd,
       command: ["/usr/bin/env", `PI_CODING_AGENT_DIR=${getAgentDir()}`, `PI_REX_FORK_ATTEMPT=${directory}`, ...command, "--session", snapshot.path],
     } } };
     const request = destination === "tab"

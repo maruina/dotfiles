@@ -1,8 +1,8 @@
 # ship-conductor: `/implement`
 `/implement <plan-path>` runs each remaining slice of a committed plan through `/execute`, `/simplify`, and `/verify`. Each stage runs in a fresh Pi RPC child with the model you select. The coordinator is extension code, not a model: it selects the slice, starts the children, routes approval dialogs to you, checks typed outcomes and Git state between stages, and offers recovery when a slice stage stops. The lifecycle templates in `dot_pi/agent/exact_prompts/` own all lifecycle policy.
 
-After the final slice is verified, work profile runs a bounded completion loop in fresh children:
-1. `pr-publish` publishes or refreshes a draft PR for the verified head.
+After the final slice is verified, the work profile runs a bounded completion loop:
+1. The coordinator publishes the exact verified commit and confirms the draft PR head on GitHub before it starts a review child. It uses the repository's configured Git transport, never force-pushes, and never changes an existing PR's base. A new draft uses the commit text and GitHub CLI's configured or default base. A wrong destination, a non-draft PR, or an unconfirmed head stops completion.
 2. `arp-review` performs a bounded silent ARP review for that exact head.
 3. If review evidence is clean, completion ends as verified.
 4. If review evidence requires fixes, run `arp-fix`, then a fresh feature-level `verify`, then publish and review the new head again.
@@ -34,7 +34,7 @@ When an execute, simplify, or verify stage blocks, fails, or verify returns `BLO
 
 Recovery is offered at most twice per run. It is not offered after a cancellation, when a child's termination was not confirmed, or when the session model matches the selected verifier. Use a session model that differs from your verify model if you want recovery available.
 
-Completion stages (`pr-publish`, `arp-review`, `arp-fix`, and completion-scope `verify`) do not offer interactive recovery. If completion stops, the summary reports the stopping stage, PR/head context, settled finding IDs, and a manual recovery path.
+Draft publication and completion stages (`arp-review`, `arp-fix`, and completion-scope `verify`) do not offer interactive recovery. If completion stops, the summary reports the stopping stage, PR/head context, settled finding IDs, and a manual recovery path.
 
 ## How to cancel a run
 - Press **Ctrl+Shift+X** at any time. The coordinator aborts the active child (RPC abort, then SIGTERM after 5 seconds, then SIGKILL after 5 more) and releases the lock only after the child exits.

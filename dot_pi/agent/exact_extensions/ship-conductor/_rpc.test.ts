@@ -41,7 +41,7 @@ function run(command: string, args: string[], cwd: string): string {
   return execFileSync(command, args, { cwd, encoding: "utf8" }).trim();
 }
 
-function createFixture(stage: "execute" | "simplify" | "verify" | "pr-publish" | "arp-review" | "arp-fix" = "execute"): Fixture {
+function createFixture(stage: "execute" | "simplify" | "verify" | "arp-review" | "arp-fix" = "execute"): Fixture {
   const root = mkdtempSync(join(tmpdir(), "pi-lifecycle-rpc-"));
   chmodSync(root, 0o700);
   const worktree = join(root, "repo");
@@ -65,7 +65,7 @@ function createFixture(stage: "execute" | "simplify" | "verify" | "pr-publish" |
     const baselineCommit = run("git", ["rev-parse", "HEAD"], worktree);
     const planBlob = run("git", ["rev-parse", "HEAD:plans/fixture/plan.md"], worktree);
     const designBlob = run("git", ["rev-parse", "HEAD:plans/fixture/design.md"], worktree);
-    const completionStage = stage === "pr-publish" || stage === "arp-review" || stage === "arp-fix";
+    const completionStage = stage === "arp-review" || stage === "arp-fix";
     writeFileSync(
       configPath,
       JSON.stringify(
@@ -1074,6 +1074,11 @@ describe("Pi 1.5.0 lifecycle bridge RPC contract", () => {
         candidate: captureCleanCandidate(fixture.worktree, createGitRunner()),
         models: { execute: driver, simplify: driver, verify: reviewer }, writerModelIds: ["lifecycle-test/driver"],
         thinkingLevels: { execute: "minimal", verify: "minimal" },
+        publish: async ({ candidate }) => {
+          run("git", ["push", "origin", `${candidate.head}:refs/heads/${candidate.branch}`], fixture.worktree);
+          const headSha = run("git", ["rev-parse", `refs/heads/${candidate.branch}`], remote);
+          return { status: "published", prUrl: "https://github.com/DataDog/repo/pull/123", headSha };
+        },
         dispatch: async ({ stage, config }) => {
           writeFileSync(fixture.configPath, JSON.stringify(config), { mode: 0o600 });
           const args = ["--no-extensions", "--no-prompt-templates", ...buildRpcStageArgs(config.stageModel.provider, config.stageModel.id, "minimal", BRIDGE_PATH), "-e", DRIVER_PATH];
@@ -1091,14 +1096,12 @@ describe("Pi 1.5.0 lifecycle bridge RPC contract", () => {
         },
       });
       assert.equal(result.status, "verified");
-      assert.deepEqual(stages.map((stage) => stage.stage), ["pr-publish", "arp-review", "arp-fix", "verify", "pr-publish", "arp-review"]);
+      assert.deepEqual(stages.map((stage) => stage.stage), ["arp-review", "arp-fix", "verify", "arp-review"]);
       const calls = (index: number, name: string) => stages[index]!.records.filter((record) => record.type === "tool_execution_start" && record.toolName === name);
-      assert.equal(calls(0, "bash")[0]?.args.command, "git push origin HEAD");
-      assert.deepEqual(calls(1, "agentic_review_resolve_finding")[0]?.args, { owner: "DataDog", repo: "repo", finding_id: 84171, resolution: "invalid", reason: "False positive: fixture evidence does not reproduce on the expected head." });
-      assert.equal(calls(2, "bash").length, 1);
-      assert.equal(calls(3, "lifecycle_submit_outcome")[0]?.args.outcome, "VERIFIED");
-      assert.equal(calls(4, "bash")[0]?.args.command, "git push origin HEAD");
-      const review = stages[5]!.records;
+      assert.deepEqual(calls(0, "agentic_review_resolve_finding")[0]?.args, { owner: "DataDog", repo: "repo", finding_id: 84171, resolution: "invalid", reason: "False positive: fixture evidence does not reproduce on the expected head." });
+      assert.equal(calls(1, "bash").length, 1);
+      assert.equal(calls(2, "lifecycle_submit_outcome")[0]?.args.outcome, "VERIFIED");
+      const review = stages[3]!.records;
       const resolutionIndex = review.findIndex((record) => record.type === "tool_execution_start" && record.toolName === "agentic_review_resolve_finding");
       const requestIndex = review.findIndex((record) => record.type === "tool_execution_start" && record.toolName === "agentic_review_request_review");
       assert.ok(resolutionIndex >= 0 && requestIndex > resolutionIndex);

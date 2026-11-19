@@ -18,7 +18,7 @@
     "test:statusline": "sh -c 'ext=$([ -d exact_extensions ] && echo exact_extensions || echo extensions); node --experimental-strip-types --test \"$ext\"/statusline.test.mjs'",
     "test:worktrunk": "sh -c 'scripts=$([ -d exact_scripts ] && echo exact_scripts || echo scripts); node --test \"$scripts\"/worktrunk-cutover.test.mjs'",
     "test:pr-validate-report": "sh -c 'scripts=$([ -d exact_scripts ] && echo exact_scripts || echo scripts); node --test \"$scripts\"/pr-validate-report/render.test.mjs'",
-    "test:pr-validate-collector": "sh -c 'scripts=$([ -d exact_scripts ] && echo exact_scripts || echo scripts); node --test \"$scripts\"/pr-validate-report/collect.test.mjs'",
+    "test:pr-validate-collector": "sh -c 'scripts=$([ -d exact_scripts ] && echo exact_scripts || echo scripts); node --test \"$scripts\"/pr-validate-report/collect.test.mjs \"$scripts\"/pr-validate-report/workspace.test.mjs'",
     "test:prompts": "sh -c 'scripts=$([ -d exact_scripts ] && echo exact_scripts || echo scripts); set -- \"$scripts\"/*-prompts.test.mjs; [ -e \"$1\" ] || { echo \"No prompt tests found\" >&2; exit 1; }; node --test \"$@\"'",
     "test:skills": "sh -c 'scripts=$([ -d exact_scripts ] && echo exact_scripts || echo scripts); node \"$scripts\"/validate-skills.mjs'",
     "test:skills:profiles": "sh -c 'scripts=$([ -d exact_scripts ] && echo exact_scripts || echo scripts); CHEZMOI_VALIDATE_PROFILE=work node \"$scripts\"/validate-skills.mjs && CHEZMOI_VALIDATE_PROFILE=personal node \"$scripts\"/validate-skills.mjs'",

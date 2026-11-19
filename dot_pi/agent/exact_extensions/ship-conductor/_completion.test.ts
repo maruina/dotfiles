@@ -141,12 +141,8 @@ function reviewClean(candidate: CandidateSnapshot, settledFindingIds: string[] =
   });
 }
 
-function published(candidate: CandidateSnapshot): LifecycleOutcomeEnvelope {
-  return outcome("pr-publish", candidate, {
-    prUrl: PR_URL,
-    publishedHeadSha: candidate.head,
-    commitRefs: [candidate.head],
-  });
+async function published({ candidate }: { candidate: CandidateSnapshot }) {
+  return { status: "published" as const, prUrl: PR_URL, headSha: candidate.head };
 }
 
 function fixed(before: CandidateSnapshot, after: CandidateSnapshot, findingId = "finding-1"): LifecycleOutcomeEnvelope {
@@ -165,7 +161,7 @@ function fixed(before: CandidateSnapshot, after: CandidateSnapshot, findingId = 
 
 async function runWithDispatch(
   dispatch: CompletionStageDispatch,
-  options: { now?: () => Date; writerModelIds?: string[]; signal?: AbortSignal } = {},
+  options: { now?: () => Date; writerModelIds?: string[]; signal?: AbortSignal; publish?: typeof published } = {},
 ) {
   return runCompletionPhase({
     policy: policy("work"),
@@ -184,6 +180,7 @@ async function runWithDispatch(
     thinkingLevels: { execute: "minimal", verify: "high" },
     now: options.now,
     signal: options.signal,
+    publish: options.publish ?? published,
     dispatch,
   });
 }
@@ -193,10 +190,6 @@ describe("runCompletionPhase", () => {
     const calls: Array<{ stage: CompletionStage; config: StageConfig }> = [];
     const dispatch: CompletionStageDispatch = async ({ stage, config }) => {
       calls.push({ stage, config });
-      if (stage === "pr-publish") {
-        const candidate = config.scope === "completion" ? config.completion.candidate : CANDIDATE1;
-        return { status: "settled", outcome: published(candidate) };
-      }
       if (stage === "arp-review") {
         const candidate = config.scope === "completion" ? config.completion.candidate : CANDIDATE1;
         if (calls.filter((call) => call.stage === "arp-review").length === 1) {
@@ -223,7 +216,7 @@ describe("runCompletionPhase", () => {
     assert.equal(result.status, "verified");
     assert.equal(result.reviewedHead, HEAD2);
     assert.deepEqual(result.settledFindingIds.sort(), ["bug-1", "invalid-1"]);
-    assert.deepEqual(calls.map((call) => call.stage), ["pr-publish", "arp-review", "arp-fix", "verify", "pr-publish", "arp-review"]);
+    assert.deepEqual(calls.map((call) => call.stage), ["arp-review", "arp-fix", "verify", "arp-review"]);
 
     const secondReview = calls.filter((call) => call.stage === "arp-review")[1]!;
     assert.equal(secondReview.config.scope, "completion");
@@ -234,19 +227,15 @@ describe("runCompletionPhase", () => {
     const calls: Array<{ stage: CompletionStage; config: StageConfig }> = [];
     const result = await runWithDispatch(async ({ stage, config }) => {
       calls.push({ stage, config });
-      if (stage === "pr-publish") {
-        const candidate = config.scope === "completion" ? config.completion.candidate : CANDIDATE1;
-        return { status: "settled", outcome: published(candidate) };
-      }
       assert.equal(stage, "arp-review");
       const candidate = config.scope === "completion" ? config.completion.candidate : CANDIDATE1;
       return { status: "settled", outcome: reviewClean(candidate) };
     }, { now: () => new Date("2026-01-01T00:00:00.000Z") });
 
     assert.equal(result.status, "verified");
-    assert.deepEqual(calls.map((call) => call.stage), ["pr-publish", "arp-review"]);
-    assert.equal(calls[1]!.config.scope, "completion");
-    const reviewRequest = calls[1]!.config.completion.reviewRequest!;
+    assert.deepEqual(calls.map((call) => call.stage), ["arp-review"]);
+    assert.equal(calls[0]!.config.scope, "completion");
+    const reviewRequest = calls[0]!.config.completion.reviewRequest!;
     assert.equal(reviewRequest.expectedHeadSha, HEAD1);
     assert.equal(reviewRequest.silent, true);
     assert.equal(reviewRequest.maxStatusChecks, 30);
@@ -257,24 +246,16 @@ describe("runCompletionPhase", () => {
     const calls: CompletionStage[] = [];
     const result = await runWithDispatch(async ({ stage, config }) => {
       calls.push(stage);
-      if (stage === "pr-publish") {
-        const candidate = config.scope === "completion" ? config.completion.candidate : CANDIDATE1;
-        return { status: "settled", outcome: published(candidate) };
-      }
       return { status: "failure", reason: "review request failed" };
     });
 
     assert.equal(result.status, "process-failure");
     assert.equal(result.stage, "arp-review");
-    assert.deepEqual(calls, ["pr-publish", "arp-review"]);
+    assert.deepEqual(calls, ["arp-review"]);
   });
 
   it("rejects arp-review success without typed review evidence", async () => {
     const result = await runWithDispatch(async ({ stage, config }) => {
-      if (stage === "pr-publish") {
-        const candidate = config.scope === "completion" ? config.completion.candidate : CANDIDATE1;
-        return { status: "settled", outcome: published(candidate) };
-      }
       return {
         status: "settled",
         outcome: outcome("arp-review", CANDIDATE1, {
@@ -292,10 +273,6 @@ describe("runCompletionPhase", () => {
     const calls: CompletionStage[] = [];
     const result = await runWithDispatch(async ({ stage, config }) => {
       calls.push(stage);
-      if (stage === "pr-publish") {
-        const candidate = config.scope === "completion" ? config.completion.candidate : CANDIDATE1;
-        return { status: "settled", outcome: published(candidate) };
-      }
       return {
         status: "settled",
         outcome: outcome("arp-review", CANDIDATE1, {
@@ -327,17 +304,13 @@ describe("runCompletionPhase", () => {
     assert.equal(result.status, "blocked");
     assert.equal(result.stage, "arp-review");
     assert.match(result.reason, /incomplete or non-silent/i);
-    assert.deepEqual(calls, ["pr-publish", "arp-review"]);
+    assert.deepEqual(calls, ["arp-review"]);
   });
 
   it("blocks findings review evidence when silent mode is not confirmed", async () => {
     const calls: CompletionStage[] = [];
     const result = await runWithDispatch(async ({ stage, config }) => {
       calls.push(stage);
-      if (stage === "pr-publish") {
-        const candidate = config.scope === "completion" ? config.completion.candidate : CANDIDATE1;
-        return { status: "settled", outcome: published(candidate) };
-      }
       return {
         status: "settled",
         outcome: outcome("arp-review", CANDIDATE1, {
@@ -369,17 +342,13 @@ describe("runCompletionPhase", () => {
     assert.equal(result.status, "blocked");
     assert.equal(result.stage, "arp-review");
     assert.match(result.reason, /reused prior review evidence without established silent mode|incomplete or non-silent/i);
-    assert.deepEqual(calls, ["pr-publish", "arp-review"]);
+    assert.deepEqual(calls, ["arp-review"]);
   });
 
   it("blocks ambiguous findings without running arp-fix", async () => {
     const calls: CompletionStage[] = [];
     const dispatch: CompletionStageDispatch = async ({ stage, config }) => {
       calls.push(stage);
-      if (stage === "pr-publish") {
-        const candidate = config.scope === "completion" ? config.completion.candidate : CANDIDATE1;
-        return { status: "settled", outcome: published(candidate) };
-      }
       return {
         status: "settled",
         outcome: outcome("arp-review", CANDIDATE1, {
@@ -404,7 +373,7 @@ describe("runCompletionPhase", () => {
     assert.equal(result.status, "blocked");
     assert.equal(result.stage, "arp-review");
     assert.match(result.reason, /without complete structured finding details/i);
-    assert.deepEqual(calls, ["pr-publish", "arp-review"]);
+    assert.deepEqual(calls, ["arp-review"]);
   });
 
   it("stops on third reviewed head with unresolved findings and does not run an unreviewed fix", async () => {
@@ -412,9 +381,6 @@ describe("runCompletionPhase", () => {
     let fixCount = 0;
     const dispatch: CompletionStageDispatch = async ({ stage, config }) => {
       const candidate = config.scope === "completion" ? config.completion.candidate : CANDIDATE1;
-      if (stage === "pr-publish") {
-        return { status: "settled", outcome: published(candidate) };
-      }
       if (stage === "arp-review") {
         reviewCount += 1;
         const settledFindingIds = config.scope === "completion"
@@ -445,7 +411,6 @@ describe("runCompletionPhase", () => {
     const dispatch: CompletionStageDispatch = async ({ stage, config }) => {
       calls.push(stage);
       const candidate = config.scope === "completion" ? config.completion.candidate : CANDIDATE1;
-      if (stage === "pr-publish") return { status: "settled", outcome: published(candidate) };
       if (stage === "arp-review") return { status: "settled", outcome: reviewBlocked(candidate) };
       if (stage === "arp-fix") return { status: "settled", outcome: fixed(CANDIDATE1, CANDIDATE2) };
       return { status: "settled", outcome: outcome("verify", CANDIDATE2, { outcome: "BLOCKED" }) };
@@ -456,13 +421,12 @@ describe("runCompletionPhase", () => {
     assert.equal(result.status, "blocked");
     assert.equal(result.stage, "verify");
     assert.match(result.reason, /returned BLOCKED/i);
-    assert.deepEqual(calls, ["pr-publish", "arp-review", "arp-fix", "verify"]);
+    assert.deepEqual(calls, ["arp-review", "arp-fix", "verify"]);
   });
 
   it("blocks partial addressed settlement after verified fix", async () => {
     const dispatch: CompletionStageDispatch = async ({ stage, config }) => {
       const candidate = config.scope === "completion" ? config.completion.candidate : CANDIDATE1;
-      if (stage === "pr-publish") return { status: "settled", outcome: published(candidate) };
       if (stage === "arp-review" && candidate.head === HEAD1) return { status: "settled", outcome: reviewBlocked(candidate) };
       if (stage === "arp-fix") return { status: "settled", outcome: fixed(CANDIDATE1, CANDIDATE2) };
       if (stage === "verify") return { status: "settled", outcome: outcome("verify", CANDIDATE2, { outcome: "VERIFIED" }) };
@@ -480,10 +444,6 @@ describe("runCompletionPhase", () => {
     const calls: CompletionStage[] = [];
     const dispatch: CompletionStageDispatch = async ({ stage, config }) => {
       calls.push(stage);
-      if (stage === "pr-publish") {
-        const candidate = config.scope === "completion" ? config.completion.candidate : CANDIDATE1;
-        return { status: "settled", outcome: published(candidate) };
-      }
       assert.equal(stage, "arp-review");
       return { status: "settled", outcome: reviewClean(CANDIDATE1, ["invalid-1"]) };
     };
@@ -492,25 +452,13 @@ describe("runCompletionPhase", () => {
 
     assert.equal(result.status, "verified");
     assert.deepEqual(result.settledFindingIds, ["invalid-1"]);
-    assert.deepEqual(calls, ["pr-publish", "arp-review"]);
+    assert.deepEqual(calls, ["arp-review"]);
   });
 
   it("uses verified candidate head as expected review target and blocks published-head mismatch", async () => {
-    const dispatch: CompletionStageDispatch = async ({ stage }) => {
-      if (stage === "pr-publish") {
-        return {
-          status: "settled",
-          outcome: outcome("pr-publish", CANDIDATE1, {
-            prUrl: PR_URL,
-            publishedHeadSha: "f".repeat(40),
-            commitRefs: ["f".repeat(40)],
-          }),
-        };
-      }
-      return { status: "settled", outcome: reviewClean(CANDIDATE1) };
-    };
-
-    const result = await runWithDispatch(dispatch);
+    const result = await runWithDispatch(async () => {
+      assert.fail("ARP must not start after a publication mismatch");
+    }, { publish: async () => ({ status: "published", prUrl: PR_URL, headSha: "f".repeat(40) }) });
 
     assert.equal(result.status, "blocked");
     assert.equal(result.stage, "pr-publish");
@@ -571,16 +519,16 @@ describe("runCompletionPhase", () => {
       },
       writerModelIds: [" openai/openai/gpt-5.3-codex "],
       thinkingLevels: { execute: "minimal", verify: "high" },
+      publish: published,
       dispatch: async ({ stage, config }) => {
         calls.push(stage);
         const candidate = config.scope === "completion" ? config.completion.candidate : CANDIDATE1;
-        if (stage === "pr-publish") return { status: "settled", outcome: published(candidate) };
         return { status: "settled", outcome: reviewClean(candidate) };
       },
     });
 
     assert.equal(result.status, "verified");
-    assert.deepEqual(calls, ["pr-publish", "arp-review"]);
+    assert.deepEqual(calls, ["arp-review"]);
   });
 
   it("blocks arp-fix settlement metadata for unrelated findings", async () => {
@@ -588,7 +536,6 @@ describe("runCompletionPhase", () => {
     const result = await runWithDispatch(async ({ stage, config }) => {
       calls.push(stage);
       const candidate = config.scope === "completion" ? config.completion.candidate : CANDIDATE1;
-      if (stage === "pr-publish") return { status: "settled", outcome: published(candidate) };
       if (stage === "arp-review") return { status: "settled", outcome: reviewBlocked(candidate) };
       assert.equal(stage, "arp-fix");
       return {
@@ -610,14 +557,13 @@ describe("runCompletionPhase", () => {
     assert.equal(result.status, "blocked");
     assert.equal(result.stage, "arp-fix");
     assert.match(result.reason, /unrelated finding/i);
-    assert.deepEqual(calls, ["pr-publish", "arp-review", "arp-fix"]);
+    assert.deepEqual(calls, ["arp-review", "arp-fix"]);
   });
 
   it("preserves settled and remaining finding IDs when review settles after deadline", async () => {
     let nowMs = Date.parse("2026-01-01T00:00:00.000Z");
     const result = await runWithDispatch(async ({ stage, config }) => {
       const candidate = config.scope === "completion" ? config.completion.candidate : CANDIDATE1;
-      if (stage === "pr-publish") return { status: "settled", outcome: published(candidate) };
       nowMs += 21 * 60 * 1000;
       return {
         status: "settled",
@@ -638,7 +584,6 @@ describe("runCompletionPhase", () => {
     const result = await runWithDispatch(async ({ stage, config }) => {
       calls.push(stage);
       const candidate = config.scope === "completion" ? config.completion.candidate : CANDIDATE1;
-      if (stage === "pr-publish") return { status: "settled", outcome: published(candidate) };
       signal.abort();
       return { status: "settled", outcome: reviewBlocked(candidate) };
     }, { signal: signal.signal });
@@ -646,7 +591,7 @@ describe("runCompletionPhase", () => {
     assert.equal(result.status, "cancelled");
     assert.equal(result.stage, "arp-fix");
     assert.match(result.reason, /before arp-fix started/i);
-    assert.deepEqual(calls, ["pr-publish", "arp-review"]);
+    assert.deepEqual(calls, ["arp-review"]);
   });
 
   it("blocks completion on invalid policy only at completion entry", async () => {
@@ -669,6 +614,7 @@ describe("runCompletionPhase", () => {
       models: completionModels(),
       writerModelIds: ["fixture/writer", "fixture/simplifier"],
       thinkingLevels: { execute: "minimal", verify: "high" },
+      publish: published,
       dispatch,
     });
 
@@ -696,6 +642,7 @@ describe("runCompletionPhase", () => {
       models: completionModels(),
       writerModelIds: ["fixture/writer", "fixture/simplifier"],
       thinkingLevels: { execute: "minimal", verify: "high" },
+      publish: published,
       dispatch,
     });
 
@@ -705,10 +652,6 @@ describe("runCompletionPhase", () => {
   it("blocks late review success after deadline", async () => {
     let nowMs = Date.parse("2026-01-01T00:00:00.000Z");
     const dispatch: CompletionStageDispatch = async ({ stage, config }) => {
-      if (stage === "pr-publish") {
-        const candidate = config.scope === "completion" ? config.completion.candidate : CANDIDATE1;
-        return { status: "settled", outcome: published(candidate) };
-      }
       nowMs += 21 * 60 * 1000;
       return { status: "settled", outcome: reviewClean(CANDIDATE1) };
     };

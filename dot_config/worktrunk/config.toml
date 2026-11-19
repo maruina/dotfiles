@@ -1,1 +1,0 @@
-pre-start = '''if [ -f {{ primary_worktree_path }}/AGENTS.local.md ] && [ ! -e {{ worktree_path }}/AGENTS.local.md ] && [ ! -L {{ worktree_path }}/AGENTS.local.md ]; then ln -s {{ primary_worktree_path }}/AGENTS.local.md {{ worktree_path }}/AGENTS.local.md; fi'''

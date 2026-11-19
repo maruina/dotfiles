@@ -35,6 +35,8 @@
 | `write` | skill-loader | Plan and attribution prose | Recorded the approved timeout and upstream attribution. |
 | `diataxis` | skill-loader | Extension refresh guidance | Kept the refresh procedure and license with the extension. |
 | `learning-candidates` | prompt-required | Upstream behavior disproved a plan assumption | Evaluated whether the timeout finding met the learning filter. |
+| `cli-best-practices` | skill-loader | Direct Worktrunk invocation and structured output | Used explicit, noninteractive fixture commands. |
+| `script-best-practices` | skill-loader | Fish and shell invocation fixtures | Used isolated state and quoted arguments. |
 
 ## Implementation Contract
 ### Components Affected
@@ -149,16 +151,20 @@ Chezmoi SHALL remove the three legacy Fish functions and make Worktrunk's native
 
 ### Slice 2: Make Worktrunk paths work for Pi and Fish
 ### Task 2: Configure profile paths for non-Fish processes
+**Status:** Complete. Slice 1 was independently verified, as reported by Matteo. Merged `origin/main` at `8bb2f07` to preserve the verified Slice 1 commit.
+
+**Evidence:** The initial tests failed because the template did not exist. After implementation, the first run exposed macOS `/var` and `/private/var` aliases; comparing resolved link targets corrected the fixture without changing the path requirement. `node --test dot_pi/agent/exact_scripts/worktrunk-cutover.test.mjs` and `npm run test:worktrunk` each passed 16 tests. Both profile renders, direct Bash, pilot Fish, local fetched-base creation, collision and dirty-state preservation, target variants, explicit override, and isolated Pi link access passed. JavaScript diagnostics were empty. The reviewed work-profile config target was applied and verified explicitly; the fixture and package targets were not applied because this slice applies only the config target. Existing pilot guidance remains valid; the planned Slice 3 documentation task covers the cutover and override limitation. Source dependencies remain installed for final Pi verification.
+
 **Delivers:** A profile-rendered Worktrunk path and the existing synchronous guidance hook for direct binary invocations and the pilot Fish command.
 **Blocked by:** Task 1
 **Traces to:** R2
 **Files:** `dot_config/worktrunk/config.toml`, `dot_config/worktrunk/config.toml.tmpl`, `dot_pi/agent/exact_scripts/worktrunk-cutover.test.mjs`, `dot_pi/agent/package.json`
 
-- [ ] Add a failing fixture test in `dot_pi/agent/exact_scripts/worktrunk-cutover.test.mjs` for both profile roots and direct Bash invocation, including spaces, apostrophes, mixed-case and multi-slash branches, a registered worktree, source guidance, collision, dirty state, existing guidance, and absent source.
-- [ ] Replace `dot_config/worktrunk/config.toml` with `dot_config/worktrunk/config.toml.tmpl` to prevent duplicate-target errors, configuring profile-specific native `worktree-path` and retaining the synchronous pre-start hook. Preserve Worktrunk's literal template syntax through chezmoi rendering.
-- [ ] Add `test:worktrunk` to `dot_pi/agent/package.json` to execute `worktrunk-cutover.test.mjs`. Run `node --test dot_pi/agent/exact_scripts/worktrunk-cutover.test.mjs`; expect passing direct Bash and pilot Fish scenarios for both profile renders. Assert a separate `WORKTRUNK_WORKTREE_PATH` override works and that a bare `WORKTREES_ROOT` override is not presented as supported by direct Worktrunk.
-- [ ] In a fixture, launch an isolated Pi process after creating a worktree and verify that it sees the link. Check SHA, refs, registrations, dirty files, and base HEAD before and after.
-- [ ] Preview and apply the config target only if the preview shows no unrelated changes; verify the explicit target. Commit with `feat(chezmoi): configure Worktrunk paths for agents`.
+- [x] Add a failing fixture test in `dot_pi/agent/exact_scripts/worktrunk-cutover.test.mjs` for both profile roots and direct Bash invocation, including spaces, apostrophes, mixed-case and multi-slash branches, a registered worktree, source guidance, collision, dirty state, existing guidance, and absent source.
+- [x] Replace `dot_config/worktrunk/config.toml` with `dot_config/worktrunk/config.toml.tmpl` to prevent duplicate-target errors, configuring profile-specific native `worktree-path` and retaining the synchronous pre-start hook. Preserve Worktrunk's literal template syntax through chezmoi rendering.
+- [x] Add `test:worktrunk` to `dot_pi/agent/package.json` to execute `worktrunk-cutover.test.mjs`. Run `node --test dot_pi/agent/exact_scripts/worktrunk-cutover.test.mjs`; expect passing direct Bash and pilot Fish scenarios for both profile renders. Assert a separate `WORKTRUNK_WORKTREE_PATH` override works and that a bare `WORKTREES_ROOT` override is not presented as supported by direct Worktrunk.
+- [x] In a fixture, launch an isolated Pi process after creating a worktree and verify that it sees the link. Check SHA, refs, registrations, dirty files, and base HEAD before and after.
+- [x] Preview and apply the config target only if the preview shows no unrelated changes; verify the explicit target. Commit with `feat(chezmoi): configure Worktrunk paths for agents`.
 
 ### Slice 3: Switch workflows and retire legacy commands
 ### Task 3: Cut over commands and Pi guidance

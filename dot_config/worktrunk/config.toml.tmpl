@@ -1,0 +1,6 @@
+{{- if eq .profile "work" -}}
+worktree-path = "~/dd/.worktrees/{{ `{{ repo }}` }}/{{ `{{ branch | replace('/', '-') | lower }}` }}"
+{{- else -}}
+worktree-path = "~/src/.worktrees/{{ `{{ repo }}` }}/{{ `{{ branch | replace('/', '-') | lower }}` }}"
+{{- end }}
+pre-start = '''if [ -f {{ `{{ primary_worktree_path }}` }}/AGENTS.local.md ] && [ ! -e {{ `{{ worktree_path }}` }}/AGENTS.local.md ] && [ ! -L {{ `{{ worktree_path }}` }}/AGENTS.local.md ]; then ln -s {{ `{{ primary_worktree_path }}` }}/AGENTS.local.md {{ `{{ worktree_path }}` }}/AGENTS.local.md; fi'''

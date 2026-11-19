@@ -132,6 +132,12 @@ if test -d "$jetbrains_toolbox_scripts"
     fish_add_path --append "$jetbrains_toolbox_scripts"
 end
 
+# Make the Rex CLI available outside Rex terminals.
+set -l rex_bin "{{ .chezmoi.homeDir }}/Library/Application Support/com.superlogical.rex/RexServer/Versions/Current/Rex Server.app/Contents/MacOS"
+if test -x "$rex_bin/rex"
+    fish_add_path --path --append "$rex_bin"
+end
+
 # Add obsidian CLI
 fish_add_path /Applications/Obsidian.app/Contents/MacOS
 

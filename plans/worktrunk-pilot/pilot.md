@@ -63,6 +63,7 @@ Collision, dirty-worktree, missing-source, tracked-file, valid-symlink, and dang
 | Malformed or denied | In isolated fixtures, `pr:not-a-number` and a denied API request exited 1 without changing refs or registrations. | PASS |
 | Different repository URL | A fake GitHub API and local remote accepted a URL for `other/repo` but resolved PR 1 in the current `fixture/repo` and created its worktree. | FAIL: a guard must compare the URL repository with the checkout remote. |
 | Existing stale branch | A local fixture reused a branch whose HEAD differed from the fake API's PR head SHA. The independent SHA comparison rejected it. | FAIL: a guard must compare checkout HEAD with current PR metadata. |
+| Private access and Datadog account routing | The approved live PRs were public and used the personal GitHub account. | BLOCKED: obtain approved private fixtures and repeat the checks with the required account. |
 
 The two live checks used separate disposable clones, disabled hooks, checked the base repository and HEAD, and verified restoration of the original GitHub login. The first fork evidence script assumed `pushRemote` was a remote name; Worktrunk set a URL instead. A corrected fresh-clone check passed. These public PRs do not prove private-repository access or Datadog account routing.
 

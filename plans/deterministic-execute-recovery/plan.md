@@ -20,6 +20,18 @@
 | `write` | `skill-loader` | Plan prose | Named the stop reason, candidate comparison, and user decision separately. |
 | `learning-lookup` | `prompt-required` | Advisory learning lookup | The Obsidian query timed out; no advisory guidance was used. |
 
+### Execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `skill-loader` | `prompt-required` | Execute workflow | Selected code, CLI, documentation, and dotfile guidance. |
+| `resolve-worktree` | `prompt-required` | Absolute plan path | Resolved the plan to its owning Git worktree. |
+| `feature-worktree` | `prompt-required` | Source changes | Confirmed the plan's clean feature worktree and left `main` unchanged. |
+| `codebase-research` | `skill-loader` | Cross-component recovery | Traced the bridge outcome, candidate digest, RPC parsing, and coordinator retry checks. |
+| `cli-best-practices` | `skill-loader` | Stop diagnostics and recovery options | Kept the blocker separate from report prose and distinguished confirmation from retry. |
+| `chezmoi` | `skill-loader` | Managed Pi files | Used the source worktree and kept rendered targets out of scope. |
+| `write` | `skill-loader` | Plan ledger and prompts | Kept the stop diagnosis explicit and condensed the execute posture without raising the prompt budget. |
+| `learning-candidates` | `prompt-required` | Prompt budget assumption | Recorded the context budget failure and how to check it before editing. |
+
 ## Implementation Contract
 ### Components affected
 | Component | Files | Responsibility | Verification |
@@ -67,10 +79,12 @@ The dotfiles owner controls rollout. Do not apply rendered targets before indepe
 **Traces to:** R1, R2.
 **Files:** `dot_pi/agent/exact_extensions/ship-conductor/_protocol.ts`, `dot_pi/agent/exact_extensions/ship-conductor/_bridge.ts`, `dot_pi/agent/exact_extensions/ship-conductor/_conductor.ts`, `dot_pi/agent/exact_extensions/ship-conductor/_protocol.test.ts`, `dot_pi/agent/exact_extensions/ship-conductor/_conductor.test.ts`, `dot_pi/agent/exact_extensions/ship-conductor/_rpc.test.ts`, `dot_pi/agent/exact_extensions/ship-conductor/_fixtures/rpc-driver.ts`, `dot_pi/agent/exact_prompts/execute.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`.
 
-- [ ] Add focused failing protocol, RPC, coordinator, and prompt tests for R1 and R2. Cover absent and invalid blocker data, cleanup after a pre-stop baseline merge, external confirmation and dismissal, and unchanged behavior for non-execute stops.
-- [ ] Implement the smallest passing protocol, coordinator, and prompt changes. Record the exact candidate snapshot at outcome submission (`candidateAtStop`) in stage/stop records so the post-recovery check compares against that commit rather than `candidateBeforeStage`. Check TypeScript diagnostics and rerun focused tests after any refactoring.
-- [ ] From `dot_pi/agent`, run `npm ci --ignore-scripts`, `node --experimental-strip-types --test 'exact_extensions/ship-conductor/*.test.ts'`, and `npm run test:prompts`. Require the Pi 1.5.0 RPC tests to run and pass, not skip. Keep dependencies until independent verification and the full suites finish.
-- [ ] Commit with `fix(pi): make execute blocker recovery deterministic`. Do not apply or publish yet.
+- [x] Add focused failing protocol, RPC, coordinator, and prompt tests for R1 and R2. Cover absent and invalid blocker data, cleanup after a pre-stop baseline merge, external confirmation and dismissal, and unchanged behavior for non-execute stops.
+- [x] Implement the smallest passing protocol, coordinator, and prompt changes. Record the exact candidate snapshot at outcome submission (`candidateAtStop`) in stage/stop records so the post-recovery check compares against that commit rather than `candidateBeforeStage`. Check TypeScript diagnostics and rerun focused tests after any refactoring.
+- [x] From `dot_pi/agent`, run `npm ci --ignore-scripts`, `node --experimental-strip-types --test 'exact_extensions/ship-conductor/*.test.ts'`, and `npm run test:prompts`. Require the Pi 1.5.0 RPC tests to run and pass, not skip. Keep dependencies until independent verification and the full suites finish.
+- [x] Commit with `fix(pi): make execute blocker recovery deterministic`. Do not apply or publish yet.
+
+Evidence: The focused protocol, RPC, coordinator, and prompt tests failed before the fix and passed afterward. TypeScript diagnostics reported no errors in the changed files. `npm ci --ignore-scripts` passed. With `$HOME/.pi/agent/install/releases/1.5.0/node_modules/.bin` first on `PATH`, the targeted ship-conductor suite passed 202 tests with no skips, including the real Pi RPC suite. The first `npm run test:prompts` failed because `execute.md` grew to 14,930 bytes. Condensing the execute posture reduced it to 14,445 bytes without changing the 14,500-byte limit; all 103 prompt tests then passed.
 
 ### Task 2: Validate the live handoff and document recovery
 **Delivers:** Live evidence and instructions for the operator.
@@ -82,3 +96,6 @@ The dotfiles owner controls rollout. Do not apply rendered targets before indepe
 - [ ] Update the coordinator README with the new recovery options and their limits. Inspect both `AGENTS.md` files and record why no change is needed unless they lack durable guidance required for this path.
 - [ ] Run `git diff --check`, `npm test`, and `npm run test:all` from `dot_pi/agent`. Use the isolated candidate agent directory for the Pi smoke command. Record results and leave apply and publication to verified closeout.
 - [ ] Commit with `docs(pi): explain execute blocker recovery`.
+
+## Learning candidates
+- 2026-11-19: `execute.md` had only two bytes of headroom before this change. Check the per-template byte budget before adding lifecycle policy; condense existing instructions without weakening them — evidence: `npm run test:prompts` first rejected 14,930 bytes against the 14,500-byte limit in `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`.

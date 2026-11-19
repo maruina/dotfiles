@@ -5,6 +5,7 @@ import {
   buildCompletionPrompt,
   buildStagePrompt,
   parseSinglePlanArgument,
+  quoteNativeArgument,
   type LifecycleStage,
 } from "./_prompts.ts";
 import {
@@ -20,6 +21,7 @@ import {
   PROTOCOL_VERSION,
   parseStageConfig,
   type CompletionStage,
+  type ExecuteBlocker,
   type ExecutionStage,
   type LifecycleOutcomeEnvelope,
   type Stage,
@@ -102,6 +104,7 @@ type StageRecord = {
   decisions: RpcStageDecision[];
   sessionId?: string;
   candidateBefore?: CandidateSnapshot;
+  candidateAtStop?: CandidateSnapshot;
   candidateAfter?: CandidateSnapshot;
   outcome?: LifecycleOutcomeEnvelope;
   reportRef?: string;
@@ -129,6 +132,8 @@ type RecoveryRecord = {
   failedSessionId?: string;
   failedReportRef?: string;
   failedError?: string;
+  candidateAtStop?: CandidateSnapshot;
+  blocker?: ExecuteBlocker;
   startedAt: string;
   finishedAt?: string;
   candidateAfter?: string;
@@ -689,6 +694,7 @@ export async function runImplement(
 
   const recoveryPrompt = (activeRound: RoundRecord, stop: PendingStop): string => {
     const stageRecord = activeRound.stages[stop.stage];
+    const blocker = stageRecord.outcome?.blocker;
     const report = stageRecord.reportRef ? readBounded(join(dirname(deps.stateStore.rootDirectory), stageRecord.reportRef)) : undefined;
     const diagnostics = [stageRecord.error, stageRecord.stderr].filter(Boolean).join("\n");
     let status: string;
@@ -700,6 +706,7 @@ export async function runImplement(
     return [
       `/implement run ${runId} stopped at round ${activeRound.number} (${activeRound.unit.heading}), stage ${stop.stage}, status ${stop.status}.`,
       `Reason: ${stop.reason ?? "not recorded"}`,
+      ...(blocker ? [`Blocked step: ${blocker.step}`, `Evidence: ${blocker.evidence}`, `Required next action: ${blocker.nextAction}`] : []),
       `Worktree: ${initial.root} (branch ${initial.branch})`,
       `Plan: ${initial.planPath}; selected tasks: ${activeRound.unit.taskNumbers.join(", ")}`,
       report ? `Stage report (${stageRecord.reportRef}):\n${report}` : `Stage diagnostics:\n${truncate(diagnostics || "none", MAX_RECOVERY_CONTEXT_BYTES)}`,
@@ -726,6 +733,8 @@ export async function runImplement(
   const handleStop = async (activeRound: RoundRecord): Promise<boolean> => {
     const stop = pendingStop!;
     pendingStop = undefined;
+    const stoppedStage = activeRound.stages[stop.stage];
+    const { candidateAtStop } = stoppedStage;
     const end = (status: "blocked" | "process-failure" | "cancelled", reason: string | undefined, extra?: string) => {
       deferStops = false;
       finish(status, stop.stage, reason, extra ? `${extra} ${stop.nextAction ?? ""}`.trim() : stop.nextAction);
@@ -763,9 +772,11 @@ export async function runImplement(
         stage: stop.stage,
         reason: oneLine(stop.reason ?? stop.status),
         model: current,
-        failedSessionId: activeRound.stages[stop.stage].sessionId,
-        failedReportRef: activeRound.stages[stop.stage].reportRef,
-        failedError: activeRound.stages[stop.stage].error,
+        failedSessionId: stoppedStage.sessionId,
+        failedReportRef: stoppedStage.reportRef,
+        failedError: stoppedStage.error,
+        candidateAtStop,
+        ...(candidateAtStop ? { blocker: stoppedStage.outcome?.blocker } : {}),
         startedAt: now(),
       };
       activeRound.recoveries.push(entry);
@@ -802,17 +813,24 @@ export async function runImplement(
       } catch (error) {
         problem = `the worktree is not clean: ${reasonOf(error)}`;
       }
+      // The stop digest includes dirty files; only a different commit counts as candidate movement.
+      const sameStoppedHead = !problem && candidateAtStop !== undefined && candidate?.head === candidateAtStop.head;
       const canRecoverAgain = record.recoveryCount < MAX_RECOVERIES_PER_RUN;
+      const retry = `Retry ${stop.stage} in a fresh session`;
+      const confirmExternal = "Confirm external prerequisite changed";
       const options = [
-        ...(problem ? [] : [`Retry ${stop.stage} in a fresh session`]),
+        ...(!problem && !sameStoppedHead ? [retry] : []),
         ...(canRecoverAgain ? [`Recover again with ${modelKey(settledRecoveryModel)}`] : []),
         "Stop",
+        ...(sameStoppedHead ? [confirmExternal] : []),
       ];
       record.status = "waiting-for-user";
       persist();
       const answer = await raceAbort(
         deps.ui.select(
-          problem ? `Recovery finished, but ${oneLine(problem)}` : `Recovery finished for round ${activeRound.number} ${stop.stage}`,
+          problem ? `Recovery finished, but ${oneLine(problem)}` : sameStoppedHead
+            ? "Recovery left the same execute commit. Cleaning the worktree does not resolve the blocker."
+            : `Recovery finished for round ${activeRound.number} ${stop.stage}`,
           options,
         ),
         undefined,
@@ -821,7 +839,23 @@ export async function runImplement(
         end("cancelled", "Cancelled after recovery");
         return false;
       }
-      if (answer?.startsWith("Retry") && candidate && planText !== undefined) {
+      let retryRequested = !problem && !sameStoppedHead && answer === retry;
+      if (sameStoppedHead && answer === confirmExternal) {
+        const retryAfterChange = "Retry after prerequisite changed";
+        const confirmation = await raceAbort(
+          deps.ui.select(`Did an external prerequisite for this blocker change? ${oneLine(stop.reason ?? stop.status)}`, [
+            "Keep stopped",
+            retryAfterChange,
+          ]),
+          undefined,
+        );
+        if (signal?.aborted) {
+          end("cancelled", "Cancelled while confirming the external prerequisite");
+          return false;
+        }
+        retryRequested = confirmation === retryAfterChange;
+      }
+      if (retryRequested && candidate && planText !== undefined) {
         entry.candidateAfter = candidate.head;
         candidateBeforeStage = candidate;
         planTextBeforeStage = planText;
@@ -1002,7 +1036,14 @@ export async function runImplement(
               }
               if ((stage === "execute" || stage === "simplify") && stageResult.outcome.outcome === "blocked") {
                 stageRecord.status = "blocked";
-                finish("blocked", stage, `${stage} reported a lifecycle blocker`);
+                const blocker = stage === "execute" ? stageResult.outcome.blocker : undefined;
+                if (blocker) {
+                  stageRecord.candidateAtStop = stageResult.outcome.candidate;
+                  finish("blocked", stage, oneLine(blocker.reason),
+                    `Required next action: ${oneLine(blocker.nextAction)}. After you resolve the blocker, run /execute ${quoteNativeArgument(initial.planPath)} in this worktree.`);
+                } else {
+                  finish("blocked", stage, `${stage} reported a lifecycle blocker`);
+                }
                 break;
               }
               let afterCandidate: CandidateSnapshot;

@@ -1092,6 +1092,26 @@ export default function lifecycleRpcDriver(pi: ExtensionAPI): void {
       const approvalWasReturned = !decisionResult.isError && JSON.stringify(decisionResult).toLowerCase().includes("approv");
       if (!approvalWasReturned) return streamText(model, "fixture did not observe an approved decision");
 
+      if (outcomeMode === "blocked-correction" && (!outcomeResult || outcomeResult.isError)) {
+        return streamToolCall(
+          model,
+          makeToolCall(`fixture-call-${++callNumber}`, "lifecycle_submit_outcome", {
+            schemaVersion: PROTOCOL_VERSION,
+            outcome: "blocked",
+            change: "unchanged",
+            report: "Fixture prerequisite is absent.",
+            ...(outcomeResult ? {
+              blocker: {
+                step: "Read the prerequisite file",
+                reason: "The prerequisite file is missing",
+                evidence: "No fixture-prerequisite.txt in the worktree",
+                nextAction: "Create fixture-prerequisite.txt",
+              },
+            } : {}),
+          }),
+        );
+      }
+
       if (!outcomeResult) {
         if (outcomeMode === "missing") return streamText(model, "fixture completed without a structured outcome");
         const outcomeArgs =

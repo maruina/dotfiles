@@ -271,6 +271,14 @@ test("execute requires attributable evidence and rejects inconclusive success", 
   ]);
 });
 
+test("execute continues authorized steps and submits a structured blocker for the current step", () => {
+  requireMarkers(prompt("execute.md"), [
+    /continue authorized work.*current step/is,
+    /later approval or live check.*unless.*prerequisite/is,
+    /`blocker`.*`step`.*`reason`.*`evidence`.*`nextAction`/is,
+  ]);
+});
+
 test("execute protects agreed checks and returns incorrect expectations to planning", () => {
   requireMarkers(prompt("execute.md"), [
     /do not disable a required check, weaken an agreed expectation, or change a tolerance merely to obtain a pass/i,

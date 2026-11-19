@@ -194,6 +194,19 @@ const ReviewEvidenceSchema = Type.Object(
   { additionalProperties: false },
 );
 
+const MAX_EXECUTE_BLOCKER_FIELD_BYTES = 1024;
+const ExecuteBlockerField = Type.String({ minLength: 1, maxLength: MAX_EXECUTE_BLOCKER_FIELD_BYTES });
+const ExecuteBlockerSchema = Type.Object(
+  {
+    step: ExecuteBlockerField,
+    reason: ExecuteBlockerField,
+    evidence: ExecuteBlockerField,
+    nextAction: ExecuteBlockerField,
+  },
+  { additionalProperties: false },
+);
+export type ExecuteBlocker = Static<typeof ExecuteBlockerSchema>;
+
 export const LifecycleOutcomeInputSchema = Type.Object(
   {
     schemaVersion: Type.Literal(PROTOCOL_VERSION),
@@ -205,6 +218,7 @@ export const LifecycleOutcomeInputSchema = Type.Object(
     ]),
     change: Type.Union([Type.Literal("changed"), Type.Literal("unchanged"), Type.Literal("not-applicable")]),
     report: Type.String({ minLength: 1, maxLength: MAX_STAGE_REPORT_BYTES }),
+    blocker: Type.Optional(ExecuteBlockerSchema),
     prUrl: Type.Optional(Type.String({ maxLength: 2048 })),
     commitRefs: Type.Optional(Type.Array(Type.String({ minLength: 1, maxLength: 256 }), { maxItems: 128 })),
     reviewEvidence: Type.Optional(ReviewEvidenceSchema),
@@ -227,6 +241,7 @@ const LifecycleOutcomeEnvelopeSchema = Type.Object(
     change: Type.Union([Type.Literal("changed"), Type.Literal("unchanged"), Type.Literal("not-applicable")]),
     candidate: CandidateSnapshotSchema,
     reportRef: Type.String({ minLength: 1, maxLength: 4096 }),
+    blocker: Type.Optional(ExecuteBlockerSchema),
     prUrl: Type.Optional(Type.String({ maxLength: 2048 })),
     commitRefs: Type.Optional(Type.Array(GitObjectIdSchema, { maxItems: 128 })),
     reviewEvidence: Type.Optional(ReviewEvidenceSchema),
@@ -524,6 +539,19 @@ function validateCompletionOutcomeMetadata(stage: Stage, input: CompletionOutcom
   }
 }
 
+function validateExecuteBlocker(stage: Stage, outcome: LifecycleOutcomeInput["outcome"], blocker?: ExecuteBlocker): void {
+  if (stage !== "execute" || outcome !== "blocked") {
+    if (blocker) throw new Error("Lifecycle blocker is only accepted for a blocked execute outcome");
+    return;
+  }
+  if (!blocker) throw new Error("Blocked execute requires blocker fields step, reason, evidence, and nextAction");
+  for (const [field, value] of Object.entries(blocker)) {
+    if (!value.trim() || Buffer.byteLength(value, "utf8") > MAX_EXECUTE_BLOCKER_FIELD_BYTES || /\p{Cc}/u.test(value.replace(/[\t\r\n]/g, ""))) {
+      throw new Error(`Lifecycle blocker ${field} must be nonblank plain text of at most ${MAX_EXECUTE_BLOCKER_FIELD_BYTES} bytes`);
+    }
+  }
+}
+
 export function parseLifecycleOutcome(value: unknown, stage: Stage): LifecycleOutcomeInput {
   const input = validate<LifecycleOutcomeInput>(LifecycleOutcomeInputSchema, value, "lifecycle outcome");
   if (Buffer.byteLength(input.report, "utf8") > MAX_STAGE_REPORT_BYTES) {
@@ -531,6 +559,7 @@ export function parseLifecycleOutcome(value: unknown, stage: Stage): LifecycleOu
   }
 
   validateStageOutcome(stage, input.outcome, input.change);
+  validateExecuteBlocker(stage, input.outcome, input.blocker);
   validateCompletionOutcomeMetadata(stage, input);
   validatePrUrl(input.prUrl);
   return input;
@@ -548,6 +577,7 @@ export function parseLifecycleOutcomeEnvelope(
     throw new Error("Lifecycle outcome identity does not match the active stage");
   }
   validateStageOutcome(result.stage, result.outcome, result.change);
+  validateExecuteBlocker(result.stage, result.outcome, result.blocker);
   validateCompletionOutcomeMetadata(result.stage, result);
   if (isAbsolute(result.reportRef) || result.reportRef.split(/[\\/]/).includes("..")) {
     throw new Error("Lifecycle report reference must be a safe relative path");

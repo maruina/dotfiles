@@ -24,6 +24,18 @@
 | `learning-lookup` | prompt-required | Advisory planning lookup | Attempted the Obsidian lookup; the CLI timed out. |
 | `obsidian-cli` | agent-selected | Learning lookup requires Obsidian | Used the CLI without reading the vault directly; no guidance was returned. |
 
+### Execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `skill-loader` | prompt-required | Execution-stage routing | Selected the applicable skills. |
+| `resolve-worktree` | prompt-required | Plan is in another worktree | Resolved and worked in the plan's feature worktree. |
+| `feature-worktree` | prompt-required | Execution requires a feature worktree | Used the existing `maruina/worktrunk-pilot` worktree. |
+| `chezmoi` | skill-loader | Managed Pi extension | Inspected target previews and stopped on unrelated target drift. |
+| `codebase-research` | skill-loader | Pi event and subprocess behavior | Inspected the upstream extension, Pi event handling, and existing RPC fixture. |
+| `write` | skill-loader | Plan and attribution prose | Recorded the approved timeout and upstream attribution. |
+| `diataxis` | skill-loader | Extension refresh guidance | Kept the refresh procedure and license with the extension. |
+| `learning-candidates` | prompt-required | Upstream behavior disproved a plan assumption | Evaluated whether the timeout finding met the learning filter. |
+
 ## Implementation Contract
 ### Components Affected
 | Component | Files | Responsibility | Verification |
@@ -35,7 +47,7 @@
 | Documentation and tests | `plans/worktrunk-pilot/pilot.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`, `dot_pi/agent/exact_scripts/worktrunk-cutover.test.mjs` | Replace obsolete operating instructions, retain dated pilot evidence, and test the cutover. | Focused tests, full Pi tests, and diff review. |
 
 ### Key Decisions
-- Vendor `dev/pi-extension.ts` from the installed Worktrunk release, with its exact version, upstream source URL and commit, content hash, and applicable license attribution recorded alongside it. The scratch installation of v0.82.0 produced SHA-256 `55083d7e2055c474f7d87ccad4f28bfbd1a8019ce03ff835952155b63075ef5b`, matching the local upstream checkout at `8253cb57fc181affd4f8dd25b14149bc8ff61b97`. Verify the installed release bytes again before vendoring. This avoids unmanaged writes to chezmoi's exact extension directory; upgrades require an explicit vendor refresh.
+- Start with `dev/pi-extension.ts` from the installed Worktrunk release, with its exact version, upstream source URL and commit, upstream content hash, local modification, and applicable license recorded alongside it. The scratch installation of v0.82.0 produced SHA-256 `55083d7e2055c474f7d87ccad4f28bfbd1a8019ce03ff835952155b63075ef5b`, matching the local upstream checkout at `8253cb57fc181affd4f8dd25b14149bc8ff61b97`. Verify the installed release bytes again before vendoring. Add a five-second timeout to each marker command because Pi awaits these handlers; test a hung command. This avoids unmanaged writes to chezmoi's exact extension directory; upgrades require an explicit vendor refresh and reapplication of the timeout.
 - Use Worktrunk's native user `worktree-path` config and native Fish initializer. A chezmoi profile template selects `~/dd/.worktrees` for work and `~/src/.worktrees` for personal, with the existing lowercase, slash-to-dash branch mapping. Worktrunk expands `~`. Normal Bash and Pi subprocesses therefore do not depend on a Fish function. Do not add a shell wrapper.
 - A caller that overrides `WORKTREES_ROOT` must also provide `WORKTRUNK_WORKTREE_PATH` to Worktrunk. Document and test this limitation; do not claim that arbitrary `WORKTREES_ROOT` overrides propagate automatically.
 - Retire `wtpr` without a replacement shell wrapper. Do not accept a PR checkout solely because `wt switch pr:<N>` or a PR URL succeeded: the pilot found a foreign URL could resolve in the current repository and a stale local branch could be reused. Preserve independent repository, account, and HEAD checks. Retain the fixed-path detached review workflow where needed.
@@ -119,17 +131,21 @@ Chezmoi SHALL remove the three legacy Fish functions and make Worktrunk's native
 ## Execution
 ### Slice 1: Show Pi activity in Worktrunk
 ### Task 1: Manage and verify the upstream Pi extension
+**Status:** Complete. The user approved using the upstream extension as a starting point with a timeout and including the existing `rex-fork` test entry when applying `~/.pi/agent/package.json`. After fetching, `origin/main` was `18a8477` and the feature branch was zero commits behind.
+
+**Evidence:** The installed v0.82.0 extension matched the planned upstream SHA-256. The local extension differs only by the five-second timeout. `npm ci --ignore-scripts` succeeded; `node --experimental-strip-types --test exact_extensions/worktrunk/activity.test.ts` passed five tests, including real Pi RPC with and without the binary, a shared marker, and a hung subprocess. The same focused test passed from the applied target. `npm run test:unit` passed 461 tests and skipped three Rex startup tests. TypeScript diagnostics were empty after dependency installation. The explicit target previews and verification passed; only the approved Worktrunk files and package test entries were applied. Existing `AGENTS.md` guidance needs no change for this slice; the extension README records its refresh and limitations.
+
 **Delivers:** A chezmoi-managed Pi extension that exposes working and idle markers without changing worktree commands.
 **Blocked by:** None
 **Traces to:** R1
 **Files:** `dot_pi/agent/exact_extensions/worktrunk.ts`, `dot_pi/agent/exact_extensions/worktrunk/`, `dot_pi/agent/package.json`
 
-- [ ] Inspect the exact extension directory target and upstream license. Confirm installed Worktrunk v0.82.0's embedded extension matches the stated SHA-256 in a temporary `PI_CODING_AGENT_DIR` using `PI_CODING_AGENT_DIR="$TMP_AGENT" wt config plugins pi install --yes`; do not install directly into the managed target.
-- [ ] Add focused failing tests in `dot_pi/agent/exact_extensions/worktrunk/activity.test.ts` for `agent_start`, `agent_settled`, `session_shutdown`, missing binary, and multiple sessions on one branch. Test the documented shared-marker limitation rather than asserting per-session isolation.
-- [ ] Vendor the unmodified upstream extension directly as `dot_pi/agent/exact_extensions/worktrunk.ts` (matching the stated SHA-256 for Pi's top-level extension discovery) and place source attribution, version, hash, and refresh instructions under `dot_pi/agent/exact_extensions/worktrunk/README.md`. Add the test to `test:unit` in `dot_pi/agent/package.json`.
-- [ ] Add an isolated RPC fixture with a local mock provider, following `dot_pi/agent/exact_extensions/ship-conductor/_fixtures/rpc-driver.ts`. Have `activity.test.ts` launch Pi in RPC mode with the managed extension and the mock provider, drive a prompt, inspect the real branch marker after `agent_start` and `agent_settled`, and verify it clears after shutdown; do not use a network model. Run `cd dot_pi/agent && npm ci --ignore-scripts && node --experimental-strip-types --test exact_extensions/worktrunk/activity.test.ts`; expect all tests to pass.
-- [ ] Preview and apply only the extension target when the exact-directory preview is safe. Verify its managed content and leave dependencies installed until full Pi verification completes.
-- [ ] Commit with `feat(pi): manage Worktrunk activity extension`.
+- [x] Inspect the exact extension directory target and upstream license. Confirm installed Worktrunk v0.82.0's embedded extension matches the stated SHA-256 in a temporary `PI_CODING_AGENT_DIR` using `PI_CODING_AGENT_DIR="$TMP_AGENT" wt config plugins pi install --yes`; do not install directly into the managed target.
+- [x] Add focused failing tests in `dot_pi/agent/exact_extensions/worktrunk/activity.test.ts` for `agent_start`, `agent_settled`, `session_shutdown`, missing binary, a hung marker command, and multiple sessions on one branch. Test the documented shared-marker limitation rather than asserting per-session isolation.
+- [x] Vendor the upstream extension as `dot_pi/agent/exact_extensions/worktrunk.ts` for Pi's top-level extension discovery, adding a five-second command timeout. Place source attribution, version, upstream hash, modification, license, and refresh instructions under `dot_pi/agent/exact_extensions/worktrunk/README.md`. Add the test to `test:unit` in `dot_pi/agent/package.json`.
+- [x] Add an isolated RPC fixture with a local mock provider, following `dot_pi/agent/exact_extensions/ship-conductor/_fixtures/rpc-driver.ts`. Have `activity.test.ts` launch Pi in RPC mode with the managed extension and the mock provider, drive a prompt, inspect the real branch marker after `agent_start` and `agent_settled`, and verify it clears after shutdown; do not use a network model. Run `cd dot_pi/agent && npm ci --ignore-scripts && node --experimental-strip-types --test exact_extensions/worktrunk/activity.test.ts`; expect all tests to pass.
+- [x] Preview and apply only the extension target when the exact-directory preview is safe. Verify its managed content and leave dependencies installed until full Pi verification completes. The user also approved applying the package target with the existing `rex-fork` entry.
+- [x] Commit with `feat(pi): manage Worktrunk activity extension`.
 
 ### Slice 2: Make Worktrunk paths work for Pi and Fish
 ### Task 2: Configure profile paths for non-Fish processes
@@ -169,3 +185,6 @@ Chezmoi SHALL remove the three legacy Fish functions and make Worktrunk's native
 - [ ] Run `cd dot_pi/agent && npm test && npm run test:all`; preserve dependencies until both complete. Run the focused fixture tests (`node --test dot_pi/agent/exact_scripts/worktrunk-cutover.test.mjs`) and Pi diagnostics after nontrivial TypeScript edits. Remove disposable source dependencies only after the tests complete, per repository guidance.
 - [ ] Verify explicit chezmoi targets, both profile renders, fresh Fish, direct Bash, non-destructive cleanup preview, guidance hook, markers, account restoration, and the legacy function removals. Record exact commands and results; do not infer private-access or personal-machine success.
 - [ ] Commit the final evidence if the plan changes, with `docs(chezmoi): record Worktrunk cutover verification`. Request independent `/verify` before publishing or merging.
+
+## Learning candidates
+- 2026-11-19: Worktrunk v0.82.0's Pi extension awaits marker commands without a timeout, and Pi awaits `agent_start` before the first request; a hung marker process can block the run — evidence: `dot_pi/agent/exact_extensions/worktrunk.ts` and the Pi 1.5.2 extension execution path.

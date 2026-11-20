@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "npm run test:copycat && npm run test:rex-recovery && npm run test:rex-naming && npm run test:unit && npm run test:prompts && npm run test:pr-validate-report && npm run test:pr-validate-collector && npm run test:gh-as && npm run test:lifecycle-git && npm run test:sync-vendored-skills && npm run test:skills && npm run test:pi-deps",
+    "test": "npm run test:copycat && npm run test:rex-recovery && npm run test:rex-naming && npm run test:unit && npm run test:prompts && npm run test:pr-validate-report && npm run test:pr-validate-collector && npm run test:gh-as && npm run test:lifecycle-git && npm run test:disk-cleanup && npm run test:sync-vendored-skills && npm run test:skills && npm run test:pi-deps",
     "test:copycat": "sh -c 'ext=$([ -d exact_extensions ] && echo exact_extensions || echo extensions); node --import jiti/register --test \"$ext\"/copycat/test.ts'",
     "test:rex-recovery": "sh -c 'ext=$([ -d exact_extensions ] && echo exact_extensions || echo extensions); node --test \"$ext\"/rex-recovery/recovery.test.mjs'",
     "test:rex-naming": "sh -c 'scripts=$([ -d exact_scripts ] && echo exact_scripts || echo scripts); node --test \"$scripts\"/rex-naming.test.mjs'",
@@ -22,6 +22,7 @@
     "test:prompts": "sh -c 'scripts=$([ -d exact_scripts ] && echo exact_scripts || echo scripts); set -- \"$scripts\"/*-prompts.test.mjs; [ -e \"$1\" ] || { echo \"No prompt tests found\" >&2; exit 1; }; node --test \"$@\"'",
     "test:gh-as": "sh -c 'scripts=$([ -d exact_scripts ] && echo exact_scripts || echo scripts); node --test \"$scripts\"/gh-as.test.mjs'",
     "test:lifecycle-git": "sh -c 'scripts=$([ -d exact_scripts ] && echo exact_scripts || echo scripts); node --test \"$scripts\"/lifecycle-git.test.mjs'",
+    "test:disk-cleanup": "sh -c 'scripts=$([ -d exact_scripts ] && echo exact_scripts || echo scripts); node --test \"$scripts\"/disk-cleanup.test.mjs'",
     "test:sync-vendored-skills": "sh -c 'scripts=$([ -d exact_scripts ] && echo exact_scripts || echo scripts); node --test \"$scripts\"/sync-vendored-skills.test.mjs'",
     "test:skills": "sh -c 'scripts=$([ -d exact_scripts ] && echo exact_scripts || echo scripts); node \"$scripts\"/validate-skills.mjs'",
     "test:skills:profiles": "sh -c 'scripts=$([ -d exact_scripts ] && echo exact_scripts || echo scripts); CHEZMOI_VALIDATE_PROFILE=work node \"$scripts\"/validate-skills.mjs && CHEZMOI_VALIDATE_PROFILE=personal node \"$scripts\"/validate-skills.mjs'",

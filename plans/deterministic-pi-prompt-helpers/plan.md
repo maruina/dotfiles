@@ -49,7 +49,7 @@ Queried `Datadog/Learnings.md` via `obsidian read path="Datadog/Learnings.md" | 
 | Deterministic vendored-skill sync CLI | `dot_pi/agent/exact_scripts/sync-vendored-skills.mjs` discovers `VENDOR.md` files, clones/fetches upstream repos under `${GO_REPOS_ROOT:-$HOME/go/src/github.com}/<org>/<repo>`, resolves `origin/HEAD` to a commit, reads upstream files (or `Files` subset) from that commit, not the clone’s checkout, strips trailing horizontal whitespace on lines when needed, updates `Pinned commit`, and emits JSON | 13 `VENDOR.md` files under `dot_pi/agent/exact_skills*/`; `dot_pi/agent/exact_prompts/sync-vendored-skills.md` | `dot_pi/agent/exact_scripts/sync-vendored-skills.test.mjs` using local Git repo fixtures | Fail with structured JSON error and non-zero exit code before modifying skill files |
 | Non-mutating per-org `gh` auth in `collect.mjs` and `gh-as.fish` | Map `ddoghq` and `ddoghq-sandbox` (case-insensitive) to `matteo-ruina_ddog` and all other owners to `maruina` (matching `_publish.ts`); resolve token via `gh auth token --hostname github.com --user <login>` and pass `GH_TOKEN` + `GH_HOST=github.com` to child `gh` processes | `dot_pi/agent/exact_extensions/ship-conductor/_publish.ts:81-82`, `dot_pi/agent/exact_scripts/pr-validate-report/collect.mjs` | `dot_pi/agent/exact_scripts/pr-validate-report/collect.test.mjs` and `dot_pi/agent/exact_scripts/gh-as.test.mjs` with fake `gh` binaries | In `collect.mjs`, mark sources unavailable with `auth_unavailable` and emit partial/unavailable envelope; in `gh-as.fish`, exit non-zero on stderr without running `gh` under the wrong account |
 | Lifecycle Git helper CLI (`lifecycle-git.mjs`) | Subcommands `verify-design-approval`, `resolve`, `discover-plan`, `snapshot`, and `compare-snapshots` wrapping read-only `git` commands with JSON output | `dot_pi/agent/exact_prompts/plan.md`, `verify.md`, `learn.md`, `pr-address-feedback.md`, `dot_pi/agent/exact_skills/resolve-worktree/SKILL.md` | `dot_pi/agent/exact_scripts/lifecycle-git.test.mjs` with temporary Git worktree fixtures + `lifecycle-prompts.test.mjs` + `learn-prompts.test.mjs` | Exit non-zero with structured JSON diagnostic so the calling prompt stops or hands off |
-| Disk cleanup measurement & worktree scanner (`disk-cleanup.mjs`) | Subcommands `measure` (`df`, bounded `du`, `docker system df`, `pgrep`) and `scan-worktrees` (`git worktree list --porcelain`, dirty/locked/orphan checks, per-org `gh pr list` merge checks) emitting JSON | `dot_pi/agent/exact_prompts/disk-cleanup.md` | `dot_pi/agent/exact_scripts/disk-cleanup.test.mjs` with fake `git`/`gh`/`du`/`df` fixtures | Report unavailable command/account in JSON output without deleting or mutating anything |
+| Disk cleanup measurement & worktree scanner (`disk-cleanup.mjs`) | `measure` uses `df`, bounded `du`, `docker system df`, and `pgrep`; `scan-worktrees` uses `wt list` and `wt step prune --dry-run` plus orphan-directory discovery | `dot_pi/agent/exact_prompts/disk-cleanup.md`, installed Worktrunk v0.82.0 | `dot_pi/agent/exact_scripts/disk-cleanup.test.mjs` with local Git worktrees and fake measurement commands | Report unavailable evidence and do not remove anything; Worktrunk may write its local cache |
 
 ## Consumer map
 | Modified surface | Consumers found via `rg` | Planned action |
@@ -69,14 +69,14 @@ Queried `Datadog/Learnings.md` via `obsidian read path="Datadog/Learnings.md" | 
 | Vendored skill sync CLI & prompt | `dot_pi/agent/exact_scripts/sync-vendored-skills.mjs`, `dot_pi/agent/exact_scripts/sync-vendored-skills.test.mjs`, `dot_pi/agent/exact_prompts/sync-vendored-skills.md` | Discover `VENDOR.md` skills, clone/fetch upstream repos, diff/copy files (or `Files` subset), update `Pinned commit`, and emit JSON summary | `node --test dot_pi/agent/exact_scripts/sync-vendored-skills.test.mjs` |
 | Per-org `gh` token routing & `gh-as` | `dot_pi/agent/exact_scripts/pr-validate-report/github-url.mjs`, `dot_pi/agent/exact_scripts/pr-validate-report/collect.mjs`, `dot_pi/agent/exact_scripts/pr-validate-report/collect.test.mjs`, `dot_config/private_fish/exact_functions/gh-as.fish`, `dot_pi/agent/exact_scripts/gh-as.test.mjs` | Resolve per-org token via `gh auth token --hostname github.com --user <login>` and pass `GH_TOKEN` to child `gh` calls without mutating global auth state | `node --test dot_pi/agent/exact_scripts/pr-validate-report/collect.test.mjs dot_pi/agent/exact_scripts/gh-as.test.mjs` |
 | Lifecycle Git helper CLI | `dot_pi/agent/exact_scripts/lifecycle-git.mjs`, `dot_pi/agent/exact_scripts/lifecycle-git.test.mjs`, `dot_pi/agent/exact_skills/resolve-worktree/SKILL.md`, `dot_pi/agent/exact_prompts/plan.md`, `dot_pi/agent/exact_prompts/verify.md`, `dot_pi/agent/exact_prompts/learn.md`, `dot_pi/agent/exact_prompts/pr-address-feedback.md` | Deterministic `verify-design-approval`, `resolve`, `discover-plan`, `snapshot`, and `compare-snapshots` subcommands and prompt/skill integrations | `node --test dot_pi/agent/exact_scripts/lifecycle-git.test.mjs dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs dot_pi/agent/exact_scripts/learn-prompts.test.mjs` |
-| Disk cleanup helper CLI | `dot_pi/agent/exact_scripts/disk-cleanup.mjs`, `dot_pi/agent/exact_scripts/disk-cleanup.test.mjs`, `dot_pi/agent/exact_prompts/disk-cleanup.md` | Read-only `measure` and `scan-worktrees` subcommands with per-org `gh auth token` PR merge lookups | `node --test dot_pi/agent/exact_scripts/disk-cleanup.test.mjs` |
+| Disk cleanup helper CLI | `dot_pi/agent/exact_scripts/disk-cleanup.mjs`, `dot_pi/agent/exact_scripts/disk-cleanup.test.mjs`, `dot_pi/agent/exact_prompts/disk-cleanup.md` | `measure` and non-destructive Worktrunk `scan-worktrees`; Worktrunk may write caches | `node --test dot_pi/agent/exact_scripts/disk-cleanup.test.mjs` |
 | Package & docs wiring | `dot_pi/agent/package.json`, `dot_pi/agent/AGENTS.md` | Wire new test files into `npm test` scripts and document `gh-as` and new helper scripts | `cd dot_pi/agent && npm test && npm run test:all` |
 
 ### Key Decisions
 - **Auto-run `rex-name-session` once per interactive Pi process:** Capture Pi’s startup directory before task routing. A slash command that targets another worktree does not change the naming directory. Require `ctx.mode === "tui"`. Do not use `ctx.hasUI` because Pi also sets it in RPC mode. This excludes `/implement` children that inherit both Rex variables. Keep `rex-name-session.fish` as the only implementation of the single-tab, single-pane and `keep:` checks.
 - **Consolidate lifecycle Git operations into `dot_pi/agent/exact_scripts/lifecycle-git.mjs`:** Subcommands (`verify-design-approval`, `resolve`, `discover-plan`, `snapshot`, `compare-snapshots`) share `git worktree list --porcelain` parsing, path canonicalization, and Git runner helpers. Separate scripts would duplicate worktree parsing and CLI boilerplate across three files.
 - **Fail closed (`auth_unavailable`) when `gh auth token` fails in `collect.mjs` and `gh-as.fish`:** Falling back to ambient `gh` auth would silently query GitHub with the wrong organization identity when the target account is unavailable.
-- **Keep `disk-cleanup.mjs` strictly read-only (`measure` and `scan-worktrees`):** Destructive operations (`git worktree remove`, `go clean -modcache`, `bzl dd disk-space gc`, `docker image prune`) remain gated by user confirmation in `disk-cleanup.md`.
+- **Use Worktrunk for worktree discovery:** The user chose Worktrunk's integration policy instead of GitHub PR-state checks and approved Worktrunk cache writes during `scan-worktrees`. The helper never removes worktrees or branches. The prompt requires explicit approval before removal, including integrated candidates.
 
 ### Implementation Constraints
 - Preserve all prompt context byte budgets in `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs` (`plan.md` <= 17,200 bytes, `verify.md` <= 13,700 bytes, `execute.md` <= 14,500 bytes, `systematic-review.md` <= 12,500 bytes, `simplify.md` <= 9,500 bytes, `brainstorm.md` <= 14,000 bytes).
@@ -192,21 +192,20 @@ The `user-context` extension SHALL attempt `fish -c rex-name-session` in the bac
 - WHEN `resolve` (`--path` or `--glob`), `discover-plan`, `snapshot`, and `compare-snapshots` run
 - THEN `resolve` and `discover-plan` return canonical paths, worktree roots, branches, headings, and candidate lists without mutating Git state, and `compare-snapshots` exits `0` when identical and `1` with field-level `deltas` when tracked or untracked state changes.
 
-### Requirement 5: Deterministic disk-cleanup measurement and worktree scanner (`disk-cleanup.mjs`)
-`disk-cleanup.mjs` SHALL provide read-only `measure` and `scan-worktrees` subcommands that emit `schemaVersion: 1` JSON without deleting files or switching global `gh` accounts, and `disk-cleanup.md` SHALL use them for Steps 1 and 2.
+### Requirement 5: Deterministic disk-cleanup measurement and Worktrunk preview (`disk-cleanup.mjs`)
+`disk-cleanup.mjs` SHALL provide `measure` and `scan-worktrees` subcommands with `schemaVersion: 1` JSON. The scan SHALL use `wt list` and `wt step prune --dry-run` rather than GitHub PR queries. Worktrunk may write its local cache; the helper SHALL NOT remove worktrees or branches.
 
-#### Scenario: `scan-worktrees` classifies worktrees and checks PR state per org
-- GIVEN base repositories with clean merged-PR, dirty merged-PR, open-PR, no-PR, locked, foreign-branch, and orphaned worktrees
-- WHEN `node dot_pi/agent/exact_scripts/disk-cleanup.mjs scan-worktrees` runs
-- THEN it classifies each worktree into `merged_clean`, `merged_dirty`, `open_pr`, `no_pr`, `flagged`, or `orphaned` using per-org `GH_TOKEN` lookups (including per-branch fallback when bulk `gh pr list` misses a branch)
-- AND it marks a clean tip `merged_clean` only when the matching PR is merged, its head repository and branch match the local branch’s source, and its recorded head SHA equals the current local tip, which also works for squash merges
-- AND a clean branch advanced after merge, an ambiguous match, or unavailable PR or Git evidence is `flagged`, not eligible for automatic removal
-- AND it performs no worktree removals, branch deletions, or recursive deletes.
+#### Scenario: Worktrunk preview
+- GIVEN clean integrated, dirty, locked, unintegrated, branch-only, and orphaned worktrees
+- WHEN `scan-worktrees` runs
+- THEN it reports Worktrunk's integration and preview evidence, dirty and locked states, branch-only candidates, and orphaned directories without claiming PR merge state.
+- AND unavailable or ambiguous evidence is flagged, not eligible for removal.
+- AND the prompt requires explicit approval before removal and does not run bulk prune against unreviewed candidates.
 
-#### Scenario: `measure` and `scan-worktrees` never mutate disk or global auth state (negative)
+#### Scenario: No destructive scan (negative)
 - GIVEN dirty worktrees, crash dumps, and caches exist on disk
-- WHEN `disk-cleanup.mjs measure` or `disk-cleanup.mjs scan-worktrees` runs
-- THEN no files, worktrees, branches, or `gh auth` configurations are modified.
+- WHEN `measure` or `scan-worktrees` runs
+- THEN no worktrees, branches, files outside Worktrunk's cache, or `gh auth` configurations are removed or modified.
 
 ---
 
@@ -283,16 +282,19 @@ The `user-context` extension SHALL attempt `fish -c rex-name-session` in the bac
 - [x] Commit with `feat(pi): add lifecycle-git helper CLI for prompts and worktree resolution`.
 
 ### Task 5: Add `disk-cleanup.mjs` and shrink `disk-cleanup.md`
-**Delivers:** Read-only `dot_pi/agent/exact_scripts/disk-cleanup.mjs` (`measure` and `scan-worktrees`) and updated `dot_pi/agent/exact_prompts/disk-cleanup.md`.
+**Status:** Complete. The user directed this task to use Worktrunk instead of GitHub PR queries and approved Worktrunk cache writes during scans. `wt list` and `wt step prune --dry-run` may write `.git/wt/cache/` but must not remove worktrees or branches. Worktrunk reports content integration, not PR merge state; the prompt requires explicit approval for removals.
+**Delivers:** Non-destructive `dot_pi/agent/exact_scripts/disk-cleanup.mjs` (`measure` and Worktrunk-based `scan-worktrees`) and updated `dot_pi/agent/exact_prompts/disk-cleanup.md`.
 **Blocked by:** Task 3 and Task 4
 **Traces to:** Requirement 5
 **Files:** `dot_pi/agent/exact_scripts/disk-cleanup.mjs`, `dot_pi/agent/exact_scripts/disk-cleanup.test.mjs`, `dot_pi/agent/exact_prompts/disk-cleanup.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`, `dot_pi/agent/package.json`
 
-- [ ] Write failing tests in `dot_pi/agent/exact_scripts/disk-cleanup.test.mjs` covering `measure` (root `df`, consumer `du` summaries, top `Library/Caches` entries, `docker system df` when running vs stopped, `bzl (test|build)` detection, crash dumps, and trash) and `scan-worktrees` (`merged_clean`, `merged_dirty`, `open_pr`, `no_pr`, `flagged` locked/foreign branch, `orphaned` directory detection, per-org `GH_TOKEN` routing, and per-branch PR fallback when bulk `gh pr list` truncates, an exact squash-merge head match, a clean branch advanced since merge, and unavailable or ambiguous evidence).
-- [ ] Add the read-only helper and update `disk-cleanup.md` to use it while keeping all `<HARD-GATE>` rules. Before automatic removal, compare the recorded tip with the current tip and recheck registration, branch ownership, lock, and dirty status. Stop if any check fails or evidence is unavailable. Recheck the tip again before branch deletion. Keep the existing Git worktree and branch checks; never override a Git refusal. Add prompt assertions for these gates and wire `disk-cleanup.test.mjs` into `dot_pi/agent/package.json`.
-- [ ] Run `node --test dot_pi/agent/exact_scripts/disk-cleanup.test.mjs dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`; expect all tests to pass.
-- [ ] Refactor only after green, then rerun the test command above.
-- [ ] Commit with `feat(pi): add deterministic disk-cleanup measurement and worktree scanner`.
+- [x] Write failing tests in `dot_pi/agent/exact_scripts/disk-cleanup.test.mjs` covering measurement, Worktrunk list and prune preview, integrated and non-integrated worktrees, dirty and locked worktrees, branch-only candidates, orphaned directories, unavailable evidence, and preservation of registrations, refs, and files. Use real disposable Git worktrees and Worktrunk, plus fake measurement commands.
+- [x] Add the non-destructive helper and update `disk-cleanup.md` to use Worktrunk while keeping all `<HARD-GATE>` rules. Require explicit approval for each removal. Before removal, recheck registration, branch ownership, lock, dirty state, and recorded tip; stop if evidence changed or is unavailable. Never run bulk prune against unreviewed candidates or override a Worktrunk refusal. Add prompt assertions and wire `disk-cleanup.test.mjs` into `dot_pi/agent/package.json`.
+- [x] Run `node --test dot_pi/agent/exact_scripts/disk-cleanup.test.mjs dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`; expect all tests to pass.
+  - All 72 focused tests passed, including six disk helper tests and a real local squash-merge fixture. The fixture checks Git files, registrations, refs, and dirty content; only Worktrunk cache changes are allowed. JavaScript diagnostics passed.
+- [x] Refactor only after green, then rerun the test command above.
+  - A stronger Git-file comparison found that Worktrunk caches its detected default branch in Git config. The helper now passes an existing `worktrunk.default-branch` or local `origin/HEAD` as per-process Git config and flags a repository when neither is available. The focused suite passed after the fix.
+- [x] Commit with `feat(pi): add deterministic disk-cleanup measurement and worktree scanner`.
 
 ### Task 6: Document Rex naming and `gh-as`
 **Delivers:** Usage and account rules in `dot_pi/agent/AGENTS.md`.
@@ -310,10 +312,11 @@ The `user-context` extension SHALL attempt `fish -c rex-name-session` in the bac
 
 - [ ] Run `npm ci --ignore-scripts`, `npm test`, and `npm run test:all` in `dot_pi/agent`. Remove the disposable `dot_pi/agent/node_modules` only after the suite completes. Check `git diff --check origin/main..HEAD` and confirm that verification did not change Git state. A failing test first is not applicable to this verification-only task.
 - [ ] Use a temporary `PI_CODING_AGENT_DIR` and explicitly load candidate `user-context.ts` with `--no-extensions -e`. Reuse the offline test-model pattern from `dot_pi/agent/exact_extensions/ship-conductor/_rpc.test.ts` to run a turn in RPC mode with Rex variables, a fake `rex` that returns the context fixture, and a fake `fish` that records any call. Assert from the injected context that the candidate hook ran, kept `rex-name-task` guidance, and did not call Fish. Task 1’s TUI-mode hook test must show the positive startup-directory behavior; the stock `--list-models` smoke check alone proves neither contract.
-- [ ] Record the result for each requirement against the cumulative candidate: startup-directory naming and RPC exclusion; exact pinned vendored bytes and no apply on failure; repository-bound GitHub routing and collector failure propagation; unchanged approval and snapshot guards; and no automatic removal when branch-tip evidence is unavailable or differs. Block delivery if any required check is missing.
+- [ ] Record the result for each requirement against the cumulative candidate: startup-directory naming and RPC exclusion; exact pinned vendored bytes and no apply on failure; repository-bound GitHub routing and collector failure propagation; unchanged approval and snapshot guards; and Worktrunk previews without worktree or branch removal. Block delivery if any required check is missing.
 
 ## Learning candidates
 - 2026-11-20: Pi RPC children inherit the parent’s Rex identifiers, so Rex variables alone cannot identify the process that owns a visible pane — evidence: `dot_pi/agent/exact_extensions/ship-conductor/_spawn.ts:85–109`.
 - 2026-11-20: The Pi `test:smoke` command can pass against installed extensions without loading a candidate or running its hook — evidence: `dot_pi/agent/package.json:23–24`.
 - 2026-11-20: An `exact_` parent does not remove deleted files inside a non-exact child directory; `chezmoi diff` for the removed target reports `not managed` and applying the child leaves the file — evidence: isolated chezmoi source and destination fixture for `exact_skills/demo/removed.md`.
 - 2026-11-20: Fish startup configuration can reorder `PATH` ahead of a fake executable in subprocess tests; `fish --no-config` keeps the fixture isolated — evidence: `dot_pi/agent/exact_scripts/gh-as.test.mjs`.
+- 2026-11-20: Worktrunk `list` can persist its inferred `worktrunk.default-branch` in local Git config even during a preview; pass an established branch through process-scoped Git config to avoid the write — evidence: `dot_pi/agent/exact_scripts/disk-cleanup.test.mjs`.

@@ -102,7 +102,7 @@ Records can contain private repository details and decision text. They stay loca
 
 ### Tests
 From `dot_pi/agent`:
-- `node --experimental-strip-types --test 'exact_extensions/ship-conductor/*.test.ts'` runs the extension suite. `_rpc.test.ts` drives the real Pi 1.5.0 agent loop with the in-memory fixture provider in `_fixtures/rpc-driver.ts`; it makes no network calls.
+- `node --experimental-strip-types --test 'exact_extensions/ship-conductor/*.test.ts'` runs the extension suite. `_rpc.test.ts` drives the real Pi 1.6.0 agent loop with the in-memory fixture provider in `_fixtures/rpc-driver.ts`; it makes no network calls.
 - `node --test exact_scripts/lifecycle-prompts.test.mjs` checks the template contracts.
 - `npm test` and `npm run test:all` run the full gates.
 

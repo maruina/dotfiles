@@ -141,5 +141,10 @@ end
 # Add obsidian CLI
 fish_add_path /Applications/Obsidian.app/Contents/MacOS
 
+{{- if eq .profile "work" }}
+# Fish loads conf.d before config.fish. Re-run the Dogbrew hook after PATH setup.
+test -r "$__fish_config_dir/conf.d/99-dogbrew.fish" && source "$__fish_config_dir/conf.d/99-dogbrew.fish"
+{{- end }}
+
 # Zoxide
 zoxide init fish | source

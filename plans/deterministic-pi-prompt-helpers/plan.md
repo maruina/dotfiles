@@ -26,6 +26,16 @@
 | `feature-worktree` | `prompt-required` | Durable plans must be written and committed in a feature worktree | Created `maruina/deterministic-pi-prompt-helpers` from `origin/main` via `wt switch --create` |
 | `learning-candidates` | `prompt-required` | Confirmed review fixes changed the Rex process guard and smoke check | Recorded why inherited Rex variables and the installed Pi smoke check were insufficient |
 
+### Execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `skill-loader` | `prompt-required` | `/execute` requires skill selection | Selected skills for the affected extension and plan ledger |
+| `resolve-worktree` | `prompt-required` | The plan is in another worktree | Resolved the plan and used its owning worktree |
+| `feature-worktree` | `prompt-required` | Execution changes files | Confirmed the plan's feature branch and clean worktree |
+| `chezmoi` | `skill-loader` | The extension is managed by chezmoi | Edited source files only and deferred target application until verification |
+| `codebase-research` | `skill-loader` | The extension changes process behavior | Traced hook, subprocess, context guidance, tests, and Pi extension lifecycle |
+| `write` | `skill-loader` | The plan ledger and context guidance contain prose | Kept changes concise and preserved the plan requirements |
+
 ## Advisory learning lookup
 Queried `Datadog/Learnings.md` via `obsidian read path="Datadog/Learnings.md" | node "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/scripts/learn-evidence.mjs" learning-sections --term rex --term worktree --term prompt --term gh --term vendored --term lifecycle`. Thirteen sections matched (`Render piped chezmoi templates against an initialized config, not --init` and twelve distributed-systems/Kubernetes entries). None conflicted with or altered these local Pi script and prompt changes.
 
@@ -200,16 +210,20 @@ The `user-context` extension SHALL attempt `fish -c rex-name-session` in the bac
 ### Slice 1: Auto-run `rex-name-session` in `user-context.ts` and drop the prompt chore
 
 ### Task 1: Auto-run `rex-name-session` in `user-context.ts`
+**Status:** Complete.
 **Delivers:** Automatic background execution of `fish -c rex-name-session` when `REX_SESSION` and `REX_BLOCK` are set, and removal of the `rex-name-session` instruction from `formatRexContext`.
 **Blocked by:** None
 **Traces to:** Requirement 1
 **Files:** `dot_pi/agent/exact_extensions/user-context.ts`, `dot_pi/agent/exact_extensions/user-context.test.mjs`
 
-- [ ] Add focused failing tests in `dot_pi/agent/exact_extensions/user-context.test.mjs` for the registered hook: startup directory versus task target, duplicate turns, inherited Rex variables in RPC mode, a missing Rex variable, and a failed naming attempt. Verify that the result retains `rex-name-task` guidance without a `rex-name-session` instruction.
-- [ ] Capture the startup directory when the extension loads. In `before_agent_start`, start the bounded Fish command at most once per eligible TUI process without waiting for it. Remove the `rex-name-session` instruction and limit the remaining failure guidance to `rex-name-task`.
-- [ ] Run `node --experimental-strip-types --test dot_pi/agent/exact_extensions/user-context.test.mjs dot_pi/agent/exact_scripts/rex-naming.test.mjs`; expect all tests to pass.
-- [ ] Refactor only after green, then rerun the test command above.
-- [ ] Commit with `feat(pi): auto-run rex-name-session from user-context`.
+- [x] Add focused failing tests in `dot_pi/agent/exact_extensions/user-context.test.mjs` for the registered hook: startup directory versus task target, duplicate turns, inherited Rex variables in RPC mode, a missing Rex variable, and a failed naming attempt. Verify that the result retains `rex-name-task` guidance without a `rex-name-session` instruction.
+  - The focused test failed as expected before implementation: naming was absent and the old guidance remained. The tests also cover extension reload.
+- [x] Capture the startup directory when the extension loads. In `before_agent_start`, start the bounded Fish command at most once per eligible TUI process without waiting for it. Remove the `rex-name-session` instruction and limit the remaining failure guidance to `rex-name-task`.
+- [x] Run `node --experimental-strip-types --test dot_pi/agent/exact_extensions/user-context.test.mjs dot_pi/agent/exact_scripts/rex-naming.test.mjs`; expect all tests to pass.
+  - The first implementation check found a removed task-timing instruction and a macOS `/var` symlink mismatch in the test. Restored the timing instruction and compared canonical paths; the rerun passed all 19 tests.
+- [x] Refactor only after green, then rerun the test command above.
+  - No implementation refactor was needed. Strengthened the test to confirm Fish remains running when the hook returns, then reran all 19 tests successfully.
+- [x] Commit with `feat(pi): auto-run rex-name-session from user-context`.
 
 ### Slice 2: Deterministic `sync-vendored-skills.mjs` CLI and compact `sync-vendored-skills.md`
 

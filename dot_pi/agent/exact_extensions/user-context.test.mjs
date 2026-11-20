@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import path from "node:path";
+import os from "node:os";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -92,14 +95,91 @@ test("loadRexLines disables Rex's built-in naming and adds repository session an
   const guidance = lines.slice(5).join("\n");
   assert.doesNotMatch(guidance, /the shared Rex session/);
   assert.match(guidance, /Before task work.*first request that identifies the task/);
-  assert.match(guidance, /fish -c rex-name-session/);
-  assert.match(guidance, /keep:/);
+  assert.doesNotMatch(guidance, /rex-name-session/);
   assert.match(guidance, /π-.*two to four lowercase task words/);
   assert.match(guidance, /rex-name-task π-compare-rex-extensions/);
   assert.match(guidance, /not the focused tab/);
   assert.match(guidance, /split tabs.*only this pane/);
-  assert.match(guidance, /verify changes/);
+  assert.match(guidance, /verifies changes/);
   assert.doesNotMatch(guidance, /rex (session rename|window rename|block inspect)/);
+});
+
+function runHookScenario({ mode = "tui", session = "session:x", block = "block:x", fail = false, reload = false } = {}) {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "user-context-hook-"));
+  try {
+    const startup = path.join(dir, "startup");
+    const target = path.join(dir, "target");
+    const bin = path.join(dir, "bin");
+    for (const p of [startup, target, bin]) mkdirSync(p);
+    const calls = path.join(dir, "calls");
+    const release = path.join(dir, "release");
+    writeFileSync(path.join(bin, "rex"), `#!${process.execPath}\nconsole.log('Rex fixture');\n`, { mode: 0o755 });
+    writeFileSync(path.join(bin, "fish"), `#!${process.execPath}
+const fs = require('node:fs');
+fs.appendFileSync(process.env.CALLS, JSON.stringify({ cwd: process.cwd(), args: process.argv.slice(2), pid: process.pid }) + '\\n');
+if (process.env.FAIL === 'true') process.exit(1);
+const interval = setInterval(() => { if (fs.existsSync(process.env.RELEASE)) { clearInterval(interval); process.exit(0); } }, 10);
+`, { mode: 0o755 });
+    const moduleUrl = new URL("./user-context.ts", import.meta.url).href;
+    const script = `
+      import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+      const register = async (suffix) => {
+        const { default: extension } = await import(${JSON.stringify(moduleUrl)} + suffix);
+        let hook;
+        extension({ on(name, fn) { if (name === 'before_agent_start') hook = fn; }, events: { emit() {} } });
+        return hook;
+      };
+      const event = { messageType: 'user', prompt: 'hello', systemPrompt: 'base' };
+      const ctx = { cwd: process.env.TARGET, mode: process.env.MODE, sessionManager: { getSessionId: () => 'test' } };
+      const first = await register('?first');
+      process.chdir(process.env.TARGET);
+      const result = await first(event, ctx);
+      await first(event, ctx);
+      if (process.env.RELOAD === 'true') await (await register('?reload'))(event, ctx);
+      let alive = false;
+      if (process.env.MODE === 'tui' && process.env.REX_SESSION && process.env.REX_BLOCK && process.env.FAIL !== 'true') {
+        for (let i = 0; i < 100 && !existsSync(process.env.CALLS); i++) await new Promise(r => setTimeout(r, 10));
+        if (existsSync(process.env.CALLS)) {
+          const { pid } = JSON.parse(readFileSync(process.env.CALLS, 'utf8').split('\\n')[0]);
+          try { process.kill(pid, 0); alive = true; } catch {}
+        }
+      }
+      writeFileSync(process.env.RELEASE, 'released');
+      console.log(JSON.stringify({ result, alive }));
+    `;
+    const result = spawnSync(process.execPath, ["--experimental-strip-types", "--input-type=module", "-e", script], {
+      cwd: startup, encoding: "utf8", timeout: 8000,
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, REX_SESSION: session, REX_BLOCK: block, CALLS: calls, RELEASE: release, TARGET: target, MODE: mode, FAIL: String(fail), RELOAD: String(reload) },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    let recorded = [];
+    try { recorded = readFileSync(calls, "utf8").trim().split("\n").map(JSON.parse); } catch (error) { if (error.code !== "ENOENT") throw error; }
+    const { result: output, alive } = JSON.parse(result.stdout);
+    return { recorded, startup: realpathSync(startup), output, alive };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test("registered hook names once in the startup directory without waiting, including after reload", () => {
+  const { recorded, startup, output, alive } = runHookScenario({ reload: true });
+  assert.equal(alive, true, "the hook returned before Fish exited");
+  assert.equal(recorded.length, 1);
+  assert.deepEqual({ cwd: recorded[0].cwd, args: recorded[0].args }, { cwd: startup, args: ["-c", "rex-name-session"] });
+  assert.match(output.message.content, /rex-name-task/);
+  assert.doesNotMatch(output.message.content, /rex-name-session/);
+});
+
+test("registered hook excludes RPC and missing Rex identifiers", () => {
+  for (const options of [{ mode: "rpc" }, { session: "" }, { block: "" }]) {
+    assert.deepEqual(runHookScenario(options).recorded, []);
+  }
+});
+
+test("registered hook ignores failed naming and does not retry", () => {
+  const { recorded, output } = runHookScenario({ fail: true, reload: true });
+  assert.equal(recorded.length, 1);
+  assert.match(output.message.content, /rex-name-task/);
 });
 
 test("formatPR includes state, number, base, title, head, and link", () => {

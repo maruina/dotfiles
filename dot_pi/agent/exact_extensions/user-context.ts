@@ -219,10 +219,9 @@ export function shouldAddSkillLoaderGuidance(prompt: string): boolean {
 export function formatRexContext(output: string): string[] {
   return ["## Rex", "", ...output.split("\n"), "", ...[
     "### Session and tab names",
-    'Before task work on the first request that identifies the task, run `fish -c rex-name-session` from the task repository or directory. It names single-tab, single-pane sessions after the repository or directory and preserves names prefixed with `keep:`.',
-    "Choose π- followed by two to four lowercase task words joined by hyphens, such as π-compare-rex-extensions. Keep the existing task label if it still describes the work.",
+    "Before task work on the first request that identifies the task, choose π- followed by two to four lowercase task words joined by hyphens, such as π-compare-rex-extensions. Keep the existing task label if it still describes the work.",
     'Apply the task label with `fish -c \'rex-name-task π-compare-rex-extensions\'`. The function targets this pane\'s containing tab, not the focused tab; for split tabs it labels only this pane.',
-    "Both functions verify changes. If either command fails, report the failure before continuing; do not bypass its safety checks.",
+    "The function verifies changes. If the command fails, report the failure before continuing; do not bypass its safety checks.",
   ]];
 }
 
@@ -235,6 +234,10 @@ export async function loadRexLines(env: NodeJS.ProcessEnv, run: AsyncRunner): Pr
   const output = await run("rex", ["__internal", "session-start", "--agent", "pi", "--feature-session-naming=false"], undefined, 3000);
   return output ? formatRexContext(output) : null;
 }
+
+const rexNamingKey = Symbol.for("user-context.rex-naming");
+const processState = globalThis as typeof globalThis & { [rexNamingKey]?: { startupCwd: string; attempted: boolean } };
+const rexNamingState = processState[rexNamingKey] ??= { startupCwd: process.cwd(), attempted: false };
 
 let cachedRexLines: string[] | null | undefined;
 
@@ -260,6 +263,10 @@ export default function (pi: ExtensionAPI) {
   let repoContextFetchKey: string | null = null;
 
   pi.on("before_agent_start", traceHook<BeforeAgentStartEvent, BeforeAgentStartEventResult>(pi, "user-context.before_agent_start", async (event, ctx) => {
+    if (!rexNamingState.attempted && ctx.mode === "tui" && process.env.REX_SESSION && process.env.REX_BLOCK) {
+      rexNamingState.attempted = true;
+      void runAsync("fish", ["-c", "rex-name-session"], rexNamingState.startupCwd, 3000);
+    }
     const { cwd } = ctx;
     const lines: string[] = [];
     const { name, email } = getGitIdentity(cwd);

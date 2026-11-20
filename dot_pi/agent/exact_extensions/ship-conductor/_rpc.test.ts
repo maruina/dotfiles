@@ -273,9 +273,9 @@ class RpcProcess {
   }
 }
 
-function assertPi15x(): void {
+function assertPi16x(): void {
   const version = execFileSync("pi", ["--version"], { encoding: "utf8" }).trim();
-  assert.match(version, /^1\.5\./, `RPC contract test requires Pi 1.5.x, got ${version}`);
+  assert.match(version, /^1\.6\./, `RPC contract test requires Pi 1.6.x, got ${version}`);
 }
 
 function startRpc(
@@ -299,7 +299,7 @@ function startRpc(
   childConfigPath: string | false = fixture.configPath,
   extraEnv: NodeJS.ProcessEnv = {},
 ): RpcProcess {
-  assertPi15x();
+  assertPi16x();
   const args = [
     "--no-extensions",
     "--no-prompt-templates",
@@ -740,7 +740,7 @@ async function runCandidateTemplateExpansion(): Promise<void> {
   }
 }
 
-describe("Pi 1.5.0 lifecycle bridge RPC contract", () => {
+describe("Pi 1.6.0 lifecycle bridge RPC contract", () => {
   it("leaves ordinary RPC sessions unchanged when the child marker is absent", { timeout: 60_000 }, async () => {
     const fixture = createFixture();
     const rpc = startRpc(fixture, "success", undefined, false);
@@ -792,7 +792,7 @@ describe("Pi 1.5.0 lifecycle bridge RPC contract", () => {
     },
   ];
   for (const invalid of invalidConfigs) it(`fails a child configuration with ${invalid.name} before starting the stage prompt`, { timeout: 60_000 }, async () => {
-    assertPi15x();
+    assertPi16x();
     const fixture = createFixture();
     invalid.write(fixture);
     const promptPath = join(fixture.root, "execute.md");

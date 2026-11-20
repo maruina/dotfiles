@@ -183,6 +183,20 @@ test("design approval requires a fresh comprehension review, not author self-rev
   ]);
 });
 
+test("disk cleanup uses Worktrunk previews and gates each removal", () => {
+  const text = prompt("disk-cleanup.md");
+  requireMarkers(text, [/disk-cleanup\.mjs.*measure/is, /disk-cleanup\.mjs.*scan-worktrees/is, /wt step prune.*--dry-run/is, /explicit approval.*each worktree/is, /recorded tip.*current tip/is, /registration.*branch.*lock.*dirty/is, /never run bulk prune/i, /wt remove.*--foreground.*--no-delete-branch/is]);
+  assert.doesNotMatch(text, /gh pr list/);
+  assert.match(text, /^description:.*Worktrunk/m);
+  assert.doesNotMatch(text, /^description:.*merged-PR state/m);
+});
+
+test("lifecycle prompts use the deterministic Git helper without dropping guards", () => {
+  assert.match(prompt("verify.md"), /lifecycle-git\.mjs.*snapshot/s);
+  assert.match(prompt("verify.md"), /compare-snapshots/);
+  assert.match(prompt("pr-address-feedback.md"), /lifecycle-git\.mjs.*discover-plan/);
+});
+
 test("plan accepts a clean committed Approved design without checking approval history", () => {
   const text = prompt("plan.md");
   requireMarkers(text, [

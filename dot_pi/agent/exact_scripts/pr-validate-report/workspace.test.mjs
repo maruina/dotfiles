@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -36,6 +36,18 @@ function fixture(t, { fetched = head, owner = 'DataDog', dirty = false } = {}) {
   const collect = async () => ({ pr: { headRefOid: head } });
   return { git, collect, temp, base, worktree, calls };
 }
+
+test('preflight does not fetch when the actual collector cannot resolve a token', async (t) => {
+  const { git, temp, base, calls } = fixture(t);
+  const gh = join(temp, 'gh');
+  writeFileSync(gh, '#!/bin/sh\nexit 1\n');
+  chmodSync(gh, 0o755);
+  const previous = process.env.PATH;
+  process.env.PATH = `${temp}:${previous}`;
+  t.after(() => { process.env.PATH = previous; });
+  await assert.rejects(preflight({ url, base, remote: 'origin', git, temp }), /metadata unavailable/i);
+  assert.ok(!calls.some(([, command]) => command === 'fetch'));
+});
 
 test('preflight isolates overlapping runs and does not use FETCH_HEAD', async (t) => {
   const { git, collect, temp, base, calls } = fixture(t);

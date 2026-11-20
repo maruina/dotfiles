@@ -81,6 +81,7 @@ test("learn uses a transactional, privacy-preserving vault write", () => {
 
 test("learn resolves plain mode through branch-correlated plan discovery", () => {
   const text = prompt("learn.md");
+  assert.match(text, /lifecycle-git\.mjs.*discover-plan/);
 
   requireMarkers(text, [
     /plain mode/i,
@@ -159,6 +160,18 @@ test("execute and verify do not read the mutable learning store", () => {
     assert.doesNotMatch(text, /obsidian\s+(?:read|create|delete)/i);
     assert.doesNotMatch(text, /learning-lookup/);
   }
+});
+
+test("guidance distinguishes gh-as routing from direct gh and explains Rex startup naming", () => {
+  const agents = readFileSync(path.join(agentDir, "AGENTS.md"), "utf8");
+  requireMarkers(agents, [
+    /gh-as.*per-process.*without.*switch/is,
+    /gh-as.*owner\/repo.*pr view.*pr list/is,
+    /gh-as.*api user/is,
+    /direct `gh`.*switch.*restore/is,
+    /rex-name-session.*startup directory.*interactive/is,
+    /rex-name-task/is,
+  ]);
 });
 
 test("lifecycle guidance names the standard stages and has no compound reference", () => {

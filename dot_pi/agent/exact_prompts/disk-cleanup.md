@@ -1,5 +1,5 @@
 ---
-description: "Reclaim disk space: measure top consumers, sweep stale worktrees by merged-PR state, clean Go/Bazel/Docker caches. Asks before destructive steps."
+description: "Reclaim disk space: measure top consumers, preview integrated worktrees with Worktrunk, clean Go/Bazel/Docker caches. Asks before destructive steps."
 argument-hint: "[aggressive | report-only]"
 ---
 # Disk cleanup
@@ -31,33 +31,18 @@ Before task work, load the `skill-loader` skill and record `Skills loaded and us
 4. **Orphaned worktrees.** `git worktree remove` can unregister metadata and then fail to delete files (macOS permission errors). The directory is then an orphan: git says "not a working tree" but files remain. Only the user can delete it; add it to the manual command block.
 5. **Locked worktrees.** `git worktree list --porcelain` shows a `locked` line. Removal needs `git worktree unlock` then `remove --force`. Always ask the user first; a lock set by someone else means their tooling owns it.
 6. **bzl lock.** `bzl dd disk-space gc` refuses when another bzl or bazel process runs. Check with `pgrep -fl 'bzl (test|build)'` first. `--force-bazel-shutdown` stops bazel servers but not other people's work.
-7. **GitHub accounts.** For `ddoghq/*` PR queries use the `matteo-ruina_ddog` gh account; for everything else use `maruina`. Capture the active login with `gh auth status`, switch before PR queries, and restore it after every path.
-8. **Merged-PR lists truncate.** `gh pr list --state merged --limit 500` can miss older branches. For any worktree not matched, verify per branch with `gh pr list --state merged --head <branch> --limit 1`.
+7. **Worktrunk integration.** `wt step prune --dry-run` checks content integration against the local default branch or its known upstream, not GitHub PR state. Stale refs can omit candidates; do not fetch during the scan. The helper uses the configured `worktrunk.default-branch` or local `origin/HEAD` without changing Git config; if neither is available, it flags the repository. Worktrunk may write `.git/wt/cache/` during preview.
+8. **Bulk prune.** A live prune can remove the current worktree and branch-only candidates. Never run bulk prune against unreviewed candidates.
 
 ## Step 1: Measure
-Run these and record a table of consumer, size, and safe action:
-- `df -h / | tail -1`
-- `du -sh /private/var/tmp/_bazel_matteo.ruina ~/Library/Caches ~/.colima ~/go/pkg/mod ~/go/src ~/.npm 2>/dev/null | sort -rh`
-- `du -sh ~/Library/Caches/* 2>/dev/null | sort -rh | head -10`
-- `du -sh ~/go/src/github.com/DataDog/.worktrees 2>/dev/null`
-- `docker system df 2>/dev/null` (colima must be running; otherwise note it as stopped)
-- `pgrep -fl 'bzl (test|build)'` — if a bazel job runs, mark bazel GC as blocked and skip it this run.
-- `du -sh ~/*.hprof 2>/dev/null` — GoLand crash dumps.
+Run `node "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/scripts/disk-cleanup.mjs" measure`. Use the JSON to report disk space, consumers, top caches, Docker, Bazel processes, crash dumps, and Trash. Sizes are in KiB. If `bazelRunning` is true or unavailable, skip Bazel GC. Stop if required measurements are unavailable.
 
 Reference sizes from a past run (2026-10-21, freed about 290 GB total): go module cache 124 GB, bazel output bases 237 GB, colima VM 102 GB with 95 GB reclaimable images, go-build 27 GB, goimports 17 GB, dotfiles worktrees under 2 GB. Expect regrowth; treat these as order-of-magnitude, not targets.
 
 ## Step 2: Worktree sweep
-For each base repository with more than its own checkout registered:
-1. List worktrees: `git -C <repo> worktree list --porcelain`.
-2. Classify each non-primary worktree:
-   - **Merged PR + clean status** → remove with `git worktree remove`, then `git branch -D`. This is the only auto-remove class.
-   - **Merged PR + dirty** → propose; remove only with `git worktree remove --force` after the user confirms the uncommitted changes are disposable.
-   - **Open PR** → keep; report as live work.
-   - **No PR** → propose with last-commit date and dirty state; the user decides per item.
-   - **Locked or another person's branch** → flag; remove only after explicit user confirmation, with `git worktree unlock` first.
-3. Verify merge state with the correct gh account and the per-branch check from gotcha 8.
-4. Run `git worktree prune` per repo after removals.
-5. Worktree branches whose PR is merged are safe to delete locally even for squash merges; content lives on GitHub.
+Run `node "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/scripts/disk-cleanup.mjs" scan-worktrees`. The helper uses `wt list` and `wt step prune --dry-run`, with Worktrunk's default one-day minimum age, and reports integrated previews, dirty or flagged worktrees, branch-only candidates, and orphaned directories. It does not query GitHub or remove anything. Stop on unavailable evidence; do not infer PR state from integration.
+
+Show the preview and require explicit approval for each worktree before removal, including integrated candidates. Do not select current or active work, or foreign, locked, dirty, or detached worktrees for routine removal. Before each approved removal, re-run the scan and compare the recorded tip with the current tip; recheck registration, branch ownership, lock, and dirty status. Stop if any check or preview changes, or evidence is unavailable. Inspect Worktrunk removal hooks first; stop if their effects are unreviewed or violate a HARD-GATE. Then run `wt remove --foreground --no-delete-branch <worktree>` from its owning base repo. Never use `--force`, override a Worktrunk refusal, or run bulk prune. Leave branch-only candidates for separate user review; do not delete branches automatically. Hand orphaned directories to the user for manual removal.
 
 ## Step 3: Caches
 Ask-then-run for each confirmed item (sizes come from step 1):
@@ -83,5 +68,5 @@ Manual handoff (blocked for the agent, give the user a command block):
 ## Step 4: Report
 - Before and after `df -h /`, with total reclaimed.
 - A table of what was removed, what was skipped (with reason), and what the user must run manually.
-- Worktrees kept, grouped as open PRs, no-PR candidates, and flagged items.
+- Worktrees kept, grouped as integrated previews, dirty or unintegrated worktrees, branch-only candidates, and flagged or orphaned items.
 - `Skills loaded and used` from the `skill-loader` skill.

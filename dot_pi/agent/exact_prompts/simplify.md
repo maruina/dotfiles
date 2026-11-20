@@ -71,21 +71,20 @@ If the worktree started dirty, do not commit; report changes as uncommitted with
 Stop and ask if the target, branch, base, or worktree is ambiguous; the worktree is `main`/`master` without consent; instructions are unclear or conflicting; tests cannot establish behavior; a behavior change cannot be proven safe; or loaded skills conflict with repository guidance.
 
 ## Handoff
-Report the exact handoff phrase below. Summarize the diff, tests before and after, items left alone, and commit message/hash or why no commit was made. Include **Skills loaded and used** as a `Skill | Source | Why loaded | How used` table; explicitly say when none were needed.
+Use one exact command per standalone `md` fenced block. Quote paths with spaces. Keep prose outside. Omit commands with missing arguments.
+
+Summarize the diff, tests before and after, items left alone, and commit message/hash or why no commit was made. Include **Skills loaded and used** as a `Skill | Source | Why loaded | How used` table; explicitly say when none were needed.
 
 In orchestrated mode, submit the structured result; the parent always starts fresh `/verify`, including after unchanged simplification.
 
 In direct mode, report unchanged work without a commit. An earlier independent `/verify` verdict remains valid only for the exact candidate and requirements; if none covers it, use the fresh handoff below. Any changed candidate invalidates earlier verdicts.
 
-For any fresh verification, use this session's plan path; otherwise resolve it in the worktree or use the open PR's plan. For planless work, use the exact original task. If no plan/task or `--implemented-by` is available, ask the user before emitting `/verify`; do not infer it. Carry the execution ID and stable provider-qualified simplification ID from `## Current Model`; ask if either is missing. Then say exactly:
+For any fresh verification, use this session's plan path; otherwise resolve it in the worktree or use the open PR's plan. For planless work, use the exact original task. If no plan/task or `--implemented-by` is available, ask the user before emitting `/verify`; do not infer it. Carry the execution ID and stable provider-qualified simplification ID from `## Current Model`; ask if either is missing:
 
 Execution model ID: `<exec-id>`
 Simplification model: `<name> (<simp-id>)`
 
-Plan-backed command:
-`/verify <absolute-plan-path> --implemented-by <exec-id> --simplified-by <simp-id>`
+- `/verify <absolute-plan-path> --implemented-by <exec-id> --simplified-by <simp-id>`
+- `/verify --implemented-by <exec-id> --simplified-by <simp-id> --task <quoted-original-request>`
 
-Planless command:
-`/verify --implemented-by <exec-id> --simplified-by <simp-id> --task <quoted-original-request>`
-
-Quote the exact task as one native Pi argument: single-quote it and replace each embedded apostrophe with `'"'"'`; do not backslash-escape quotes. Preserve whitespace, quotes, flags, and literal `$ARGUMENTS`. Quote paths containing whitespace. For a manual verification handoff, run `/model`, select a model different from both writer models, run `/new`, and confirm injected `## Current Model`. An orchestrated verifier is fresh without a literal `/new` command.
+Quote the task as one single-quoted Pi argument and escape each embedded apostrophe as `\'`. Preserve whitespace, quotes, flags, and literal `$ARGUMENTS`. For manual verification, run `/model`, pick a model different from both writers, run `/new`, and confirm `## Current Model`. An orchestrated verifier is fresh without a literal `/new` command.

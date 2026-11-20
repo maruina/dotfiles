@@ -43,7 +43,19 @@ test("buildRepoContextKey changes when branch or email changes", () => {
   assert.equal(buildRepoContextKey("/repo", null, null), "/repo\0\0");
 });
 
-test("formatCurrentModel emits a named model and omits missing IDs", () => {
+test("formatCurrentModel emits a provider-qualified model ID and omits missing IDs", () => {
+  assert.deepEqual(
+    formatCurrentModel({ provider: "google", id: "gemini-4-argon", name: "Gemini 4 Argon" }),
+    ["## Current Model", "- Gemini 4 Argon (google/gemini-4-argon)"],
+  );
+  assert.deepEqual(
+    formatCurrentModel({ provider: "openai-gpt-6-2", id: "openai/gpt-6.2-astra", name: "GPT-6.2 Astra" }),
+    ["## Current Model", "- GPT-6.2 Astra (openai-gpt-6-2/openai/gpt-6.2-astra)"],
+  );
+  assert.deepEqual(
+    formatCurrentModel({ provider: "google", id: "google/gemini-4-argon", name: "Gemini 4 Argon" }),
+    ["## Current Model", "- Gemini 4 Argon (google/gemini-4-argon)"],
+  );
   assert.deepEqual(
     formatCurrentModel({ id: "gpt-5", name: "GPT-5" }),
     ["## Current Model", "- GPT-5 (gpt-5)"],

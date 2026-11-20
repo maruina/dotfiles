@@ -14,9 +14,11 @@ describe("parseSinglePlanArgument", () => {
     }
   });
 
-  it("preserves embedded quote characters using native delimiter changes", () => {
+  it("preserves embedded quote characters using Pi backslash quote escaping", () => {
     const value = `plans/a's "quoted" plan.md`;
-    const result = parseSinglePlanArgument(quoteNativeArgument(value));
+    const quoted = quoteNativeArgument(value);
+    assert.equal(quoted, `'plans/a\\'s "quoted" plan.md'`);
+    const result = parseSinglePlanArgument(quoted);
     assert.deepEqual(result, { ok: true, planPath: value });
   });
 

@@ -47,7 +47,7 @@ function matchesRepository(remote, pr) {
   return githubRemoteIdentity(remote) === `${pr.owner}/${pr.repo}`.toLowerCase();
 }
 
-function reviewWorktree(pr, root = join(homedir(), "dd", ".worktrees")) {
+function reviewWorktree(pr, root = process.env.WORKTREES_ROOT || join(homedir(), "dd", ".worktrees")) {
   return join(root, pr.repo, `pr-${pr.number}-review`);
 }
 

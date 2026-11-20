@@ -273,9 +273,9 @@ class RpcProcess {
   }
 }
 
-function assertPi150(): void {
+function assertPi15x(): void {
   const version = execFileSync("pi", ["--version"], { encoding: "utf8" }).trim();
-  assert.equal(version, "1.5.0", `RPC contract test requires Pi 1.5.0, got ${version}`);
+  assert.match(version, /^1\.5\./, `RPC contract test requires Pi 1.5.x, got ${version}`);
 }
 
 function startRpc(
@@ -299,7 +299,7 @@ function startRpc(
   childConfigPath: string | false = fixture.configPath,
   extraEnv: NodeJS.ProcessEnv = {},
 ): RpcProcess {
-  assertPi150();
+  assertPi15x();
   const args = [
     "--no-extensions",
     "--no-prompt-templates",
@@ -665,9 +665,9 @@ type CandidateExpansionCase = {
   arguments: string;
 };
 
-// Pi switches quote delimiters but does not process backslash escapes inside them.
+// Pi opens quotes only at token start and escapes the active quote with a backslash.
 function quoteNativeArgument(value: string): string {
-  return `'${value.replaceAll("'", "'\"'\"'")}'`;
+  return `'${value.replaceAll("'", "\\'")}'`;
 }
 
 function expandTemplateForAssertion(template: string, argumentText: string): string {
@@ -792,7 +792,7 @@ describe("Pi 1.5.0 lifecycle bridge RPC contract", () => {
     },
   ];
   for (const invalid of invalidConfigs) it(`fails a child configuration with ${invalid.name} before starting the stage prompt`, { timeout: 60_000 }, async () => {
-    assertPi150();
+    assertPi15x();
     const fixture = createFixture();
     invalid.write(fixture);
     const promptPath = join(fixture.root, "execute.md");

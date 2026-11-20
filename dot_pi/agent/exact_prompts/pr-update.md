@@ -48,22 +48,9 @@ Treat the PR body as a coherent explanation of the final change, not a record of
 
 Use the `reviewable-pr-workflow` body template. Include `## Lessons learned` only for reviewer-relevant surprises or tradeoffs. Include `## Evidence` only when external artifacts help reviewers verify or understand the change.
 
-Before refreshing the description, compare the full diff with the task context, relevant design artifacts, OpenSpec proposals or specs, and linked issue. Check:
-- **Need:** Assess whether the evidence supports the problem, necessity, and scope. Do not present the author's rationale as independent validation.
-- **Scope:** Call out changed files or behavior that do not match the stated intent or lack an explanation.
-- **Hard-to-reverse contracts:** Check gRPC and other public APIs, program parameters, data models and fields, and database schemas for compatibility, migration, and rollout risks.
-- **Go architecture and startup:** Inspect relevant interfaces, implementations, and callers. If no interface changes, assess whether that fits existing patterns; do not require an interface by default. For bootstrap changes, check that dependencies are available in order and do not introduce cycles.
-- **Operability:** Identify new failure modes and what an on-call engineer would need at 4 a.m. Check diagnosis and recovery signals, including useful errors, logs, metrics, and traces, bounded metric cardinality, and sensitive log data.
+Before refreshing the description, run the `## Pre-description check` in `reviewable-pr-workflow` against the full diff, task context, relevant design artifacts, OpenSpec proposals or specs, and linked issue.
 
-Use these checks to prepare the explanation, not to generate a reviewer checklist. Explain supported constraints and failure behavior in the narrative. Report unresolved blockers separately and ask before proceeding when they require a decision. Do not invent concerns for unaffected areas.
-
-Read the opening as a software engineer who has not read the ticket, design, or earlier PRs. Can you tell what happens today, why it matters, and what this PR changes? If not, start with one concrete scenario. Define subsystem terms when they first matter, then use code names and links to help the reviewer navigate. Make clear what this PR delivers and what later work must provide.
-
-Read `explain` and its `references/visual-assessment.md`. Before publishing the body, run the Jev assessment on one coherent passage from the drafted PR explanation. Use a full section if it answers one reviewer question and fits the reference's size limit. Include any definitions or example context needed to understand that passage. Make one call, not a series of per-paragraph or per-line calls. Set the reader question to what a reviewer needs to understand about this change, set the destination to a GitHub PR body, and allow only destination-supported representations.
-
-For follow-up edits to the same draft, reassess only if the reader question, the facts that support the representation, or the set of allowed representations changes. Do not call Jev again for copy edits. If the user specifies a format and the evidence and destination support it, use it without calling Jev.
-
-Follow the reference's bounds, gates, explicit-format override, and unavailable-assessment fallback; prose is a valid result. If a visual helps, place one focused representation beside the explanation it supports and verify it against the final diff. Load `mermaid-best-practices` before authoring Mermaid. Do not create HTML files or open a browser.
+Before publishing the body, apply `## Reader check and visual assessment` from `reviewable-pr-workflow` (including reading `explain` and its `references/visual-assessment.md` to run the single Jev assessment on the drafted explanation, and loading `mermaid-best-practices` before authoring Mermaid).
 
 Also reassess existing visuals against the full PR diff. Preserve accurate handwritten visuals; update or remove stale generated visuals in place rather than appending duplicates. A prose assessment does not by itself justify deleting an accurate handwritten visual.
 

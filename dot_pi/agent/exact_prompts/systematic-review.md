@@ -29,7 +29,7 @@ First restate **What this proposes** and **How it works today**, from the docume
 
 Report the design path, reviewed Git blob from `git hash-object <design-path>` (also valid for an uncommitted draft), skills used, restatement, answers, and material comprehension findings. Give `READY FOR USER APPROVAL` only when no comprehension blocker remains; otherwise give `NEEDS CLARIFICATION`. This verdict alone is not final user approval.
 
-On `NEEDS CLARIFICATION`, propose a fix for each blocker, apply the fixes the user confirms, and commit only the design file with `docs: revise <feature> design for review findings`. Route a fix back to `/brainstorm` when it needs a design decision about user-visible behavior, external dependencies, security, data, cost, or scope instead of a comprehension clarification. After applying confirmed fixes, rerun this comprehension check against the revised design in this session when the revision is mechanical: clarifications, wording, and added facts. A revision that changes design intent is material: commit it and request a fresh session review before any approval. Report the revised blob with the final verdict. Do not emit `## Fix findings` or the general `Review complete` handoff.
+On `NEEDS CLARIFICATION`, propose a fix for each blocker, apply the fixes the user confirms, and commit only the design file with `docs: revise <feature> design for review findings`. Route a fix back to `/brainstorm` when it needs a design decision about user-visible behavior, external dependencies, security, data, cost, or scope instead of a comprehension clarification. After applying confirmed fixes, rerun this comprehension check against the revised design in this session when the revision is mechanical: clarifications, wording, and added facts. A revision that changes design intent is material: commit it and request a fresh session review before any approval. Report the revised blob with the final verdict. Do not emit `## Fix findings` or the general handoff.
 
 On `READY FOR USER APPROVAL`, ask the user to approve the design. On explicit approval, set the design's status header to Approved, commit only that change with `docs: approve <feature> design`, then show `/plan <absolute-path-to-design.md>` in a standalone `md` fenced block.
 
@@ -50,7 +50,7 @@ For behavior-bearing code, check resource bounds (loops, queues, goroutines, ret
 For `plan.md` targets, check that:
 
 - every requirement maps to a task or explicit follow-up
-- `/implement` metadata parses: `### Task N: <title>` and `### Slice N: <title>` headings; `**Blocked by:**` holds only `Task N` references or `None` (repeat `Task` per reference; put notes separately); checkboxes belong inside tasks; feature-level final verification is a numbered task in the last slice
+- `/implement` metadata parses: `### Task N: <title>` and `### Slice N: <title>` headings; `**Blocked by:**` holds only `Task N` / `Tasks N-M` references or `None` (repeat `Task` per discrete reference; put notes separately); checkboxes belong inside tasks; feature-level final verification is a numbered task in the last slice
 - the smallest user-feedback slice is named and is slice 1
 - every requirement and task maps to a slice, unless it is explicitly deferred as a follow-up
 - scope that re-entered from an alternative design or a prior review is deferred with a revisit trigger
@@ -104,7 +104,7 @@ Return a concise review with these sections:
 6. **Design challenge** — argue against the current design and propose one better alternative, including trade-offs.
 7. **Test gaps** — meaningful missing tests or tests that overfit implementation details.
 8. **Open questions** — only questions that block confidence or change the recommendation.
-9. **Handoff** — close with the exact phrase from `## Handoff`.
+9. **Handoff** — close with the next action from `## Handoff`.
 
 If no issues are found, say so; include the design challenge and residual risks.
 

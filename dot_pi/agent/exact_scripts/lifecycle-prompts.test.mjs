@@ -213,7 +213,7 @@ test("design-only review isolates the document and bypasses general review", () 
     /On `READY FOR USER APPROVAL`, ask the user to approve the design/,
     /On explicit approval, set the design's status header to Approved, commit only that change/,
     /On explicit approval, set the design's status header to Approved[^\n]*commit only that change[^\n]*show `\/plan <absolute-path-to-design\.md>`/,
-    /Do not emit `## Fix findings` or the general `Review complete` handoff/,
+    /Do not emit `## Fix findings` or the general handoff/,
     /This section does not apply to design-only reviews/,
     /missing.*not.*guess/is,
     /git hash-object <design-path>/,
@@ -561,7 +561,7 @@ test("simplify and PR validation report skill provenance", () => {
 });
 
 test("interactive lifecycle handoffs isolate runnable commands for Copycat", () => {
-  for (const file of ["brainstorm.md", "plan.md", "systematic-review.md", "execute.md"]) {
+  for (const file of ["brainstorm.md", "plan.md", "systematic-review.md", "execute.md", "simplify.md"]) {
     const text = prompt(file);
     const handoff = text.split(/^## Handoff\n/m)[1];
     assert.ok(handoff, `${file} must have a ## Handoff section`);
@@ -573,8 +573,6 @@ test("interactive lifecycle handoffs isolate runnable commands for Copycat", () 
     ]);
     assert.doesNotMatch(text, /Report the exact handoff phrase below/, file);
   }
-
-  assert.match(prompt("simplify.md"), /## Handoff\nReport the exact handoff phrase below/);
 });
 
 test("copyable handoffs preserve review gates and chat-only behavior", () => {
@@ -985,15 +983,20 @@ test("PR updates preserve useful explanations without accumulating review histor
     /explanations and examples added, updated, or retained/,
   ]);
 
+  requireMarkers(skill("reviewable-pr-workflow"), [
+    /## Pre-description check/,
+    /\*\*Need:\*\*/,
+    /\*\*Scope:\*\*/,
+    /\*\*Hard-to-reverse contracts:\*\*/,
+    /\*\*Go architecture and startup:\*\*/,
+    /\*\*Operability:\*\*/,
+    /prepare the explanation, not to generate a reviewer checklist/,
+    /Report unresolved blockers separately/,
+  ]);
+
   for (const name of ["pr-create.md", "pr-update.md"]) {
     requireMarkers(prompt(name), [
-      /\*\*Need:\*\*/,
-      /\*\*Scope:\*\*/,
-      /\*\*Hard-to-reverse contracts:\*\*/,
-      /\*\*Go architecture and startup:\*\*/,
-      /\*\*Operability:\*\*/,
-      /prepare the explanation, not to generate a reviewer checklist/,
-      /Report unresolved blockers separately/,
+      /## Pre-description check.*reviewable-pr-workflow/is,
     ]);
   }
 });
@@ -1023,7 +1026,7 @@ test("PR commands have distinct roles and aligned review artifacts", () => {
   assert.doesNotMatch(update, /@codex review/);
   assert.match(cleanup, /created by `\/pr-validate`/);
   assert.match(cleanup, /workspace\.mjs" cleanup "\$PR_URL"/);
-  assert.doesNotMatch(cleanup, /\bHTML\b|git worktree remove/);
+  assert.doesNotMatch(cleanup, /\bHTML\b|git worktree remove|skill-loader/);
 });
 
 test("worktree and PR checkout procedures live in skills, not prompts", () => {
@@ -1081,7 +1084,7 @@ test("execute offers simplify and direct verify handoffs with stable writer iden
     /`\/verify <absolute-plan-path> --implemented-by <id>`/,
     /`\/verify --implemented-by <id> --task <quoted-original-request>`/,
     /preserve the original plan path or exact original task/i,
-    /replace each embedded apostrophe with `'\x22'\x22'`/,
+    /escape each embedded apostrophe as `\\'`/,
   ]);
 
   const simplify = prompt("simplify.md");
@@ -1095,7 +1098,7 @@ test("execute offers simplify and direct verify handoffs with stable writer iden
     /in `\/implement`, always submit the unchanged outcome.*parent still runs fresh verification/is,
     /in direct mode.*earlier independent verdict.*exact candidate/is,
     /require a clean candidate worktree at stage start/i,
-    /replace each embedded apostrophe with `'\x22'\x22'`/,
+    /escape each embedded apostrophe as `\\'`/,
     /`\/verify <absolute-plan-path> --implemented-by <exec-id> --simplified-by <simp-id>`/,
     /`\/verify --implemented-by <exec-id> --simplified-by <simp-id> --task <quoted-original-request>`/,
   ]);

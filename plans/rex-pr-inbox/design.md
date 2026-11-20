@@ -1,5 +1,5 @@
 # Rex PR inbox for Pi
-Status: Draft for design comprehension review. The first slice is aligned; the design is not approved for implementation.
+Status: Approved
 
 ## Problem and audience
 Matteo runs Pi sessions in Rex and uses local Git worktrees to develop changes. GitHub shows PR status but does not tell him which Pi pane can resume the work. Rex shows the panes but does not show which PRs need attention. The inbox brings those facts together on one Rex host without changing GitHub or sending input to agents.

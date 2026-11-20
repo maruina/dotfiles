@@ -44,17 +44,47 @@ The operator previews and applies only the changed managed files, then runs `pi-
 
 ## Requirements
 ### Requirement: Save an explicit server-wide snapshot
-- GIVEN live Pi panes in two local Rex sessions and checkpoints for closed panes, WHEN `pi-save` runs, THEN the snapshot SHALL include only the matched live conversations from both sessions, with their current Rex grouping and labels.
-- GIVEN an unmatched live Pi pane or a failed Rex inventory, WHEN `pi-save` runs, THEN the CLI SHALL identify the unmatched pane or fail the save, respectively. An inventory failure SHALL preserve the previous snapshot.
+The system SHALL save active local Pi sessions across all Rex sessions into an explicit recovery snapshot.
+
+#### Scenario: Server-wide snapshot captures live sessions
+- GIVEN live Pi panes in two local Rex sessions and checkpoints for closed panes,
+- WHEN `pi-save` runs,
+- THEN the snapshot SHALL include only the matched live conversations from both sessions, with their current Rex grouping and labels.
+
+#### Scenario: Unmatched panes or inventory failures halt save without corrupting state
+- GIVEN an unmatched live Pi pane or a failed Rex inventory,
+- WHEN `pi-save` runs,
+- THEN the CLI SHALL identify the unmatched pane or fail the save, respectively, and an inventory failure SHALL preserve the previous snapshot.
 
 ### Requirement: Restore only saved conversations
-- GIVEN an explicit snapshot and additional historical checkpoints, WHEN the operator previews and applies restore, THEN preview SHALL not launch anything and apply SHALL not launch a historical conversation absent from the snapshot.
-- GIVEN an already-open saved conversation or duplicate snapshot entries for one file, WHEN apply runs, THEN it SHALL not launch a second instance. With a missing or invalid snapshot, it SHALL launch nothing. A missing working directory and a missing conversation file SHALL have distinct results.
+The system SHALL restore conversations solely from the explicit snapshot and ignore historical checkpoints.
+
+#### Scenario: Restore launches only snapshot members
+- GIVEN an explicit snapshot and additional historical checkpoints,
+- WHEN the operator previews and applies restore,
+- THEN preview SHALL not launch anything and apply SHALL not launch a historical conversation absent from the snapshot.
+
+#### Scenario: Duplicate or missing targets do not cause duplicate launches
+- GIVEN an already-open saved conversation, duplicate snapshot entries for one file, or a missing or invalid snapshot,
+- WHEN apply runs,
+- THEN it SHALL not launch a second instance and SHALL launch nothing on a missing or invalid snapshot, and missing working directories and missing conversation files SHALL produce distinct results.
 
 ### Requirement: Leave Fish running after Pi exits
-- GIVEN a saved conversation whose Rex tab no longer exists, WHEN apply opens the tab and the operator exits Pi, THEN Fish SHALL accept another command in that same tab. An occupied pane SHALL not receive restore input.
+The system SHALL launch restored Pi instances inside an interactive Fish shell without disturbing occupied panes.
+
+#### Scenario: Restored tab retains interactive Fish after Pi exit
+- GIVEN a saved conversation whose Rex tab no longer exists,
+- WHEN apply opens the tab and the operator exits Pi,
+- THEN Fish SHALL accept another command in that same tab.
+
+#### Scenario: Occupied pane is not disturbed
+- GIVEN an occupied Rex pane,
+- WHEN apply runs,
+- THEN the occupied pane SHALL not receive restore input.
 
 ## Tasks
+### Slice 1: Snapshot save, preview, and restore across Rex sessions
+
 ### Task 1: Add snapshot-based save and restore
 **Delivers:** A server-wide `pi-save` and a `pi-restore` that only acts on the explicit snapshot and runs Pi inside Fish.
 **Blocked by:** None
@@ -74,5 +104,5 @@ The operator previews and applies only the changed managed files, then runs `pi-
 **Files:** `dot_pi/agent/exact_extensions/rex-recovery/README.md`, relevant `AGENTS.md` files for guidance review only
 
 - [ ] Document `pi-save` before the update, post-update preview and apply, return to Fish, and handling of unmatched panes and pending launches. Check repository and Pi `AGENTS.md`; leave them unchanged unless the README cannot cover a durable agent-specific requirement.
-- [ ] Run `npm ci --ignore-scripts`, `npm test`, and `npm run test:all` from `dot_pi/agent` as required by repository guidance. Run `git diff --check`. Preview the explicit changed targets with `chezmoi --source "$PWD" diff` from the worktree root; use explicit target file paths and include creation of the `pi-save` function. Do not use the live Rex server for a restore test.
+- [ ] Run `npm ci --ignore-scripts`, `npm test`, and `npm run test:all` from `dot_pi/agent` as required by repository guidance, then remove `dot_pi/agent/node_modules`. Run `git diff --check`. Preview the explicit changed targets with `chezmoi --source "$PWD" diff` from the worktree root; use explicit target file paths and include creation of the `pi-save` function. Do not use the live Rex server for a restore test.
 - [ ] Commit with `docs(pi): document the Rex snapshot recovery workflow`.

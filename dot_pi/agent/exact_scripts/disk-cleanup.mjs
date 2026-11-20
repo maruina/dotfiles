@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, realpathSync, rmSync, statSync } from 'node:fs';
+import { existsSync, lstatSync, mkdtempSync, readdirSync, realpathSync, rmSync, statSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -99,10 +99,22 @@ function scan(home, selectedRepos, selectedRoots, minAge) {
   }
   for (const root of roots) {
     for (const group of children(root)) {
-      if (!statSync(group).isDirectory()) continue;
+      const groupStat = lstatSync(group);
+      if (groupStat.isSymbolicLink()) {
+        if (worktrees.length >= MAX_ENTRIES) throw new Error('worktree limit exceeded');
+        worktrees.push({ path: path.join(canonical(root), path.basename(group)), classification: 'flagged', reason: 'symlink_entry' });
+        continue;
+      }
+      if (!groupStat.isDirectory()) continue;
       const owners = repos.filter(repo => path.basename(repo) === path.basename(group));
       for (const dir of children(group)) {
-        if (!statSync(dir).isDirectory()) continue;
+        const entryStat = lstatSync(dir);
+        if (entryStat.isSymbolicLink()) {
+          if (worktrees.length >= MAX_ENTRIES) throw new Error('worktree limit exceeded');
+          worktrees.push({ path: path.join(canonical(group), path.basename(dir)), classification: 'flagged', reason: 'symlink_entry' });
+          continue;
+        }
+        if (!entryStat.isDirectory()) continue;
         const resolved = canonical(dir);
         if (registered.has(resolved)) continue;
         if (worktrees.length >= MAX_ENTRIES) throw new Error('worktree limit exceeded');

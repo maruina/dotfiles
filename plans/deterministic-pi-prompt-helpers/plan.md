@@ -226,7 +226,9 @@ The `user-context` extension SHALL attempt `fish -c rex-name-session` in the bac
 ### Slice 2: Deterministic `sync-vendored-skills.mjs` CLI and compact `sync-vendored-skills.md`
 
 ### Task 2: Extract `sync-vendored-skills.mjs` and shrink `sync-vendored-skills.md`
-**Status:** Complete. The helper rejects symlinks in `dot_pi`, `agent`, and skill-root ancestors. Regression tests check both preview and write paths without changing the outside skill or pin. The helper replaces files and manifests instead of overwriting them, so hard links outside the skill retain their bytes and mode.
+**Status:** Complete. The helper rejects case and Unicode aliases between selected and existing target paths before writes. Regression tests reject manifest and skill name aliases without changing content or pins. The apply fixture passes its own config and persistent state paths. The focused tests and both full npm suites passed in an isolated clone.
+
+Previous status: Complete. The helper rejects symlinks in `dot_pi`, `agent`, and skill-root ancestors. Regression tests check both preview and write paths without changing the outside skill or pin. The helper replaces files and manifests instead of overwriting them, so hard links outside the skill retain their bytes and mode.
 
 Previous status: Complete. The independent verification identified a test gap in the unknown and non-vendored filter scenario. The test now checks the structured error and snapshots the source tree, including file bytes, modes, and modification metadata. The user approved the required test's `chezmoi apply` against its disposable source and destination during independent verification.
 
@@ -283,7 +285,9 @@ Previous status: Complete. The user directed the helper to preserve exact upstre
 - [x] Commit with `feat(pi): add lifecycle-git helper CLI for prompts and worktree resolution`.
 
 ### Task 5: Add `disk-cleanup.mjs` and shrink `disk-cleanup.md`
-**Status:** Complete. The Worktrunk commands use a temporary Git object directory and the repository object database as an alternate. A fixture forces both commands to write probe objects and confirms the repository Git files remain unchanged outside the approved cache, including when Worktrunk fails. Temporary object directories are removed in both cases. The user directed this task to use Worktrunk instead of GitHub PR queries and approved Worktrunk cache writes during scans. `wt list` and `wt step prune --dry-run` may write `.git/wt/cache/` but must not remove worktrees or branches. Worktrunk reports content integration, not PR merge state; the prompt requires explicit approval for removals.
+**Status:** Complete. The scanner flags symlink entries without resolving their targets as orphans. Regression tests cover both repository-group and worktree-entry symlinks. The focused tests and both full npm suites passed in an isolated clone.
+
+Previous status: Complete. The Worktrunk commands use a temporary Git object directory and the repository object database as an alternate. A fixture forces both commands to write probe objects and confirms the repository Git files remain unchanged outside the approved cache, including when Worktrunk fails. Temporary object directories are removed in both cases. The user directed this task to use Worktrunk instead of GitHub PR queries and approved Worktrunk cache writes during scans. `wt list` and `wt step prune --dry-run` may write `.git/wt/cache/` but must not remove worktrees or branches. Worktrunk reports content integration, not PR merge state; the prompt requires explicit approval for removals.
 **Delivers:** Non-destructive `dot_pi/agent/exact_scripts/disk-cleanup.mjs` (`measure` and Worktrunk-based `scan-worktrees`) and updated `dot_pi/agent/exact_prompts/disk-cleanup.md`.
 **Blocked by:** Task 3 and Task 4
 **Traces to:** Requirement 5
@@ -325,6 +329,7 @@ Previous status: Complete. The user directed the helper to preserve exact upstre
   - Rex startup naming and RPC exclusion passed both hook and isolated agent-loop tests. All 34 selected upstream files match their pins; sync tests cover same-pin drift, dry runs, errors, and prompt no-apply gates. GitHub routing and failed collector preflight tests passed. Lifecycle approval and snapshot tests passed. Worktrunk preview tests passed for integration, dirty and unavailable states, and forced probe writes without worktree, ref, or repository object changes.
 
 ## Learning candidates
+- 2026-11-20: `chezmoi --destination` does not isolate persistent state; the apply fixture must pass `--persistent-state` explicitly — evidence: `dot_pi/agent/exact_scripts/sync-vendored-skills.test.mjs`.
 - 2026-11-20: Pi RPC children inherit the parent’s Rex identifiers, so Rex variables alone cannot identify the process that owns a visible pane — evidence: `dot_pi/agent/exact_extensions/ship-conductor/_spawn.ts:85–109`.
 - 2026-11-20: The Pi `test:smoke` command can pass against installed extensions without loading a candidate or running its hook — evidence: `dot_pi/agent/package.json:23–24`.
 - 2026-11-20: An `exact_` parent does not remove deleted files inside a non-exact child directory; `chezmoi diff` for the removed target reports `not managed` and applying the child leaves the file — evidence: isolated chezmoi source and destination fixture for `exact_skills/demo/removed.md`.

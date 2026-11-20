@@ -134,6 +134,22 @@ function localFiles(dir, prefix = "") {
   return result;
 }
 
+function ensureDistinctTargets(paths) {
+  const names = new Map();
+  for (const rel of paths) {
+    const parts = rel.split("/");
+    for (let i = 1; i <= parts.length; i++) {
+      const name = parts.slice(0, i).join("/");
+      // deliberate: reject case and Unicode aliases on every filesystem; filesystem-specific detection can relax this limit.
+      const key = name.normalize("NFD").toLowerCase();
+      const kind = i === parts.length ? "file" : "directory";
+      const previous = names.get(key);
+      if (previous && (previous.name !== name || previous.kind !== kind)) throw new CliError("unsafe_destination", `Conflicting destination: ${name}`);
+      names.set(key, { name, kind });
+    }
+  }
+}
+
 function fetchRepo(manifest, base) {
   const clone = path.join(base, manifest.org, manifest.repo);
   if (!existsSync(clone)) {
@@ -208,6 +224,7 @@ function main() {
     ensureSafeTree(skill.dir);
     const content = resolveContent(skill, repo);
     const existing = localFiles(skill.dir);
+    ensureDistinctTargets(["VENDOR.md", ...existing.map(targetPath), ...[...content.keys()].map(targetPath)]);
     const existingSet = new Set(existing);
     const newTargets = new Set([...content.keys()].map(targetPath));
     const replaced = existing.filter(file => newTargets.has(targetPath(file)) && !content.has(file));

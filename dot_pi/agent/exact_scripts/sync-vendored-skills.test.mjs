@@ -169,6 +169,25 @@ test("unknown and hand-maintained filters fail before writes", (t) => {
   }
 });
 
+test("case-aliasing upstream paths fail before modifying skill content or the pin", (t) => {
+  for (const alias of ["vendor.md", "skill.md"]) {
+    const f = fixture(t);
+    const manifest = readFileSync(path.join(f.full, "VENDOR.md"));
+    const skill = readFileSync(path.join(f.full, "SKILL.md"));
+    const blob = git(f.upstream, "hash-object", "-w", "--stdin");
+    git(f.upstream, "update-index", "--add", "--cacheinfo", `100644,${blob},skills/full/${alias}`);
+    git(f.upstream, "commit", "-qm", `add ${alias}`);
+    git(f.upstream, "push", "-q", path.join(f.root, "remote.git"), "main");
+    for (const args of [["--dry-run", "full"], ["full"]]) {
+      const result = f.run(...args);
+      assert.notEqual(result.status, 0, alias);
+      assert.equal(JSON.parse(result.stdout).error.code, "unsafe_destination");
+      assert.deepEqual(readFileSync(path.join(f.full, "VENDOR.md")), manifest);
+      assert.deepEqual(readFileSync(path.join(f.full, "SKILL.md")), skill);
+    }
+  }
+});
+
 test("exact skill and nested directories remove stale installed files", (t) => {
   const f = fixture(t);
   const result = f.run("full");
@@ -178,7 +197,7 @@ test("exact skill and nested directories remove stale installed files", (t) => {
   mkdirSync(path.join(target, "nested"), { recursive: true });
   writeFileSync(path.join(target, "stale.md"), "stale\n");
   writeFileSync(path.join(target, "nested/stale.md"), "stale\n");
-  const applied = spawnSync("chezmoi", ["--source", f.source, "--destination", home, "apply", target], { encoding: "utf8", timeout: 15000 });
+  const applied = spawnSync("chezmoi", ["--config", path.join(f.root, "config.toml"), "--persistent-state", path.join(f.root, "state.boltdb"), "--source", f.source, "--destination", home, "apply", target], { encoding: "utf8", timeout: 15000 });
   assert.equal(applied.status, 0, applied.stderr);
   assert.equal(existsSync(path.join(target, "stale.md")), false);
   assert.equal(existsSync(path.join(target, "nested/stale.md")), false);

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -66,6 +66,21 @@ test('Worktrunk preview reports candidates and preserves worktrees, refs and dir
   assert.equal(f.git('worktree', 'list', '--porcelain'), beforeTrees); assert.equal(f.git('show-ref'), beforeRefs);
   assert.deepEqual(gitFiles(path.join(f.repo, '.git')), beforeGitFiles);
   assert.equal(readFileSync(path.join(f.dirs.dirty, 'dirty'), 'utf8'), 'change'); assert.equal(existsSync(f.ghLog), false);
+});
+
+test('symlinked orphan entries are flagged without reporting their targets', t => {
+  const f = fixture(t);
+  const outside = path.join(f.temp, 'outside'); mkdirSync(outside);
+  const link = path.join(f.worktrees, 'repo', 'link'); symlinkSync(outside, link);
+  const groupLink = path.join(f.worktrees, 'linked-repo'); symlinkSync(outside, groupLink);
+  const r = f.run(['scan-worktrees', '--repo', f.repo, '--worktrees-root', f.worktrees, '--min-age', '0s']);
+  assert.equal(r.status, 0, r.stderr);
+  for (const entry of [link, groupLink]) {
+    const item = r.data.worktrees.find(value => value.path === path.join(realpathSync(path.dirname(entry)), path.basename(entry)));
+    assert.equal(item?.classification, 'flagged');
+    assert.equal(item?.reason, 'symlink_entry');
+  }
+  assert.ok(!r.data.worktrees.some(entry => entry.path === realpathSync(outside)));
 });
 
 test('Worktrunk probe objects use a temporary object database instead of the repository', t => {

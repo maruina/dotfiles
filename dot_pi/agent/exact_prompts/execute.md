@@ -10,7 +10,7 @@ Execution input:
 ## Lifecycle mode
 Only use the bridge when the injected stage contract validates protocol version 3, run ID, stage `execute`, fixed unit, pinned baseline, model, thinking, and both `lifecycle_request_decision` and `lifecycle_submit_outcome` tools are available. If a present contract is malformed/mismatched or a tool is missing, stop and ask. Otherwise, use ordinary conversational approvals and manual handoffs.
 
-Validate the `Pinned baseline commit`, `Unit base commit`, `Pinned plan blob`, `Pinned design blob`, `Selected unit`, and `Selected task numbers`. Pinned requirements govern; the current plan is only a ledger. Work only on the fixed unit, scoped from `Unit base commit`. Use `lifecycle_request_decision` only for in-scope decisions. A rejected or dismissed decision stops the stage without success. For another blocker, submit the stage-appropriate `blocked` outcome. After authorized work, checks, commits, and pushes, submit exactly one `success` outcome with `change: changed` or `change: unchanged`; never use prose as the result.
+Validate the `Pinned baseline commit`, `Unit base commit`, `Pinned plan blob`, `Pinned design blob`, `Selected unit`, and `Selected task numbers`. Pinned requirements govern; the current plan is only a ledger. Work only on the fixed unit, scoped from `Unit base commit`. Use `lifecycle_request_decision` only for in-scope decisions. A rejected or dismissed decision stops the stage without success. For another blocker, submit the stage-appropriate `blocked` outcome with a `blocker` object: `step` that stopped, `reason`, observed `evidence`, and `nextAction` to resume. Use nonblank plain text (1024 UTF-8 bytes per field) and a separate report. After authorized work, checks, commits, and pushes, submit exactly one `success` outcome with `change: changed` or `change: unchanged`; never use prose as the result.
 
 Execute a committed implementation plan. For trivial low-risk work, `/execute` may also execute directly from a bare prompt after complexity triage.
 
@@ -38,15 +38,15 @@ Bare-prompt execution must not become planning inside `/execute`. If you need to
 Before changing files, use the `feature-worktree` skill to continue in the plan's worktree or the correct feature worktree, or to create one.
 
 ## Posture
-Treat the plan as a decision artifact, not an unquestionable script. Follow its scope, requirements, references, and non-goals. Do not blindly follow stale file paths or commands if the current repository contradicts them.
+Follow the plan's scope, requirements, references, and non-goals. Check paths and commands against the repository.
 
-Keep changes surgical. Every changed line must map to a plan step, trivial bare prompt, or explicit user instruction.
+Continue authorized work until the current step has a blocker. A later approval or live check is not a blocker unless it is a prerequisite for that step.
 
-Use boring technology and existing repository patterns. Reuse existing libraries, services, CLIs, controllers, APIs, and platform primitives. Do not reimplement the wheel without an explicit plan decision.
+Change only what a plan step or user instruction requires. Follow repository patterns and reuse existing tools and libraries unless the plan requires otherwise.
 
-For testable behavior, default to red-green-refactor: write or run the focused failing test first, implement only enough for the current behavior, run narrow verification, refactor only after green, then rerun verification.
+For testable behavior, run a focused failing test first and make the smallest passing change. If you refactor after green, rerun verification.
 
-Do not leave the work 80% done. Complete the current approved slice, including tests, docs impact, verification, and PR readiness, or stop with a clear blocker.
+Complete the approved slice, including tests, documentation, verification, and PR readiness, or stop with a concrete blocker.
 
 ## Slice execution
 A plan with no slice grouping executes all tasks as today and hands off once.

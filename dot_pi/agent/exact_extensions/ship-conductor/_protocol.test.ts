@@ -287,6 +287,17 @@ describe("parseLifecycleOutcomeEnvelope", () => {
     assert.deepEqual(parseLifecycleOutcomeEnvelope(executionEnvelope, executionExpected), executionEnvelope);
   });
 
+  it("requires the blocker on a blocked execute envelope without affecting simplify", () => {
+    const { commitRefs: _refs, pendingSettlements: _settlements, ...base } = envelope;
+    const execute = { ...expected, stage: "execute" as const };
+    const stop = { ...base, ...execute, outcome: "blocked", change: "unchanged" };
+    const blocker = { step: "Check the file", reason: "Missing file", evidence: "File does not exist", nextAction: "Create the file" };
+    assert.throws(() => parseLifecycleOutcomeEnvelope(stop, execute), /blocker/i);
+    assert.deepEqual(parseLifecycleOutcomeEnvelope({ ...stop, blocker }, execute).blocker, blocker);
+    const simplify = { ...expected, stage: "simplify" as const };
+    assert.deepEqual(parseLifecycleOutcomeEnvelope({ ...stop, ...simplify }, simplify), { ...stop, ...simplify });
+  });
+
   it("rejects mismatched identity or unsafe report references", () => {
     assert.throws(() => parseLifecycleOutcomeEnvelope({ ...envelope, stage: "arp-review" }, expected));
     assert.throws(() => parseLifecycleOutcomeEnvelope({ ...envelope, sessionId: "other" }, expected));
@@ -318,6 +329,16 @@ describe("parseDecisionInput", () => {
 });
 
 describe("parseLifecycleOutcome", () => {
+  it("requires bounded, nonblank blocker fields only on blocked execute outcomes", () => {
+    const input = { schemaVersion: PROTOCOL_VERSION, outcome: "blocked", change: "unchanged", report: "Existing report." };
+    const blocker = { step: "Run the test", reason: "Service is unavailable", evidence: "Connection refused", nextAction: "Start the service" };
+    assert.throws(() => parseLifecycleOutcome(input, "execute"), /blocker/i);
+    for (const invalid of [{ reason: "" }, { evidence: " \n " }, { nextAction: "é".repeat(513) }, { step: "\u001b[31m" }]) {
+      assert.throws(() => parseLifecycleOutcome({ ...input, blocker: { ...blocker, ...invalid } }, "execute"));
+    }
+    assert.deepEqual(parseLifecycleOutcome({ ...input, blocker }, "execute"), { ...input, blocker });
+    assert.deepEqual(parseLifecycleOutcome(input, "simplify"), input);
+  });
   it("accepts stage-appropriate outcomes and completion metadata", () => {
     assert.equal(
       parseLifecycleOutcome(

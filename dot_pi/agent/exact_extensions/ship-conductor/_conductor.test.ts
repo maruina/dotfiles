@@ -22,6 +22,12 @@ function slicedPlan(count: number): string {
   return `# Implementation Plan\n\n## Work\n\n${slices.join("\n")}`;
 }
 const DESIGN = "# Design\n\nThe current slice is the only authorized unit.\n";
+const EXECUTE_BLOCKER = {
+  step: "Run the smoke check",
+  reason: "The prerequisite file\nis missing",
+  evidence: "No fixture-prerequisite.txt in the worktree",
+  nextAction: "Create fixture-prerequisite.txt",
+};
 const fixtures: string[] = [];
 
 afterEach(() => {
@@ -255,6 +261,7 @@ function stageRunner(root: string, planPath: string, options: RunnerOptions = {}
       change,
       candidate,
       reportRef: `lifecycle-coordinator/runs/${request.runId}/reports/${request.stage}-fixture.md`,
+      ...(request.stage === "execute" && outcome === "blocked" ? { blocker: EXECUTE_BLOCKER } : {}),
     };
     if (options.mutateVerifyAfterOutcome && request.stage === "verify") {
       writeFileSync(join(root, "verify-post-result-mutation.txt"), "forbidden untracked mutation\n");
@@ -1168,6 +1175,7 @@ describe("runImplement", () => {
         outcome: {
           schemaVersion: PROTOCOL_VERSION, runId: request.runId, stage: "execute", sessionId, model: request.model, outcome, change, candidate,
           reportRef: `lifecycle-coordinator/runs/${request.runId}/reports/execute-${executeCalls}.md`,
+          ...(outcome === "blocked" ? { blocker: EXECUTE_BLOCKER } : {}),
         },
         promptStarted: true, observed, decisions: [], progress: [], stderr: "", terminationConfirmed: true,
       };
@@ -1177,7 +1185,10 @@ describe("runImplement", () => {
     assertOutcomeStatus(outcome, "verified");
     assert.deepEqual(stages.calls.map((call) => call.stage), ["execute", "execute", "simplify", "verify"]);
     assert.equal(prompts.length, 1);
-    assert.match(prompts[0]!, /execute reported a lifecycle blocker/);
+    assert.match(prompts[0]!, /Reason: The prerequisite file is missing/);
+    assert.ok(prompts[0]!.includes(EXECUTE_BLOCKER.step));
+    assert.ok(prompts[0]!.includes(EXECUTE_BLOCKER.evidence));
+    assert.ok(prompts[0]!.includes(EXECUTE_BLOCKER.nextAction));
     assert.match(prompts[0]!, /M  plans\/feature\/plan\.md/);
     assert.match(prompts[0]!, /Fix only this blocker/);
     assert.match(prompts[0]!, /Do not push/);
@@ -1192,6 +1203,56 @@ describe("runImplement", () => {
     assert.match(outcome.summary, /Recovery 1: execute by fixture\/writer-a/);
     assert.equal(existsSync(depsState.store.worktreeLockPath(fixture.root)), false);
   });
+
+  for (const choice of ["Keep stopped", undefined, "Retry after prerequisite changed"]) {
+    it(`requires external confirmation after cleanup at the pre-stop merge (${choice ?? "dismissed"})`, async () => {
+      const fixture = createRepo();
+      git(fixture.root, ["switch", "--quiet", "trunk"]);
+      git(fixture.root, ["commit", "--quiet", "--allow-empty", "-m", "advance baseline"]);
+      git(fixture.root, ["switch", "--quiet", "feature"]);
+      const leftover = join(fixture.root, "leftover.txt");
+      const depsState = baseDeps(fixture, {
+        recovery: {
+          sessionModel: () => ({ provider: "fixture", id: "writer-a" }),
+          async run() {
+            rmSync(leftover);
+            return { status: "settled", model: { provider: "fixture", id: "writer-a" } };
+          },
+        },
+      });
+      depsState.ui.answers.push("Recover", "Confirm external prerequisite changed");
+      if (choice) depsState.ui.answers.push(choice);
+      const stages = stageRunner(fixture.root, fixture.planPath, { executeOutcome: "blocked" });
+      let stopHead: string | undefined;
+      depsState.deps.runStage = async (request, signal, callbacks) => {
+        if (!stopHead) {
+          git(fixture.root, ["merge", "--quiet", "--no-ff", "-m", "merge baseline before stopping", "trunk"]);
+          const result = await stages.runner(request, signal, callbacks);
+          if (result.status !== "settled") throw new Error("Expected the execute fixture to settle");
+          stopHead = result.outcome.candidate.head;
+          assert.notEqual(stopHead, request.candidateBefore.head);
+          writeFileSync(leftover, "dirty at stop\n");
+          return { ...result, outcome: { ...result.outcome, candidate: { ...result.outcome.candidate, stateDigest: "f".repeat(64) } } };
+        }
+        assert.equal(request.candidateBefore.head, stopHead);
+        return stages.runner(request, signal, callbacks);
+      };
+      const outcome = await runImplement(fixture.planPath, fixture.root, depsState.deps, undefined);
+
+      assert.equal(outcome.status, "blocked");
+      assert.equal(outcome.reason, "The prerequisite file is missing");
+      assert.deepEqual(depsState.ui.dialogs[1]!.options, [
+        "Recover again with fixture/writer-a", "Stop", "Confirm external prerequisite changed",
+      ]);
+      assert.deepEqual(depsState.ui.dialogs[2]!.options, ["Keep stopped", "Retry after prerequisite changed"]);
+      assert.equal(stages.calls.length, choice === "Retry after prerequisite changed" ? 2 : 1);
+      if (stages.calls.length === 2) assert.notEqual(stages.calls[0]!.sessionId, stages.calls[1]!.sessionId);
+      assert.match(outcome.summary, /run \/execute .*plans\/feature\/plan\.md/i);
+      const record = JSON.parse(readFileSync(outcome.recordPath, "utf8"));
+      assert.equal(record.rounds[0].stages.execute.candidateAtStop.head, stopHead);
+      assert.equal(git(fixture.root, ["status", "--porcelain"]), "");
+    });
+  }
 
   it("retries verify in a fresh session after a recovered BLOCKED verdict", async () => {
     const fixture = createRepo(UNGROUPED_PLAN);

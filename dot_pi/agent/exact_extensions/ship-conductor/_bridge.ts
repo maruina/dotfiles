@@ -543,6 +543,7 @@ function registerBridge(pi: ExtensionAPI, config: StageConfig): void {
           change: params.change,
           candidate,
           reportRef,
+          ...(params.blocker ? { blocker: params.blocker } : {}),
           ...(params.prUrl ? { prUrl: params.prUrl } : {}),
           ...(commitRefs ? { commitRefs } : {}),
           ...(params.reviewEvidence ? { reviewEvidence: params.reviewEvidence } : {}),

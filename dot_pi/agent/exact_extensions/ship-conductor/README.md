@@ -28,9 +28,9 @@ The run stops after completion is verified (or after final slice verification in
 ## How to recover a stopped stage
 When an execute, simplify, or verify stage blocks, fails, or verify returns `BLOCKED`, the coordinator keeps the worktree lock and asks what to do.
 
-1. Choose **Recover with `<session model>`** to let the model of the session where you ran `/implement` fix the blocker. The session model receives one message with the run, slice, stage, reason, stage report, `git status`, and rules: fix only this blocker inside the selected unit, leave a clean worktree, start nothing else, and do not push, open a PR, or bypass checks or commit signing. You can talk to the session model during this turn.
-2. When the session model finishes, choose **Retry `<stage>` in a fresh session**, **Recover again**, or **Stop**. Retry is not offered while the worktree is dirty or the plan changed outside the selected unit.
-3. Retry starts the same stage in a new child. Execute accepts work that recovery committed, because execute success means HEAD moved past the round's unit base.
+1. Choose **Recover with `<session model>`** to let the model of the session where you ran `/implement` fix the blocker. The session model receives one message with the run, slice, stage, reason, stage report, `git status`, and the structured blocker fields when present. The message also states the rules: fix only this blocker inside the selected unit, leave a clean worktree, start nothing else, and do not push, open a PR, or bypass checks or commit signing. You can talk to the session model during this turn.
+2. When the session model finishes, choose **Retry `<stage>` in a fresh session**, **Recover again**, or **Stop**. Retry is not offered while the worktree is dirty or the plan changed outside the selected unit. If `execute` submitted a blocked outcome and recovery left the same commit, there is no direct retry. Cleaning the worktree does not resolve the blocker. If you resolved an external prerequisite, choose **Confirm external prerequisite changed**, then **Retry after prerequisite changed**. Choose **Keep stopped** or dismiss the dialog to stop without starting a child.
+3. Retry starts the same stage in a new child. A different commit permits the normal retry choice but does not prove that recovery fixed the blocker. If the blocker remains, stop. The execute summary gives the reason, the required next action, and the direct `/execute` command for the same plan and worktree.
 
 Recovery is offered at most twice per run. It is not offered after a cancellation, when a child's termination was not confirmed, or when the session model matches the selected verifier. Use a session model that differs from your verify model if you want recovery available.
 
@@ -54,6 +54,8 @@ Each child receives `PI_LIFECYCLE_CHILD_CONFIG`, an absolute path to a private i
 The bridge registers two tools only in valid child sessions:
 - `lifecycle_request_decision` shows an Approve/Reject dialog in the coordinator. Its result states the user's choice and repeats the question and proposal.
 - `lifecycle_submit_outcome` accepts one typed outcome (`success`/`blocked` for execute/simplify and completion write stages, `VERIFIED`/`BLOCKED` for verify). `arp-review` also carries structured review evidence, settled finding IDs, and actionable finding details. `arp-fix` success must include `commitRefs` and pending settlement metadata. The bridge rejects a writer `success` while the worktree has uncommitted changes, and an execute `changed` success while HEAD equals the unit base. A rejected call is not a submission; the stage can correct its state and submit again.
+
+A blocked `execute` outcome requires a `blocker` with `step`, `reason`, `evidence`, and `nextAction`. Each field is nonblank plain text of at most 1024 UTF-8 bytes. The bridge checks the fields, not the diagnosis. The coordinator records the submitted Git snapshot as `candidateAtStop` and compares its `head` with the recovered commit. A baseline merge before the stop does not count as a recovery change.
 
 The coordinator advances only after `agent_settled`, exactly one valid outcome, and its own Git, plan-progress, and model checks.
 

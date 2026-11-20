@@ -285,6 +285,7 @@ function startRpc(
     | "error"
     | "missing"
     | "dirty"
+    | "blocked-correction"
     | "expansion"
     | "arp-success"
     | "arp-stale-head"
@@ -325,7 +326,7 @@ function messageText(record: RpcRecord): string {
     .join("");
 }
 
-async function runFixture(outcomeMode: "success" | "error" | "missing" | "dirty") {
+async function runFixture(outcomeMode: "success" | "error" | "missing" | "dirty" | "blocked-correction") {
   const fixture = createFixture();
   if (outcomeMode === "dirty") writeFileSync(join(fixture.worktree, "uncommitted.txt"), "left behind by the stage\n");
   const rpc = startRpc(fixture, outcomeMode);
@@ -373,7 +374,7 @@ async function runFixture(outcomeMode: "success" | "error" | "missing" | "dirty"
         (record) => record.type === "tool_execution_end" && record.toolName === "lifecycle_submit_outcome",
         "lifecycle outcome tool result",
       );
-      assert.equal(outcomeResult.isError, outcomeMode === "error" || outcomeMode === "dirty");
+      assert.equal(outcomeResult.isError, outcomeMode === "error" || outcomeMode === "dirty" || outcomeMode === "blocked-correction");
       if (outcomeMode === "dirty") {
         const text = outcomeResult.result.content.map((part: { text?: string }) => part.text ?? "").join("\n");
         assert.match(text, /uncommitted changes/);
@@ -408,7 +409,7 @@ async function runFixture(outcomeMode: "success" | "error" | "missing" | "dirty"
     assert.ok(finalMessage, "expected the fixture provider's terminal assistant response");
     assert.match(
       messageText(finalMessage!),
-      outcomeMode === "success"
+      outcomeMode === "success" || outcomeMode === "blocked-correction"
         ? /observed a successful outcome/
         : outcomeMode === "error" || outcomeMode === "dirty"
           ? /observed an outcome tool error/
@@ -901,6 +902,29 @@ describe("Pi 1.5.0 lifecycle bridge RPC contract", () => {
     } finally {
       await run.rpc.close();
       rmSync(run.fixture.root, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects an incomplete execute blocker and settles once after correction", { timeout: 60_000 }, async () => {
+    const { rpc, fixture, settled } = await runFixture("blocked-correction");
+    try {
+      const submissions = rpc.records.filter((record) =>
+        record.type === "tool_execution_end" && record.toolName === "lifecycle_submit_outcome");
+      assert.deepEqual(submissions.map((record) => record.isError), [true, false]);
+      assert.match(JSON.stringify(submissions[0]!.result.content), /blocker/i);
+      const details = submissions[1]!.result.details;
+      assert.equal(details.outcome, "blocked");
+      assert.deepEqual(details.blocker, {
+        step: "Read the prerequisite file",
+        reason: "The prerequisite file is missing",
+        evidence: "No fixture-prerequisite.txt in the worktree",
+        nextAction: "Create fixture-prerequisite.txt",
+      });
+      assert.ok(rpc.records.indexOf(submissions[1]!) < rpc.records.indexOf(settled));
+      assert.equal(rpc.records.filter((record) => record.type === "agent_settled").length, 1);
+    } finally {
+      await rpc.close();
+      rmSync(fixture.root, { recursive: true, force: true });
     }
   });
 

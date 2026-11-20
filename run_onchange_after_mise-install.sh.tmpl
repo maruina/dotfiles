@@ -1,0 +1,8 @@
+#!/bin/bash
+set -eufo pipefail
+
+# Reinstall when Renovate changes the declared versions.
+# {{ include "dot_config/mise/config.toml" | sha256sum }}
+
+# Start outside project directories so local pins do not affect the install.
+mise --cd / install --yes

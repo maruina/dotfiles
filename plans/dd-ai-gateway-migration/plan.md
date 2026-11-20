@@ -38,7 +38,7 @@ Advisory learning lookup: ran `Datadog/Learnings.md` through `learn-evidence.mjs
 - **User planning brief** and the alignment brief confirmed in chat on 2026-10-05.
 - **`/session-cost` dependency:** `packages/session-cost/extensions/session-cost/query.ts:55` filters `service:ai_gateway ml_app:pi client_session_id:<id>`. Without `client_session_id`, `/session-cost` reports $0.
 - **Slack thread** `C0AU45Z1FFC/p1790675568.891449`: the `dd-ai-gateway` owner states `x-dd-tag-*` headers are not needed for attribution because the Gateway reads the user from auth when `claude-code: true` is set; Lucas confirmed that adding only the session-id header fixed `session-cost`.
-- **Pi 1.0.0 mechanisms** (`~/.asdf/installs/nodejs/25.2.1/lib/node_modules/@earendil-works/pi-coding-agent/dist/core/`):
+- **Pi 1.0.0 mechanisms** (`dist/core/` in the installed `@earendil-works/pi-coding-agent` package):
   - `provider-composer.js:212` `configuredHeaders` returns `{ ...config?.headers, ...extension?.headers }`: `models.json` headers merge under extension headers.
   - `provider-composer.js:157` applies `models.json` provider `compat` to base models via `mergeCompat` (`{ ...base, ...override }`), so `false` overrides a builtin `true`.
   - `provider-composer.js:209` `extension?.apiKey ?? config?.apiKey`: the extension `apiKey` wins; `models.json` cannot change it.

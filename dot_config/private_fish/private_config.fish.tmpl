@@ -107,20 +107,6 @@ set -gx TAVILY_API_KEY '{{ onepasswordRead "op://Private/Tavily/api-key" }}'
 # Set age key location for SOPS
 set -gx SOPS_AGE_KEY_FILE ~/.config/sops/age/keys.txt
 
-# ASDF configuration code
-if test -z $ASDF_DATA_DIR
-    set _asdf_shims "$HOME/.asdf/shims"
-else
-    set _asdf_shims "$ASDF_DATA_DIR/shims"
-end
-
-# Login shells can inherit the shim directory after system paths.
-while set -l shim_index (contains --index -- "$_asdf_shims" $PATH)
-    set --erase PATH[$shim_index]
-end
-set -gx --prepend PATH "$_asdf_shims"
-set --erase _asdf_shims
-
 {{- if eq .profile "work" }}
 # Add bun global binaries
 fish_add_path "{{ .chezmoi.homeDir }}/.bun/bin"
@@ -145,6 +131,10 @@ fish_add_path /Applications/Obsidian.app/Contents/MacOS
 # Fish loads conf.d before config.fish. Re-run the Dogbrew hook after PATH setup.
 test -r "$__fish_config_dir/conf.d/99-dogbrew.fish" && source "$__fish_config_dir/conf.d/99-dogbrew.fish"
 {{- end }}
+
+if command -q mise
+    mise activate fish --shims | source
+end
 
 # Zoxide
 zoxide init fish | source

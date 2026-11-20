@@ -35,6 +35,7 @@
 | `rex` | agent-selected | Private Rex integration | Reviewed Rex commands and isolated smoke test. |
 | `write` | skill-loader | Plan ledger and operator guide | Kept execution notes precise. |
 | `learning-candidates` | prompt-required | Disproved execution assumption | Recorded the private-server observation for later review. |
+| `diataxis` | skill-loader | Operator documentation | Organized the update workflow as a how-to guide. |
 
 ## Implementation Contract
 | Component | Files | Responsibility | Verification |
@@ -111,7 +112,7 @@ The system SHALL launch restored Pi instances inside an interactive Fish shell w
 ### Slice 1: Snapshot save, preview, and restore across Rex sessions
 
 ### Task 1: Add snapshot-based save and restore
-**Status:** In progress.
+**Status:** Complete.
 **Delivers:** A server-wide `pi-save` and a `pi-restore` that only acts on the explicit snapshot and runs Pi inside Fish.
 **Blocked by:** None
 **Traces to:** Save an explicit server-wide snapshot; Restore only saved conversations; Leave Fish running after Pi exits.
@@ -127,14 +128,17 @@ The system SHALL launch restored Pi instances inside an interactive Fish shell w
 - [x] Commit with `feat(pi): save and restore an explicit Rex snapshot`.
 
 ### Task 2: Document and verify the update workflow
+**Status:** Complete.
 **Delivers:** A checked operator guide and a verified candidate for targeted chezmoi rollout.
 **Blocked by:** Task 1
 **Traces to:** Save an explicit server-wide snapshot; Restore only saved conversations; Leave Fish running after Pi exits.
 **Files:** `dot_pi/agent/exact_extensions/rex-recovery/README.md`, relevant `AGENTS.md` files for guidance review only
 
-- [ ] Document the one-time `/reload` in existing Pi sessions after installing the update, `pi-save` before the Rex update, post-update preview and apply, return to Fish, and handling of unmatched panes and pending launches. Check repository and Pi `AGENTS.md`; leave them unchanged unless the README cannot cover a durable agent-specific requirement.
-- [ ] Run `npm ci --ignore-scripts`, `npm test`, and `npm run test:all` from `dot_pi/agent` as required by repository guidance, then remove `dot_pi/agent/node_modules`. Run `git diff --check`. Preview the explicit changed targets with `chezmoi --source "$PWD" diff` from the worktree root; use explicit target file paths and include creation of the `pi-save` function. Do not use the live Rex server for a restore test.
-- [ ] Commit with `docs(pi): document the Rex snapshot recovery workflow`.
+- [x] Document the one-time `/reload` in existing Pi sessions after installing the update, `pi-save` before the Rex update, post-update preview and apply, return to Fish, and handling of unmatched panes and pending launches. Check repository and Pi `AGENTS.md`; leave them unchanged unless the README cannot cover a durable agent-specific requirement.
+  - Reviewed both `AGENTS.md` files. The operator README covers the recovery workflow; no agent-specific guidance change is needed. Checked command names and options against both CLI help outputs.
+- [x] Run `npm ci --ignore-scripts`, `npm test`, and `npm run test:all` from `dot_pi/agent` as required by repository guidance, then remove `dot_pi/agent/node_modules`. Run `git diff --check`. Preview the explicit changed targets with `chezmoi --source "$PWD" diff` from the worktree root; use explicit target file paths and include creation of the `pi-save` function. Do not use the live Rex server for a restore test.
+  - The first `npm test` failed in the Pi 1.5.0 lifecycle RPC argument-expansion test. After rebasing onto `7b4938d`, which updates the tests and dependencies to Pi 1.6.0, `npm ci --ignore-scripts`, `npm test`, and `npm run test:all` passed. Three optional Rex/Pi startup tests were skipped. The private-server recovery smoke and Fish syntax check passed again. Removed the disposable dependency directory and previewed all six changed target files, including the new `pi-save` function; `git diff --check` passed.
+- [x] Commit with `docs(pi): document the Rex snapshot recovery workflow`.
 
 ## Learning candidates
 - 2026-11-20: Rex reported Fish as the foreground process while Pi launched by Fish `--init-command` was open and had checkpointed — evidence: `node --test dot_pi/agent/exact_extensions/rex-recovery/smoke.test.mjs`, snapshot selection assertion.

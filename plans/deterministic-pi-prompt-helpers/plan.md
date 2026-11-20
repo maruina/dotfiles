@@ -135,13 +135,13 @@ The `user-context` extension SHALL attempt `fish -c rex-name-session` in the bac
 - THEN context injection continues without retrying the name change.
 
 ### Requirement 2: Deterministic vendored-skill synchronization CLI
-`sync-vendored-skills.mjs` SHALL discover `VENDOR.md` files under `exact_skills`, `exact_skills_work`, and `exact_skills_personal`, fetch upstream clones under `${GO_REPOS_ROOT:-$HOME/go/src/github.com}/<org>/<repo>`, update out-of-date skills (full subpath or `Files` list) while preserving `VENDOR.md` and stripping trailing horizontal whitespace on lines when needed, update `Pinned commit`, and emit a `schemaVersion: 1` JSON report.
+`sync-vendored-skills.mjs` SHALL discover `VENDOR.md` files under `exact_skills`, `exact_skills_work`, and `exact_skills_personal`, fetch upstream clones under `${GO_REPOS_ROOT:-$HOME/go/src/github.com}/<org>/<repo>`, update out-of-date skills (full subpath or `Files` list) while preserving `VENDOR.md` and exact upstream file bytes, repair local content or executable-mode drift even when the pin matches, update `Pinned commit`, and emit a `schemaVersion: 1` JSON report.
 
 #### Scenario: Out-of-date and up-to-date vendored skills
 - GIVEN an out-of-date skill whose clone has a checkout different from `origin/HEAD`, an up-to-date skill, and a hand-maintained skill without `VENDOR.md`
 - WHEN the helper runs with `--source` set to the intended chezmoi source root
 - THEN the out-of-date skill’s files come from the exact commit recorded in `Pinned commit`, not the clone’s checkout
-- AND the up-to-date skill is reported as `up_to_date` without file writes
+- AND a skill whose pin, selected bytes, and executable modes match upstream is reported as `up_to_date` without file writes
 - AND the hand-maintained skill directory without `VENDOR.md` is untouched.
 
 #### Scenario: Unknown or non-vendored skill filter (negative)
@@ -230,7 +230,7 @@ The `user-context` extension SHALL attempt `fish -c rex-name-session` in the bac
 ### Slice 2: Deterministic `sync-vendored-skills.mjs` CLI and compact `sync-vendored-skills.md`
 
 ### Task 2: Extract `sync-vendored-skills.mjs` and shrink `sync-vendored-skills.md`
-**Status:** Complete. The user approved making vendored skill directories exact, including removal of target files absent from the source. An isolated fixture showed that nested directories must also be exact. The user approved updating the `k8s-api-design` and `k8s-controller-dev` manifests from `DataDog/claude-marketplace` to `ddoghq/claude-marketplace` after the existing clone showed the latter origin and the former GitHub API lookup returned 404 for `maruina`.
+**Status:** Complete. The user directed the helper to preserve exact upstream bytes and repair drift even when a pin matches. The focused tests cover whitespace, CRLF, binary content, executable mode, and same-pin drift. The existing Tavily file matches its pinned blob, with a file-specific Git whitespace exception. The user approved making vendored skill directories exact, including removal of target files absent from the source. An isolated fixture showed that nested directories must also be exact. The user approved updating the `k8s-api-design` and `k8s-controller-dev` manifests from `DataDog/claude-marketplace` to `ddoghq/claude-marketplace` after the existing clone showed the latter origin and the former GitHub API lookup returned 404 for `maruina`.
 **Delivers:** `dot_pi/agent/exact_scripts/sync-vendored-skills.mjs` with unit/integration tests and a compact `dot_pi/agent/exact_prompts/sync-vendored-skills.md`.
 **Blocked by:** None
 **Traces to:** Requirement 2
@@ -282,7 +282,7 @@ The `user-context` extension SHALL attempt `fish -c rex-name-session` in the bac
 - [x] Commit with `feat(pi): add lifecycle-git helper CLI for prompts and worktree resolution`.
 
 ### Task 5: Add `disk-cleanup.mjs` and shrink `disk-cleanup.md`
-**Status:** Complete. The user directed this task to use Worktrunk instead of GitHub PR queries and approved Worktrunk cache writes during scans. `wt list` and `wt step prune --dry-run` may write `.git/wt/cache/` but must not remove worktrees or branches. Worktrunk reports content integration, not PR merge state; the prompt requires explicit approval for removals.
+**Status:** Complete. The Worktrunk commands use a temporary Git object directory and the repository object database as an alternate. A fixture forces both commands to write probe objects and confirms the repository Git files remain unchanged outside the approved cache, including when Worktrunk fails. Temporary object directories are removed in both cases. The user directed this task to use Worktrunk instead of GitHub PR queries and approved Worktrunk cache writes during scans. `wt list` and `wt step prune --dry-run` may write `.git/wt/cache/` but must not remove worktrees or branches. Worktrunk reports content integration, not PR merge state; the prompt requires explicit approval for removals.
 **Delivers:** Non-destructive `dot_pi/agent/exact_scripts/disk-cleanup.mjs` (`measure` and Worktrunk-based `scan-worktrees`) and updated `dot_pi/agent/exact_prompts/disk-cleanup.md`.
 **Blocked by:** Task 3 and Task 4
 **Traces to:** Requirement 5
@@ -308,13 +308,19 @@ The `user-context` extension SHALL attempt `fish -c rex-name-session` in the bac
   - The new assertion failed before the documentation change; all 10 tests passed after it. The guidance also identifies the new helper scripts and the Worktrunk cache exception.
 
 ### Task 7: Final verification
+**Status:** Complete. After the exact-byte change, `npm ci --ignore-scripts`, `npm test`, and `npm run test:all` passed with Pi 1.6.0; three optional Rex/Pi startup tests were skipped. The candidate RPC smoke test passed. PR `ddoghq/claude-marketplace#5105` merged the `k8s-api-design` guidance after its old pin; the user approved refreshing it. The current upstream files match the local files, and the pin was updated to `1c50dbfb5fa2d5453c78f6ffed2c970b0df16b9c`. A byte and executable-mode comparison against the pins passed for all 34 selected upstream files. The user removed the disposable `node_modules` after the suites completed.
 **Delivers:** Evidence that the cumulative candidate satisfies all five requirements before any apply.
 **Blocked by:** Tasks 1-6
 **Traces to:** Requirements 1–5
 
-- [ ] Run `npm ci --ignore-scripts`, `npm test`, and `npm run test:all` in `dot_pi/agent`. Remove the disposable `dot_pi/agent/node_modules` only after the suite completes. Check `git diff --check origin/main..HEAD` and confirm that verification did not change Git state. A failing test first is not applicable to this verification-only task.
-- [ ] Use a temporary `PI_CODING_AGENT_DIR` and explicitly load candidate `user-context.ts` with `--no-extensions -e`. Reuse the offline test-model pattern from `dot_pi/agent/exact_extensions/ship-conductor/_rpc.test.ts` to run a turn in RPC mode with Rex variables, a fake `rex` that returns the context fixture, and a fake `fish` that records any call. Assert from the injected context that the candidate hook ran, kept `rex-name-task` guidance, and did not call Fish. Task 1’s TUI-mode hook test must show the positive startup-directory behavior; the stock `--list-models` smoke check alone proves neither contract.
-- [ ] Record the result for each requirement against the cumulative candidate: startup-directory naming and RPC exclusion; exact pinned vendored bytes and no apply on failure; repository-bound GitHub routing and collector failure propagation; unchanged approval and snapshot guards; and Worktrunk previews without worktree or branch removal. Block delivery if any required check is missing.
+- [x] Run `npm ci --ignore-scripts`, `npm test`, and `npm run test:all` in `dot_pi/agent`. Check `git diff --check origin/main..HEAD` and confirm that verification did not change Git state. A failing test first is not applicable to this verification-only task.
+  - All commands passed with Pi 1.6.0. Three optional Rex/Pi startup tests were skipped. Before and after snapshots matched across the final `npm test` and `npm run test:all` runs. `git diff --check origin/main` also passed with the scoped upstream whitespace exception.
+- [x] Remove the disposable `dot_pi/agent/node_modules` after the suite completes; recursive shell deletion is blocked by the environment guardrail.
+  - The user removed the directory, and the assistant confirmed it is absent.
+- [x] Use a temporary `PI_CODING_AGENT_DIR` and explicitly load candidate `user-context.ts` with `--no-extensions -e`. Reuse the offline test-model pattern from `dot_pi/agent/exact_extensions/ship-conductor/_rpc.test.ts` to run a turn in RPC mode with Rex variables, a fake `rex` that returns the context fixture, and a fake `fish` that records any call. Assert from the injected context that the candidate hook ran, kept `rex-name-task` guidance, and did not call Fish. Task 1’s TUI-mode hook test must show the positive startup-directory behavior; the stock `--list-models` smoke check alone proves neither contract.
+  - The candidate RPC smoke and TUI hook tests passed in both full suites using Pi 1.6.0.
+- [x] Record the result for each requirement against the cumulative candidate: startup-directory naming and RPC exclusion; exact pinned vendored bytes and no apply on failure; repository-bound GitHub routing and collector failure propagation; unchanged approval and snapshot guards; and Worktrunk previews without worktree or branch removal. Block delivery if any required check is missing.
+  - Rex startup naming and RPC exclusion passed both hook and isolated agent-loop tests. All 34 selected upstream files match their pins; sync tests cover same-pin drift, dry runs, errors, and prompt no-apply gates. GitHub routing and failed collector preflight tests passed. Lifecycle approval and snapshot tests passed. Worktrunk preview tests passed for integration, dirty and unavailable states, and forced probe writes without worktree, ref, or repository object changes.
 
 ## Learning candidates
 - 2026-11-20: Pi RPC children inherit the parent’s Rex identifiers, so Rex variables alone cannot identify the process that owns a visible pane — evidence: `dot_pi/agent/exact_extensions/ship-conductor/_spawn.ts:85–109`.

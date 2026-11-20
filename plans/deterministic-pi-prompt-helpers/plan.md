@@ -35,6 +35,8 @@
 | `chezmoi` | `skill-loader` | The extension is managed by chezmoi | Edited source files only and deferred target application until verification |
 | `codebase-research` | `skill-loader` | The extension changes process behavior | Traced hook, subprocess, context guidance, tests, and Pi extension lifecycle |
 | `write` | `skill-loader` | The plan ledger and context guidance contain prose | Kept changes concise and preserved the plan requirements |
+| `cli-best-practices` | `skill-loader` | Slice 2 adds a CLI | Applied structured output, non-interactive execution, and preview guidance |
+| `learning-candidates` | `prompt-required` | The exact-directory assumption was disproved | Recorded the isolated chezmoi fixture result for later review |
 
 ## Advisory learning lookup
 Queried `Datadog/Learnings.md` via `obsidian read path="Datadog/Learnings.md" | node "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/scripts/learn-evidence.mjs" learning-sections --term rex --term worktree --term prompt --term gh --term vendored --term lifecycle`. Thirteen sections matched (`Render piped chezmoi templates against an initialized config, not --init` and twelve distributed-systems/Kubernetes entries). None conflicted with or altered these local Pi script and prompt changes.
@@ -228,16 +230,22 @@ The `user-context` extension SHALL attempt `fish -c rex-name-session` in the bac
 ### Slice 2: Deterministic `sync-vendored-skills.mjs` CLI and compact `sync-vendored-skills.md`
 
 ### Task 2: Extract `sync-vendored-skills.mjs` and shrink `sync-vendored-skills.md`
+**Status:** Complete. The user approved making vendored skill directories exact, including removal of target files absent from the source. An isolated fixture showed that nested directories must also be exact. The user approved updating the `k8s-api-design` and `k8s-controller-dev` manifests from `DataDog/claude-marketplace` to `ddoghq/claude-marketplace` after the existing clone showed the latter origin and the former GitHub API lookup returned 404 for `maruina`.
 **Delivers:** `dot_pi/agent/exact_scripts/sync-vendored-skills.mjs` with unit/integration tests and a compact `dot_pi/agent/exact_prompts/sync-vendored-skills.md`.
 **Blocked by:** None
 **Traces to:** Requirement 2
-**Files:** `dot_pi/agent/exact_scripts/sync-vendored-skills.mjs`, `dot_pi/agent/exact_scripts/sync-vendored-skills.test.mjs`, `dot_pi/agent/exact_prompts/sync-vendored-skills.md`, `dot_pi/agent/package.json`
+**Files:** `dot_pi/agent/exact_scripts/sync-vendored-skills.mjs`, `dot_pi/agent/exact_scripts/sync-vendored-skills.test.mjs`, `dot_pi/agent/exact_prompts/sync-vendored-skills.md`, `dot_pi/agent/package.json`, and the 13 vendored skill source directories.
 
-- [ ] Write focused failing tests in `dot_pi/agent/exact_scripts/sync-vendored-skills.test.mjs` covering `--help`, full-directory skill sync, `Files`-list partial sync, trailing horizontal whitespace stripping when `Local divergence` notes whitespace stripping (or preserving clean `git diff --check` output), `up_to_date` skip when pinned commit matches `origin/HEAD`, `--dry-run` mode, preservation of hand-maintained skills without `VENDOR.md`, exit code `2` on unknown skill names, an upstream checkout behind the fetched commit, and an invalid source or destination path that cannot advance the pin.
-- [ ] Add the helper and update `sync-vendored-skills.md` to pass the resolved chezmoi source root with `--source` and forward every requested skill filter. Preview with `--dry-run` before source writes. Resolve and validate the selected content from the immutable commit before writing; update the pin only after the copy succeeds. Use the same source and check the explicit changed targets before `chezmoi apply`. Stop on any failed sync or validation and report partial writes, if any. Wire `sync-vendored-skills.test.mjs` into `dot_pi/agent/package.json`.
-- [ ] Run `node --test dot_pi/agent/exact_scripts/sync-vendored-skills.test.mjs` and `node dot_pi/agent/exact_scripts/validate-skills.mjs`; expect all tests and skill validations to pass.
-- [ ] Refactor only after green, then rerun verification.
-- [ ] Commit with `feat(pi): extract deterministic sync-vendored-skills script`.
+- [x] Make every vendored skill directory and its nested directories exact. Keep the helper compatible with exact source paths and create exact nested directories for upstream content. Test removal of stale root and nested target files with an isolated chezmoi source and destination; do not apply the candidate to the home directory before verification.
+  - The isolated fixture removed stale root and nested targets. All 47 existing vendored files match their original Git blob hashes after the directory renames.
+- [x] Write focused failing tests in `dot_pi/agent/exact_scripts/sync-vendored-skills.test.mjs` covering `--help`, full-directory skill sync, `Files`-list partial sync, trailing horizontal whitespace stripping when `Local divergence` notes whitespace stripping (or preserving clean `git diff --check` output), `up_to_date` skip when pinned commit matches `origin/HEAD`, `--dry-run` mode, preservation of hand-maintained skills without `VENDOR.md`, exit code `2` on unknown skill names, an upstream checkout behind the fetched commit, and an invalid source or destination path that cannot advance the pin.
+  - The focused command failed before implementation because the helper did not exist. Historical `VENDOR.md` uses comma-separated backtick-quoted `Files` entries.
+- [x] Add the helper and update `sync-vendored-skills.md` to pass the resolved chezmoi source root with `--source` and forward every requested skill filter. Preview with `--dry-run` before source writes. Resolve and validate the selected content from the immutable commit before writing; update the pin only after the copy succeeds. Use the same source and check the explicit changed targets before `chezmoi apply`. Stop on any failed sync or validation and report partial writes, if any. Wire `sync-vendored-skills.test.mjs` into `dot_pi/agent/package.json`.
+- [x] Run `node --test dot_pi/agent/exact_scripts/sync-vendored-skills.test.mjs` and `node dot_pi/agent/exact_scripts/validate-skills.mjs`; expect all tests and skill validations to pass.
+  - Eight tests passed and 46 skills validated. The npm script and work and personal profile validations also passed. The tests use local Git fixtures and do not establish live upstream availability.
+- [x] Refactor only after green, then rerun verification.
+  - Added a failing test for a selected file changing executable mode, fixed duplicate source entries, and reran both required commands successfully. Added fail-closed origin identity checks with local fixtures.
+- [x] Commit with `feat(pi): extract deterministic sync-vendored-skills script`.
 
 ### Slice 3: Per-org `gh auth token` routing in `collect.mjs` and non-mutating `gh-as` Fish helper
 
@@ -300,3 +308,4 @@ The `user-context` extension SHALL attempt `fish -c rex-name-session` in the bac
 ## Learning candidates
 - 2026-11-20: Pi RPC children inherit the parent’s Rex identifiers, so Rex variables alone cannot identify the process that owns a visible pane — evidence: `dot_pi/agent/exact_extensions/ship-conductor/_spawn.ts:85–109`.
 - 2026-11-20: The Pi `test:smoke` command can pass against installed extensions without loading a candidate or running its hook — evidence: `dot_pi/agent/package.json:23–24`.
+- 2026-11-20: An `exact_` parent does not remove deleted files inside a non-exact child directory; `chezmoi diff` for the removed target reports `not managed` and applying the child leaves the file — evidence: isolated chezmoi source and destination fixture for `exact_skills/demo/removed.md`.

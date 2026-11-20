@@ -37,6 +37,7 @@
 | `write` | `skill-loader` | The plan ledger and context guidance contain prose | Kept changes concise and preserved the plan requirements |
 | `cli-best-practices` | `skill-loader` | Slice 2 adds a CLI | Applied structured output, non-interactive execution, and preview guidance |
 | `learning-candidates` | `prompt-required` | The exact-directory assumption was disproved | Recorded the isolated chezmoi fixture result for later review |
+| `script-best-practices` | `skill-loader` | Slice 3 adds a Fish wrapper | Applied validation, scoping, and exit-status guidance |
 
 ## Advisory learning lookup
 Queried `Datadog/Learnings.md` via `obsidian read path="Datadog/Learnings.md" | node "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/scripts/learn-evidence.mjs" learning-sections --term rex --term worktree --term prompt --term gh --term vendored --term lifecycle`. Thirteen sections matched (`Render piped chezmoi templates against an initialized config, not --init` and twelve distributed-systems/Kubernetes entries). None conflicted with or altered these local Pi script and prompt changes.
@@ -250,16 +251,19 @@ The `user-context` extension SHALL attempt `fish -c rex-name-session` in the bac
 ### Slice 3: Per-org `gh auth token` routing in `collect.mjs` and non-mutating `gh-as` Fish helper
 
 ### Task 3: Add per-org `GH_TOKEN` routing to `collect.mjs` and add `gh-as.fish`
+**Status:** Complete. The user requested execution of all remaining slices before one independent verification.
 **Delivers:** Non-mutating per-organization `gh auth token` resolution in `pr-validate-report/collect.mjs` and a `gh-as` Fish function in `dot_config/private_fish/exact_functions/gh-as.fish`.
 **Blocked by:** None
 **Traces to:** Requirement 3
 **Files:** `dot_pi/agent/exact_scripts/pr-validate-report/github-url.mjs`, `dot_pi/agent/exact_scripts/pr-validate-report/collect.mjs`, `dot_pi/agent/exact_scripts/pr-validate-report/collect.test.mjs`, `dot_pi/agent/exact_scripts/pr-validate-report/workspace.test.mjs`, `dot_config/private_fish/exact_functions/gh-as.fish`, `dot_pi/agent/exact_scripts/gh-as.test.mjs`, `dot_pi/agent/package.json`
 
-- [ ] Add failing tests in `dot_pi/agent/exact_scripts/pr-validate-report/collect.test.mjs` and `dot_pi/agent/exact_scripts/gh-as.test.mjs` verifying that `ddoghq` and `ddoghq-sandbox` route to `matteo-ruina_ddog`, all other owners route to `maruina`, `gh auth token --hostname github.com --user <login>` is called once, `GH_TOKEN` is passed in the child environment, `gh auth switch` is never called, tokens never appear on stdout/stderr, and token lookup failures fail closed. Test repository targeting with an unrelated checkout, conflicting `GH_REPO`, and explicit overrides. Add a `workspace.test.mjs` case that runs the actual collector with a fake `gh`, expects `metadata unavailable` and checks that preflight does not fetch.
-- [ ] Export `githubAccountForOwner(owner)` in `dot_pi/agent/exact_scripts/pr-validate-report/github-url.mjs`, update `dot_pi/agent/exact_scripts/pr-validate-report/collect.mjs` to resolve and pass `GH_TOKEN` to every `runGh` call, and create `gh-as.fish` with the host and repository binding in Requirement 3. Preserve the collector’s schema and exit-code contract. Wire `gh-as.test.mjs` into `dot_pi/agent/package.json`.
-- [ ] Run `node --test dot_pi/agent/exact_scripts/pr-validate-report/collect.test.mjs dot_pi/agent/exact_scripts/pr-validate-report/workspace.test.mjs dot_pi/agent/exact_scripts/gh-as.test.mjs`; expect all tests to pass.
-- [ ] Refactor only after green, then rerun the test command above.
-- [ ] Commit with `feat(pi,fish): route gh auth tokens per org without global switch`.
+- [x] Add failing tests in `dot_pi/agent/exact_scripts/pr-validate-report/collect.test.mjs` and `dot_pi/agent/exact_scripts/gh-as.test.mjs` verifying that `ddoghq` and `ddoghq-sandbox` route to `matteo-ruina_ddog`, all other owners route to `maruina`, `gh auth token --hostname github.com --user <login>` is called once, `GH_TOKEN` is passed in the child environment, `gh auth switch` is never called, tokens never appear on stdout/stderr, and token lookup failures fail closed. Test repository targeting with an unrelated checkout, conflicting `GH_REPO`, and explicit overrides. Add a `workspace.test.mjs` case that runs the actual collector with a fake `gh`, expects `metadata unavailable` and checks that preflight does not fetch.
+- [x] Export `githubAccountForOwner(owner)` in `dot_pi/agent/exact_scripts/pr-validate-report/github-url.mjs`, update `dot_pi/agent/exact_scripts/pr-validate-report/collect.mjs` to resolve and pass `GH_TOKEN` to every `runGh` call, and create `gh-as.fish` with the host and repository binding in Requirement 3. Preserve the collector’s schema and exit-code contract. Wire `gh-as.test.mjs` into `dot_pi/agent/package.json`.
+- [x] Run `node --test dot_pi/agent/exact_scripts/pr-validate-report/collect.test.mjs dot_pi/agent/exact_scripts/pr-validate-report/workspace.test.mjs dot_pi/agent/exact_scripts/gh-as.test.mjs`; expect all tests to pass.
+  - All 25 tests passed. Fish syntax and JavaScript diagnostics passed. One earlier test run loaded the user's Fish configuration, which changed `PATH` and let the read-only wrapper call the installed `gh`; the test now uses `fish --no-config` and fake `gh`.
+- [x] Refactor only after green, then rerun the test command above.
+  - No refactor was needed after the passing run.
+- [x] Commit with `feat(pi,fish): route gh auth tokens per org without global switch`.
 
 ### Slice 4: Deterministic `lifecycle-git.mjs` and `disk-cleanup.mjs` CLIs and prompt integration
 
@@ -309,3 +313,4 @@ The `user-context` extension SHALL attempt `fish -c rex-name-session` in the bac
 - 2026-11-20: Pi RPC children inherit the parent’s Rex identifiers, so Rex variables alone cannot identify the process that owns a visible pane — evidence: `dot_pi/agent/exact_extensions/ship-conductor/_spawn.ts:85–109`.
 - 2026-11-20: The Pi `test:smoke` command can pass against installed extensions without loading a candidate or running its hook — evidence: `dot_pi/agent/package.json:23–24`.
 - 2026-11-20: An `exact_` parent does not remove deleted files inside a non-exact child directory; `chezmoi diff` for the removed target reports `not managed` and applying the child leaves the file — evidence: isolated chezmoi source and destination fixture for `exact_skills/demo/removed.md`.
+- 2026-11-20: Fish startup configuration can reorder `PATH` ahead of a fake executable in subprocess tests; `fish --no-config` keeps the fixture isolated — evidence: `dot_pi/agent/exact_scripts/gh-as.test.mjs`.

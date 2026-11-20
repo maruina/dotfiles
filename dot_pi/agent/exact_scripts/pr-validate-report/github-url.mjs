@@ -1,3 +1,7 @@
+export function githubAccountForOwner(owner) {
+  return ['ddoghq', 'ddoghq-sandbox'].includes(owner.toLowerCase()) ? 'matteo-ruina_ddog' : 'maruina';
+}
+
 export function parsePullRequestUrl(value) {
   let url;
   try {

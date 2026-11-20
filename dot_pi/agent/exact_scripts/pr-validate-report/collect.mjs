@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
-import { parsePullRequestUrl } from "./github-url.mjs";
+import { githubAccountForOwner, parsePullRequestUrl } from "./github-url.mjs";
 
 const HELP = `Usage: node collect.mjs <GitHub pull request URL>
 
@@ -59,13 +59,17 @@ const SOURCE_NAMES = [
   "checks",
 ];
 
-function runGh(args, { allowPendingExit = false } = {}) {
+function runGh(args, { allowPendingExit = false, token } = {}) {
   return new Promise((resolve) => {
     let child;
     const chunks = [];
+    const env = { ...process.env, GH_PROMPT_DISABLED: "1", GH_HOST: "github.com" };
+    delete env.GH_TOKEN;
+    delete env.GITHUB_TOKEN;
+    if (token) env.GH_TOKEN = token;
     try {
       child = spawn("gh", args, {
-        env: { ...process.env, GH_PROMPT_DISABLED: "1" },
+        env,
         stdio: ["ignore", "pipe", "ignore"],
       });
     } catch (error) {
@@ -91,8 +95,8 @@ function spawnErrorCode(error) {
   return `spawn_${code}`;
 }
 
-async function runJson(args, { pendingIsAvailable = false } = {}) {
-  const result = await runGh(args, { allowPendingExit: pendingIsAvailable });
+async function runJson(args, { pendingIsAvailable = false, token } = {}) {
+  const result = await runGh(args, { allowPendingExit: pendingIsAvailable, token });
   if (!result.ok) return result;
   try {
     return { ok: true, value: JSON.parse(result.output) };
@@ -226,16 +230,17 @@ async function collect(prUrl) {
     `query=${THREAD_QUERY}`,
   ];
 
-  const sourcePromises = [
-    runJson(["pr", "view", url, "--json", METADATA_FIELDS]),
-    runGh(["pr", "diff", url]),
-    runJson(["api", "--paginate", "--slurp", `${pullPath}/comments`]),
-    runJson(["api", "--paginate", "--slurp", `${issuePath}/comments`]),
-    runJson(["api", "--paginate", "--slurp", `${pullPath}/reviews`]),
-    runJson(threadArgs),
-    runJson(["pr", "checks", url, "--json", "bucket,completedAt,description,event,link,name,startedAt,state,workflow"], { pendingIsAvailable: true }),
-  ];
-  const settled = await Promise.all(sourcePromises);
+  const auth = await runGh(["auth", "token", "--hostname", "github.com", "--user", githubAccountForOwner(owner)]);
+  const token = auth.ok ? auth.output.trim() : "";
+  const settled = token && !/\s/.test(token) ? await Promise.all([
+    runJson(["pr", "view", url, "--json", METADATA_FIELDS], { token }),
+    runGh(["pr", "diff", url], { token }),
+    runJson(["api", "--paginate", "--slurp", `${pullPath}/comments`], { token }),
+    runJson(["api", "--paginate", "--slurp", `${issuePath}/comments`], { token }),
+    runJson(["api", "--paginate", "--slurp", `${pullPath}/reviews`], { token }),
+    runJson(threadArgs, { token }),
+    runJson(["pr", "checks", url, "--json", "bucket,completedAt,description,event,link,name,startedAt,state,workflow"], { pendingIsAvailable: true, token }),
+  ]) : SOURCE_NAMES.map(() => ({ ok: false, error: "auth_unavailable" }));
   const results = Object.fromEntries(SOURCE_NAMES.map((name, index) => [name, safeSource(settled[index], name)]));
 
   for (const name of ["inlineComments", "topLevelComments", "reviews"]) {

@@ -41,7 +41,12 @@ import { appendFileSync } from "node:fs";
 
 const args = process.argv.slice(2);
 const logPath = process.env.FAKE_GH_CALLS;
-appendFileSync(logPath, JSON.stringify({ args, promptDisabled: process.env.GH_PROMPT_DISABLED }) + String.fromCharCode(10));
+appendFileSync(logPath, JSON.stringify({ args, promptDisabled: process.env.GH_PROMPT_DISABLED, hasExpectedToken: process.env.GH_TOKEN === "fixture-token", inheritedTokensAbsent: !process.env.GH_TOKEN && !process.env.GITHUB_TOKEN, host: process.env.GH_HOST }) + String.fromCharCode(10));
+if (args[0] === "auth" && args[1] === "token") {
+  if (process.env.FAKE_GH_SCENARIO === "auth-fail") { console.error("fixture-secret"); process.exit(1); }
+  process.stdout.write("fixture-token\n");
+  process.exit(0);
+}
 
 const pathArg = args.find((arg) => arg.startsWith("repos/") || arg.startsWith("issues/")) ?? "";
 let source;
@@ -122,6 +127,26 @@ function runCollector(t, args, scenario = "complete", extraEnv = {}) {
     calls: existsSync(callsPath) ? readFileSync(callsPath, "utf8").trim().split(String.fromCharCode(10)).map((line) => JSON.parse(line)) : [],
   };
 }
+
+test("routes each owner with one token lookup and no ambient credentials", (t) => {
+  for (const [owner, login] of [["ddoghq", "matteo-ruina_ddog"], ["DDOGHQ-SANDBOX", "matteo-ruina_ddog"], ["DataDog", "maruina"]]) {
+    const { result, calls } = runCollector(t, [`https://github.com/${owner}/repo/pull/42`], "complete", { GH_TOKEN: "ambient", GITHUB_TOKEN: "ambient2" });
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(calls[0].args, ["auth", "token", "--hostname", "github.com", "--user", login]);
+    assert.equal(calls[0].inheritedTokensAbsent, true);
+    assert.equal(calls.length, 8);
+    assert.ok(calls.slice(1).every(call => call.hasExpectedToken && call.host === "github.com"));
+    assert.doesNotMatch(result.stdout + result.stderr, /fixture-token|fixture-secret/);
+  }
+});
+
+test("token lookup failure marks all sources unavailable without querying", (t) => {
+  const { result, calls } = runCollector(t, ["https://github.com/ddoghq/repo/pull/42"], "auth-fail", { GH_TOKEN: "ambient", GITHUB_TOKEN: "ambient2" });
+  assert.equal(result.status, 0);
+  assert.equal(calls.length, 1);
+  assert.ok(Object.values(JSON.parse(result.stdout).collection.sources).every(source => source.status === "unavailable" && source.error === "auth_unavailable"));
+  assert.doesNotMatch(result.stdout + result.stderr, /fixture-secret|ambient/);
+});
 
 test("--help describes the collector without invoking gh", (t) => {
   const { result, calls } = runCollector(t, ["--help"]);

@@ -297,13 +297,15 @@ The `user-context` extension SHALL attempt `fish -c rex-name-session` in the bac
 - [x] Commit with `feat(pi): add deterministic disk-cleanup measurement and worktree scanner`.
 
 ### Task 6: Document Rex naming and `gh-as`
+**Status:** Complete.
 **Delivers:** Usage and account rules in `dot_pi/agent/AGENTS.md`.
 **Blocked by:** Task 1 and Task 3
 **Traces to:** Requirements 1 and 3
 **Files:** `dot_pi/agent/AGENTS.md`, `dot_pi/agent/exact_scripts/learn-prompts.test.mjs`
 
-- [ ] Add a failing prompt contract assertion that distinguishes calls routed by `gh-as` from direct `gh` calls that still require account switching and restoration.
-- [ ] Document the supported `gh-as` forms and the startup-directory rule for interactive Rex naming. Run `node --test dot_pi/agent/exact_scripts/learn-prompts.test.mjs`, then commit with `docs(pi): document rex naming and gh-as`.
+- [x] Add a failing prompt contract assertion that distinguishes calls routed by `gh-as` from direct `gh` calls that still require account switching and restoration.
+- [x] Document the supported `gh-as` forms and the startup-directory rule for interactive Rex naming. Run `node --test dot_pi/agent/exact_scripts/learn-prompts.test.mjs`, then commit with `docs(pi): document rex naming and gh-as`.
+  - The new assertion failed before the documentation change; all 10 tests passed after it. The guidance also identifies the new helper scripts and the Worktrunk cache exception.
 
 ### Task 7: Final verification
 **Delivers:** Evidence that the cumulative candidate satisfies all five requirements before any apply.

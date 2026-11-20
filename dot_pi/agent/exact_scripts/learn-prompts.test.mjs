@@ -162,6 +162,18 @@ test("execute and verify do not read the mutable learning store", () => {
   }
 });
 
+test("guidance distinguishes gh-as routing from direct gh and explains Rex startup naming", () => {
+  const agents = readFileSync(path.join(agentDir, "AGENTS.md"), "utf8");
+  requireMarkers(agents, [
+    /gh-as.*per-process.*without.*switch/is,
+    /gh-as.*owner\/repo.*pr view.*pr list/is,
+    /gh-as.*api user/is,
+    /direct `gh`.*switch.*restore/is,
+    /rex-name-session.*startup directory.*interactive/is,
+    /rex-name-task/is,
+  ]);
+});
+
 test("lifecycle guidance names the standard stages and has no compound reference", () => {
   for (const file of [path.join(promptsDir, "simplify.md"), path.join(agentDir, "AGENTS.md")]) {
     const text = readFileSync(file, "utf8");

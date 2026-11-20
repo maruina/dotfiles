@@ -34,7 +34,7 @@ Each lifecycle prompt is the source of truth for its stage.
 - Use one worktree for each feature branch or pull request.
 
 ## Dynamic Context
-A hidden `user-context` extension injects current repository, branch, pull request, Jira key, worktree, recent-file, and Rex session context when the session runs in a Rex terminal with `rex` available. Treat it as a hint; follow explicit user instructions and repository guidance first.
+A hidden `user-context` extension injects current repository, branch, pull request, Jira key, worktree, recent-file, and Rex session context when the session runs in a Rex terminal with `rex` available. Treat it as a hint; follow explicit user instructions and repository guidance first. The extension runs `rex-name-session` once from Pi's startup directory in an interactive Rex session. Continue to choose and apply task labels with `rex-name-task`.
 
 ## Tool Use
 - Use `gh` for GitHub operations.
@@ -43,6 +43,9 @@ A hidden `user-context` extension injects current repository, branch, pull reque
   - Use `maruina` for everything else, including `DataDog/*` repositories and searches.
   - Switch to the appropriate account before running `gh pr`, `gh repo`, `gh search`, or GitHub API commands.
   - Capture the active login with `gh auth status --json hosts`, switch only as needed per the routing rule, and restore and verify the original login after every normal or error path; never use `gh auth status --show-token`.
+  - `gh-as` uses a per-process token without a global account switch. Use `gh-as owner/repo pr view NUMBER` or `gh-as owner/repo pr list`; GitHub repository URLs are also supported. Use `gh-as LOGIN api user` for an explicit login. The wrapper rejects repository or host overrides and unsupported commands.
+  - For direct `gh` calls, continue to switch and restore the active login as described above.
+- Pi's `lifecycle-git.mjs`, `disk-cleanup.mjs`, and `sync-vendored-skills.mjs` scripts provide Git evidence, disk-cleanup previews, and vendored-skill updates. Run each script with `--help` for its interface. The disk scan uses Worktrunk and may write its cache, but does not remove worktrees or branches.
 - AWS access uses `exec-sso-` profiles from `~/.aws/config`, backed by `aws-vault` `credential_process`. Run `aws <command> --profile exec-sso-<account>-<role>`.
   - The compute role is usually `compute-admin`; the profile is account-scoped, e.g. `exec-sso-staging-compute-admin` or `exec-sso-action-platform-dev-compute-admin`. Derive the account from incident context; when unsure, list candidates with `aws configure list-profiles | grep 'exec-sso-.*-compute-admin'` and ask.
   - Never invent profile names such as `sso-staging-read-only`. If a needed profile is missing, report it as a gap and ask for the account/role instead of fabricating one.

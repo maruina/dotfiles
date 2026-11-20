@@ -111,19 +111,20 @@ The system SHALL launch restored Pi instances inside an interactive Fish shell w
 ### Slice 1: Snapshot save, preview, and restore across Rex sessions
 
 ### Task 1: Add snapshot-based save and restore
-**Status:** Ready for execution after plan review.
+**Status:** In progress.
 **Delivers:** A server-wide `pi-save` and a `pi-restore` that only acts on the explicit snapshot and runs Pi inside Fish.
 **Blocked by:** None
 **Traces to:** Save an explicit server-wide snapshot; Restore only saved conversations; Leave Fish running after Pi exits.
 **Files:** `dot_config/private_fish/exact_functions/pi-save.fish`, `dot_pi/agent/exact_extensions/rex-recovery/{cli.mjs,core.mjs,recovery.test.mjs,smoke.test.mjs}`
 
-- [ ] Add failing tests for server-wide selection, replacement, failed inventory, restore without a snapshot, stale checkpoints, missing paths, and duplicate or already-open conversations. Cover macOS process identity, legacy checkpoints, reused PIDs, same-second start times, foreground child processes, incomplete process tables, and rechecks. Keep the existing pending, busy-pane, and lock checks.
-  - Focused unit tests pass, but the private-server smoke test disproved the foreground PID assumption. The tests and implementation need plan review before this step can be marked complete. `npm ci --ignore-scripts` was run early to enable the TypeScript language server.
-- [ ] Implement the Fish wrapper and shared CLI/core changes. Check that both commands expose their behavior in `--help` and preserve structured output for `--json`.
-- [ ] Extend the private-server smoke test. Open Pi in two Rex sessions, leave a checkpoint for a closed tab, save, remove the fixture's saved Rex sessions, and restore. Check grouping and tab counts. Run restore again and check it creates no tabs. Exit one Pi instance and verify the same pane accepts a Fish command. Use a fixture path containing a quote to exercise Fish argument handling.
-  - The earlier candidate failed because Rex reported Fish as foreground while Pi ran under `--init-command`. The revised process-table checks must pass the real private-server test before this step is complete.
-- [ ] Run `fish -n dot_config/private_fish/exact_functions/pi-save.fish`, `npm run test:rex-recovery` from `dot_pi/agent`, and `node --test dot_pi/agent/exact_extensions/rex-recovery/smoke.test.mjs` from the worktree root. Expect all to pass without touching the live Rex server.
-- [ ] Commit with `feat(pi): save and restore an explicit Rex snapshot`.
+- [x] Add failing tests for server-wide selection, replacement, failed inventory, restore without a snapshot, stale checkpoints, missing paths, and duplicate or already-open conversations. Cover macOS process identity, legacy checkpoints, reused PIDs, same-second start times, foreground child processes, incomplete process tables, and rechecks. Keep the existing pending, busy-pane, and lock checks.
+  - Focused tests failed before implementation. `npm ci --ignore-scripts` was run early to enable the TypeScript language server.
+- [x] Implement the Fish wrapper and shared CLI/core changes. Check that both commands expose their behavior in `--help` and preserve structured output for `--json`.
+- [x] Extend the private-server smoke test. Open Pi in two Rex sessions, leave a checkpoint for a closed tab, save, remove the fixture's saved Rex sessions, and restore. Check grouping and tab counts. Run restore again and check it creates no tabs. Exit one Pi instance and verify the same pane accepts a Fish command. Use a fixture path containing a quote to exercise Fish argument handling.
+  - The earlier candidate failed because Rex reported Fish as foreground while Pi ran under `--init-command`. The revised process-table checks pass the private-server test. The first revised smoke used `/exit`, which Pi did not recognize; `/quit` passed.
+- [x] Run `fish -n dot_config/private_fish/exact_functions/pi-save.fish`, `npm run test:rex-recovery` from `dot_pi/agent`, and `node --test dot_pi/agent/exact_extensions/rex-recovery/smoke.test.mjs` from the worktree root. Expect all to pass without touching the live Rex server.
+  - Fish syntax passed; 29 recovery unit tests and the private-server smoke test passed.
+- [x] Commit with `feat(pi): save and restore an explicit Rex snapshot`.
 
 ### Task 2: Document and verify the update workflow
 **Delivers:** A checked operator guide and a verified candidate for targeted chezmoi rollout.

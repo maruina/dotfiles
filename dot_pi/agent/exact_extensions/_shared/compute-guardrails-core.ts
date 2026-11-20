@@ -207,13 +207,13 @@ const READ_ONLY_HELM = new Set(["env", "get", "history", "lint", "list", "search
 const READ_ONLY_HELM_REPO = new Set(["list"]);
 const READ_ONLY_DDTOOL = new Set(["describe", "find", "get", "info", "list", "search", "show"]);
 const ALLOWED_DDTOOL_AUTH = new Set(["auth gitlab project-token"]);
-// Exact token form "rm -rf dot_pi/agent/node_modules"; see checkSegment.
-const ALLOWED_RM_EXACT = new Set(["rm -rf dot_pi/agent/node_modules"]);
+// deliberate: Match literal paths only. Verifying checkout ancestry would require filesystem checks.
+const PI_DEPS_CLEANUP = /^rm[ \t]+-rf[ \t]+(["']?)(?:\.\/|\/(?:(?!\.{1,2}\/)[A-Za-z0-9_.-]+\/)*)?dot_pi\/agent\/node_modules\1$/;
 
 function isAllowedRm(segment: string): boolean {
+  if (PI_DEPS_CLEANUP.test(segment)) return true;
+
   const rawTokens = tokenize(segment);
-  const command = rawTokens.join(" ");
-  if (ALLOWED_RM_EXACT.has(command)) return true;
 
   // Allow /pr-validate scratch directory cleanup:
   // e.g. rm -rf "$SCRATCH_DIR", rm -rf "${SCRATCH_DIR}", or rm -rf /tmp/pr-validate-<repo>-<pr>
@@ -650,8 +650,6 @@ function checkSegment(segment: string, depth: number): DenyRecord | null {
   if (tool === "rm" && RM_RECURSIVE.test(segment)) {
     // The /verify cleanup rule in dot_pi AGENTS.md removes dot_pi/agent/node_modules.
     // The /pr-validate prompt removes its scratch directory "$SCRATCH_DIR" (/tmp/pr-validate-*).
-    // Compare raw tokenize output so wrappers and extra arguments fall through
-    // to the deny below.
     if (isAllowedRm(segment)) return null;
     return { tool: "rm", sub: [], reason: "recursive filesystem delete" };
   }

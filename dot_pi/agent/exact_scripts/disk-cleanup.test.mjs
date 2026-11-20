@@ -68,6 +68,20 @@ test('Worktrunk preview reports candidates and preserves worktrees, refs and dir
   assert.equal(readFileSync(path.join(f.dirs.dirty, 'dirty'), 'utf8'), 'change'); assert.equal(existsSync(f.ghLog), false);
 });
 
+test('Worktrunk probe objects use a temporary object database instead of the repository', t => {
+  const f = fixture(t);
+  const wt = execFileSync('which', ['wt'], { encoding: 'utf8' }).trim();
+  const log = path.join(f.temp, 'object-dirs');
+  f.program('wt', '#!/bin/sh\nprintf "%s\\n" "$GIT_OBJECT_DIRECTORY" >> "$OBJECT_LOG"\nprintf "worktrunk-probe-fixture" | git -C "$2" hash-object -w --stdin >/dev/null || exit 1\nexec "$REAL_WT" "$@"\n');
+  const before = gitFiles(path.join(f.repo, '.git'));
+  const r = f.run(['scan-worktrees', '--repo', f.repo, '--worktrees-root', f.worktrees, '--min-age', '0s'], { REAL_WT: wt, OBJECT_LOG: log });
+  assert.equal(r.status, 0, r.stderr); assert.deepEqual(r.data.errors, []);
+  assert.deepEqual(gitFiles(path.join(f.repo, '.git')), before);
+  const stores = readFileSync(log, 'utf8').trim().split('\n');
+  assert.equal(stores.length, 2);
+  assert.ok(stores.every(store => store && !existsSync(store)));
+});
+
 test('Worktrunk preview recognizes a squash-integrated branch after the default branch advances', t => {
   const f = fixture(t);
   f.git('merge', '--squash', 'maruina/active'); f.git('commit', '-qm', 'squash');
@@ -96,9 +110,13 @@ test('a configured Worktrunk default branch works without origin/HEAD', t => {
   assert.equal(readFileSync(path.join(f.repo, '.git/config'), 'utf8'), before);
 });
 
-test('unavailable Worktrunk evidence fails closed and never calls gh', t => {
-  const f = fixture(t); f.program('wt', '#!/bin/sh\nexit 1\n');
-  const r = f.run(['scan-worktrees', '--repo', f.repo, '--worktrees-root', f.worktrees]);
+test('unavailable Worktrunk evidence fails closed, cleans temporary objects and never calls gh', t => {
+  const f = fixture(t); const log = path.join(f.temp, 'failed-object-dirs');
+  f.program('wt', '#!/bin/sh\nprintf "%s\\n" "$GIT_OBJECT_DIRECTORY" >> "$OBJECT_LOG"\nprintf "failed-probe" | git -C "$2" hash-object -w --stdin >/dev/null\nexit 1\n');
+  const before = gitFiles(path.join(f.repo, '.git'));
+  const r = f.run(['scan-worktrees', '--repo', f.repo, '--worktrees-root', f.worktrees], { OBJECT_LOG: log });
   assert.equal(r.status, 0, r.stderr); assert.ok(r.data.errors.length); assert.ok(r.data.worktrees.every(item => item.classification !== 'integrated_preview' && item.classification !== 'orphaned'));
+  assert.deepEqual(gitFiles(path.join(f.repo, '.git')), before);
+  assert.ok(readFileSync(log, 'utf8').trim().split('\n').every(store => store && !existsSync(store)));
   assert.equal(existsSync(f.ghLog), false); assert.equal(existsSync(f.orphan), true);
 });

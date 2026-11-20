@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
-import { existsSync, readdirSync, realpathSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, realpathSync, rmSync, statSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -58,9 +58,17 @@ function scan(home, selectedRepos, selectedRoots, minAge) {
     if (!branch || branch.startsWith('-') || !command('git', ['-C', repo, 'check-ref-format', '--branch', branch]).ok) { errors.push({ repo, reason: 'default_branch_unavailable' }); continue; }
     const count = Number(process.env.GIT_CONFIG_COUNT ?? '0');
     if (!Number.isSafeInteger(count) || count < 0 || count > 256) { errors.push({ repo, reason: 'git_config_unavailable' }); continue; }
-    const env = { ...process.env, GIT_CONFIG_COUNT: String(count + 1), [`GIT_CONFIG_KEY_${count}`]: 'worktrunk.default-branch', [`GIT_CONFIG_VALUE_${count}`]: branch };
-    const list = jsonCommand(['-C', repo, '--config-set', 'list.full=false', '--config-set', 'list.json-schema=2', 'list', '--branches', '--format=json'], env);
-    const preview = jsonCommand(['-C', repo, 'step', 'prune', '--dry-run', '--format=json', '--min-age', minAge], env);
+    const objects = command('git', ['-C', repo, 'rev-parse', '--path-format=absolute', '--git-path', 'objects']);
+    const objectPath = objects.output.replace(/\r?\n$/, '');
+    if (!objects.ok || !path.isAbsolute(objectPath) || !existsSync(objectPath) || !statSync(objectPath).isDirectory()) { errors.push({ repo, reason: 'object_database_unavailable' }); continue; }
+    const temporaryObjects = mkdtempSync(path.join(os.tmpdir(), 'disk-cleanup-objects-'));
+    let list, preview;
+    try {
+      const alternates = [JSON.stringify(objectPath), process.env.GIT_ALTERNATE_OBJECT_DIRECTORIES].filter(Boolean).join(path.delimiter);
+      const env = { ...process.env, GIT_OBJECT_DIRECTORY: temporaryObjects, GIT_ALTERNATE_OBJECT_DIRECTORIES: alternates, GIT_CONFIG_COUNT: String(count + 1), [`GIT_CONFIG_KEY_${count}`]: 'worktrunk.default-branch', [`GIT_CONFIG_VALUE_${count}`]: branch };
+      list = jsonCommand(['-C', repo, '--config-set', 'list.full=false', '--config-set', 'list.json-schema=2', 'list', '--branches', '--format=json'], env);
+      preview = jsonCommand(['-C', repo, 'step', 'prune', '--dry-run', '--format=json', '--min-age', minAge], env);
+    } finally { rmSync(temporaryObjects, { recursive: true, force: true }); }
     if (list?.schema !== 2 || !Array.isArray(list.items) || !Array.isArray(preview)) { errors.push({ repo, reason: 'worktrunk_evidence_unavailable' }); continue; }
     if (list.items.length + worktrees.length > MAX_ENTRIES || preview.length > MAX_ENTRIES) throw new Error('worktree limit exceeded');
     const candidates = new Map();

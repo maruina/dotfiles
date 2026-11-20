@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { chmodSync, mkdtempSync, mkdirSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -19,63 +19,6 @@ function fixture(t) {
   put('design.md', '# Design\n\nStatus: Draft\n\n## Body\nContent\n'); commit('draft');
   return { temp, repo, git, put, commit, run };
 }
-
-test('approval requires a status-only first-parent commit and exact HEAD/index/worktree blobs', t => {
-  const f = fixture(t);
-  f.put('design.md', '# Design\n\nStatus: Approved\n\n## Body\nContent\n'); f.commit('approve');
-  let r = f.run('verify-design-approval', 'design.md');
-  assert.equal(r.status, 0, r.stderr); assert.equal(r.data.approved, true);
-  f.put('design.md', '# Design\n\nStatus: Approved\n\n## Body\nchanged\n');
-  r = f.run('verify-design-approval', 'design.md'); assert.equal(r.status, 1); assert.equal(r.data.approved, false);
-  f.git('add', 'design.md'); f.git('commit', '-qm', 'change');
-  f.git('show', 'HEAD^:design.md');
-  f.put('design.md', '# Design\n\nStatus: Approved\n\n## Body\nContent\n'); f.git('add', 'design.md');
-  r = f.run('verify-design-approval', 'design.md'); assert.equal(r.status, 1); assert.equal(r.data.approved, false);
-});
-
-test('approval rejects a changed non-UTF-8 body byte', t => {
-  const f = fixture(t);
-  const design = (status, byte) => Buffer.concat([Buffer.from(`# Design\n\nStatus: ${status}\n\n## Body\n`), Buffer.from([byte, 10])]);
-  f.put('design.md', design('Draft', 0xfe)); f.commit('binary draft');
-  f.put('design.md', design('Approved', 0xff)); f.commit('invalid approval');
-  const r = f.run('verify-design-approval', 'design.md');
-  assert.equal(r.status, 1); assert.equal(r.data.approved, false); assert.equal(r.data.reason, 'not_status_only');
-});
-
-test('approval accepts a status-only change with unchanged non-UTF-8 bytes', t => {
-  const f = fixture(t);
-  const design = status => Buffer.concat([Buffer.from(`# Design\n\nStatus: ${status}\n\n## Body\n`), Buffer.from([0xfe, 10])]);
-  f.put('design.md', design('Draft')); f.commit('binary draft');
-  f.put('design.md', design('Approved')); f.commit('status-only approval');
-  const r = f.run('verify-design-approval', 'design.md');
-  assert.equal(r.status, 0, r.stderr); assert.equal(r.data.approved, true);
-  assert.equal(r.data.commit, f.git('rev-parse', 'HEAD')); assert.equal(r.data.blob, f.git('rev-parse', 'HEAD:design.md'));
-});
-
-test('approval rejects staged mode changes even when content hashes match', t => {
-  const f = fixture(t);
-  f.put('design.md', '# Design\n\nStatus: Approved\n\n## Body\nContent\n'); f.commit('approve');
-  chmodSync(path.join(f.repo, 'design.md'), 0o755); f.git('add', 'design.md');
-  const r = f.run('verify-design-approval', 'design.md'); assert.equal(r.status, 1); assert.equal(r.data.approved, false);
-});
-
-test('approval rejects initial approval and commits that change other files', t => {
-  const f = fixture(t);
-  f.put('design.md', '# Design\n\nStatus: Approved\n\n## Body\nContent\n'); f.put('other', 'changed'); f.commit('bad approval');
-  let r = f.run('verify-design-approval', 'design.md'); assert.equal(r.status, 1); assert.equal(r.data.alreadyApprovedWithoutValidCommit, true); assert.match(r.data.handoffCommand, /systematic-review/);
-  f.git('checkout', '--orphan', 'initial'); f.git('rm', '-q', '-r', '--cached', '.'); f.put('design.md', '# Design\n\nStatus: Approved\n'); f.git('add', 'design.md'); f.git('commit', '-qm', 'initial approved');
-  r = f.run('verify-design-approval', 'design.md'); assert.equal(r.status, 1); assert.equal(r.data.alreadyApprovedWithoutValidCommit, true);
-});
-
-test('approval rejects a merge even when a side branch contains a status-only approval', t => {
-  const f = fixture(t);
-  f.git('checkout', '-qb', 'side');
-  f.put('design.md', '# Design\n\nStatus: Approved\n\n## Body\nContent\n'); f.commit('side approval');
-  f.git('checkout', '-q', 'main'); f.put('other', 'main change'); f.commit('main change');
-  f.git('merge', '-q', '--no-ff', 'side', '-m', 'merge');
-  const r = f.run('verify-design-approval', 'design.md');
-  assert.equal(r.status, 1); assert.equal(r.data.reason, 'not_single_parent');
-});
 
 test('discover-plan returns none when no plan or design is present in a plans directory', t => {
   const f = fixture(t);

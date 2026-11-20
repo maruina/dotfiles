@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, linkSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -112,6 +112,27 @@ test("matching pins detect and repair content, mode and stale-file drift", (t) =
   assert.equal(statSync(path.join(f.partial, "executable_LICENSE")).mode & 0o111, 0o111);
   assert.equal(existsSync(path.join(f.full, "stale.md")), false);
   assert.equal(readFileSync(path.join(f.partial, "keep.md"), "utf8"), "local\n");
+});
+
+test("sync replaces hard-linked files and manifest without changing their outside copies", (t) => {
+  const f = fixture(t);
+  const skill = path.join(f.partial, "SKILL.md");
+  const manifest = path.join(f.partial, "VENDOR.md");
+  const outsideSkill = path.join(f.root, "outside-skill.md");
+  const outsideManifest = path.join(f.root, "outside-manifest.md");
+  chmodSync(skill, 0o755);
+  linkSync(skill, outsideSkill);
+  linkSync(manifest, outsideManifest);
+  const originalManifest = readFileSync(manifest, "utf8");
+
+  const result = f.run("partial");
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(readFileSync(outsideSkill, "utf8"), "partial old\n");
+  assert.equal(statSync(outsideSkill).mode & 0o111, 0o111);
+  assert.equal(readFileSync(outsideManifest, "utf8"), originalManifest);
+  assert.equal(readFileSync(skill, "utf8"), "partial new\n");
+  assert.equal(statSync(skill).mode & 0o111, 0);
+  assert.equal(readFileSync(manifest, "utf8"), originalManifest.replace(f.old, f.next));
 });
 
 test("dry-run previews without writes and filters skill names", (t) => {

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
-import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -87,6 +87,19 @@ function ensureSafeTree(dir) {
     if (entry.isSymbolicLink()) throw new CliError("unsafe_destination", `Symlink in destination: ${child}`);
     if (entry.isDirectory()) ensureSafeTree(child);
     else if (!entry.isFile()) throw new CliError("unsafe_destination", `Unsupported destination: ${child}`);
+  }
+}
+
+function replaceFile(target, content, mode) {
+  const dir = mkdtempSync(path.join(path.dirname(target), ".vendor-sync-"));
+  const temp = path.join(dir, "file");
+  try {
+    writeFileSync(temp, content, { mode });
+    chmodSync(temp, mode);
+    // Rename replaces the destination without changing other links to the old file.
+    renameSync(temp, target);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
 }
 
@@ -221,10 +234,12 @@ function main() {
       for (const [file, data] of content) {
         const target = path.join(skill.dir, file);
         mkdirSync(path.dirname(target), { recursive: true });
-        writeFileSync(target, data.content, { mode: data.mode });
-        chmodSync(target, data.mode);
+        replaceFile(target, data.content, data.mode);
       }
-      if (skill.pin !== item.newCommit) writeFileSync(skill.manifest, skill.text.replace(`- Pinned commit: \`${skill.pin}\``, `- Pinned commit: \`${item.newCommit}\``));
+      if (skill.pin !== item.newCommit) {
+        const manifest = skill.text.replace(`- Pinned commit: \`${skill.pin}\``, `- Pinned commit: \`${item.newCommit}\``);
+        replaceFile(skill.manifest, manifest, lstatSync(skill.manifest).mode & 0o777);
+      }
       completed.push(skill.name);
       current = null;
     }

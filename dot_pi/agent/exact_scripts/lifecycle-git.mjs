@@ -11,10 +11,6 @@ function git(root, ...args) {
   try { return execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', timeout: 120000, maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } }); }
   catch { throw new CliError('git_failed', `Git command failed: ${args[0]}`); }
 }
-function gitBlob(root, hash) {
-  try { return execFileSync('git', ['-C', root, 'cat-file', 'blob', hash], { timeout: 120000, maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } }); }
-  catch { throw new CliError('git_failed', 'Git command failed: cat-file'); }
-}
 function rootAt(dir) { return realpathSync(git(dir, 'rev-parse', '--show-toplevel').trim()); }
 function worktrees(root) {
   return git(root, 'worktree', 'list', '--porcelain', '-z').split('\0\0').filter(Boolean).map(record => {
@@ -55,39 +51,6 @@ function resolve(root, mode, value) {
   candidates.sort((a, b) => Math.floor(b.mtimeMs / 1000) - Math.floor(a.mtimeMs / 1000) || Number(b.root === root) - Number(a.root === root) || b.mtimeMs - a.mtimeMs || a.path.localeCompare(b.path));
   return { schemaVersion: 1, status: candidates.length === 0 ? 'none' : candidates.length === 1 ? 'unique' : 'ambiguous', candidates };
 }
-function designApproval(root, input) {
-  if (!input) throw new CliError('invalid_arguments', 'Expected design path', 2);
-  const full = realpathSync(path.resolve(input));
-  if (!full.startsWith(`${root}${path.sep}`)) throw new CliError('invalid_path', 'Design is outside the current worktree', 2);
-  const rel = path.relative(root, full);
-  const working = readFileSync(full, 'utf8');
-  const handoffCommand = `/systematic-review ${JSON.stringify(full)}`;
-  const reject = (reason, invalidApproval = true) => ({ schemaVersion: 1, approved: false, reason, alreadyApprovedWithoutValidCommit: invalidApproval && /^Status: Approved$/m.test(working), handoffCommand });
-  try {
-    const commit = git(root, 'log', '-1', '--first-parent', '--full-history', '--format=%H', '--', `:(literal)${rel}`).trim();
-    if (!/^[0-9a-f]{40}$/.test(commit)) return reject('no_design_commit');
-    const parents = git(root, 'rev-list', '--parents', '-n', '1', commit).trim().split(' ');
-    if (parents.length !== 2) return reject('not_single_parent');
-    const changed = git(root, 'diff-tree', '--no-commit-id', '--name-only', '-r', '-z', '--no-renames', parents[1], commit).split('\0').filter(Boolean);
-    if (changed.length !== 1 || changed[0] !== rel) return reject('not_design_only');
-    const entry = rev => git(root, 'ls-tree', '-z', rev, '--', `:(literal)${rel}`).split('\0')[0];
-    const oldEntry = /^(\d+) blob ([0-9a-f]{40})\t/.exec(entry(parents[1]));
-    const newEntry = /^(\d+) blob ([0-9a-f]{40})\t/.exec(entry(commit));
-    if (!oldEntry || !newEntry || oldEntry[1] !== newEntry[1]) return reject('mode_or_file_change');
-    // Latin-1 preserves each blob byte while the ASCII status line is replaced.
-    const before = gitBlob(root, oldEntry[2]).toString('latin1');
-    const after = gitBlob(root, newEntry[2]).toString('latin1');
-    const header = before.split(/^##\s/m, 1)[0];
-    if ((header.match(/^Status: Draft$/gm) ?? []).length !== 1 || before.replace(/^Status: Draft$/m, 'Status: Approved') !== after) return reject('not_status_only');
-    const headBlob = git(root, 'rev-parse', '--verify', '--end-of-options', `HEAD:${rel}`).trim();
-    const indexBlob = git(root, 'rev-parse', '--verify', '--end-of-options', `:${rel}`).trim();
-    const workingBlob = git(root, 'hash-object', '--no-filters', '--', rel).trim();
-    const staged = git(root, 'diff', '--cached', '--name-only', '-z', '--', `:(literal)${rel}`);
-    const unstaged = git(root, 'diff', '--name-only', '-z', '--', `:(literal)${rel}`);
-    if (staged || unstaged || [headBlob, indexBlob, workingBlob].some(blob => blob !== newEntry[2])) return reject('design_dirty_or_head_changed', false);
-    return { schemaVersion: 1, approved: true, commit, blob: newEntry[2] };
-  } catch { return reject('git_evidence_unavailable'); }
-}
 function sha(data) { return createHash('sha256').update(data).digest('hex'); }
 function fileHash(file) {
   const stat = lstatSync(file);
@@ -116,14 +79,13 @@ function compare(a, b) {
   return { schemaVersion: 1, match: deltas.length === 0, deltas };
 }
 function main(args) {
-  if (args.length === 1 && args[0] === '--help') { console.log('Usage: lifecycle-git.mjs verify-design-approval PATH | resolve --path PATH | resolve --glob GLOB | discover-plan [--branch BRANCH] | snapshot [--base REF] | compare-snapshots FILE FILE'); return; }
+  if (args.length === 1 && args[0] === '--help') { console.log('Usage: lifecycle-git.mjs resolve --path PATH | resolve --glob GLOB | discover-plan [--branch BRANCH] | snapshot [--base REF] | compare-snapshots FILE FILE'); return; }
   const [op, ...rest] = args;
   let output;
   if (op === 'compare-snapshots' && rest.length === 2) output = compare(JSON.parse(readFileSync(rest[0], 'utf8')), JSON.parse(readFileSync(rest[1], 'utf8')));
   else {
     const root = rootAt(process.cwd());
-    if (op === 'verify-design-approval' && rest.length === 1) output = designApproval(root, rest[0]);
-    else if (op === 'resolve' && rest.length === 2) output = resolve(root, rest[0], rest[1]);
+    if (op === 'resolve' && rest.length === 2) output = resolve(root, rest[0], rest[1]);
     else if (op === 'discover-plan' && (rest.length === 0 || (rest.length === 2 && rest[0] === '--branch'))) {
       const branch = rest[1] ?? git(root, 'branch', '--show-current').trim();
       const slug = branch.replace(/^[^/]+\//, '');
@@ -137,7 +99,7 @@ function main(args) {
     else throw new CliError('invalid_arguments', 'Invalid command or arguments; use --help', 2);
   }
   console.log(JSON.stringify(output));
-  if (output.approved === false || output.match === false) process.exitCode = 1;
+  if (output.match === false) process.exitCode = 1;
 }
 try { main(process.argv.slice(2)); } catch (error) {
   const e = error instanceof CliError ? error : new CliError('operation_failed', 'Unable to read required evidence');

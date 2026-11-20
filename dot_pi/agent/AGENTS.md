@@ -32,7 +32,6 @@ Each lifecycle prompt is the source of truth for its stage.
 - Keep Datadog repositories under `~/dd`.
 - Worktrunk uses `~/dd/.worktrees/<repo>/<branch-slug>` for the work profile and `~/src/.worktrees/<repo>/<branch-slug>` for the personal profile. It lowercases branch names and replaces `/` with `-`. `WORKTREES_ROOT` alone does not change the Worktrunk path; set `WORKTRUNK_WORKTREE_PATH` explicitly to override it.
 - Use one worktree for each feature branch or pull request.
-- Open the worktree directory in JetBrains IDEs such as GoLand.
 
 ## Dynamic Context
 A hidden `user-context` extension injects current repository, branch, pull request, Jira key, worktree, recent-file, and Rex session context when the session runs in a Rex terminal with `rex` available. Treat it as a hint; follow explicit user instructions and repository guidance first.

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -126,11 +126,25 @@ test("dry-run previews without writes and filters skill names", (t) => {
 
 test("unknown and hand-maintained filters fail before writes", (t) => {
   const f = fixture(t);
+  const snapshot = (dir) => readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name)).map(entry => {
+    const file = path.join(dir, entry.name);
+    const stat = statSync(file, { bigint: true });
+    return { name: entry.name, mode: stat.mode, mtime: stat.mtimeNs, ctime: stat.ctimeNs, content: entry.isDirectory() ? snapshot(file) : readFileSync(file) };
+  });
+  const before = snapshot(f.source);
   for (const name of ["unknown", "hand"]) {
     const result = f.run("full", name);
     assert.equal(result.status, 2, result.stderr);
-    assert.match(result.stderr, new RegExp(name));
-    assert.match(readFileSync(path.join(f.full, "VENDOR.md"), "utf8"), new RegExp(f.old));
+    const report = JSON.parse(result.stderr);
+    assert.equal(report.schemaVersion, 1);
+    assert.equal(report.error.code, "invalid_skill");
+    assert.match(report.error.message, new RegExp(name));
+    assert.equal(report.error.retryable, false);
+    assert.ok(Array.isArray(report.error.suggestions) && report.error.suggestions.length > 0);
+    assert.deepEqual(report.completed, []);
+    assert.equal(report.partialSkill, null);
+    assert.deepEqual(JSON.parse(result.stdout), report);
+    assert.deepEqual(snapshot(f.source), before);
   }
 });
 

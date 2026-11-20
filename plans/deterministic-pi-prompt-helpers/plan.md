@@ -38,6 +38,7 @@
 | `cli-best-practices` | `skill-loader` | Slice 2 adds a CLI | Applied structured output, non-interactive execution, and preview guidance |
 | `learning-candidates` | `prompt-required` | The exact-directory assumption was disproved | Recorded the isolated chezmoi fixture result for later review |
 | `script-best-practices` | `skill-loader` | Slice 3 adds a Fish wrapper | Applied validation, scoping, and exit-status guidance |
+| `rex` | `agent-selected` | The user requested a fresh independent verification session | Used Rex guidance to prepare the session handoff |
 
 ## Advisory learning lookup
 Queried `Datadog/Learnings.md` via `obsidian read path="Datadog/Learnings.md" | node "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/scripts/learn-evidence.mjs" learning-sections --term rex --term worktree --term prompt --term gh --term vendored --term lifecycle`. Thirteen sections matched (`Render piped chezmoi templates against an initialized config, not --init` and twelve distributed-systems/Kubernetes entries). None conflicted with or altered these local Pi script and prompt changes.
@@ -230,7 +231,9 @@ The `user-context` extension SHALL attempt `fish -c rex-name-session` in the bac
 ### Slice 2: Deterministic `sync-vendored-skills.mjs` CLI and compact `sync-vendored-skills.md`
 
 ### Task 2: Extract `sync-vendored-skills.mjs` and shrink `sync-vendored-skills.md`
-**Status:** Complete. The user directed the helper to preserve exact upstream bytes and repair drift even when a pin matches. The focused tests cover whitespace, CRLF, binary content, executable mode, and same-pin drift. The existing Tavily file matches its pinned blob, with a file-specific Git whitespace exception. The user approved making vendored skill directories exact, including removal of target files absent from the source. An isolated fixture showed that nested directories must also be exact. The user approved updating the `k8s-api-design` and `k8s-controller-dev` manifests from `DataDog/claude-marketplace` to `ddoghq/claude-marketplace` after the existing clone showed the latter origin and the former GitHub API lookup returned 404 for `maruina`.
+**Status:** Complete. The independent verification identified a test gap in the unknown and non-vendored filter scenario. The test now checks the structured error and snapshots the source tree, including file bytes, modes, and modification metadata. The user approved the required test's `chezmoi apply` against its disposable source and destination during independent verification.
+
+Previous status: Complete. The user directed the helper to preserve exact upstream bytes and repair drift even when a pin matches. The focused tests cover whitespace, CRLF, binary content, executable mode, and same-pin drift. The existing Tavily file matches its pinned blob, with a file-specific Git whitespace exception. The user approved making vendored skill directories exact, including removal of target files absent from the source. An isolated fixture showed that nested directories must also be exact. The user approved updating the `k8s-api-design` and `k8s-controller-dev` manifests from `DataDog/claude-marketplace` to `ddoghq/claude-marketplace` after the existing clone showed the latter origin and the former GitHub API lookup returned 404 for `maruina`.
 **Delivers:** `dot_pi/agent/exact_scripts/sync-vendored-skills.mjs` with unit/integration tests and a compact `dot_pi/agent/exact_prompts/sync-vendored-skills.md`.
 **Blocked by:** None
 **Traces to:** Requirement 2
@@ -243,6 +246,7 @@ The `user-context` extension SHALL attempt `fish -c rex-name-session` in the bac
 - [x] Add the helper and update `sync-vendored-skills.md` to pass the resolved chezmoi source root with `--source` and forward every requested skill filter. Preview with `--dry-run` before source writes. Resolve and validate the selected content from the immutable commit before writing; update the pin only after the copy succeeds. Use the same source and check the explicit changed targets before `chezmoi apply`. Stop on any failed sync or validation and report partial writes, if any. Wire `sync-vendored-skills.test.mjs` into `dot_pi/agent/package.json`.
 - [x] Run `node --test dot_pi/agent/exact_scripts/sync-vendored-skills.test.mjs` and `node dot_pi/agent/exact_scripts/validate-skills.mjs`; expect all tests and skill validations to pass.
   - Eight tests passed and 46 skills validated. The npm script and work and personal profile validations also passed. The tests use local Git fixtures and do not establish live upstream availability.
+  - After the test-gap fix, all nine sync tests and 46 skill validations passed in an isolated clone. The updated test failed against separate disposable mutations that replaced structured stderr with text and wrote a skill file without changing its pin.
 - [x] Refactor only after green, then rerun verification.
   - Added a failing test for a selected file changing executable mode, fixed duplicate source entries, and reran both required commands successfully. Added fail-closed origin identity checks with local fixtures.
 - [x] Commit with `feat(pi): extract deterministic sync-vendored-skills script`.

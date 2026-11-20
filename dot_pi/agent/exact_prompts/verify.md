@@ -27,7 +27,7 @@ In direct mode, parse `--implemented-by <id>` and optional `--simplified-by <id>
 1. For a plan, use the `resolve-worktree` skill (`$GLOB = **/plans/*/plan.md`) and switch to its worktree. Direct mode reads the complete plan and sibling `design.md`; orchestration uses the pinned objects validated above. An unresolved path, blob, or unit blocks.
 2. For planless work, use the exact task from `/execute` or `/simplify`. Never infer it from a diff or summary; missing or ambiguous requirements block.
 3. Preserve writer provenance. In direct mode, preserve both CLI writer IDs; `--simplified-by` is optional only for direct execute-to-verify. In orchestrated feature scope, preserve all IDs from `Completion verification writers`. Never infer IDs.
-4. Before checks, snapshot the absolute worktree path, branch, HEAD, `git status --porcelain=v1 --untracked-files=all`, staged and unstaged diffs, intended untracked files, and candidate commits.
+4. Select the base as in step 5, then run `node "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/scripts/lifecycle-git.mjs" snapshot --base <base>` before checks. Save its JSON as mode 0600 outside the worktree. It captures worktree, branch, HEAD, status, diff hashes, untracked file hashes, and candidate commits.
 5. Orchestration uses `Unit base commit` as the orchestrated slice base and `Pinned baseline commit` as the feature base for `Final verification`. Direct mode prefers explicit plan/task context, native parent from `gh stack status`, open-PR base from `gh`, then the repository default branch. Conflicting evidence blocks.
 6. Include commits from the base plus staged, unstaged, and intended untracked changes. Unexplained scope or an empty candidate blocks.
 
@@ -71,7 +71,7 @@ Do not invoke a separate reviewer tool or parse session logs. Pi performs this s
 
 ## Final state and report
 
-After every selected check, recapture the initial Git snapshot fields and compare them exactly. A tracked or untracked repository-state change caused by verification is `BLOCKED`; identify the delta and give a non-mutating repair/retry action without repairing it.
+After every selected check, repeat `snapshot --base <base>` to a second mode 0600 file outside the worktree. Run `lifecycle-git.mjs compare-snapshots <initial-file> <final-file>`. A tracked or untracked repository-state change is `BLOCKED`; identify the delta and give a non-mutating repair/retry action.
 
 Report these sections:
 

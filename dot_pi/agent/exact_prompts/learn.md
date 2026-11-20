@@ -21,9 +21,9 @@ Mode is determined by `$ARGUMENTS`:
 - **Contextual mode:** With any context, analyze the current conversation plus supplied pull request URL/number, review or conversation-comment URL, design/plan path, described wrong turn, or free-form guidance. A referenced pull request may be open in contextual mode.
 
 ## Plain mode resolution
-1. Read the current branch and derive its slug by removing the first `<owner>/` prefix when present. Search the current worktree recursively for `**/plans/<branch-slug>/plan.md`.
+1. Run `node "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/scripts/lifecycle-git.mjs" discover-plan`. Read the current branch and slug from the result. Filter `matching` to the current worktree for `**/plans/<branch-slug>/plan.md`; the helper removes the first `<owner>/` prefix when present.
 2. Resolve exactly one match as an explicit path through the `resolve-worktree` skill. If multiple local matches exist, present them and ask which to resolve; never select silently.
-3. If none exists, preflight every worktree for `**/plans/*/plan.md` and invoke `resolve-worktree` with that `$GLOB` only when candidates exist; repeat the same preflight and fallback for `**/plans/*/design.md` when no plan resolves.
+3. If none exists, use the helper's `plans` to preflight every worktree for `**/plans/*/plan.md` and invoke `resolve-worktree` with that `$GLOB` only when candidates exist; repeat the same preflight with `designs` and fallback for `**/plans/*/design.md` when no plan resolves.
 4. If neither artifact exists anywhere, stop and suggest explicit context — a plan/design path, PR URL, or described guidance — and never invoke the resolver's generic no-match path.
 5. Resolution and reading are permitted: the HARD-GATE forbids repository and vault mutation, not context resolution.
 6. Read the selected plan completely, including its `## Learning candidates` section, and read its sibling `design.md` when present.

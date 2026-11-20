@@ -81,6 +81,7 @@ test("learn uses a transactional, privacy-preserving vault write", () => {
 
 test("learn resolves plain mode through branch-correlated plan discovery", () => {
   const text = prompt("learn.md");
+  assert.match(text, /lifecycle-git\.mjs.*discover-plan/);
 
   requireMarkers(text, [
     /plain mode/i,

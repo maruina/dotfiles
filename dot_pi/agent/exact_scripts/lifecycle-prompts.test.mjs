@@ -183,6 +183,12 @@ test("design approval requires a fresh comprehension review, not author self-rev
   ]);
 });
 
+test("lifecycle prompts use the deterministic Git helper without dropping guards", () => {
+  assert.match(prompt("verify.md"), /lifecycle-git\.mjs.*snapshot/s);
+  assert.match(prompt("verify.md"), /compare-snapshots/);
+  assert.match(prompt("pr-address-feedback.md"), /lifecycle-git\.mjs.*discover-plan/);
+});
+
 test("plan accepts a clean committed Approved design without checking approval history", () => {
   const text = prompt("plan.md");
   requireMarkers(text, [

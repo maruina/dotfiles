@@ -9,24 +9,18 @@ Resolves `$1` — a path that may be relative to cwd, absolute, or worktree-rela
 
 ## When `$1` is provided
 
-1. If `$1` exists relative to cwd or is an absolute path that exists, use it as-is.
-2. Otherwise, run `git worktree list --porcelain` and search each worktree for a file matching `$1`.
-3. If exactly one match, use it.
-4. If several match, list them (worktree root, branch, path) and ask which to use. Stop until the user chooses.
-5. If no match, stop and ask for a valid path.
+1. Run `node "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/scripts/lifecycle-git.mjs" resolve --path "$1"`. Stop on an error.
+2. If exactly one match exists, use it. If several match, list their worktree roots, branches, and paths; ask which to use and wait. If none match, ask for a valid path.
 
-Set `$RESOLVED_PATH` to the absolute path and `$RESOLVED_ROOT` to its git toplevel (`git -C <dir> rev-parse --show-toplevel`).
+Set `$RESOLVED_PATH` and `$RESOLVED_ROOT` from the chosen candidate's canonical `path` and `root`.
 
 ## When `$1` is missing and a `$GLOB` is provided by the caller
 
 **Never search only the current checkout.** Always enumerate every worktree first.
 
-1. Run `git worktree list --porcelain` and collect all worktree roots, including the current checkout. Search every root for files matching `$GLOB`. `$GLOB` may be recursive (e.g. `**/plans/*/design.md`); match it recursively from each worktree root with `find <root> -path '*/plans/*/design.md'` or an equivalent globstar search, so specs nested under monorepo package paths are found, not only repository-root `plans/`.
-2. For each candidate, collect: full path, worktree root, branch name, last modified time, and first Markdown heading.
-3. Sort by last modified time descending; current-checkout candidates first when timestamps are similar.
-4. If exactly one candidate, ask the user to confirm it. Stop until they answer.
-5. If multiple candidates, list them and ask which to use. Stop until the user chooses.
-6. If none, stop and ask for a valid path.
+1. Run `node "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/scripts/lifecycle-git.mjs" resolve --glob "$GLOB"`. Stop on an error. The helper searches every worktree recursively, including nested monorepo paths, and returns each candidate's canonical path, root, branch, modification time, and first Markdown heading, sorted by modification time with current-checkout priority for similar times.
+2. If exactly one candidate exists, ask the user to confirm it. If multiple candidates exist, list them and ask which to use. Stop until the user answers.
+3. If none exist, stop and ask for a valid path.
 
 Treat the chosen file as if it had been passed as `$1`.
 

@@ -41,7 +41,7 @@ function fixture(t) {
     writeFileSync(path.join(dir, "VENDOR.md"), `# Vendored skill\n\n- Upstream: https://github.com/example/skills\n- Path: \`${subpath}\`\n${extra}- Pinned commit: \`${old}\`\n`);
     return dir;
   };
-  const full = vendor("full", "skills/full", "- Local divergence: trailing spaces stripped to pass whitespace checks.\n");
+  const full = vendor("full", "skills/full");
   const partial = vendor("partial", "skills/partial", "- Files: `SKILL.md`, `LICENSE`\n");
   const hand = path.join(skills, "hand"); mkdirSync(hand); writeFileSync(path.join(hand, "SKILL.md"), "hand maintained\n");
   writeFileSync(path.join(full, "SKILL.md"), "old\n");
@@ -50,7 +50,8 @@ function fixture(t) {
   writeFileSync(path.join(partial, "LICENSE"), "license old\n");
   writeFileSync(path.join(partial, "keep.md"), "local\n");
   put("skills/full/SKILL.md", "new  \n");
-  put("skills/full/nested/ref.md", "reference\n");
+  put("skills/full/nested/ref.md", "reference\r\nwith trailing space  \r\n");
+  put("skills/full/nested/bytes.bin", Buffer.from([0, 255, 32, 10, 9]));
   rmSync(path.join(upstream, "skills/full/stale.md"));
   put("skills/partial/SKILL.md", "partial new\n");
   put("skills/partial/LICENSE", "license new\n");
@@ -77,8 +78,9 @@ test("sync reads the fetched commit, preserves local files for subsets, and skip
   const report = JSON.parse(result.stdout);
   assert.equal(report.schemaVersion, 1);
   assert.equal(git(f.clone, "rev-parse", "HEAD"), f.old);
-  assert.equal(readFileSync(path.join(f.full, "SKILL.md"), "utf8"), "new\n");
-  assert.equal(readFileSync(path.join(f.full, "exact_nested/ref.md"), "utf8"), "reference\n");
+  assert.deepEqual(readFileSync(path.join(f.full, "SKILL.md")), readFileSync(path.join(f.upstream, "skills/full/SKILL.md")));
+  assert.deepEqual(readFileSync(path.join(f.full, "exact_nested/ref.md")), readFileSync(path.join(f.upstream, "skills/full/nested/ref.md")));
+  assert.deepEqual(readFileSync(path.join(f.full, "exact_nested/bytes.bin")), readFileSync(path.join(f.upstream, "skills/full/nested/bytes.bin")));
   assert.equal(existsSync(path.join(f.full, "stale.md")), false);
   assert.equal(readFileSync(path.join(f.partial, "SKILL.md"), "utf8"), "partial new\n");
   assert.equal(readFileSync(path.join(f.partial, "executable_LICENSE"), "utf8"), "license new\n");
@@ -92,6 +94,24 @@ test("sync reads the fetched commit, preserves local files for subsets, and skip
   const again = f.run(); assert.equal(again.status, 0, again.stderr);
   assert.ok(JSON.parse(again.stdout).skills.every(item => item.status === "up_to_date"));
   assert.equal(statSync(path.join(f.full, "SKILL.md")).mtimeMs, before);
+});
+
+test("matching pins detect and repair content, mode and stale-file drift", (t) => {
+  const f = fixture(t);
+  assert.equal(f.run().status, 0);
+  const skill = path.join(f.full, "SKILL.md");
+  writeFileSync(skill, "new\n");
+  chmodSync(path.join(f.partial, "executable_LICENSE"), 0o644);
+  writeFileSync(path.join(f.full, "stale.md"), "stale\n");
+  const preview = f.run("--dry-run"); assert.equal(preview.status, 0, preview.stderr);
+  assert.ok(JSON.parse(preview.stdout).skills.every(item => item.status === "would_update"));
+  assert.equal(readFileSync(skill, "utf8"), "new\n");
+  const result = f.run(); assert.equal(result.status, 0, result.stderr);
+  assert.ok(JSON.parse(result.stdout).skills.every(item => item.status === "updated"));
+  assert.deepEqual(readFileSync(skill), readFileSync(path.join(f.upstream, "skills/full/SKILL.md")));
+  assert.equal(statSync(path.join(f.partial, "executable_LICENSE")).mode & 0o111, 0o111);
+  assert.equal(existsSync(path.join(f.full, "stale.md")), false);
+  assert.equal(readFileSync(path.join(f.partial, "keep.md"), "utf8"), "local\n");
 });
 
 test("dry-run previews without writes and filters skill names", (t) => {
@@ -127,7 +147,7 @@ test("exact skill and nested directories remove stale installed files", (t) => {
   assert.equal(applied.status, 0, applied.stderr);
   assert.equal(existsSync(path.join(target, "stale.md")), false);
   assert.equal(existsSync(path.join(target, "nested/stale.md")), false);
-  assert.equal(readFileSync(path.join(target, "nested/ref.md"), "utf8"), "reference\n");
+  assert.deepEqual(readFileSync(path.join(target, "nested/ref.md")), readFileSync(path.join(f.upstream, "skills/full/nested/ref.md")));
 });
 
 test("an existing clone with a different origin fails without changing the skill", (t) => {

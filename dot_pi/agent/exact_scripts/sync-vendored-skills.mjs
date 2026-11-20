@@ -145,12 +145,10 @@ function resolveContent(skill, repo) {
       const rel = subpath ? upstreamPath.slice(subpath.length + 1) : upstreamPath;
       relativePath(rel);
       if (rel === "VENDOR.md" || rel.startsWith("VENDOR.md/")) throw new CliError("unsafe_destination", "Upstream content conflicts with VENDOR.md");
-      let content = command("git", ["-C", repo.clone, "cat-file", "blob", match[3]]);
+      const content = command("git", ["-C", repo.clone, "cat-file", "blob", match[3]]);
       totalFiles++;
       totalBytes += content.length;
       if (totalFiles > 10000 || totalBytes > 128 * 1024 * 1024) throw new CliError("content_limit", "Selected content exceeds the file or byte limit");
-      const text = content.toString("utf8");
-      if (!content.includes(0) && Buffer.from(text).equals(content)) content = Buffer.from(text.replace(/[\t ]+(?=\r?$)/gm, ""));
       const executable = match[1] === "100755";
       const sourceRel = sourcePath(rel, executable);
       result.set(sourceRel, { content, mode: executable ? 0o755 : 0o644 });
@@ -184,13 +182,19 @@ function main() {
     const key = `${skill.org}/${skill.repo}`;
     if (!repos.has(key)) repos.set(key, fetchRepo(skill, base));
     const repo = repos.get(key);
-    const item = { name: skill.name, directory: skill.dir, oldCommit: skill.pin, newCommit: repo.commit, status: skill.pin === repo.commit ? "up_to_date" : dryRun ? "would_update" : "updated", files: [] };
-    if (skill.pin !== repo.commit) {
-      ensureSafeTree(skill.dir);
-      const content = resolveContent(skill, repo);
-      const existing = localFiles(skill.dir);
-      const newTargets = new Set([...content.keys()].map(targetPath));
-      const replaced = existing.filter(file => newTargets.has(targetPath(file)) && !content.has(file));
+    ensureSafeTree(skill.dir);
+    const content = resolveContent(skill, repo);
+    const existing = localFiles(skill.dir);
+    const existingSet = new Set(existing);
+    const newTargets = new Set([...content.keys()].map(targetPath));
+    const replaced = existing.filter(file => newTargets.has(targetPath(file)) && !content.has(file));
+    const differs = skill.pin !== repo.commit || replaced.length > 0 || (!skill.files && existing.some(file => !content.has(file))) || [...content].some(([file, data]) => {
+      if (!existingSet.has(file)) return true;
+      const target = path.join(skill.dir, file);
+      return (lstatSync(target).mode & 0o111) !== (data.mode & 0o111) || !readFileSync(target).equals(data.content);
+    });
+    const item = { name: skill.name, directory: skill.dir, oldCommit: skill.pin, newCommit: repo.commit, status: differs ? dryRun ? "would_update" : "updated" : "up_to_date", files: [] };
+    if (differs) {
       item.files = [...new Set([...content.keys(), ...(skill.files ? replaced : existing)].map(targetPath))].sort();
       work.push({ skill, content, replaced, item });
     }
@@ -210,7 +214,7 @@ function main() {
         writeFileSync(target, data.content, { mode: data.mode });
         chmodSync(target, data.mode);
       }
-      writeFileSync(skill.manifest, skill.text.replace(`- Pinned commit: \`${skill.pin}\``, `- Pinned commit: \`${item.newCommit}\``));
+      if (skill.pin !== item.newCommit) writeFileSync(skill.manifest, skill.text.replace(`- Pinned commit: \`${skill.pin}\``, `- Pinned commit: \`${item.newCommit}\``));
       completed.push(skill.name);
       current = null;
     }

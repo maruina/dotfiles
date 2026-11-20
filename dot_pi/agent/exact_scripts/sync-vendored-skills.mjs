@@ -52,11 +52,21 @@ function parseManifest(file) {
   return { file, text, upstream, org: match[1], repo: match[2], subpath: relativePath(subpath, true), pin, files };
 }
 
+function directoryExists(dir) {
+  let stat;
+  try { stat = lstatSync(dir); } catch (error) {
+    if (error.code === "ENOENT") return false;
+    throw error;
+  }
+  if (!stat.isDirectory()) throw new CliError("unsafe_destination", `Expected a non-symlink directory: ${dir}`);
+  return true;
+}
+
 function discover(source) {
   const skills = [];
   for (const root of roots) {
     const dir = path.join(source, "dot_pi", "agent", root);
-    if (!existsSync(dir)) continue;
+    if (!directoryExists(dir)) continue;
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;
       const skillDir = path.join(dir, entry.name);
@@ -171,7 +181,7 @@ function main() {
     else filters.push(args[i]);
   }
   source = path.resolve(source ?? command("chezmoi", ["source-path"], { encoding: "utf8" }).trim());
-  if (!existsSync(path.join(source, "dot_pi", "agent"))) throw new CliError("invalid_source", `Invalid chezmoi source: ${source}`, 2);
+  if (!directoryExists(path.join(source, "dot_pi")) || !directoryExists(path.join(source, "dot_pi", "agent"))) throw new CliError("invalid_source", `Invalid chezmoi source: ${source}`, 2);
   const found = discover(source);
   for (const name of filters) if (!found.some(skill => skill.name === name)) throw new CliError("invalid_skill", `Unknown or non-vendored skill: ${name}`, 2);
   const selected = found.filter(skill => !filters.length || filters.includes(skill.name)).map(skill => ({ ...skill, ...parseManifest(skill.manifest) }));

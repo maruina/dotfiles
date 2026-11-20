@@ -231,7 +231,9 @@ The `user-context` extension SHALL attempt `fish -c rex-name-session` in the bac
 ### Slice 2: Deterministic `sync-vendored-skills.mjs` CLI and compact `sync-vendored-skills.md`
 
 ### Task 2: Extract `sync-vendored-skills.mjs` and shrink `sync-vendored-skills.md`
-**Status:** Complete. The independent verification identified a test gap in the unknown and non-vendored filter scenario. The test now checks the structured error and snapshots the source tree, including file bytes, modes, and modification metadata. The user approved the required test's `chezmoi apply` against its disposable source and destination during independent verification.
+**Status:** Complete. The helper rejects symlinks in `dot_pi`, `agent`, and skill-root ancestors. Regression tests check both preview and write paths without changing the outside skill or pin.
+
+Previous status: Complete. The independent verification identified a test gap in the unknown and non-vendored filter scenario. The test now checks the structured error and snapshots the source tree, including file bytes, modes, and modification metadata. The user approved the required test's `chezmoi apply` against its disposable source and destination during independent verification.
 
 Previous status: Complete. The user directed the helper to preserve exact upstream bytes and repair drift even when a pin matches. The focused tests cover whitespace, CRLF, binary content, executable mode, and same-pin drift. The existing Tavily file matches its pinned blob, with a file-specific Git whitespace exception. The user approved making vendored skill directories exact, including removal of target files absent from the source. An isolated fixture showed that nested directories must also be exact. The user approved updating the `k8s-api-design` and `k8s-controller-dev` manifests from `DataDog/claude-marketplace` to `ddoghq/claude-marketplace` after the existing clone showed the latter origin and the former GitHub API lookup returned 404 for `maruina`.
 **Delivers:** `dot_pi/agent/exact_scripts/sync-vendored-skills.mjs` with unit/integration tests and a compact `dot_pi/agent/exact_prompts/sync-vendored-skills.md`.
@@ -271,7 +273,7 @@ Previous status: Complete. The user directed the helper to preserve exact upstre
 ### Slice 4: Deterministic `lifecycle-git.mjs` and `disk-cleanup.mjs` CLIs and prompt integration
 
 ### Task 4: Add `lifecycle-git.mjs` and integrate with `plan.md`, `verify.md`, `learn.md`, `pr-address-feedback.md`, and `resolve-worktree`
-**Status:** Complete.
+**Status:** Complete. The approval helper compares blob bytes without lossy UTF-8 decoding. Regression tests reject a changed non-UTF-8 body byte and accept unchanged body bytes with the exact commit and blob.
 **Delivers:** `dot_pi/agent/exact_scripts/lifecycle-git.mjs` (`verify-design-approval`, `resolve`, `discover-plan`, `snapshot`, `compare-snapshots`) and updated prompt/skill instructions within context byte budgets.
 **Blocked by:** None
 **Traces to:** Requirement 4
@@ -298,6 +300,7 @@ Previous status: Complete. The user directed the helper to preserve exact upstre
   - All 72 focused tests passed, including six disk helper tests and a real local squash-merge fixture. The fixture checks Git files, registrations, refs, and dirty content; only Worktrunk cache changes are allowed. JavaScript diagnostics passed.
 - [x] Refactor only after green, then rerun the test command above.
   - A stronger Git-file comparison found that Worktrunk caches its detected default branch in Git config. The helper now passes an existing `worktrunk.default-branch` or local `origin/HEAD` as per-process Git config and flags a repository when neither is available. The focused suite passed after the fix.
+  - The user approved correcting the command description to name Worktrunk integration rather than merged-PR state. A prompt test checks the description.
 - [x] Commit with `feat(pi): add deterministic disk-cleanup measurement and worktree scanner`.
 
 ### Task 6: Document Rex naming and `gh-as`
@@ -332,3 +335,4 @@ Previous status: Complete. The user directed the helper to preserve exact upstre
 - 2026-11-20: An `exact_` parent does not remove deleted files inside a non-exact child directory; `chezmoi diff` for the removed target reports `not managed` and applying the child leaves the file — evidence: isolated chezmoi source and destination fixture for `exact_skills/demo/removed.md`.
 - 2026-11-20: Fish startup configuration can reorder `PATH` ahead of a fake executable in subprocess tests; `fish --no-config` keeps the fixture isolated — evidence: `dot_pi/agent/exact_scripts/gh-as.test.mjs`.
 - 2026-11-20: Worktrunk `list` can persist its inferred `worktrunk.default-branch` in local Git config even during a preview; pass an established branch through process-scoped Git config to avoid the write — evidence: `dot_pi/agent/exact_scripts/disk-cleanup.test.mjs`.
+- 2026-11-20: UTF-8 decoding can map distinct invalid Git blob bytes to the same replacement character and hide a non-status change — evidence: `dot_pi/agent/exact_scripts/lifecycle-git.test.mjs`.

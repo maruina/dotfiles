@@ -187,6 +187,8 @@ test("disk cleanup uses Worktrunk previews and gates each removal", () => {
   const text = prompt("disk-cleanup.md");
   requireMarkers(text, [/disk-cleanup\.mjs.*measure/is, /disk-cleanup\.mjs.*scan-worktrees/is, /wt step prune.*--dry-run/is, /explicit approval.*each worktree/is, /recorded tip.*current tip/is, /registration.*branch.*lock.*dirty/is, /never run bulk prune/i, /wt remove.*--foreground.*--no-delete-branch/is]);
   assert.doesNotMatch(text, /gh pr list/);
+  assert.match(text, /^description:.*Worktrunk/m);
+  assert.doesNotMatch(text, /^description:.*merged-PR state/m);
 });
 
 test("lifecycle prompts use the deterministic Git helper without dropping guards", () => {

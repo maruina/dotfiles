@@ -11,6 +11,10 @@ function git(root, ...args) {
   try { return execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', timeout: 120000, maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } }); }
   catch { throw new CliError('git_failed', `Git command failed: ${args[0]}`); }
 }
+function gitBlob(root, hash) {
+  try { return execFileSync('git', ['-C', root, 'cat-file', 'blob', hash], { timeout: 120000, maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } }); }
+  catch { throw new CliError('git_failed', 'Git command failed: cat-file'); }
+}
 function rootAt(dir) { return realpathSync(git(dir, 'rev-parse', '--show-toplevel').trim()); }
 function worktrees(root) {
   return git(root, 'worktree', 'list', '--porcelain', '-z').split('\0\0').filter(Boolean).map(record => {
@@ -70,8 +74,9 @@ function designApproval(root, input) {
     const oldEntry = /^(\d+) blob ([0-9a-f]{40})\t/.exec(entry(parents[1]));
     const newEntry = /^(\d+) blob ([0-9a-f]{40})\t/.exec(entry(commit));
     if (!oldEntry || !newEntry || oldEntry[1] !== newEntry[1]) return reject('mode_or_file_change');
-    const before = git(root, 'cat-file', 'blob', oldEntry[2]);
-    const after = git(root, 'cat-file', 'blob', newEntry[2]);
+    // Latin-1 preserves each blob byte while the ASCII status line is replaced.
+    const before = gitBlob(root, oldEntry[2]).toString('latin1');
+    const after = gitBlob(root, newEntry[2]).toString('latin1');
     const header = before.split(/^##\s/m, 1)[0];
     if ((header.match(/^Status: Draft$/gm) ?? []).length !== 1 || before.replace(/^Status: Draft$/m, 'Status: Approved') !== after) return reject('not_status_only');
     const headBlob = git(root, 'rev-parse', '--verify', '--end-of-options', `HEAD:${rel}`).trim();

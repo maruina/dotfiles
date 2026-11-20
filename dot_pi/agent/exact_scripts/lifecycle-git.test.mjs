@@ -33,6 +33,25 @@ test('approval requires a status-only first-parent commit and exact HEAD/index/w
   r = f.run('verify-design-approval', 'design.md'); assert.equal(r.status, 1); assert.equal(r.data.approved, false);
 });
 
+test('approval rejects a changed non-UTF-8 body byte', t => {
+  const f = fixture(t);
+  const design = (status, byte) => Buffer.concat([Buffer.from(`# Design\n\nStatus: ${status}\n\n## Body\n`), Buffer.from([byte, 10])]);
+  f.put('design.md', design('Draft', 0xfe)); f.commit('binary draft');
+  f.put('design.md', design('Approved', 0xff)); f.commit('invalid approval');
+  const r = f.run('verify-design-approval', 'design.md');
+  assert.equal(r.status, 1); assert.equal(r.data.approved, false); assert.equal(r.data.reason, 'not_status_only');
+});
+
+test('approval accepts a status-only change with unchanged non-UTF-8 bytes', t => {
+  const f = fixture(t);
+  const design = status => Buffer.concat([Buffer.from(`# Design\n\nStatus: ${status}\n\n## Body\n`), Buffer.from([0xfe, 10])]);
+  f.put('design.md', design('Draft')); f.commit('binary draft');
+  f.put('design.md', design('Approved')); f.commit('status-only approval');
+  const r = f.run('verify-design-approval', 'design.md');
+  assert.equal(r.status, 0, r.stderr); assert.equal(r.data.approved, true);
+  assert.equal(r.data.commit, f.git('rev-parse', 'HEAD')); assert.equal(r.data.blob, f.git('rev-parse', 'HEAD:design.md'));
+});
+
 test('approval rejects staged mode changes even when content hashes match', t => {
   const f = fixture(t);
   f.put('design.md', '# Design\n\nStatus: Approved\n\n## Body\nContent\n'); f.commit('approve');

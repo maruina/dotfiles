@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -181,6 +181,26 @@ test("an existing clone with multiple origin URLs fails closed", (t) => {
   assert.notEqual(result.status, 0);
   assert.equal(JSON.parse(result.stdout).error.code, "origin_mismatch");
   assert.match(readFileSync(path.join(f.full, "VENDOR.md"), "utf8"), new RegExp(f.old));
+});
+
+test("symlinked source ancestors fail before modifying skills", (t) => {
+  for (const ancestor of ["dot_pi", "dot_pi/agent", "dot_pi/agent/exact_skills"]) {
+    const f = fixture(t);
+    const link = path.join(f.source, ancestor);
+    const outside = path.join(f.root, "outside");
+    renameSync(link, outside);
+    symlinkSync(outside, link);
+    const manifest = readFileSync(path.join(f.full, "VENDOR.md"));
+    const skill = readFileSync(path.join(f.full, "SKILL.md"));
+    for (const args of [["--dry-run", "full"], ["full"]]) {
+      const result = f.run(...args);
+      assert.notEqual(result.status, 0, ancestor);
+      assert.equal(JSON.parse(result.stdout).error.code, "unsafe_destination");
+      assert.deepEqual(readFileSync(path.join(f.full, "VENDOR.md")), manifest);
+      assert.deepEqual(readFileSync(path.join(f.full, "SKILL.md")), skill);
+      assert.equal(readFileSync(path.join(f.full, "stale.md"), "utf8"), "stale\n");
+    }
+  }
 });
 
 test("invalid upstream or escaped destination fails without advancing pins", (t) => {

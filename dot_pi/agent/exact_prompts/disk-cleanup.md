@@ -1,5 +1,5 @@
 ---
-description: "Reclaim disk space: measure top consumers, sweep stale worktrees by merged-PR state, clean Go/Bazel/Docker caches. Asks before destructive steps."
+description: "Reclaim disk space: measure top consumers, preview integrated worktrees with Worktrunk, clean Go/Bazel/Docker caches. Asks before destructive steps."
 argument-hint: "[aggressive | report-only]"
 ---
 # Disk cleanup

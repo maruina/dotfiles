@@ -11,11 +11,18 @@ function parseNativeArguments(input: string): ParseResult {
   let hasToken = false;
   let quote: "'" | '"' | undefined;
 
-  for (const character of input) {
+  for (let i = 0; i < input.length; i++) {
+    const character = input[i]!;
     if (quote) {
-      if (character === quote) quote = undefined;
-      else current += character;
-    } else if (character === "'" || character === '"') {
+      if (character === "\\" && input[i + 1] === quote) {
+        current += quote;
+        i++;
+      } else if (character === quote) {
+        quote = undefined;
+      } else {
+        current += character;
+      }
+    } else if ((character === "'" || character === '"') && !hasToken) {
       quote = character;
       hasToken = true;
     } else if (/\s/.test(character)) {
@@ -46,7 +53,7 @@ export function parseSinglePlanArgument(input: string): { ok: true; planPath: st
 }
 
 export function quoteNativeArgument(value: string): string {
-  return `'${value.replaceAll("'", `'"'"'`)}'`;
+  return `'${value.replaceAll("'", "\\'")}'`;
 }
 
 export function buildStagePrompt(

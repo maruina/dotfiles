@@ -9,7 +9,7 @@ Arguments: $ARGUMENTS
 
 Create a weekly work summary for Matteo Ruina (`@maruina` in `DataDog/*`, `@matteo-ruina_ddog` in `ddoghq/*`, `matteo.ruina@datadoghq.com`).
 
-The goal is to produce an Obsidian weekly page named `Week of DD/MM/YYYY`. Matteo will manually edit and publish it to Confluence later.
+The goal is to produce an Obsidian weekly page at `Datadog/Snippets/Week of <YYYY-MM-DD>.md`, where `<YYYY-MM-DD>` is the Monday date. Matteo will manually edit and publish it to Confluence later.
 
 Use concrete evidence. Do not fabricate links, tickets, PRs, or outcomes.
 
@@ -35,11 +35,7 @@ Datadog/Snippets/Week of <YYYY-MM-DD>.md
 
 where `<YYYY-MM-DD>` is the Monday date for the selected week.
 
-Read the existing note with:
-
-```fish
-obsidian read file="Datadog/Snippets/Week of <YYYY-MM-DD>.md" 2>/dev/null | tail -n +3
-```
+Read the existing note from `~/Documents/main/Datadog/Snippets/Week of <YYYY-MM-DD>.md` with the `read` tool (or redirect `obsidian read path="Datadog/Snippets/Week of <YYYY-MM-DD>.md" > /tmp/weekly-note.md` and read that file; never pipe `obsidian` output).
 
 If the note exists, treat its content as an important source. Preserve useful details, links, open questions, and next steps when drafting the final weekly page.
 
@@ -143,7 +139,7 @@ Prioritize:
 Use this structure:
 
 ```markdown
-# Week of <DD/MM/YYYY>
+# Week of <YYYY-MM-DD>
 
 ## Highlights
 - **<Interesting finding or shipped outcome>.** <Why it mattered.>

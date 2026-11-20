@@ -204,9 +204,12 @@ export function formatPR(pr: RecentPullRequest | CurrentPullRequest): string {
   return `- [${state}] #${pr.number}${base}: ${pr.title} [head: ${head}]${link}`;
 }
 
-export function formatCurrentModel(model?: { id?: string; name?: string }): string[] {
+export function formatCurrentModel(model?: { provider?: string; id?: string; name?: string }): string[] {
   if (!model?.id) return [];
-  return ["## Current Model", `- ${model.name ?? model.id} (${model.id})`];
+  const qualifiedId = model.provider && !model.id.startsWith(`${model.provider}/`)
+    ? `${model.provider}/${model.id}`
+    : model.id;
+  return ["## Current Model", `- ${model.name ?? model.id} (${qualifiedId})`];
 }
 
 export function shouldAddSkillLoaderGuidance(prompt: string): boolean {

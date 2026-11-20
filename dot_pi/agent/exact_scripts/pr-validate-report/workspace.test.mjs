@@ -76,6 +76,19 @@ test('preflight fetches a PR ref from a local fixture and leaves no temporary re
   assert.ok(!existsSync(join(base, '.git', 'FETCH_HEAD')));
 });
 
+test('preflight respects WORKTREES_ROOT for the review worktree path', async (t) => {
+  const { git, collect, temp, base } = fixture(t);
+  const customRoot = join(temp, 'custom-worktrees');
+  const prev = process.env.WORKTREES_ROOT;
+  process.env.WORKTREES_ROOT = customRoot;
+  t.after(() => {
+    if (prev === undefined) delete process.env.WORKTREES_ROOT;
+    else process.env.WORKTREES_ROOT = prev;
+  });
+  const result = await preflight({ url, base, remote: 'origin', git, collect, temp });
+  assert.equal(result.worktree, join(customRoot, 'example', 'pr-17-review'));
+});
+
 test('preflight reports a moved head without accessing a review worktree', async (t) => {
   const { git, collect, temp, base, calls } = fixture(t, { fetched: otherHead });
   await assert.rejects(preflight({ url, base, remote: 'origin', git, collect, temp }), new RegExp(`${head}.*${otherHead}`));

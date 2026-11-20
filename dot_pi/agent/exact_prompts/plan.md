@@ -38,13 +38,12 @@ Use the design, brief, issue, PR feedback, or request for WHAT, and the reposito
 - Investigate discoverable facts yourself; ask the user only for decisions, priorities, or unavailable context.
 - Trace every task to a goal, requirement, or instruction. Preserve source-defined non-goals and deliberate deferrals in the brief and plan; do not change scope.
 
-For a Medium or Large/Risky upstream design, require `/systematic-review`'s status-only approval commit. Do not require the review report or transcript.
+For a Medium or Large/Risky upstream design, run these checks from the root of its worktree:
 
-- In the owning worktree, find the most recent commit that changed the design: `git log -1 --first-parent --full-history --format=%H -- <design-path>`.
-- The commit must have one parent and modify only that design file. Its entire diff must change `Status: Draft` to `Status: Approved` in the header, with no mode change.
-- The working blob (`git hash-object <design-path>`) must match both `HEAD`'s design blob and the approved blob. Reject staged or unstaged design changes.
+- Reject untracked, staged, or unstaged changes to the design. Require empty output from `git status --porcelain=v1 --untracked-files=all -- <design-path>` and read the design with `git show HEAD:<design-path>`. If either check fails, stop and ask the user to reconcile the design with Git before rerunning `/plan`.
+- Require `Status: Approved` in the design header at `HEAD`. Accept the design even if later commits changed its content without changing its status. Do not inspect approval commit history or require a review report or transcript.
 
-If any check fails, stop and request `/new` followed by `/systematic-review <absolute-path-to-design.md>` and explicit approval. Use the `## Handoff` format. If already marked Approved, ask the user to commit `Status: Draft` first.
+If the committed design is not marked Approved, stop and request `/new` followed by `/systematic-review <absolute-path-to-design.md>` and explicit approval. Use the `## Handoff` format when blocked.
 
 Compare the plan back to the approved design for each material decision: user-visible behavior, external dependencies, security, data, cost, assumptions, structure, and test limitations. Surface anything that could change the user's approval; obtain explicit approval before implementation and update the design when applicable. Routine implementation details do not need renewed design approval. With no upstream design, present material decisions in the planning alignment brief.
 

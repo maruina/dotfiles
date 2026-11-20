@@ -183,18 +183,16 @@ test("design approval requires a fresh comprehension review, not author self-rev
   ]);
 });
 
-test("plan uses the committed design approval without the review transcript", () => {
-  requireMarkers(prompt("plan.md"), [
-    /status-only approval commit/i,
-    /Do not require the review report or transcript/i,
-    /most recent commit that changed the design/i,
-    /one parent/i,
-    /only that design file/i,
-    /`Status: Draft` to `Status: Approved`/,
-    /git hash-object <design-path>/,
-    /must match both .*`HEAD`.*approved blob/i,
-    /If any check fails, stop and request `\/new` followed by `\/systematic-review/i,
+test("plan accepts a clean committed Approved design without checking approval history", () => {
+  const text = prompt("plan.md");
+  requireMarkers(text, [
+    /Require `Status: Approved` in the design header at `HEAD`/i,
+    /Reject untracked, staged, or unstaged changes to the design/i,
+    /Accept the design even if later commits changed its content without changing its status/i,
+    /Do not inspect approval commit history or require a review report or transcript/i,
+    /If the committed design is not marked Approved, stop and request `\/new` followed by `\/systematic-review/i,
   ]);
+  assert.doesNotMatch(text, /status-only approval commit|git log.*<design-path>|commit `Status: Draft` first/i);
 });
 
 test("design-only review isolates the document and bypasses general review", () => {

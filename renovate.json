@@ -1,0 +1,21 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "enabledManagers": ["mise"],
+  "automerge": false,
+  "mise": {
+    "managerFilePatterns": ["/^dot_config\\/mise\\/config\\.toml$/"]
+  },
+  "packageRules": [
+    {
+      "matchManagers": ["mise"],
+      "matchDepNames": ["node"],
+      "allowedVersions": "24.x"
+    },
+    {
+      "matchManagers": ["mise"],
+      "matchDepNames": ["python"],
+      "allowedVersions": "3.15.x"
+    }
+  ]
+}

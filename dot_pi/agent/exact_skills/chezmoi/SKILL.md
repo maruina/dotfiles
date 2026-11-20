@@ -23,7 +23,7 @@ Use for chezmoi-managed dotfiles.
   dot_config/private_fish/
   dot_ssh/config.tmpl
   run_onchange_brew-install.sh.tmpl
-  run_onchange_pi-mcp-servers.sh.tmpl
+  run_onchange_after_pi-mcp-servers.sh.tmpl
 ```
 
 ## Prefixes

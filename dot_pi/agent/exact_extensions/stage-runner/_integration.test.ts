@@ -62,7 +62,7 @@ for (const failure of [
     git("worktree", "add", "-qb", "feature", cwd);
     const log = path.join(temp, "argv"),
       controller = new AbortController();
-    const model = { provider: "p", id: "a", thinking: "off" };
+    const model = { provider: "p", id: failure ? "a" : "p/a", thinking: "off" };
     const options = {
       cwd,
       plan: "plans/demo/plan.md",

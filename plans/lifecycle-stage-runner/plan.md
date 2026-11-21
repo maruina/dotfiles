@@ -151,10 +151,14 @@ The runner SHALL resume only a saved failed writer. For verifier failures it SHA
 - [x] Check explicit target-file diffs from this worktree and document operator rollout and rollback in the new README. Run `git diff --check` and `cd dot_pi/agent && node --test exact_scripts/lifecycle-prompts.test.mjs`; expect clean documentation and passing contracts. Commit `docs(pi): document stage runner operation and recovery`.
 
 ### Task 5: Final verification
+**In progress:** Candidate `fc12c6a`, Pi 1.6.0. `npm ci --ignore-scripts`, `npm test`, and `npm run test:all` passed (629 fast tests passed, three skipped; 105 integration tests passed; typecheck and smoke passed). Removed worktree dependencies. Local Rex session and pane IDs matched `rex whoami`. Live trial stopped before qualification. The isolated no-remote Git worktrees shared the same signed plan commit. Pi selected Terra 6.1 medium, GLM-5.3 Flash high, and DeepSeek v4.1 Flash high. Execute 1 committed slice 1 and wrote a valid first-attempt handoff. Its ledger recorded `openai/gpt-6.1-terra`; `accepted.json` recorded `openai/openai/gpt-6.1-terra`. The direct run stopped before editing because the temporary profile omitted `user-context` and therefore `## Current Model`. The extension's `formatCurrentModel` confirms the ledger spelling. Canceled execute 2; one valid handoff in two runner launches (one canceled), no format-only interventions, no recovery session match observed. No simplify or verify launch. Confirmed cancellation, lock release, and parent pane exit; removed both disposable worktrees and temporary configuration links. Preserved trial history outside Git. The direct comparison and recovery trials remain incomplete. Reconcile writer identity and include `user-context` in the next trial profile before repeating qualification.
 **Delivers:** Feature-level evidence for the complete feature (code, prompts, docs, and both recovery paths) on the approved workload before cutover.
 **Blocked by:** Task 4
 **Traces to:** Authenticated trial and validation limits.
 **Files:** `plans/lifecycle-stage-runner/plan.md` (record sanitized trial results with this task; private artifacts stay outside Git).
+
+- [x] Approved fix: normalize already-prefixed model IDs for selection, writer handoffs, and recovery without changing raw Pi model arguments. Both the session-history and subprocess handoff regressions failed before the fix and passed after it. All 31 focused tests, `npm test`, and `npm run test:all` passed. `compute-guardrails` requires manual removal of the installed worktree dependencies.
+- [ ] Repeat qualification with regular Pi packages, settings, and extensions, overlaying candidate resources only.
 
 #### Requirement: End-to-end qualification
 The candidate SHALL demonstrate shared cadence, real prompt-written handoffs, independent recovery, and no premature publication.

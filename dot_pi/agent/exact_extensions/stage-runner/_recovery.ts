@@ -1,3 +1,4 @@
+import { qualifiedId } from "./_model.ts";
 import * as fs from "node:fs";
 import path from "node:path";
 import { execFile } from "node:child_process";
@@ -35,7 +36,7 @@ export function sessionInfo(dir: string, cwd: string, expected?: string) {
         const [provider, model] =
           row.type === "model_change" ? [row.provider, row.modelId] : [row.message.provider, row.message.model];
         if (![provider, model].every((v) => typeof v === "string" && v.trim())) throw Error("Unknown writer model");
-        models.add(provider + "/" + model);
+        models.add(qualifiedId(provider, model));
       }
     }
   } finally {

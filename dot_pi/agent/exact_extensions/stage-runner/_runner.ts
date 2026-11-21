@@ -3,6 +3,7 @@ import * as fs from "node:fs";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 
+import { qualifiedId } from "./_model.ts";
 import { recovery, sessionInfo } from "./_recovery.ts";
 
 type Stage = "execute" | "simplify" | "verify";
@@ -27,7 +28,7 @@ const decode = (b: Buffer) => new TextDecoder("utf8", { fatal: true }).decode(b)
 const nonblank = (s: unknown) => typeof s === "string" && s.trim().length > 0;
 const safe = (s: string) => s.replace(/[^\x20-\x7e]/g, "?").slice(0, 500);
 const unchecked = (s: string): string[] => s.match(/^\s*- \[ \] .+$/gm) ?? [];
-const id = (m: Choice) => m.provider + "/" + m.id;
+const id = (m: Choice) => qualifiedId(m.provider, m.id);
 const privateFile = (file: string, value: string | Buffer) =>
   fs.writeFileSync(file, value, { mode: 0o600, flag: "wx" });
 

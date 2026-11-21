@@ -12,7 +12,7 @@ test("record selected and actual assistant models; reject unknown provenance", (
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const rows = [
     { type: "session", id: "saved", cwd: dir },
-    { type: "model_change", provider: "p", modelId: "a" },
+    { type: "model_change", provider: "p", modelId: "p/a" },
     { type: "message", message: { role: "assistant", provider: "p", model: "b" } },
   ];
   const file = path.join(dir, "saved.jsonl");

@@ -3,6 +3,7 @@ import path from "node:path";
 import os from "node:os";
 import { getSupportedThinkingLevels } from "@earendil-works/pi-ai";
 import { VERSION, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { qualifiedId } from "./_model.ts";
 import { run, type Choice } from "./_runner.ts";
 
 function deadline(name: string, fallback: number) {
@@ -70,16 +71,16 @@ export default function stageRunner(pi: ExtensionAPI) {
             .filter(
               (m) =>
                 stage !== "verify" ||
-                ![models.execute, models.simplify].some((w) => w.provider === m.provider && w.id === m.id),
+                ![models.execute, models.simplify].some((w) => qualifiedId(w.provider, w.id) === qualifiedId(m.provider, m.id)),
             );
           if (!available.length) throw Error("No eligible scoped model for " + stage);
           const pick = await ctx.ui.select(
             "Select " + stage + " model",
-            [...new Set(available.map((m) => m.provider + "/" + m.id))],
+            [...new Set(available.map((m) => qualifiedId(m.provider, m.id)))],
             { signal: controller.signal },
           );
           if (!pick) return;
-          const model = available.find((m) => m.provider + "/" + m.id === pick)!;
+          const model = available.find((m) => qualifiedId(m.provider, m.id) === pick)!;
           const thinking = await ctx.ui.select(
             "Select " + stage + " thinking level",
             [...getSupportedThinkingLevels(model)],

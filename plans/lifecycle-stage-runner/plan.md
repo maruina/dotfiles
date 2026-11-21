@@ -39,6 +39,8 @@ Slice 2 used the prompt-required `skill-loader`, `resolve-worktree`, and `featur
 
 Slice 3 used `resolve-worktree`, `feature-worktree`, and `skill-loader` (prompt-required) to select the worktree and scope. `codebase-research`, `cli-best-practices`, `chezmoi`, and `write` (skill-loader) guided session-file inspection, direct argv, source-only edits, and the ledger. `rex` (agent-selected) supplied process and pane commands. `learning-candidates` (prompt-required) guided the verifier snapshot entry.
 
+Slice 4 used `skill-loader`, `resolve-worktree`, and `feature-worktree` (prompt-required) to select the branch and task. `codebase-research` and `cli-best-practices` (skill-loader) guided the check of runner options and recovery evidence. `diataxis` and `write` (skill-loader) guided the operator instructions; `chezmoi` (skill-loader) guided the target previews.
+
 ## Implementation Contract
 Source: `plans/lifecycle-stage-runner/design.md` (updated to match the operator-approved manual-cadence change and colocated extension architecture). The four delivery slices below together implement **design Slice 1**. No relevant prior guidance matched the advisory lookup; no advisory source was skipped.
 
@@ -138,13 +140,15 @@ The runner SHALL resume only a saved failed writer. For verifier failures it SHA
 
 ### Slice 4: Document operator recovery and qualify the runner
 ### Task 4: Publish operator guidance and rollback instructions
+**Evidence:** All 67 prompt contract tests and `git diff --check` passed. Explicit chezmoi previews identified the expected individual targets. The legacy README still describes `/implement`; no change was needed.
+**Execution writer (Slice 4):** `openai/gpt-6.2-astra`.
 **Delivers:** Instructions for choosing the manual path, new runner or legacy fallback and recovering without losing context or work.
 **Blocked by:** Task 3
 **Traces to:** Rollout, rollback, documentation and future-agent guidance.
 **Files:** `dot_pi/agent/exact_extensions/stage-runner/README.md`, `AGENTS.md`, `dot_pi/agent/AGENTS.md`, `dot_pi/agent/exact_extensions/ship-conductor/README.md` (inspect only unless fallback instructions are inaccurate).
 
-- [ ] Document launch, selection, `/stage-runner-cancel` cancellation, artifact permissions/retention, uncertain-lock investigation, writer resume versus fresh writer, three-attempt limit, and the manual versus runner publication boundary. Align agent guidance with the new manual cadence while preserving legacy `/implement` instructions. Keep the old README unchanged if it still describes that command correctly. No generated references or service deployment are needed.
-- [ ] Check explicit target-file diffs from this worktree and document operator rollout and rollback in the new README. Run `git diff --check` and `cd dot_pi/agent && node --test exact_scripts/lifecycle-prompts.test.mjs`; expect clean documentation and passing contracts. Commit `docs(pi): document stage runner operation and recovery`.
+- [x] Document launch, selection, `/stage-runner-cancel` cancellation, artifact permissions/retention, uncertain-lock investigation, writer resume versus fresh writer, three-attempt limit, and the manual versus runner publication boundary. Align agent guidance with the new manual cadence while preserving legacy `/implement` instructions. Keep the old README unchanged if it still describes that command correctly. No generated references or service deployment are needed.
+- [x] Check explicit target-file diffs from this worktree and document operator rollout and rollback in the new README. Run `git diff --check` and `cd dot_pi/agent && node --test exact_scripts/lifecycle-prompts.test.mjs`; expect clean documentation and passing contracts. Commit `docs(pi): document stage runner operation and recovery`.
 
 ### Task 5: Final verification
 **Delivers:** Feature-level evidence for the complete feature (code, prompts, docs, and both recovery paths) on the approved workload before cutover.

@@ -5,6 +5,24 @@ import path from "node:path";
 import os from "node:os";
 import { events, validate, preflight, prune } from "./_runner.ts";
 
+import { sessionInfo } from "./_recovery.ts";
+
+test("record selected and actual assistant models; reject unknown provenance", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "session-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const rows = [
+    { type: "session", id: "saved", cwd: dir },
+    { type: "model_change", provider: "p", modelId: "a" },
+    { type: "message", message: { role: "assistant", provider: "p", model: "b" } },
+  ];
+  const file = path.join(dir, "saved.jsonl");
+  fs.writeFileSync(file, rows.map((r) => JSON.stringify(r)).join("\n") + "\n", { mode: 0o600 });
+  assert.deepEqual(sessionInfo(dir, dir, "saved").models, ["p/a", "p/b"]);
+  assert.throws(() => sessionInfo(dir, dir, "other"));
+  fs.appendFileSync(file, '{"type":"model_change"}\n');
+  assert.throws(() => sessionInfo(dir, dir, "saved"));
+});
+
 test("frame on LF bytes, not Unicode separators or transport boundaries", async () => {
   const row = Buffer.from(JSON.stringify({ value: "a\u2028💡" }) + "\n");
   const got: unknown[] = [];

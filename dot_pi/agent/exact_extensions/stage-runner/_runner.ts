@@ -3,6 +3,8 @@ import * as fs from "node:fs";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 
+import { recovery, sessionInfo } from "./_recovery.ts";
+
 type Stage = "execute" | "simplify" | "verify";
 export type Choice = { provider: string; id: string; thinking: string };
 type Options = {
@@ -15,13 +17,16 @@ type Options = {
   executable?: string;
   prefix?: string[];
   env?: NodeJS.ProcessEnv;
+  rexCommand?: string[];
+  notify?: (message: string) => void;
+  approve?: (changes: string, signal: AbortSignal) => Promise<boolean>;
   idleMs?: number;
   wallMs?: number;
 };
 const decode = (b: Buffer) => new TextDecoder("utf8", { fatal: true }).decode(b);
 const nonblank = (s: unknown) => typeof s === "string" && s.trim().length > 0;
 const safe = (s: string) => s.replace(/[^\x20-\x7e]/g, "?").slice(0, 500);
-const unchecked = (s: string) => s.match(/^\s*- \[ \] .+$/gm) ?? [];
+const unchecked = (s: string): string[] => s.match(/^\s*- \[ \] .+$/gm) ?? [];
 const id = (m: Choice) => m.provider + "/" + m.id;
 const privateFile = (file: string, value: string | Buffer) =>
   fs.writeFileSync(file, value, { mode: 0o600, flag: "wx" });
@@ -271,6 +276,9 @@ export async function run(o: Options) {
   const dir = path.join(root, "run-" + Date.now() + "-" + randomUUID());
   privateFile(lock, JSON.stringify({ pid: process.pid, dir, cwd }));
   const owned = fs.statSync(lock);
+  let uncertain = false;
+  const writers = new Set([id(o.models.execute)]);
+  let verifies = 0;
   const controller = new AbortController(),
     cancel = () => controller.abort();
   process.on("SIGTERM", cancel);
@@ -294,8 +302,7 @@ export async function run(o: Options) {
       const flags =
         stage === "execute"
           ? ""
-          : " --implemented-by " +
-            quote(id(o.models.execute)) +
+          : [...writers].map((w) => " --implemented-by " + quote(w)).join("") +
             (stage === "verify" ? " --simplified-by " + quote(id(o.models.simplify)) : "");
       const prompt =
         "/" +
@@ -318,14 +325,119 @@ export async function run(o: Options) {
         "\nHandoff path: " +
         JSON.stringify(out);
       o.progress(stage + " " + n + "; evidence " + dir);
-      await attempt(o, stage, folder, prompt, signal);
+      let snapshotChecked = false;
+      if (stage === "verify") {
+        clean();
+        verifies++;
+      }
+      let recovered = false;
+      try {
+        try {
+          await attempt(o, stage, folder, prompt, signal);
+          const h = handoff(out, stage);
+          if (!["success", "VERIFIED"].includes(h.status)) throw Error(JSON.stringify(h));
+          if (stage !== "verify") clean();
+        } finally {
+          if (stage === "verify") {
+            const head = git("rev-parse", "HEAD"),
+              status = git("status", "--porcelain=v1", "--untracked-files=all"),
+              ref = git("rev-parse", "--abbrev-ref", "HEAD");
+            if (head !== prev || status || ref !== branch)
+              throw Error("Verifier Git snapshot changed: " + prev + " -> " + head + "; " + ref + "; " + safe(status));
+            snapshotChecked = true;
+          }
+        }
+      } catch (error) {
+        signal.throwIfAborted();
+        if (stage === "verify" && (!snapshotChecked || verifies === 3)) throw error;
+        if (stage === "verify") {
+          clean();
+          if (git("rev-parse", "HEAD") !== prev) throw Error("Verifier snapshot unavailable or changed");
+        }
+        const fresh = stage === "verify",
+          model = fresh ? o.models.execute : o.models[stage];
+        const sessions = path.join(folder, fresh ? "recovery-sessions" : "sessions");
+        if (!fresh && !fs.existsSync(path.join(folder, "session-id")))
+          throw Error(String(error) + "; no saved session header");
+        const expected = fresh ? undefined : fs.readFileSync(path.join(folder, "session-id"), "utf8");
+        if (fresh) fs.mkdirSync(sessions, { mode: 0o700 });
+        let saved: ReturnType<typeof sessionInfo> | undefined;
+        if (!fresh) {
+          try {
+            saved = sessionInfo(sessions, cwd, expected);
+          } catch (e) {
+            throw Error(String(error) + "; " + String(e));
+          }
+        }
+        const argv = [
+          process.execPath,
+          "--import",
+          "data:text/javascript,process.umask(0o077);process.env.PI_STAGE_RUNNER_CHILD='1';delete process.env.PI_LIFECYCLE_CHILD_CONFIG",
+          ...((o.env ?? process.env).PI_CODING_AGENT_DIR
+            ? [
+                "--import",
+                "data:text/javascript," +
+                  encodeURIComponent(
+                    "process.env.PI_CODING_AGENT_DIR=" + JSON.stringify((o.env ?? process.env).PI_CODING_AGENT_DIR),
+                  ),
+              ]
+            : []),
+          ...(o.prefix ?? [process.argv[1]]),
+          "--provider",
+          model.provider,
+          "--model",
+          model.id,
+          "--thinking",
+          model.thinking,
+          "--session-dir",
+          sessions,
+          ...(saved
+            ? ["--session", saved.file]
+            : [
+                "Repair the feature without publishing. Read failure details in " +
+                  path.join(folder, "failure.txt") +
+                  "; artifacts and bounded stderr: " +
+                  folder,
+              ]),
+        ];
+        privateFile(path.join(folder, "failure.txt"), String(error).slice(0, 65536));
+        await recovery({
+          cwd,
+          env: o.env ?? process.env,
+          rex: o.rexCommand,
+          argv,
+          signal,
+          manual: (command, display) => {
+            if (display) o.notify?.(command.replace(/[^\x20-\x7e\n]/g, "?"));
+            else privateFile(path.join(folder, "manual-command"), command);
+          },
+          owner: (state) => {
+            uncertain = !!state;
+            if (fs.lstatSync(lock).ino !== owned.ino) throw Error("Lost lock ownership");
+            fs.writeFileSync(lock, JSON.stringify({ pid: process.pid, cwd, dir, recovery: state }));
+          },
+        });
+        clean();
+        for (const writer of sessionInfo(sessions, cwd, expected).models) {
+          if (writer === id(o.models.verify)) throw Error("Recovery used verifier model");
+          writers.add(writer);
+        }
+        if (fresh) {
+          git("merge-base", "--is-ancestor", prev, git("rev-parse", "HEAD"));
+          privateFile(
+            path.join(folder, "recovered.json"),
+            JSON.stringify({ writers: [...writers], evidence: "fresh writer; verdict required" }),
+          );
+          continue;
+        }
+        recovered = true;
+      }
       signal.throwIfAborted();
-      const h = handoff(out, stage);
-      if (!["success", "VERIFIED"].includes(h.status)) throw Error(safe(h.summary) + "; see " + out);
       clean();
       const head = git("rev-parse", "HEAD");
       git("merge-base", "--is-ancestor", prev, head);
       if (stage === "verify" && head !== prev) throw Error("Verifier changed HEAD");
+      const before = remaining;
       if (stage === "execute") {
         const next = unchecked(git("show", "HEAD:" + rel));
         if (prev === head || next.length >= remaining.length) throw Error("No committed task progress");
@@ -333,9 +445,32 @@ export async function run(o: Options) {
           throw Error("Execute limit; remaining: " + safe(next.join("; ")));
         remaining = next;
       }
+      if (recovered) {
+        const changes =
+          stage +
+          " " +
+          prev +
+          " -> " +
+          head +
+          "; completed: " +
+          safe(before.filter((task) => !remaining.includes(task)).join("; ") || "none");
+        if (!(await o.approve?.(changes, signal))) throw Error("Recovered writer not accepted");
+        signal.throwIfAborted();
+        clean();
+        if (git("rev-parse", "HEAD") !== head) throw Error("Candidate changed during approval");
+      }
       privateFile(
         path.join(folder, "accepted.json"),
-        JSON.stringify({ head, status: h.status, evidence: "validated handoff" }),
+        JSON.stringify({
+          head,
+          writers: [...writers],
+          status: stage === "verify" ? "VERIFIED" : "success",
+          evidence: recovered
+            ? "operator acceptance"
+            : stage === "verify"
+              ? "independent verdict"
+              : "validated handoff",
+        }),
       );
       if (stage === "verify") break;
       stage = stage === "execute" ? (remaining.length ? "execute" : "simplify") : "verify";
@@ -344,14 +479,16 @@ export async function run(o: Options) {
     prune(root);
     return dir;
   } catch (error) {
-    if (fs.existsSync(dir) && !fs.existsSync(path.join(dir, "completed"))) {
+    if (!uncertain && fs.existsSync(dir) && !fs.existsSync(path.join(dir, "completed"))) {
       privateFile(path.join(dir, "completed"), safe(String(error)));
       prune(root);
     }
-    throw Error(safe(String(error)) + "; evidence " + dir);
+    throw Error(
+      safe(String(error)) + "; evidence " + dir + (uncertain ? "; uncertain recovery: inspect lock " + lock : ""),
+    );
   } finally {
     process.off("SIGTERM", cancel);
     process.off("SIGINT", cancel);
-    if (fs.lstatSync(lock).ino === owned.ino) fs.unlinkSync(lock);
+    if (!uncertain && fs.lstatSync(lock).ino === owned.ino) fs.unlinkSync(lock);
   }
 }

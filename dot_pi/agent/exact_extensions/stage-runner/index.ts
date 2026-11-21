@@ -105,6 +105,8 @@ export default function stageRunner(pi: ExtensionAPI) {
           signal: controller.signal,
           idleMs: deadline("PI_STAGE_RUNNER_IDLE_MS", 600000),
           wallMs: deadline("PI_STAGE_RUNNER_WALL_MS", 3600000),
+          notify: (message) => ctx.ui.notify(message, "warning"),
+          approve: (changes, signal) => ctx.ui.confirm("Accept recovered writer?", changes, { signal }),
           progress: (message) => ctx.ui.setStatus("stage-runner", message),
         });
         ctx.ui.notify("VERIFIED; evidence " + evidence, "info");

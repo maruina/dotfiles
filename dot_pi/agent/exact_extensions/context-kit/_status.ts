@@ -11,18 +11,10 @@ export type InjectedContextFile = {
   bytes: number;
 };
 
-export type IgnoredContextFile = Omit<InjectedContextFile, "bytes"> & {
-  reason: ".pi/agentsignore" | ".pi/ruleignore";
-};
-
 /**
  * Persisted per-session context-kit activity. One record per session, stored
  * under `~/.pi/agent/context-kit-usage/<sessionId>.json` and aggregated by
  * `/context-kit status` to evaluate whether the extension earns its keep.
- *
- * `ignored` is empty for records backfilled from session files: suppression is
- * in-memory only and is not persisted in the session transcript, so it cannot
- * be reconstructed after the fact. Going-forward records capture it exactly.
  */
 export type UsageRecord = {
   sessionId: string;
@@ -30,7 +22,6 @@ export type UsageRecord = {
   mtime: number;
   injectionMessages: number;
   injected: InjectedContextFile[];
-  ignored: IgnoredContextFile[];
 };
 
 export function contextKind(path: string): ContextKitSourceKind {
@@ -47,7 +38,6 @@ export function formatContextKitStatus(status: {
   injectionMessages: number;
   blockedMutations: number;
   injected: InjectedContextFile[];
-  ignored: IgnoredContextFile[];
 }): string {
   const bytes = status.injected.reduce((total, file) => total + file.bytes, 0);
   const lines = [
@@ -58,11 +48,6 @@ export function formatContextKitStatus(status: {
     "Injected files:",
     ...(status.injected.length > 0
       ? status.injected.map((file) => `- [${file.kind}] ${file.discovery} — ${displayPath(file.path, status.cwd)} (${formatBytes(file.bytes)})`)
-      : ["- none"]),
-    "",
-    "Ignored by configuration:",
-    ...(status.ignored.length > 0
-      ? status.ignored.map((file) => `- [${file.kind}] ${file.discovery} — ${displayPath(file.path, status.cwd)} (${file.reason})`)
       : ["- none"]),
   ];
   return lines.join("\n");
@@ -75,14 +60,13 @@ export function formatContextKitStatus(status: {
  */
 export function formatContextKitAggregate(records: UsageRecord[], home: string = homedir()): string {
   const recorded = records.length;
-  const used = records.filter((r) => r.injected.length > 0 || r.ignored.length > 0).length;
+  const used = records.filter((r) => r.injected.length > 0).length;
   const totalMessages = records.reduce((n, r) => n + r.injectionMessages, 0);
   const totalInjectedFiles = records.reduce((n, r) => n + r.injected.length, 0);
   const totalInjectedBytes = records.reduce(
     (n, r) => n + r.injected.reduce((b, f) => b + f.bytes, 0),
     0,
   );
-  const totalIgnored = records.reduce((n, r) => n + r.ignored.length, 0);
 
   // Rank injected files by how many distinct sessions pulled them in; break
   // ties by size. `bytes` is the largest instance seen (a proxy for the file's
@@ -117,7 +101,6 @@ export function formatContextKitAggregate(records: UsageRecord[], home: string =
     "All sessions",
     `Recorded: ${recorded} session(s), ${used} used context-kit`,
     `Total injected: ${totalMessages} message(s), ${totalInjectedFiles} file(s), ${formatBytes(totalInjectedBytes)}`,
-    `Total ignored: ${totalIgnored} file(s)`,
     "",
     "Top injected files (by sessions):",
     ...(top.length > 0

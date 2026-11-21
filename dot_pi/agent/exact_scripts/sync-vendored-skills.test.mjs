@@ -1,17 +1,18 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, existsSync, linkSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, linkSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import test from "node:test";
+import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
 
 const cli = fileURLToPath(new URL("./sync-vendored-skills.mjs", import.meta.url));
-const git = (cwd, ...args) => execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+const gitEnv = { ...process.env, GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null", GIT_TERMINAL_PROMPT: "0" };
+const git = (cwd, ...args) => execFileSync("git", args, { cwd, encoding: "utf8", env: gitEnv, stdio: ["ignore", "pipe", "pipe"] }).trim();
 
-function fixture(t) {
-  const root = mkdtempSync(path.join(os.tmpdir(), "vendor-sync-"));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
+let template;
+before(() => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "vendor-sync-template-"));
   const upstream = path.join(root, "upstream");
   const bare = path.join(root, "remote.git");
   const repos = path.join(root, "repos");
@@ -36,13 +37,13 @@ function fixture(t) {
   mkdirSync(path.dirname(clone), { recursive: true });
   git(root, "clone", "-q", bare, clone);
   git(clone, "remote", "set-url", "origin", "https://github.com/example/skills");
-  const vendor = (name, subpath, extra = "") => {
+  const writeVendor = (name, subpath, extra = "") => {
     const dir = path.join(skills, `exact_${name}`); mkdirSync(dir, { recursive: true });
     writeFileSync(path.join(dir, "VENDOR.md"), `# Vendored skill\n\n- Upstream: https://github.com/example/skills\n- Path: \`${subpath}\`\n${extra}- Pinned commit: \`${old}\`\n`);
     return dir;
   };
-  const full = vendor("full", "skills/full");
-  const partial = vendor("partial", "skills/partial", "- Files: `SKILL.md`, `LICENSE`\n");
+  const full = writeVendor("full", "skills/full");
+  const partial = writeVendor("partial", "skills/partial", "- Files: `SKILL.md`, `LICENSE`\n");
   const hand = path.join(skills, "hand"); mkdirSync(hand); writeFileSync(path.join(hand, "SKILL.md"), "hand maintained\n");
   writeFileSync(path.join(full, "SKILL.md"), "old\n");
   writeFileSync(path.join(full, "stale.md"), "stale\n");
@@ -60,7 +61,33 @@ function fixture(t) {
   git(upstream, "add", "-A"); git(upstream, "commit", "-qm", "new");
   const next = git(upstream, "rev-parse", "HEAD");
   git(upstream, "push", "-q", bare, "main");
-  const run = (...args) => spawnSync(process.execPath, [cli, "--source", source, ...args], { encoding: "utf8", env: { ...process.env, GO_REPOS_ROOT: repos, GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: `url.${bare}.insteadOf`, GIT_CONFIG_VALUE_0: "https://github.com/example/skills" }, timeout: 15000 });
+  template = { root, old, next };
+});
+
+after(() => {
+  if (template) rmSync(template.root, { recursive: true, force: true });
+});
+
+function fixture(t) {
+  const root = mkdtempSync(path.join(os.tmpdir(), "vendor-sync-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  cpSync(template.root, root, { recursive: true });
+  const upstream = path.join(root, "upstream");
+  const bare = path.join(root, "remote.git");
+  const repos = path.join(root, "repos");
+  const clone = path.join(repos, "example", "skills");
+  const source = path.join(root, "source");
+  const skills = path.join(source, "dot_pi/agent/exact_skills");
+  const { old, next } = template;
+  const vendor = (name, subpath, extra = "") => {
+    const dir = path.join(skills, `exact_${name}`); mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, "VENDOR.md"), `# Vendored skill\n\n- Upstream: https://github.com/example/skills\n- Path: \`${subpath}\`\n${extra}- Pinned commit: \`${old}\`\n`);
+    return dir;
+  };
+  const full = path.join(skills, "exact_full");
+  const partial = path.join(skills, "exact_partial");
+  const hand = path.join(skills, "hand");
+  const run = (...args) => spawnSync(process.execPath, [cli, "--source", source, ...args], { encoding: "utf8", env: { ...gitEnv, GO_REPOS_ROOT: repos, GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: `url.${bare}.insteadOf`, GIT_CONFIG_VALUE_0: "https://github.com/example/skills" }, timeout: 15000 });
   return { root, upstream, clone, source, full, partial, hand, old, next, run, vendor };
 }
 

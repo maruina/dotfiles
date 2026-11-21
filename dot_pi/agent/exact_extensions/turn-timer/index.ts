@@ -13,16 +13,9 @@
  * The timing message is a pure UI ornament: it's stripped from LLM context in the
  * `context` handler so the model never sees it.
  */
-import type {
-	AgentEndEvent,
-	BeforeAgentStartEvent,
-	BeforeAgentStartEventResult,
-	ContextEvent,
-	ExtensionAPI,
-} from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { visibleWidth } from "@earendil-works/pi-tui";
 
-import { traceHook } from "../_shared/tracing.ts";
 import { formatDuration } from "./_format.ts";
 
 const CUSTOM_TYPE = "turn-timer";
@@ -34,8 +27,6 @@ const CUSTOM_TYPE = "turn-timer";
 // SGR 22 here at the end.
 const FAINT = "\x1b[2m";
 const FAINT_RESET = "\x1b[22m";
-
-type ContextTraceResult = { messages?: ContextEvent["messages"] };
 
 function isTimerMessage(message: unknown): boolean {
 	return (
@@ -67,25 +58,17 @@ export default function (pi: ExtensionAPI) {
 
 	// Keep timing messages out of LLM context. The context event hands us raw
 	// AgentMessages (role "custom") before they're converted to LLM user messages.
-	pi.on(
-		"context",
-		traceHook<ContextEvent, ContextTraceResult>(pi, "turn-timer.context", (event) => {
-			const filtered = event.messages.filter((m) => !isTimerMessage(m));
-			if (filtered.length === event.messages.length) return;
-			return { messages: filtered };
-		}),
-	);
+	pi.on("context", (event) => {
+		const filtered = event.messages.filter((m) => !isTimerMessage(m));
+		if (filtered.length === event.messages.length) return;
+		return { messages: filtered };
+	});
 
-	pi.on(
-		"before_agent_start",
-		traceHook<BeforeAgentStartEvent, BeforeAgentStartEventResult>(pi, "turn-timer.before_agent_start", () => {
-			turnStartMs = Date.now();
-		}),
-	);
+	pi.on("before_agent_start", () => {
+		turnStartMs = Date.now();
+	});
 
-	pi.on(
-		"agent_end",
-		traceHook<AgentEndEvent>(pi, "turn-timer.agent_end", (_event, ctx) => {
+	pi.on("agent_end", (_event, ctx) => {
 			const startedAt = turnStartMs;
 			turnStartMs = null;
 			if (startedAt === null) return;
@@ -125,6 +108,5 @@ export default function (pi: ExtensionAPI) {
 				setTimeout(() => emitWhenIdle(attemptsLeft - 1), 25);
 			};
 			setTimeout(() => emitWhenIdle(20), 0);
-		}),
-	);
+	});
 }

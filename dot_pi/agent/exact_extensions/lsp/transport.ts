@@ -3,8 +3,8 @@ import { createHash } from "node:crypto";
 import { readFileSync, statSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { DIAGNOSTICS_WAIT_MS, REQUEST_TIMEOUT_MS, SHUTDOWN_TIMEOUT_MS, STDERR_LIMIT, type CallHierarchyIncomingCall, type CallHierarchyItem, type CallHierarchyOutgoingCall, type CodeAction, type Diagnostic, type DocumentSymbol, type Hover, type InitializeResult, type JsonRpcId, type JsonRpcMessage, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type Location, type LocationLink, type OpenDocumentState, type Range, type ServerConfig, type SymbolInformation, type WorkspaceEdit } from "./protocol";
-import { lspPositionCandidates, normalizeDocumentSymbols, normalizeLocations, uriToPath } from "./utils";
+import { DIAGNOSTICS_WAIT_MS, REQUEST_TIMEOUT_MS, SHUTDOWN_TIMEOUT_MS, STDERR_LIMIT, type CallHierarchyIncomingCall, type CallHierarchyItem, type CallHierarchyOutgoingCall, type CodeAction, type Diagnostic, type DocumentSymbol, type Hover, type InitializeResult, type JsonRpcId, type JsonRpcMessage, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type Location, type LocationLink, type OpenDocumentState, type Range, type ServerConfig, type SymbolInformation, type WorkspaceEdit } from "./protocol.ts";
+import { lspPositionCandidates, normalizeDocumentSymbols, normalizeLocations, uriToPath } from "./utils.ts";
 
 function extractHoverContent(contents: Hover["contents"]): string { if (typeof contents === "string") return contents; if (Array.isArray(contents)) return contents.map((c) => typeof c === "string" ? c : c.value).filter(Boolean).join("\n\n"); return contents.value; }
 function settingForSection(settings: unknown, section: string | undefined): unknown {
@@ -27,7 +27,15 @@ export class LspClient {
   private diagnosticsByUri = new Map<string, Diagnostic[]>();
   private diagnosticsWaiters = new Map<string, Set<() => void>>();
 
-  constructor(private workspaceRoot: string, private config: ServerConfig, private commandPath: string) { this.workspaceRoot = resolve(workspaceRoot); }
+  private workspaceRoot: string;
+  private config: ServerConfig;
+  private commandPath: string;
+
+  constructor(workspaceRoot: string, config: ServerConfig, commandPath: string) {
+    this.workspaceRoot = resolve(workspaceRoot);
+    this.config = config;
+    this.commandPath = commandPath;
+  }
 
   async start(): Promise<InitializeResult> {
     this.process = spawn(this.commandPath, this.config.args, { cwd: this.workspaceRoot, env: { ...process.env, ...(this.config.env ?? {}), GOPATH: process.env.GOPATH || "" } });

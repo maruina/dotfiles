@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, extname, join, resolve } from "node:path";
-import type { Diagnostic, DocumentSymbol, ServerConfig } from "./protocol";
-import { diagnosticsDetails, findExecutable, flattenSymbols, isInsidePath, relativePath, symbolKindName } from "./utils";
+import type { Diagnostic, DocumentSymbol, ServerConfig } from "./protocol.ts";
+import { diagnosticsDetails, findExecutable, flattenSymbols, isInsidePath, relativePath, symbolKindName } from "./utils.ts";
 
 export function typescriptServerConfig(filePath: string, config: ServerConfig): ServerConfig {
   let dir = dirname(resolve(filePath));

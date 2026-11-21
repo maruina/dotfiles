@@ -9,7 +9,7 @@ import {
 	SelectList,
 	truncateToWidth,
 } from "@earendil-works/pi-tui";
-import { describe, type NumberedBlock } from "./blocks.js";
+import { describe, type NumberedBlock } from "./blocks.ts";
 
 const PREVIEW_LINES = 12;
 

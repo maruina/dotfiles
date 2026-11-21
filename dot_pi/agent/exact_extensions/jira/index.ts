@@ -20,7 +20,7 @@
  * Override via ATLASSIAN_API_KEY_REF, JIRA_EMAIL, JIRA_DOMAIN env vars.
  */
 
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 import { jiraRequest, JIRA_DOMAIN } from "./_client.ts";
@@ -226,7 +226,7 @@ export default function jiraExtension(pi: ExtensionAPI): void {
         signal,
       });
 
-      const trimmed = trimCreateResult(raw, JIRA_DOMAIN);
+      const trimmed = trimCreateResult(raw as Parameters<typeof trimCreateResult>[0], JIRA_DOMAIN);
       return {
         content: [{ type: "text" as const, text: JSON.stringify(trimmed, null, 2) }],
         details: { key: trimmed.key, project: params.project },

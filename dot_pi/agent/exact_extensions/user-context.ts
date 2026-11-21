@@ -1,9 +1,8 @@
-import type { BeforeAgentStartEvent, BeforeAgentStartEventResult, ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { execFile, execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
-import { traceHook } from "./_shared/tracing.ts";
 
 const execFileAsync = promisify(execFile);
 const JIRA_KEY_RE = /\b[A-Z][A-Z0-9]+-[0-9]+\b/g;
@@ -262,7 +261,7 @@ export default function (pi: ExtensionAPI) {
   let cachedRepoContext: CachedRepoContext | null = null;
   let repoContextFetchKey: string | null = null;
 
-  pi.on("before_agent_start", traceHook<BeforeAgentStartEvent, BeforeAgentStartEventResult>(pi, "user-context.before_agent_start", async (event, ctx) => {
+  pi.on("before_agent_start", async (event, ctx) => {
     if (!rexNamingState.attempted && ctx.mode === "tui" && process.env.REX_SESSION && process.env.REX_BLOCK) {
       rexNamingState.attempted = true;
       void runAsync("fish", ["-c", "rex-name-session"], rexNamingState.startupCwd, 3000);
@@ -411,5 +410,5 @@ export default function (pi: ExtensionAPI) {
 
     if (!response.message && !response.systemPrompt) return;
     return response;
-  }));
+  });
 }

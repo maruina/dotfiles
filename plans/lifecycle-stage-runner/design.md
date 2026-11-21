@@ -1,5 +1,5 @@
 # Lifecycle Stage Runner Design
-Status: Draft
+Status: Approved
 
 ## Problem
 `dot_pi/agent/exact_extensions/ship-conductor/` contains 11,973 lines of TypeScript and tests to run `/implement <plan-path>`. That extension maintains custom bidirectional RPC framing (`_spawn.ts`), child-only bridge tools (`lifecycle_request_decision` and `lifecycle_submit_outcome` in `_bridge.ts`), dual-mode bridge instructions across lifecycle prompts (`execute.md`, `simplify.md`, `verify.md`, `arp-review.md`, `arp-fix.md`), and per-slice `simplify` and `verify` state tracking (`_conductor.ts`, `_unit.ts`). Because the coordinator couples orchestration to custom RPC and slice-scoped verification, it is expensive to maintain and does not generalize to the interactive front half of the lifecycle (`/brainstorm`, `/systematic-review`, and `/plan`).

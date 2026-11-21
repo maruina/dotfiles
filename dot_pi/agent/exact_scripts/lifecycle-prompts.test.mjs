@@ -428,17 +428,22 @@ test("execute does not content-match non-plan arguments against worktree plans",
   ]);
 });
 
-test("verify scopes grouped plans to the slice and runs a final feature pass", () => {
-  const text = prompt("verify.md");
+test("direct execute hands off to the next slice or closes out the complete plan", () => {
+  requireMarkers(prompt("execute.md"), [
+    /record the provider-qualified writer ID for each completed slice/i,
+    /if tasks remain.*offer only `\/execute <absolute-plan-path>`.*do not offer.*simplify.*verify.*publication/is,
+    /after the last slice or an ungrouped plan.*offer `\/simplify <absolute-plan-path> --implemented-by <id>`.*repeat.*every distinct writer ID/is,
+  ]);
+});
 
-  requireMarkers(text, [
-    /no slice grouping verifies every acceptance scenario as today/i,
-    /deferred to slice N/,
-    /feature-level criteria against the design goals/i,
-    /reconstruct the cumulative state from the feature base, merged slices, and the current candidate/i,
-    /record the reconstruction method/i,
-    /return `BLOCKED` instead of guessing when reconstruction is impossible/i,
-    /multi-slice verdict names the slice it covers/i,
+test("direct verify checks the complete plan without weakening protocol-v3 slice scope", () => {
+  requireMarkers(prompt("verify.md"), [
+    /for a direct plan, require `--simplified-by`\. Incomplete execution tasks require `BLOCKED`/i,
+    /from the feature base.*every slice, including earlier slices/is,
+    /every in-scope Given\/When\/Then acceptance scenario.*failed command is `BLOCKED`/is,
+    /for slice scope.*review only that fixed unit from `Unit base commit`/is,
+    /for feature scope, verify the full candidate against pinned requirements/is,
+    /in direct mode.*caller-supplied private handoff JSON path outside the worktree.*only that file.*repository.*read-only/is,
   ]);
 });
 
@@ -448,10 +453,11 @@ test("verify gates the next execution handoff on plan prerequisites, keeps fixes
   requireMarkers(text, [
     /inspect the next incomplete task's `Blocked by` field and all explicit prerequisites/i,
     /if any prerequisite is unresolved.*recommend resolving it through `\/plan` or a user decision.*do not say to proceed with implementation/is,
+    /never publish on `BLOCKED`/i,
     /give the exact `\/execute <absolute-plan-path>` command/i,
     /do not give a worktree root as the plan argument/i,
     /`\/verify` is read-only for repository files and must not fix or commit/i,
-    /In direct mode, when the verdict is `VERIFIED`.*stack-split check from the `reviewable-pr-workflow` skill.*`\/pr-create --draft`/is,
+    /In direct mode, when the verdict is `VERIFIED` and the final state matches the initial snapshot.*stack-split check from the `reviewable-pr-workflow` skill.*unless the user explicitly said not to open a PR.*`\/pr-create --draft`.*`\/pr-update`/i,
     /offer `\/execute` as the follow-up/i,
     /only after the fix is implemented and independently verified/i,
     /\*\*Copy-paste follow-up:\*\* when \*\*Findings\*\* contains any finding/i,
@@ -1091,9 +1097,7 @@ test("execute offers simplify and direct verify handoffs with stable writer iden
   const execute = prompt("execute.md");
   requireMarkers(execute, [
     /optional `\/simplify` handoff/i,
-    /`\/simplify <absolute-plan-path> --implemented-by <id>`/,
     /`\/simplify --implemented-by <id> --task <quoted-original-request>`/,
-    /`\/verify <absolute-plan-path> --implemented-by <id>`/,
     /`\/verify --implemented-by <id> --task <quoted-original-request>`/,
     /preserve the original plan path or exact original task/i,
     /escape each embedded apostrophe as `\\'`/,
@@ -1108,7 +1112,11 @@ test("execute offers simplify and direct verify handoffs with stable writer iden
     /for planless work.*supplied `--task`.*do not infer.*diff/is,
     /when no code change.*do not write a ledger-only note or create an empty commit/is,
     /in `\/implement`, always submit the unchanged outcome.*parent still runs fresh verification/is,
-    /in direct mode.*earlier independent verdict.*exact candidate/is,
+    /planless.*earlier independent verdict.*exact candidate/is,
+    /repeatable `--implemented-by <id>`/i,
+    /direct plan-backed.*all execution tasks.*feature base/is,
+    /plan-backed.*fresh `\/verify` even when unchanged/is,
+    /repeat `--implemented-by <exec-id>` for every writer ID/i,
     /require a clean candidate worktree at stage start/i,
     /escape each embedded apostrophe as `\\'`/,
     /`\/verify <absolute-plan-path> --implemented-by <exec-id> --simplified-by <simp-id>`/,
@@ -1117,7 +1125,8 @@ test("execute offers simplify and direct verify handoffs with stable writer iden
 
   const verify = prompt("verify.md");
   requireMarkers(verify, [
-    /require `--implemented-by`/i,
+    /require at least one `--implemented-by`/i,
+    /repeatable `--implemented-by <id>`/i,
     /accept optional `--simplified-by`/i,
     /any writer ID matches the verifier.*`BLOCKED`/is,
     /`--task`.*remaining.*original task/is,

@@ -46,7 +46,7 @@ Change only what a plan step or user instruction requires. Follow repository pat
 
 For testable behavior, run a focused failing test first and make the smallest passing change. If you refactor after green, rerun verification.
 
-Complete the approved slice, including tests, documentation, verification, and PR readiness, or stop with a concrete blocker.
+Complete the approved slice and its checks, or stop with a concrete blocker.
 
 ## Slice execution
 A plan with no slice grouping executes all tasks as today and hands off once.
@@ -63,7 +63,7 @@ For a plan with `### Slice N` headings, read the plan, find the first slice with
 7. For plan-based execution, verify the worktree starts with committed `plans/<ticket-or-feature>/plan.md` (and sibling `design.md` when expected). If lifecycle docs are uncommitted or untracked, recover only when the sole uncommitted changes are expected lifecycle artifacts under `plans/<ticket-or-feature>/`, committing `design.md` first and `plan.md` second.
 8. Stop and ask if any uncommitted changes remain after recovery, or if concerns, blockers, or ambiguities exist before modifying files.
 9. **Execute —** Execute tasks in order (the first slice with incomplete tasks for a grouped plan, or the single approved change for bare-prompt trivial work).
-10. For each task, update plan checkboxes as work progresses, run the specified verification, and mark steps complete only after verification passes. For plan-based work, maintain an `### Execution` subsection under `## Skills loaded and used`, preserving the planning record; if no execution skill was needed, record that explicitly. For trivial bare prompts, track progress and skill provenance in chat.
+10. For each task, update plan checkboxes as work progresses, run the specified verification, and mark steps complete only after verification passes. For plan-based work, maintain an `### Execution` subsection under `## Skills loaded and used`, preserving the planning record. In direct mode, record the provider-qualified writer ID for each completed slice (or ungrouped execution) in the ledger before committing. For trivial bare prompts, track progress and skill provenance in chat.
 11. Complete the plan's documentation and future-agent guidance task, including every required `AGENTS.md` inspection (or decide whether docs are unnecessary for trivial bare prompts).
 12. **Prepare verification handoff —** Run the final implementation-evidence commands, inspect `git status`, and confirm plan fidelity (every task in the current execution unit is complete, requirements and operational checks match the plan's risk level, no unapproved scope added, and deviations documented in the plan ledger).
 13. Follow `## Handoff`. Do not run `/simplify` automatically in direct mode.
@@ -121,6 +121,6 @@ Implementation model: `<name> (<provider-qualified-id>)`
 
 Use one exact command per standalone `md` fenced block. Quote paths with spaces. Keep prose outside. Omit commands with missing arguments.
 
-In direct mode, offer an optional `/simplify` handoff: `/simplify <absolute-plan-path> --implemented-by <id>` or planless `/simplify --implemented-by <id> --task <quoted-original-request>`. If skipped, select another model with `/model`, start `/new`, confirm `## Current Model`, then run `/verify <absolute-plan-path> --implemented-by <id>` or planless `/verify --implemented-by <id> --task <quoted-original-request>`. Show only the applicable form.
+For a direct plan, if tasks remain, offer only `/execute <absolute-plan-path>` for the next unblocked slice; do not offer simplify, verify, or PR publication. After the last slice or an ungrouped plan, offer `/simplify <absolute-plan-path> --implemented-by <id>`; repeat `--implemented-by` for every distinct writer ID in the ledger. Do not guess missing IDs; ask.
 
-If simplify runs, follow its verify handoff with both writer IDs. Preserve the original plan path or exact original task; pass a task as one native Pi argument, single-quoted, and escape each embedded apostrophe as `\'`; quote paths with whitespace. If the requirements source or writer ID is missing, ask; do not guess. `/verify` collects fresh evidence. Do not ask it to commit, apply, repair, or reuse this execution evidence.
+For planless work, offer an optional `/simplify` handoff: `/simplify --implemented-by <id> --task <quoted-original-request>`. If skipped, select another model with `/model`, start `/new`, confirm `## Current Model`, then run `/verify --implemented-by <id> --task <quoted-original-request>`. If simplify runs, use its verify handoff. Preserve the original plan path or exact original task. Pass a task as one single-quoted Pi argument and escape each embedded apostrophe as `\'`.

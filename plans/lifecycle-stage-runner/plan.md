@@ -24,6 +24,17 @@
 | `write` | skill-loader | Plan | Distinguished behavior, evidence, and limits |
 | `explain` | agent-selected | Prompt-mode decision | Distinguished invocation inputs from shared prompt behavior |
 
+### Execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `skill-loader` | prompt-required | Execution workflow | Selected skills for the prompt and contract changes |
+| `resolve-worktree` | prompt-required | Explicit plan path | Resolved the feature worktree |
+| `feature-worktree` | prompt-required | Scoped writes | Kept the base checkout on `main` |
+| `codebase-research` | skill-loader | Shared lifecycle prompts | Inspected direct handoffs, bridge rules, and prompt/RPC tests |
+| `cli-best-practices` | skill-loader | Writer flags | Kept provenance explicit in each command |
+| `chezmoi` | skill-loader | Managed prompts | Kept edits in source; deferred apply to qualification |
+| `write` | skill-loader | Prompt and ledger prose | Made handoff conditions explicit |
+
 ## Implementation Contract
 Source: `plans/lifecycle-stage-runner/design.md` (updated to match the operator-approved manual-cadence change and colocated extension architecture). The four delivery slices below together implement **design Slice 1**. No relevant prior guidance matched the advisory lookup; no advisory source was skipped.
 
@@ -57,6 +68,8 @@ Owner: dotfiles operator. Trial candidate prompts and extension in a disposable 
 ## Delivery
 ### Slice 1: Follow the manual sequence without intermediate closeout
 ### Task 1: Change plan-backed handoffs and full-feature scope
+**Execution writer (Slice 1):** `openai/gpt-6.2-sol`.
+**Evidence:** The focused suite failed on four new contract checks before the prompt edits and passed all 67 tests after them. The first integration invocation reached the tool's 180-second limit during the RPC suite after 40 conductor tests passed. The rerun passed all 79 integration tests, including 20 real Pi 1.6.0 RPC tests. `git diff --check` passed. The explicit chezmoi preview showed only the three prompt targets and their contract test. Apply and the live manual trial remain deferred to qualification.
 **Delivers:** One manual execution slice at a time, then one feature-wide simplify and one independent verify.
 **Blocked by:** None
 **Traces to:** Shared cadence and manual PR decision.
@@ -69,8 +82,8 @@ The direct commands SHALL retain slice tests, defer closeout until execution com
 - GIVEN a committed plan with two incomplete slices, WHEN the first finishes, THEN offer the next `/execute`, not simplify, verify, or PR publication. After the last slice, hand off the full feature and writer identities through simplify to a fresh verifier. An ungrouped plan makes this handoff after its single execution. An unchanged simplify does not skip the verdict.
 - GIVEN an unmet criterion from the first slice, WHEN the final verifier reviews the candidate, THEN report `BLOCKED` and do not publish. On `VERIFIED` retain the existing snapshot, stack-split and no-PR checks before opening a draft or updating the PR.
 
-- [ ] Add focused failing prompt-contract assertions for both outcomes, multi-slice writer provenance (ledger writer-ID tracking in `execute.md` and repeatable `--implemented-by` in `simplify.md`/`verify.md`), explicit external handoff-file write permission in `verify.md`, planless compatibility, and the legacy protocol-v3 exception. Update superseded direct-mode per-slice assertions in `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs` (lines 431–460, 1090–1135) while preserving protocol-v3 and planless assertions. Update direct instructions and trim superseded slice-only or optional closeout text for plan-backed work so all three prompts stay within `lifecycle-prompts.test.mjs` byte budgets (`execute.md` ≤ 14,500 B, `simplify.md` ≤ 9,500 B, `verify.md` ≤ 13,700 B).
-- [ ] Run `cd dot_pi/agent && node --test exact_scripts/lifecycle-prompts.test.mjs`; expect new and updated contracts and byte budgets to pass. Run `npm run test:integration` there; expect legacy RPC behavior unchanged. After any refactor rerun the focused suite. Commit `feat(pi): simplify and verify after all execution slices`.
+- [x] Add focused failing prompt-contract assertions for both outcomes, multi-slice writer provenance (ledger writer-ID tracking in `execute.md` and repeatable `--implemented-by` in `simplify.md`/`verify.md`), explicit external handoff-file write permission in `verify.md`, planless compatibility, and the legacy protocol-v3 exception. Update superseded direct-mode per-slice assertions in `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs` (lines 431–460, 1090–1135) while preserving protocol-v3 and planless assertions. Update direct instructions and trim superseded slice-only or optional closeout text for plan-backed work so all three prompts stay within `lifecycle-prompts.test.mjs` byte budgets (`execute.md` ≤ 14,500 B, `simplify.md` ≤ 9,500 B, `verify.md` ≤ 13,700 B).
+- [x] Run `cd dot_pi/agent && node --test exact_scripts/lifecycle-prompts.test.mjs`; expect new and updated contracts and byte budgets to pass. Run `npm run test:integration` there; expect legacy RPC behavior unchanged. After any refactor rerun the focused suite. Commit `feat(pi): simplify and verify after all execution slices`.
 
 ### Slice 2: Run a plan hands-off and stop safely
 ### Task 2: Launch a bounded run and accept only validated stage transitions

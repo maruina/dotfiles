@@ -14,6 +14,7 @@ const INTEGRATION_TESTS = new Set([
   path.join(extDir, "ship-conductor", "_conductor.test.ts"),
   path.join(extDir, "ship-conductor", "_rpc.test.ts"),
   path.join(extDir, "ship-conductor", "_worktree.test.ts"),
+  path.join(extDir, "stage-runner", "_integration.test.ts"),
   path.join(extDir, "worktrunk", "activity.test.ts"),
 ]);
 

@@ -7,13 +7,15 @@ Verification input:
 
 > $ARGUMENTS
 
-Perform a fresh read-only closeout. In direct mode, require `--implemented-by` and accept optional `--simplified-by`. In orchestrated completion mode, use `Completion verification writers` from the stage contract. Treat writer IDs and `--task` as metadata, not paths. Return one verdict: `VERIFIED` or `BLOCKED`.
+Perform a fresh read-only closeout. Return one verdict: `VERIFIED` or `BLOCKED`.
 
 <HARD-GATE>
 Do not edit, format, generate, apply chezmoi state, stage, commit, switch branches, detach HEAD, or repair anything. Do not run formatter or linter fix modes. Do not push or open or update a PR before the final state comparison passes and the verdict is `VERIFIED`. If a check would mutate the selected worktree, do not run it; return `BLOCKED` instead. A repair invalidates all prior evidence: hand control back to `/execute` or the user, then require a completely fresh `/verify` run.
 </HARD-GATE>
 
 When validated orchestrated mode is active, `lifecycle_submit_outcome` may write its private report outside the candidate. Do not write the report file yourself or change candidate state.
+
+In direct mode, a caller-supplied private handoff JSON path outside the worktree permits writing the verdict to only that file in the requested schema (mode 0600). Keep repository files read-only.
 
 ## Lifecycle mode
 Only use the bridge when the injected stage contract validates protocol version 3, run ID, stage `verify`, pinned baseline, model, effective thinking, and both `lifecycle_request_decision` and `lifecycle_submit_outcome` tools are available. Stage scope can be slice or feature. If the contract is malformed, mismatched, or missing tools, stop and ask. Otherwise, use ordinary conversational approvals and manual handoffs.
@@ -22,23 +24,17 @@ In orchestration, validate `Pinned baseline commit`, `Pinned plan blob`, and `Pi
 
 ## Target resolution
 
-In direct mode, parse `--implemented-by <id>` and optional `--simplified-by <id>` before target resolution; require the former. Parse writer flags only before `--task`, which consumes all remaining text as the original task. In orchestrated completion mode, use the contract writer list instead of CLI flags. Use exactly one requirements source: a plan path or `--task`; otherwise return `BLOCKED`.
+In direct mode, require at least one `--implemented-by` before target resolution; accept repeatable `--implemented-by <id>` and accept optional `--simplified-by`. Parse writer flags only before `--task`, which consumes all remaining text as the original task. In orchestrated completion mode, use the contract writer list instead of CLI flags. Use exactly one requirements source: a plan path or `--task`; otherwise return `BLOCKED`.
 
 1. For a plan, use the `resolve-worktree` skill (`$GLOB = **/plans/*/plan.md`) and switch to its worktree. Direct mode reads the complete plan and sibling `design.md`; orchestration uses the pinned objects validated above. An unresolved path, blob, or unit blocks.
 2. For planless work, use the exact task from `/execute` or `/simplify`. Never infer it from a diff or summary; missing or ambiguous requirements block.
-3. Preserve writer provenance. In direct mode, preserve both CLI writer IDs; `--simplified-by` is optional only for direct execute-to-verify. In orchestrated feature scope, preserve all IDs from `Completion verification writers`. Never infer IDs.
+3. Preserve writer provenance. In direct mode, preserve all CLI writer IDs and check plan execution provenance against the ledger. In orchestrated feature scope, preserve all IDs from `Completion verification writers`. Never infer IDs.
 4. Select the base as in step 5, then run `node "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/scripts/lifecycle-git.mjs" snapshot --base <base>` before checks. Save its JSON as mode 0600 outside the worktree. It captures worktree, branch, HEAD, status, diff hashes, untracked file hashes, and candidate commits.
 5. Orchestration uses `Unit base commit` as the orchestrated slice base and `Pinned baseline commit` as the feature base for `Final verification`. Direct mode prefers explicit plan/task context, native parent from `gh stack status`, open-PR base from `gh`, then the repository default branch. Conflicting evidence blocks.
 6. Include commits from the base plus staged, unstaged, and intended untracked changes. Unexplained scope or an empty candidate blocks.
 
-## Slice scope
-A plan with no slice grouping verifies every acceptance scenario as today, with no separate final pass.
-
-For a plan with `### Slice N` headings, read the slice grouping and the current slice from the plan. Verify only the acceptance scenarios whose tasks belong to the current slice. Record scenarios belonging to later slices as `deferred to slice N`; they do not block.
-
-When the current slice is the final slice, also verify the plan's `Final verification` item: the feature-level criteria against the design goals. Reconstruct the cumulative state from the feature base, merged slices, and the current candidate, and record the reconstruction method. Return `BLOCKED` instead of guessing when reconstruction is impossible.
-
-A multi-slice verdict names the slice it covers.
+## Plan scope
+For a direct plan, require `--simplified-by`. Incomplete execution tasks require `BLOCKED`. Reconstruct the candidate from the feature base and verify every slice, including earlier slices, plus the feature-level criteria. Record how you reconstructed the candidate; return `BLOCKED` if you cannot establish the full scope. For an ungrouped plan, verify all its criteria in the same pass. The protocol-v3 bridge still uses its fixed unit or feature scope.
 
 ## Risk classification
 
@@ -55,7 +51,7 @@ Run only read-only, non-fixing checks. Record each as selected, passed, failed, 
 5. For chezmoi-managed changes, run targeted `chezmoi --source <resolved-worktree> diff <affected-targets>`; never run `chezmoi apply`.
 6. Inspect commands introduced by a suspicious or untrusted candidate before executing them; if safety cannot be established, report the command and return `BLOCKED`.
 
-For plan-backed work, trace every in-scope Given/When/Then acceptance scenario (the current slice's scenarios for a grouped plan, per Slice scope) to an implementation path, an observable automated test or supported executable check, and fresh passing output. Confirm the requirement, implementation, and test/check agree on the observable outcome. A test that would still pass with a plausible wrong implementation does not observe its stated result; examples are assertions that check only non-null, non-zero, or that a call occurred instead of the exact observable value. A scenario-shaped test that does not observe its stated result, missing coverage, contradictory implementation, or failed command is `BLOCKED`. Summarize passing requirements concisely; show scenario-level detail for gaps.
+For plan-backed work, trace every in-scope Given/When/Then acceptance scenario (per Plan scope or the validated bridge contract) to an implementation path, an observable automated test or supported executable check, and fresh passing output. Confirm the requirement, implementation, and test/check agree on the observable outcome. A test that would still pass with a plausible wrong implementation does not observe its stated result; examples are assertions that check only non-null, non-zero, or that a call occurred instead of the exact observable value. A scenario-shaped test that does not observe its stated result, missing coverage, contradictory implementation, or failed command is `BLOCKED`. Summarize passing requirements concisely; show scenario-level detail for gaps.
 
 ## Independent semantic review
 
@@ -76,14 +72,14 @@ After every selected check, repeat `snapshot --base <base>` to a second mode 060
 Report these sections:
 
 - **Target and scope:** worktree, branch, HEAD, base, requirements source, and committed/staged/unstaged/untracked scope.
-- **Risk and review:** behavior classification, semantic-review decision, implementation model and verifier model when required.
+- **Risk and review:** behavior classification, semantic-review decision, all writer IDs and the verifier model when required.
 - **Fresh evidence:** commands, results, requirements traceability, and selected/skipped/unavailable/inapplicable checks with reasons.
 - **Skills loaded and used:** recorded per the `## Provenance record` section of the `skill-loader` skill; explicitly state when none were needed.
 - **Findings:** blocking findings plus non-blocking or rejected findings and rationale.
 - **State comparison:** initial versus final snapshot.
 - **Next action:**
   - `/verify` is read-only for repository files and must not fix or commit. For confirmed, in-scope findings that need code or configuration changes, offer `/execute` as the follow-up; commit or push only after the fix is implemented and independently verified under the repository's completion workflow. Distinguish actionable findings from accepted non-blocking style advisories and environment/toolchain limitations; do not recommend changing the latter without approval and a valid scope.
-  - In direct mode, when the verdict is `VERIFIED` and the final state matches the initial snapshot, apply the stack-split check from the `reviewable-pr-workflow` skill to the verified candidate. If it trips, **stop and propose a stack plan** and ask whether to split before opening any PR. Otherwise, unless the user explicitly said not to open a PR, use `/pr-create --draft` to open a draft PR (or `/pr-update` when the branch already has a PR).
+  - Never publish on `BLOCKED`. In direct mode, when the verdict is `VERIFIED` and the final state matches the initial snapshot, apply the stack-split check from the `reviewable-pr-workflow` skill to the verified candidate. If it trips, **stop and propose a stack plan** and ask whether to split before opening any PR. Otherwise, unless the user explicitly said not to open a PR, use `/pr-create --draft` to open a draft PR (or `/pr-update` when the branch already has a PR).
   - For plan-backed work, inspect the next incomplete task's `Blocked by` field and all explicit prerequisites in the plan before recommending `/execute`. If any prerequisite is unresolved, name it and recommend resolving it through `/plan` or a user decision; do not say to proceed with implementation.
   - If the next task is unblocked, give the exact `/execute <absolute-plan-path>` command in a standalone `md` fenced block (quote paths with spaces, keep prose outside). Do not give a worktree root as the plan argument or paraphrase a task as an executable instruction. The next `/execute` session will select the next incomplete slice from the plan.
 - **Copy-paste follow-up:** when **Findings** contains any finding, include a self-contained prompt for a new execution session in a plain-text code block:

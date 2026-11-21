@@ -7,7 +7,7 @@ Target:
 
 > $ARGUMENTS
 
-Simplify code for clarity and maintainability while preserving behavior exactly. This is an opt-in refinement pass, distinct from the within-step "refactor after green" in `/execute`: it reviews the whole recent diff and improves it as a unit.
+Simplify code for clarity and maintainability while preserving behavior exactly. This pass is separate from refactoring within `/execute`.
 
 <HARD-GATE>
 Do not change behavior. Existing tests must pass before and after; run the focused tests for the touched code first, and again after simplifying. If no tests cover the touched code, say so and stop rather than guessing at behavior. Do not add features, abstractions, or configurability. Do not start on `main` or `master` without explicit user consent.
@@ -19,15 +19,15 @@ Only use the bridge when the injected stage contract validates protocol version 
 In orchestrated mode, require a clean candidate worktree at stage start. Validate the `Pinned baseline commit`, `Unit base commit`, `Pinned plan blob`, `Pinned design blob`, `Selected unit`, and `Selected task numbers`. Pinned objects define requirements; the current plan is only a ledger. Mismatch blocks without edits. Simplify only the fixed unit, scoped from `Unit base commit`; the broader diff is context only. Use `lifecycle_request_decision` only within scope. If rejected or dismissed, stop the stage without an outcome. For another blocker, submit the stage-appropriate `blocked` outcome. After checks and any required commit or push, submit exactly one `success` outcome with `change: changed` or `change: unchanged`. Unchanged means no commit; the parent still runs fresh verification.
 
 ## Handoff metadata
-`--implemented-by` is handoff metadata; `<exec-id>` carries execution identity. `--task <quoted-original-request>` carries exact planless requirements. Strip `--implemented-by`, `--task`, and `--base` before target resolution; treat everything after `--task` as literal text, not flags. A plan path is the requirements source when present; use `--task` only for planless work. Preserve the exact original task and base meaning.
+`--implemented-by` is handoff metadata. For a plan, accept repeatable `--implemented-by <id>` and preserve every writer ID. `--task` carries exact planless requirements. Strip `--implemented-by`, `--task`, and `--base` before target resolution; treat everything after `--task` as literal text, not flags. A plan path is the requirements source when present; use `--task` only for planless work. Preserve the exact original task and base meaning.
 
 ## Scope
-Default to recently changed code. Trace affected flows, invariants, callers, and canonical helpers beyond the diff, but edit only changed code and immediate context. Report broader opportunities instead of expanding scope. For planless work, use the supplied `--task` or exact original request; do not infer it from the diff or summary. Ask if neither is available.
+For direct plan-backed work, require all execution tasks complete and review the full implementation from the feature base. Stop if the base or writer provenance is unclear. Otherwise default to recently changed code. Trace affected flows and callers beyond the diff, but edit only changed code and immediate context. For planless work, use the supplied `--task` or exact original request; do not infer it from the diff or summary. Ask if neither is available.
 
 ## Target Resolution
 Resolve the first positional target after handoff metadata; switch to its worktree before reading or editing. `--base` sets the diff base, never the target.
 
-- **Plan** — use the `resolve-worktree` skill with `$GLOB = **/plans/*/plan.md`; review the branch diff, not only the plan file.
+- **Plan** — use the `resolve-worktree` skill with `$GLOB = **/plans/*/plan.md`.
 - **File** — use `resolve-worktree` (no glob); simplify only that file.
 - **Worktree/directory** — use `resolve-worktree` (no glob); simplify its branch diff.
 - **PR URL** — use `feature-worktree`; use the PR base unless `--base` overrides it.
@@ -56,14 +56,14 @@ A change must materially reduce reader concepts, branches, duplication, indirect
 ## Guardrail
 Simplicity serves the reader, not brevity. Keep useful abstractions, seams, and names. Do not harm debugging, error messages, or maintainability, or churn clear code.
 
-Skip cosmetic changes. If nothing is worth simplifying, make no code change. In direct mode, continue to Handoff and check whether fresh `/verify` is needed. In `/implement`, always submit the unchanged outcome; the parent still runs fresh verification.
+Skip cosmetic changes. If no change is needed, continue to Handoff. In `/implement`, always submit the unchanged outcome; the parent still runs fresh verification.
 
 ## Commit
 Snapshot `git status --porcelain=v1 --untracked-files=all`. Commit changed simplifications only if the worktree started clean:
 - After tests pass, stage only files changed here and commit with a descriptive `refactor:` message.
 - If code changed with a plan, add a short ledger note in that commit so `/verify` can account for it. Record a learning candidate with the `learning-candidates` skill if a materially simpler path was initially missed.
 - Push only when the branch has an open PR or configured upstream; never force-push. Otherwise report that the commit is local.
-- When no code change was made, do not write a ledger-only note or create an empty commit. Report unchanged. In direct mode, run fresh `/verify` unless an earlier independent verdict covers this exact candidate. In `/implement`, always submit the unchanged outcome; the parent still runs fresh verification.
+- When no code change was made, do not write a ledger-only note or create an empty commit. Report unchanged.
 
 If the worktree started dirty, do not commit; report changes as uncommitted with the pre-existing changes.
 
@@ -77,14 +77,12 @@ Summarize the diff, tests before and after, items left alone, and commit message
 
 In orchestrated mode, submit the structured result; the parent always starts fresh `/verify`, including after unchanged simplification.
 
-In direct mode, report unchanged work without a commit. An earlier independent `/verify` verdict remains valid only for the exact candidate and requirements; if none covers it, use the fresh handoff below. Any changed candidate invalidates earlier verdicts.
+In direct mode, plan-backed work requires a fresh `/verify` even when unchanged. For planless work, an earlier independent verdict remains valid only for the exact candidate and requirements. Use the original plan path or exact task. If the requirements or any `--implemented-by` ID is missing, ask the user before emitting `/verify`; do not infer it. Report all execution IDs and the stable provider-qualified simplification ID from `## Current Model`; ask if it is missing.
 
-For any fresh verification, use this session's plan path; otherwise resolve it in the worktree or use the open PR's plan. For planless work, use the exact original task. If no plan/task or `--implemented-by` is available, ask the user before emitting `/verify`; do not infer it. Carry the execution ID and stable provider-qualified simplification ID from `## Current Model`; ask if either is missing:
-
-Execution model ID: `<exec-id>`
+Execution model IDs: `<exec-id>`
 Simplification model: `<name> (<simp-id>)`
 
-- `/verify <absolute-plan-path> --implemented-by <exec-id> --simplified-by <simp-id>`
+- `/verify <absolute-plan-path> --implemented-by <exec-id> --simplified-by <simp-id>`; repeat `--implemented-by <exec-id>` for every writer ID.
 - `/verify --implemented-by <exec-id> --simplified-by <simp-id> --task <quoted-original-request>`
 
-Quote the task as one single-quoted Pi argument and escape each embedded apostrophe as `\'`. Preserve whitespace, quotes, flags, and literal `$ARGUMENTS`. For manual verification, run `/model`, pick a model different from both writers, run `/new`, and confirm `## Current Model`. An orchestrated verifier is fresh without a literal `/new` command.
+Quote the task as one single-quoted Pi argument and escape each embedded apostrophe as `\'`. Preserve whitespace, quotes, flags, and literal `$ARGUMENTS`. For manual verification, run `/model`, pick a model different from every writer, run `/new`, and confirm `## Current Model`. An orchestrated verifier is fresh without a literal `/new` command.

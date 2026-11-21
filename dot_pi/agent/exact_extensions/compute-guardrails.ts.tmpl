@@ -52,9 +52,13 @@ export default function (pi: ExtensionAPI) {
       ? `${hit.tool} ${hit.sub.join(" ")}`
       : hit.tool;
 
+    const recovery = hit.tool === "rm"
+      ? "To remove the repository’s disposable Pi dependencies, run `rm -rf dot_pi/agent/node_modules` from the repository root. Give `rm` one literal path. This exception does not apply to `~/.pi/agent/node_modules`. For other blocked deletions, ask the user to run the command manually if needed."
+      : "Run this command manually in a terminal if you need it.";
+
     return {
       block: true,
-      reason: `[compute-guardrails] blocked: \`${subLabel}\` — ${hit.reason}. Run this command manually in a terminal if you need it.`,
+      reason: `[compute-guardrails] blocked: \`${subLabel}\` — ${hit.reason}. ${recovery}`,
     };
   });
 {{ end }}

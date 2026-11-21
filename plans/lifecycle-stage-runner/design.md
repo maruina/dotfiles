@@ -49,7 +49,7 @@ Build the deterministic stage runner (`pi --mode json` + live progress formatter
 
 ## Design overview
 ### Architecture
-The runner is a deterministic Node.js/TypeScript CLI script (with an optional thin Pi command wrapper for upfront model selection from `ctx.scopedModels`). It makes no model calls of its own. All lifecycle judgment stays in the stage prompts (`execute.md`, `simplify.md`, `verify.md`) and the user.
+The runner is a deterministic TypeScript module colocated under `dot_pi/agent/exact_extensions/stage-runner/` (`index.ts`, `_runner.ts`, `_recovery.ts`) and exposed as `/stage-runner` for upfront model selection from `ctx.scopedModels`, live progress, approval prompts, and cancellation. It makes no model calls of its own. All lifecycle judgment stays in the stage prompts (`execute.md`, `simplify.md`, `verify.md`) and the user.
 
 ```text
 [Runner (deterministic script)]
@@ -127,8 +127,8 @@ When a stage stops (non-zero exit, missing/invalid handoff JSON, `status: "block
 - **Observability:** Print concise stage, slice, tool, and elapsed-time lines to the invoking Rex pane; persist full stage stderr (bounded to 16 KiB) and handoff JSONs in the run directory for post-mortem inspection. For each advance, record the stage and attempt and distinguish a validated writer success handoff, explicit operator acceptance of a recovered writer, and a fresh `VERIFIED` verdict. Pane closure is not evidence of approval.
 
 ## Rollout and rollback
-- **Rollout (Slice 1):** Develop and verify in a disposable feature worktree, run unit tests (`npm test`, `npm run typecheck`) and one authenticated live trial, then apply only the new files under `dot_pi/agent/` via `chezmoi --source "$PWD" apply <explicit-targets>`. Keep `ship-conductor` and `/implement` intact until Slice 2. When Slice 2 retires `ship-conductor` before Slice 4 lands, `/implement` stops at `VERIFIED` in both profiles and work-profile users manually publish and handle PR/ARP review during that interim window.
-- **Rollback (Slice 1):** Revert the new runner files and apply the same explicit chezmoi targets. Existing `/implement` (`ship-conductor`) and direct `/execute`, `/simplify`, `/verify` prompts remain unaffected.
+- **Rollout (Slice 1):** Develop and verify in a disposable feature worktree, run unit and integration tests (`npm test`, `npm run test:integration`, `npm run typecheck`) and one authenticated live trial, then apply only the changed explicit targets under `dot_pi/agent/` (the updated direct prompts `execute.md`, `simplify.md`, `verify.md`, updated `AGENTS.md` guidance, and the new `stage-runner` extension targets) via `chezmoi --source "$PWD" apply <explicit-targets>`. Keep `ship-conductor` and `/implement` intact as fallback until Slice 2. When Slice 2 retires `ship-conductor` before Slice 4 lands, `/implement` stops at `VERIFIED` in both profiles and work-profile users manually publish and handle PR/ARP review during that interim window.
+- **Rollback (Slice 1):** Restore the three direct prompts and guidance from the prior revision, remove the new `stage-runner` targets, and apply the same explicit chezmoi targets. Existing `/implement` (`ship-conductor`) remains unaffected.
 
 ## Security and data handling
 - Run directories, handoff files, and persisted stage sessions stay local under `~/.pi/agent/lifecycle-runs/` (`0700`/`0600`) and the runner neither commits them to the target repository nor uploads them. Local file permissions protect data at rest; Pi can include content it reads in requests to its configured model provider.

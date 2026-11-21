@@ -112,6 +112,7 @@ The runner SHALL advance only on a successful process and stage-specific evidenc
 
 ### Slice 3: Resume a writer or start independent recovery
 ### Task 3: Recover with owned Rex processes and explicit evidence
+- [x] Slice 3 follow-up (`openai/gpt-6.2-astra`): When execute reports success without committed task progress, resume the original writer if its session is available. Recheck progress against the original attempt before asking for approval. Both new fixture-process tests failed before the change. After the fix, all 31 focused tests and `npm run typecheck` passed. The authenticated trial remains in Slice 4.
 **Execution writer (Slice 3):** `openai/gpt-6.2-astra`. Operator decision: if the verifier leaves a different HEAD, branch, or worktree status, preserve the work and stop without recovery, regardless of its exit or verdict.
 **Evidence:** The dirty and committed verifier-edit cases failed before the snapshot gate. The writer and verifier fixture cases failed before recovery was connected. After formatting, 29 focused tests and `npm run typecheck` passed. The cancellation fixture ignored SIGTERM and recorded the PID before SIGKILL. The tests used fixture Pi and Rex processes; the authenticated trial remains in Slice 4.
 **Delivers:** Interactive recovery that preserves work and never turns the verifier conversation into a writer.

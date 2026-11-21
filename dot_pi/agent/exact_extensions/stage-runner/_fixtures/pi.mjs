@@ -7,7 +7,14 @@ fs.appendFileSync(process.env.ARGV_LOG, JSON.stringify(args) + "\n");
 const fail = process.env.FAIL,
   writer = fail.startsWith("recover-") && !["recover-verify", "recover-limit", "recover-blocked"].includes(fail);
 const option = (name) => args[args.indexOf(name) + 1];
+function completeTask() {
+  const file = "plans/demo/plan.md";
+  fs.writeFileSync(file, fs.readFileSync(file, "utf8").replace("- [ ]", "- [x]"));
+  execFileSync("git", ["commit", "-qam", "complete task"]);
+}
+const noProgress = fail.startsWith("recover-progress") && !fs.existsSync(process.env.ARGV_LOG + ".once");
 if (!args.includes("--mode")) {
+  if (fail === "recover-progress") completeTask();
   const file = args.includes("--session") ? option("--session") : option("--session-dir") + "/fresh.jsonl";
   if (!args.includes("--session"))
     fs.writeFileSync(file, JSON.stringify({ type: "session", id: "fresh", cwd: process.cwd() }) + "\n", {
@@ -40,11 +47,8 @@ if (stage === "verify" && fail === "recover-limit") process.exit(1);
 if (process.env.FAIL !== "header") console.log(JSON.stringify({ type: "session", id: "fixture-1" }));
 if (process.env.FAIL === "hang" || process.env.FAIL === "timeout")
   await new Promise((resolve) => setTimeout(resolve, 30000));
-if (stage === "execute" && process.env.FAIL !== "progress") {
-  const file = "plans/demo/plan.md";
-  fs.writeFileSync(file, fs.readFileSync(file, "utf8").replace("- [ ]", "- [x]"));
-  execFileSync("git", ["commit", "-qam", "complete task"]);
-}
+if (noProgress) fs.writeFileSync(process.env.ARGV_LOG + ".once", "1");
+if (stage === "execute" && process.env.FAIL !== "progress" && !noProgress) completeTask();
 if (process.env.FAIL === "dirty") fs.writeFileSync("untracked", "dirty");
 if (
   (failedWriter && !fs.existsSync(process.env.ARGV_LOG + ".once")) ||

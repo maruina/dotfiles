@@ -20,6 +20,8 @@ for (const failure of [
   "started",
   "timeout",
   "recover-writer",
+  "recover-progress",
+  "recover-progress-unfixed",
   "recover-simplify",
   "recover-verify",
   "recover-blocked",
@@ -80,6 +82,7 @@ for (const failure of [
       await new Promise<void>((resolve, reject) => server.once("error", reject).listen(socket, resolve));
       t.after(() => server.close());
     }
+    let approvals = 0;
     const result = run({
       ...options,
       env: {
@@ -89,7 +92,10 @@ for (const failure of [
         REX_BLOCK: "block:anchor",
       },
       rexCommand: [process.execPath, path.join(import.meta.dirname, "_fixtures/rex.mjs")],
-      approve: async () => failure !== "recover-refuse",
+      approve: async () => {
+        approvals++;
+        return failure !== "recover-refuse";
+      },
     });
     if (failure === "hang") {
       for (let i = 0; i < 200 && !fs.existsSync(log); i++) await delay(10);
@@ -102,8 +108,9 @@ for (const failure of [
       controller.abort();
     }
     const stopped =
-      recovering && !["recover-verify", "recover-writer", "recover-blocked", "recover-simplify"].includes(failure);
-    if (stopped) await assert.rejects(result);
+      recovering && !["recover-verify", "recover-writer", "recover-progress", "recover-blocked", "recover-simplify"].includes(failure);
+    if (failure === "recover-progress-unfixed") await assert.rejects(result, /No committed task progress/);
+    else if (stopped) await assert.rejects(result);
     else if (failure.startsWith("verify-")) await assert.rejects(result, /Verifier Git snapshot changed/);
     else if (failure && !recovering) await assert.rejects(result);
     else await result;
@@ -127,6 +134,7 @@ for (const failure of [
       assert.equal(fs.existsSync(path.join(bundle, "completed")), failure !== "recover-uncertain");
       if (failure === "recover-cancel")
         assert.equal(fs.readFileSync(log + ".term", "utf8"), fs.readFileSync(log + ".ready", "utf8"));
+      if (failure.startsWith("recover-progress")) assert.equal(approvals, failure === "recover-progress" ? 1 : 0);
       if (stopped) {
         assert.equal(
           interactive.length,
@@ -138,7 +146,7 @@ for (const failure of [
       assert.equal(interactive.length, failure === "recover-verify" ? 2 : 1);
       for (const a of interactive) {
         assert.equal(a[a.indexOf("--model") + 1], "a");
-        if (failure === "recover-writer" || failure === "recover-simplify")
+        if (["recover-writer", "recover-progress", "recover-simplify"].includes(failure))
           assert.equal(
             a[a.indexOf("--session") + 1],
             fs.realpathSync(

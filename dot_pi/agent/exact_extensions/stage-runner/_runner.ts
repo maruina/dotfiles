@@ -330,6 +330,11 @@ export async function run(o: Options) {
         clean();
         verifies++;
       }
+      function committedProgress(head: string) {
+        const next = unchecked(git("show", head + ":" + rel));
+        if (prev === head || next.length >= remaining.length) throw Error("No committed task progress");
+        return next;
+      }
       let recovered = false;
       try {
         try {
@@ -337,6 +342,7 @@ export async function run(o: Options) {
           const h = handoff(out, stage);
           if (!["success", "VERIFIED"].includes(h.status)) throw Error(JSON.stringify(h));
           if (stage !== "verify") clean();
+          if (stage === "execute") committedProgress(git("rev-parse", "HEAD"));
         } finally {
           if (stage === "verify") {
             const head = git("rev-parse", "HEAD"),
@@ -439,8 +445,7 @@ export async function run(o: Options) {
       if (stage === "verify" && head !== prev) throw Error("Verifier changed HEAD");
       const before = remaining;
       if (stage === "execute") {
-        const next = unchecked(git("show", "HEAD:" + rel));
-        if (prev === head || next.length >= remaining.length) throw Error("No committed task progress");
+        const next = committedProgress(head);
         if (next.length && (n >= 20 || !/^### Slice \d+/m.test(initial)))
           throw Error("Execute limit; remaining: " + safe(next.join("; ")));
         remaining = next;

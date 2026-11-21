@@ -356,22 +356,31 @@ export async function run(o: Options) {
         }
       } catch (error) {
         signal.throwIfAborted();
-        if (stage === "verify" && (!snapshotChecked || verifies === 3)) throw error;
-        if (stage === "verify") {
+        const fresh = stage === "verify";
+        if (fresh) {
+          if (!snapshotChecked || verifies === 3) throw error;
           clean();
           if (git("rev-parse", "HEAD") !== prev) throw Error("Verifier snapshot unavailable or changed");
         }
-        const fresh = stage === "verify",
-          model = fresh ? o.models.execute : o.models[stage];
+        const model = fresh ? o.models.execute : o.models[stage];
         const sessions = path.join(folder, fresh ? "recovery-sessions" : "sessions");
-        if (!fresh && !fs.existsSync(path.join(folder, "session-id")))
-          throw Error(String(error) + "; no saved session header");
-        const expected = fresh ? undefined : fs.readFileSync(path.join(folder, "session-id"), "utf8");
-        if (fresh) fs.mkdirSync(sessions, { mode: 0o700 });
-        let saved: ReturnType<typeof sessionInfo> | undefined;
-        if (!fresh) {
+        const failureFile = path.join(folder, "failure.txt");
+        let expected: string | undefined;
+        let recoveryArgs: string[];
+        if (fresh) {
+          fs.mkdirSync(sessions, { mode: 0o700 });
+          recoveryArgs = [
+            "Repair the feature without publishing. Read failure details in " +
+              failureFile +
+              "; artifacts and bounded stderr: " +
+              folder,
+          ];
+        } else {
+          const header = path.join(folder, "session-id");
+          if (!fs.existsSync(header)) throw Error(String(error) + "; no saved session header");
+          expected = fs.readFileSync(header, "utf8");
           try {
-            saved = sessionInfo(sessions, cwd, expected);
+            recoveryArgs = ["--session", sessionInfo(sessions, cwd, expected).file];
           } catch (e) {
             throw Error(String(error) + "; " + String(e));
           }
@@ -398,16 +407,9 @@ export async function run(o: Options) {
           model.thinking,
           "--session-dir",
           sessions,
-          ...(saved
-            ? ["--session", saved.file]
-            : [
-                "Repair the feature without publishing. Read failure details in " +
-                  path.join(folder, "failure.txt") +
-                  "; artifacts and bounded stderr: " +
-                  folder,
-              ]),
+          ...recoveryArgs,
         ];
-        privateFile(path.join(folder, "failure.txt"), String(error).slice(0, 65536));
+        privateFile(failureFile, String(error).slice(0, 65536));
         await recovery({
           cwd,
           env: o.env ?? process.env,

@@ -1,4 +1,4 @@
-import type { BeforeAgentStartEvent, BeforeAgentStartEventResult, ContextEvent, ExtensionAPI, ExtensionContext, SessionCompactEvent, SessionStartEvent, SessionTreeEvent, Skill, ToolCallEvent, ToolCallEventResult, ToolResultEvent } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { getAgentDir, isToolCallEventType } from "@earendil-works/pi-coding-agent";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -6,22 +6,12 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "nod
 import { Text } from "@earendil-works/pi-tui";
 import { findLocalSibling, walkUpForAgents } from "./_agents.ts";
 import { blockingPaths, clearPending, compactionReset, confirmDelivered, confirmDirectDelivery, createState, discover, queue, rebuildFromBranch, recordDirectPending, snapshotState, STATE_ENTRY_TYPE } from "./_delivery.ts";
-import {
-  isIgnored,
-  loadAgentsIgnore,
-  loadRuleIgnore,
-  loadSkillIgnore,
-} from "./_ignores.ts";
-import { exciseContextBlock, pruneEmptySection } from "./_inject.ts";
 import { defaultRuleSources, findMatchingRules } from "./_rules.ts";
-import { traceHook } from "../_shared/tracing.ts";
-import { filterSkillsFromPrompt } from "./_skills.ts";
 import {
   contextKind,
   formatContextKitAggregate,
   formatContextKitStatus,
   type ContextKitDiscovery,
-  type IgnoredContextFile,
   type InjectedContextFile,
 } from "./_status.ts";
 import {
@@ -32,30 +22,25 @@ import {
 } from "./_usage.ts";
 
 /**
- * Context-kit — per-session policy over which context blocks appear in the
- * prompt this session, and how.
+ * Context-kit — per-session policy over which context blocks are delivered in
+ * this session, and how.
  *
  * Prompt-caching strategy
  * ───────────────────────
  * Anthropic caches the longest matching prefix of the full input
  * (system-prompt + conversation history). Any change to the system prompt
  * invalidates the cache for ALL subsequent content — including every prior
- * conversation turn. We therefore keep system-prompt modifications to an
- * absolute minimum and deliver reactively-discovered context (subdir
- * AGENTS.md, AGENTS.local.md siblings, rules) as custom messages that persist
- * naturally in conversation history. The TUI shows compact paths, not contents.
+ * conversation turn. Context-kit never mutates the system prompt; it delivers
+ * local siblings, nested instruction files, and path-scoped rules as custom
+ * messages that persist naturally in conversation history. The TUI shows
+ * compact paths, not contents.
  *
  * ┌─────────────────────────────────────────────────────────────────────┐
- * │  Prompt layer    │ Operation       │ When                           │
+ * │  Layer           │ Operation       │ When                           │
  * ├─────────────────────────────────────────────────────────────────────┤
- * │  System prompt   │ Excise block    │ agentsignore matches a Pi-     │
- * │  (rare, stable)  │                 │ loaded AGENTS.md — rare, only  │
- * │                  │                 │ when .pi/agentsignore exists   │
- * │                  │ Filter skills   │ When .pi/skillignore matches   │
- * │                  │                 │ the skill path                 │
- * ├─────────────────────────────────────────────────────────────────────┤
- * │  Messages        │ Steer delivery  │ First applicable access;       │
- * │  (cached prefix) │                 │ confirm before mutation retry  │
+ * │  Messages        │ Startup sibling │ Before first model call        │
+ * │  (cached prefix) │ Steer delivery  │ First applicable tool access;  │
+ * │                  │                 │ confirm before mutation retry  │
  * ├──────────────────┼─────────────────┼────────────────────────────────┤
  * │  Delivery state  │ Branch snapshot │ Restore/tree; reset loaded     │
  * │                  │                 │ paths after compaction         │
@@ -70,24 +55,16 @@ import {
  * conversation messages, so it does not change the cached system-prompt prefix.
  * The TUI renders a compact tree of paths and kinds, never file contents.
  *
- * Consolidates four formerly-separate extensions:
+ * Consolidates three context-delivery behaviors:
  *
- *   1. AGENTS.md override — `AGENTS.local.md` siblings extend (and, with
- *      `agentsignore`, override) team-shared `AGENTS.md`. Replaces the
- *      bespoke `AGENTS.override.md` convention.
- *   2. AGENTS.md discovery — subdir `AGENTS.md` files Pi's startup walk-up
- *      doesn't see are reactively injected as messages when the agent touches
- *      files under them.
- *   3. Rules — Claude (`.claude/rules/`) and Cursor (`.cursor/rules/`)
- *      rule files whose `paths:` / `globs:` frontmatter affirmatively
+ *   1. Local siblings — `AGENTS.local.md` and `CLAUDE.local.md` siblings
+ *      extend team-shared `AGENTS.md` / `CLAUDE.md`.
+ *   2. Nested instruction discovery — subdir `AGENTS.md` / `CLAUDE.md` files
+ *      below cwd are reactively injected when the agent touches files under them.
+ *   3. Path-scoped rules — Claude (`.claude/rules/`) and Cursor
+ *      (`.cursor/rules/`) rule files whose `paths:` / `globs:` frontmatter
  *      matches a touched file are injected as messages.
- *   4. Skill filtering — `.pi/skillignore` (gitignore-style) excises
- *      `<skill>...</skill>` blocks from `<available_skills>`.
- *
- * See `AGENTS.md` (top of repo) for the full design rationale.
  */
-
-type ToolResultEventResult = { content?: never; details?: never; isError?: never };
 
 const CONTEXT_KIT_CUSTOM_TYPE = "context-kit-discovery";
 const MAX_FILE_BYTES = 24 * 1024;
@@ -110,19 +87,12 @@ export default function (pi: ExtensionAPI) {
   let piContextPaths = new Set<string>();
   const startupSiblingPaths = new Set<string>();
   let injectedFiles: InjectedContextFile[] = [];
-  const ignoredFiles = new Map<string, IgnoredContextFile>();
   let injectionMessages = 0;
   let blockedMutations = 0;
-  // Count of files first recorded as ignored this turn. Reset at the top of
-  // each before_agent_start; used to decide whether to persist the usage
-  // record even when nothing was injected.
-  let newIgnoresThisTurn = 0;
 
   // Usage store: one record per session, aggregated by /context-kit status to
   // show whether the extension earns its keep. The dir is overridable via env
   // var so tests can point at a temp dir instead of the real ~/.pi/agent.
-  // Historical sessions are backfilled once via the `backfill-context-kit-usage`
-  // script; the extension itself only persists live records and reads them back.
   const usageDir = process.env.PI_CONTEXT_KIT_USAGE_DIR ?? join(getAgentDir(), "context-kit-usage");
 
   const persistState = () => pi.appendEntry(STATE_ENTRY_TYPE, snapshotState(state));
@@ -140,18 +110,8 @@ export default function (pi: ExtensionAPI) {
     blockedMutations = 0;
   };
 
-  const recordIgnored = (
-    path: string,
-    discovery: ContextKitDiscovery,
-    reason: IgnoredContextFile["reason"],
-  ) => {
-    if (ignoredFiles.has(path)) return;
-    ignoredFiles.set(path, { path, kind: contextKind(path), discovery, reason });
-    newIgnoresThisTurn++;
-  };
-
   pi.registerCommand("context-kit", {
-    description: "Show context-kit injections and ignored files for this session",
+    description: "Show context-kit injections for this session",
     handler: async (args, ctx) => {
       const action = (args || "status").trim().toLowerCase();
       if (action !== "status") {
@@ -165,7 +125,6 @@ export default function (pi: ExtensionAPI) {
           injectionMessages,
           blockedMutations,
           injected: injectedFiles,
-          ignored: [...ignoredFiles.values()],
         }) +
         "\n\n" +
         formatContextKitAggregate(records, homedir());
@@ -173,16 +132,16 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
-  pi.on("session_start", traceHook<SessionStartEvent>(pi, "context-kit.session_start", async (_event, ctx) => {
+  pi.on("session_start", async (_event, ctx) => {
     rebuildState(ctx);
     restoreUsage(ctx);
-  }));
+  });
 
-  pi.on("session_tree", traceHook<SessionTreeEvent>(pi, "context-kit.session_tree", async (_event, ctx) => {
+  pi.on("session_tree", async (_event, ctx) => {
     rebuildState(ctx);
-  }));
+  });
 
-  pi.on("session_compact", traceHook<SessionCompactEvent>(pi, "context-kit.session_compact", async (_event) => {
+  pi.on("session_compact", async (_event) => {
     const hadLoadedPaths = state.loaded.size > 0;
     const paths = compactionReset(state);
     if (hadLoadedPaths) persistState();
@@ -193,9 +152,9 @@ export default function (pi: ExtensionAPI) {
       display: true,
       details: { paths },
     });
-  }));
+  });
 
-  pi.on("tool_call", traceHook<ToolCallEvent, ToolCallEventResult>(pi, "context-kit.tool_call", async (event, ctx) => {
+  pi.on("tool_call", async (event, ctx) => {
     let filePath: string | undefined;
     let isMutation = false;
     if (isToolCallEventType("read", event)) {
@@ -213,7 +172,6 @@ export default function (pi: ExtensionAPI) {
     let abs: string;
     const applicable: Array<{ path: string; content: string; file: InjectedContextFile }> = [];
     const discoveredPaths: string[] = [];
-    const ignoredMatches: Array<{ path: string; discovery: ContextKitDiscovery; reason: IgnoredContextFile["reason"] }> = [];
     const unreadablePaths: string[] = [];
     try {
       cwd = resolve(ctx.cwd);
@@ -225,17 +183,10 @@ export default function (pi: ExtensionAPI) {
       // `..`-prefixed rel = path escapes cwd, no business injecting context.
       if (relFromCwd === "" || relFromCwd.startsWith("..")) return;
 
-      const agentsIgnore = loadAgentsIgnore(cwd);
-      const ruleIgnore = loadRuleIgnore(cwd);
       const seen = new Set<string>();
-      const addApplicable = (path: string, source: ContextKitDiscovery, ignoreRules: boolean) => {
+      const addApplicable = (path: string, source: ContextKitDiscovery) => {
         if ((path === abs && isContextKitFile(path)) || piContextPaths.has(path) || seen.has(path)) return;
         seen.add(path);
-        const matcher = ignoreRules ? ruleIgnore : agentsIgnore;
-        if (isIgnored(matcher, path, cwd)) {
-          ignoredMatches.push({ path, discovery: source, reason: ignoreRules ? ".pi/ruleignore" : ".pi/agentsignore" });
-          return;
-        }
         discoveredPaths.push(path);
         const content = readContent(path);
         if (content === null) {
@@ -250,20 +201,19 @@ export default function (pi: ExtensionAPI) {
       };
 
       for (const agentsPath of walkUpForAgents(dirname(abs), cwd)) {
-        addApplicable(agentsPath, "nested instruction discovery", false);
+        addApplicable(agentsPath, "nested instruction discovery");
         const local = findLocalSibling(agentsPath);
-        if (local) addApplicable(local, "nested instruction discovery", false);
+        if (local) addApplicable(local, "nested instruction discovery");
       }
-      for (const local of startupSiblingPaths) addApplicable(local, "Pi-loaded local sibling", false);
+      for (const local of startupSiblingPaths) addApplicable(local, "Pi-loaded local sibling");
       for (const rule of findMatchingRules({ filePath: abs, cwd, sources: defaultRuleSources(cwd) }).sort((a, b) => a.path.localeCompare(b.path))) {
-        addApplicable(rule.path, "path-scoped rule match", true);
+        addApplicable(rule.path, "path-scoped rule match");
       }
     } catch (error) {
       warn(ctx, `context-kit: discovery skipped (${error instanceof Error ? error.message : String(error)})`);
       return;
     }
 
-    for (const ignored of ignoredMatches) recordIgnored(ignored.path, ignored.discovery, ignored.reason);
     if (unreadablePaths.length > 0) warn(ctx, `context-kit: could not read ${unreadablePaths.join(", ")}`);
 
     if (discover(state, discoveredPaths)) persistState();
@@ -294,25 +244,23 @@ export default function (pi: ExtensionAPI) {
       injectedFiles.push(...batch.blocks.map((block) => block.file));
     }
 
-    if (batch.blocks.length > 0 || newIgnoresThisTurn > 0) {
+    if (batch.blocks.length > 0) {
       saveUsageRecord(usageDir, {
         sessionId: ctx.sessionManager.getSessionId(),
         cwd,
         mtime: Date.now(),
         injectionMessages,
         injected: injectedFiles,
-        ignored: [...ignoredFiles.values()],
       });
-      newIgnoresThisTurn = 0;
     }
 
     if (isMutation && blocking.length > 0) {
       blockedMutations++;
       return { block: true, reason: blockReason(abs, blocking) };
     }
-  }));
+  });
 
-  pi.on("context", traceHook<ContextEvent, { messages?: ContextEvent["messages"] }>(pi, "context-kit.context", async (event) => {
+  pi.on("context", async (event) => {
     let stateChanged = false;
     const resultIds: string[] = [];
     for (const message of event.messages) {
@@ -327,9 +275,9 @@ export default function (pi: ExtensionAPI) {
       }
     }
     if (stateChanged) persistState();
-  }));
+  });
 
-  pi.on("tool_result", traceHook<ToolResultEvent, ToolResultEventResult>(pi, "context-kit.tool_result", async (event, ctx) => {
+  pi.on("tool_result", async (event, ctx) => {
     if (event.isError || (event.toolName !== "read" && event.toolName !== "edit" && event.toolName !== "write")) return;
     const filePath = event.input.path;
     if (typeof filePath !== "string") return;
@@ -346,59 +294,24 @@ export default function (pi: ExtensionAPI) {
     } catch {
       // A failed direct-interaction record can only cause a later re-injection.
     }
-  }));
+  });
 
-  pi.on("before_agent_start", traceHook<BeforeAgentStartEvent, BeforeAgentStartEventResult>(pi, "context-kit.before_agent_start", async (event, ctx) => {
+  pi.on("before_agent_start", async (event, ctx) => {
     clearPending(state);
     startupSiblingPaths.clear();
-    newIgnoresThisTurn = 0;
     const cwd = resolve(event.systemPromptOptions.cwd);
 
-    // Loaders are called every turn so edits to the ignore files take effect
-    // without /reload. All three return null if their file is absent.
-    const agentsIgnore = loadAgentsIgnore(cwd);
-    const skillIgnore = loadSkillIgnore(cwd);
-
     const piContextFiles = event.systemPromptOptions.contextFiles ?? [];
-
-    // ── System-prompt operations (rare; only when ignore/filter files exist) ──
-
-    // 1. Excise Pi-loaded ancestor AGENTS.md / CLAUDE.md files that match
-    //    `.pi/agentsignore`. Their `## ${path}\n\n${content}\n\n` block is
-    //    already in the prompt; we surgically remove it.
-    let prompt = event.systemPrompt;
-    const survivingPi: { path: string; content: string }[] = [];
-    for (const cf of piContextFiles) {
-      if (isIgnored(agentsIgnore, cf.path, cwd)) {
-        recordIgnored(cf.path, "Pi-loaded context", ".pi/agentsignore");
-        prompt = exciseContextBlock(prompt, cf.path, cf.content);
-      } else {
-        survivingPi.push(cf);
-      }
-    }
-    piContextPaths = new Set(survivingPi.map((f) => f.path));
-
-    // 2. Skill filtering — excise `<skill>…</skill>` blocks for skills matching
-    //    `.pi/skillignore`. Also prunes the section header if all skills are gone.
-    const allSkills: Skill[] = event.systemPromptOptions.skills ?? [];
-    const skillsToHide = allSkills.filter((s) => isIgnored(skillIgnore, s.filePath, cwd));
-    prompt = filterSkillsFromPrompt(prompt, skillsToHide);
-    prompt = pruneEmptySection(prompt);
-
-    const systemPromptChanged = prompt !== event.systemPrompt;
+    piContextPaths = new Set(piContextFiles.map((f) => f.path));
 
     // ── Message injections ────────────────────────────────────────────────────
     let startupStateChanged = false;
     const startupBlocks: Array<{ heading: string; content: string; file: InjectedContextFile }> = [];
 
     // Local siblings of Pi-loaded files apply from session start.
-    for (const cf of survivingPi) {
+    for (const cf of piContextFiles) {
       const local = findLocalSibling(cf.path);
       if (!local || piContextPaths.has(local)) continue;
-      if (isIgnored(agentsIgnore, local, cwd)) {
-        recordIgnored(local, "Pi-loaded local sibling", ".pi/agentsignore");
-        continue;
-      }
       startupSiblingPaths.add(local);
       if (discover(state, [local])) startupStateChanged = true;
       if (state.loaded.has(local)) continue;
@@ -429,7 +342,6 @@ export default function (pi: ExtensionAPI) {
     const sessionId = ctx.sessionManager.getSessionId();
     const shouldSave =
       newBlocks.length > 0 ||
-      newIgnoresThisTurn > 0 ||
       !existsSync(usageRecordPath(usageDir, sessionId));
     if (shouldSave) {
       saveUsageRecord(usageDir, {
@@ -438,26 +350,20 @@ export default function (pi: ExtensionAPI) {
         mtime: Date.now(),
         injectionMessages,
         injected: injectedFiles,
-        ignored: [...ignoredFiles.values()],
       });
     }
 
-    if (!systemPromptChanged && newBlocks.length === 0) return;
+    if (newBlocks.length === 0) return;
 
     return {
-      ...(systemPromptChanged ? { systemPrompt: prompt } : {}),
-      ...(newBlocks.length > 0
-        ? {
-            message: {
-              customType: CONTEXT_KIT_CUSTOM_TYPE,
-              content: batch.content,
-              display: true,
-              details: { paths: newBlocks.map((block) => block.file.path), cwd },
-            },
-          }
-        : {}),
+      message: {
+        customType: CONTEXT_KIT_CUSTOM_TYPE,
+        content: batch.content,
+        display: true,
+        details: { paths: newBlocks.map((block) => block.file.path), cwd },
+      },
     };
-  }));
+  });
 }
 
 /**

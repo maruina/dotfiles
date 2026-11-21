@@ -1,6 +1,6 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { type Component, type TuiMouseEvent, type TuiMouseEventResult, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
-import { type CodeBlock, describe } from "./blocks.js";
+import { type CodeBlock, describe } from "./blocks.ts";
 
 export interface BarChip {
 	/** Session-wide block number, or undefined for the "whole response" chip. */
@@ -23,12 +23,19 @@ const PAD = 1;
 export class CopyBar implements Component {
 	private hits: Hit[] = [];
 	private flashed?: { chip: BarChip; until: number };
+	private readonly chips: BarChip[];
+	private readonly theme: Theme;
+	private readonly onCopy: (chip: BarChip) => Promise<boolean>;
 
 	constructor(
-		private readonly chips: BarChip[],
-		private readonly theme: Theme,
-		private readonly onCopy: (chip: BarChip) => Promise<boolean>,
-	) {}
+		chips: BarChip[],
+		theme: Theme,
+		onCopy: (chip: BarChip) => Promise<boolean>,
+	) {
+		this.chips = chips;
+		this.theme = theme;
+		this.onCopy = onCopy;
+	}
 
 	static chipsFor(blocks: (CodeBlock & { id: number })[], fullText: string | undefined): BarChip[] {
 		const chips: BarChip[] = blocks.map((block) => ({ id: block.id, label: `#${block.id} ${describe(block, 24)}`, text: block.text }));

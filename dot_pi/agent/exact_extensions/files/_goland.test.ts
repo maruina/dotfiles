@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { it } from "node:test";
-import { openWithGoLand } from "../files.ts";
+import { openWithGoLand } from "./index.ts";
 
 for (const scenario of ["file in worktree", "directory in worktree", "file outside Git", "missing file", "launcher failure"]) {
   it(`opens GoLand: ${scenario}`, async () => {

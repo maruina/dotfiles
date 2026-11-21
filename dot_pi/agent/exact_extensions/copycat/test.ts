@@ -3,8 +3,8 @@ import { test } from "node:test";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { BlockRegistry, describe, type EntryLike, extractBlocks, labelMarkdown, runTexts } from "./blocks.js";
-import { DEFAULT_SHORTCUT, readConfig } from "./config.js";
+import { BlockRegistry, describe, type EntryLike, extractBlocks, labelMarkdown, runTexts } from "./blocks.ts";
+import { DEFAULT_SHORTCUT, readConfig } from "./config.ts";
 import { Marked } from "@earendil-works/pi-tui";
 
 const lexer = (md: string) => new Marked().lexer(md);

@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { test } from "node:test";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import worktrunkActivity from "../worktrunk.ts";
+import worktrunkActivity from "./index.ts";
 
 const exec = promisify(execFile);
 type Handler = (event: unknown, context: { cwd: string }) => Promise<void>;
@@ -92,7 +92,7 @@ for (const missingBinary of [false, true]) test(`Pi RPC remains usable ${missing
   const env: NodeJS.ProcessEnv = { ...process.env, HOME: root, PI_CODING_AGENT_DIR: agent, WORKTRUNK_FIXTURE_RELEASE: release, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" };
   if (missingBinary) env.WORKTRUNK_BIN = join(root, "missing-wt");
   else delete env.WORKTRUNK_BIN;
-  const child = spawn("pi", ["--mode", "rpc", "--no-session", "--no-context-files", "--no-extensions", "-e", join(here, "..", "worktrunk.ts"), "-e", join(here, "rpc-provider.ts"), "--provider", "worktrunk-fixture", "--model", "fixture"], { cwd, env, stdio: ["pipe", "pipe", "pipe"] });
+  const child = spawn("pi", ["--mode", "rpc", "--no-session", "--no-context-files", "--no-extensions", "-e", join(here, "index.ts"), "-e", join(here, "rpc-provider.ts"), "--provider", "worktrunk-fixture", "--model", "fixture"], { cwd, env, stdio: ["pipe", "pipe", "pipe"] });
   const events = new EventEmitter();
   const records: Array<Record<string, unknown>> = [];
   let buffer = "";

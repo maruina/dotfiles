@@ -13,86 +13,23 @@ The goal is to produce an Obsidian weekly page at `Datadog/Snippets/Week of <YYY
 
 Use concrete evidence. Do not fabricate links, tickets, PRs, or outcomes.
 
-## Phase 1: Determine the week
+## Phase 1–3: Collect deterministic evidence
 
-If `$ARGUMENTS` contains a date range, use it.
+Run the collector script once to resolve the week range, read any existing Obsidian weekly note, query merged and updated PRs across `DataDog/*` (`maruina`) and `ddoghq/*` (`matteo-ruina_ddog`) via `gh`, extract Jira keys, and scan Pi sessions for that week:
 
-If `$ARGUMENTS` contains `last week`, use the previous Monday-Sunday range.
-
-If `$ARGUMENTS` is empty, assume the previous Monday-Sunday range, because this prompt is usually run on Monday morning.
-
-Print the selected range before gathering data.
-
-## Phase 2: Load existing weekly notes
-
-Before rewriting anything, check whether an Obsidian weekly note already exists for the selected week.
-
-Use the vault path:
-
-```text
-Datadog/Snippets/Week of <YYYY-MM-DD>.md
+```bash
+node "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/scripts/weekly-evidence.mjs"
 ```
 
-where `<YYYY-MM-DD>` is the Monday date for the selected week.
+Pass `--from YYYY-MM-DD --to YYYY-MM-DD` when `$ARGUMENTS` specifies an explicit date range. Print the selected range, report any collection errors in `github.errors`, and explicitly warn if `github.truncated` or `piSessions.truncated` is true so incomplete evidence is never presented as complete.
 
-Read the existing note from `~/Documents/main/Datadog/Snippets/Week of <YYYY-MM-DD>.md` with the `read` tool (or redirect `obsidian read path="Datadog/Snippets/Week of <YYYY-MM-DD>.md" > /tmp/weekly-note.md` and read that file; never pipe `obsidian` output).
+If `obsidianNote.exists` is true, preserve useful details, links, open questions, and next steps from `obsidianNote.content` when drafting the final weekly page.
 
-If the note exists, treat its content as an important source. Preserve useful details, links, open questions, and next steps when drafting the final weekly page.
-
-If the note does not exist, continue and create it in the final phase.
-
-## Phase 3: Gather GitHub PRs
-
-Find PRs authored by Matteo across both Datadog GitHub orgs:
-
-| Org | GitHub author | Required `gh` account |
-|---|---|---|
-| `DataDog` | `maruina` | `maruina` |
-| `ddoghq` | `matteo-ruina_ddog` | `matteo-ruina_ddog` |
-
-For each org, gather PRs that were:
-
-- merged during the selected week
-- opened or updated during the selected week but not merged
-
-Before searching an org, switch `gh` to the account in the table, per the `AGENTS.md` GitHub account rules.
-
-Use `gh search prs` or equivalent GitHub CLI commands. Start with queries like:
-
-```fish
-gh search prs --owner DataDog --author maruina --merged --merged-at "<YYYY-MM-DD>..<YYYY-MM-DD>" --json repository,number,title,url,state,closedAt,createdAt,updatedAt
-```
-
-```fish
-gh search prs --owner DataDog --author maruina --updated "<YYYY-MM-DD>..<YYYY-MM-DD>" --json repository,number,title,url,state,closedAt,createdAt,updatedAt
-```
-
-```fish
-gh search prs --owner ddoghq --author matteo-ruina_ddog --merged --merged-at "<YYYY-MM-DD>..<YYYY-MM-DD>" --json repository,number,title,url,state,closedAt,createdAt,updatedAt
-```
-
-```fish
-gh search prs --owner ddoghq --author matteo-ruina_ddog --updated "<YYYY-MM-DD>..<YYYY-MM-DD>" --json repository,number,title,url,state,closedAt,createdAt,updatedAt
-```
-
-If the installed `gh` version does not support one of these flags or JSON fields, adapt the query syntax and report the command used.
-
-For each relevant PR, gather:
-
-- repository
-- number
-- title
-- URL
-- state
-- merged date, if any
-- linked Jira keys from title, branch, body, and commits
-- short summary from the PR body and changed files when needed
-
-Prefer merged PRs as primary evidence.
+Prefer merged PRs as primary evidence. For key PRs lacking detail or Jira keys in title/body, inspect PR branch/commits/body when needed. Treat Pi-session-only items from `piSessions.sessions` as candidates; include them only if useful, and avoid overclaiming impact without external evidence.
 
 ## Phase 4: Gather Jira context
 
-For Jira keys found in PRs or user notes:
+For Jira keys in `jiraKeys` (or user notes):
 
 - fetch title
 - status
@@ -101,22 +38,7 @@ For Jira keys found in PRs or user notes:
 
 Use Jira only to enrich and group the summary. Do not transition issues, edit Jira, or add comments.
 
-## Phase 5: Inspect pi sessions for missing work
-
-Search pi session history from the selected week.
-
-Extract candidate items:
-
-- debugging investigations
-- design discussions
-- code reviews
-- operational support
-- documents read or written
-- PRs, Jira tickets, Slack threads, Confluence links, dashboards
-
-Treat pi-session-only items as candidates. Include them only if useful, and avoid overclaiming impact without external evidence.
-
-## Phase 6: Group and deduplicate
+## Phase 5: Group and deduplicate
 
 Group work by workstream or project, not by day.
 

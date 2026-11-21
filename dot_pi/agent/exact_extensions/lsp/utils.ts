@@ -1,7 +1,7 @@
 import { accessSync, constants, existsSync, readFileSync, statSync } from "node:fs";
 import { delimiter, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { LOCATION_PREVIEW_LIMIT, POSITION_SNAP_MAX_CANDIDATES, POSITION_SNAP_MAX_DISTANCE, type Diagnostic, type DocumentSymbol, type Location, type LocationLink, type Position, type Range, type ServerConfig, type SymbolInformation, type TextEdit, type ToolLocation, type WorkspaceEdit } from "./protocol";
+import { LOCATION_PREVIEW_LIMIT, POSITION_SNAP_MAX_CANDIDATES, POSITION_SNAP_MAX_DISTANCE, type Diagnostic, type DocumentSymbol, type Location, type LocationLink, type Position, type Range, type ServerConfig, type SymbolInformation, type TextEdit, type ToolLocation, type WorkspaceEdit } from "./protocol.ts";
 
 export function toLspPosition(line: number, character: number): Position { if (!Number.isInteger(line) || !Number.isInteger(character) || line < 1 || character < 1) throw new Error("line and column must be positive integers; column is a 1-indexed UTF-16 offset"); return { line: line - 1, character: character - 1 }; }
 export function lspPositionCandidates(filePath: string, line: number, column: number): Position[] {

@@ -305,22 +305,20 @@ test("unreadable applicable files warn and do not block mutations", async () => 
   try {
     const sub = join(root, "sub");
     mkdirSync(sub);
-    mkdirSync(join(root, ".pi"));
-    const agents = join(sub, "AGENTS.md");
-    const local = join(sub, "AGENTS.local.md");
+    const agents = join(root, "AGENTS.md");
+    const local = join(root, "AGENTS.local.md");
     writeFileSync(agents, "shared instructions");
     writeFileSync(local, "personal instructions");
-    writeFileSync(join(root, ".pi", "agentsignore"), "sub/AGENTS.md\n");
     chmodSync(local, 0);
     const h = createHarness(root);
-    await start(h);
+    await start(h, [agents]);
 
     const result = await toolCall(h, "edit", "sub/example.go", ctx(h, true));
     assert.equal(result, undefined);
     assert.equal(h.sent.length, 0);
     assert.ok(h.warnings.some((warning) => warning.includes(local)));
   } finally {
-    chmodSync(join(root, "sub", "AGENTS.local.md"), 0o600);
+    chmodSync(join(root, "AGENTS.local.md"), 0o600);
     rmSync(root, { recursive: true, force: true });
   }
 });
@@ -551,7 +549,6 @@ test("usage record survives restore and adds later injections", async () => {
       mtime: 1,
       injectionMessages: 4,
       injected: [{ path: join(root, "old", "AGENTS.md"), kind: "AGENTS.md" as const, discovery: "nested instruction discovery" as const, bytes: 12 }],
-      ignored: [],
     };
     saveUsageRecord(usageDir, previous);
 

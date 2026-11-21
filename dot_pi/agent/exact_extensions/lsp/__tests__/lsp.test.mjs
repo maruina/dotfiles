@@ -1,29 +1,15 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
-import Module from "node:module";
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
+import * as utils from "../utils.ts";
+import * as servers from "../servers.ts";
+import * as transport from "../transport.ts";
+import * as entry from "../index.ts";
 
-const globalRoot = execFileSync("npm", ["root", "-g"], { encoding: "utf8" }).trim();
-const piNodeModules = join(globalRoot, "@earendil-works/pi-coding-agent/node_modules");
-process.env.NODE_PATH = [piNodeModules, globalRoot, process.env.NODE_PATH].filter(Boolean).join(":");
-Module._initPaths();
-
-const require = Module.createRequire(import.meta.url);
-const { createJiti } = require("jiti");
-const testDir = dirname(fileURLToPath(import.meta.url));
-const agentRoot = resolve(testDir, "../../..");
-const extensionsDir = resolve(testDir, "../..");
-const extensionPrefix = extensionsDir.endsWith("/extensions") ? "extensions/lsp" : "exact_extensions/lsp";
-const jiti = createJiti(`${agentRoot}/`);
-
-const utils = jiti(`./${extensionPrefix}/utils.ts`);
-const servers = jiti(`./${extensionPrefix}/servers.ts`);
-const transport = jiti(`./${extensionPrefix}/transport.ts`);
-const entry = jiti(`./${extensionPrefix}.ts`);
+const agentRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 
 function tempDir() { return mkdtempSync(join(tmpdir(), "pi-lsp-test-")); }
 
@@ -253,11 +239,12 @@ test("TypeScript selection uses the workspace package and preserves the legacy p
 
 test("real TypeScript 7.0.2 initializes, syncs, and serves the registered tools", async () => {
   const base = servers.SERVER_CONFIGS.find((c) => c.id === "typescript");
-  const file = join(agentRoot, "node_modules/.pi-lsp-integration.ts");
-  const { rmSync } = await import("node:fs");
+  const workspace = tempDir();
+  symlinkSync(join(agentRoot, "node_modules"), join(workspace, "node_modules"));
+  const file = join(workspace, "integration.ts");
   writeFileSync(file, "export const value = 1;\nconst use: string = value;\n");
   const config = servers.typescriptServerConfig(file, base);
-  const client = new transport.LspClient(agentRoot, config, config.command);
+  const client = new transport.LspClient(workspace, config, config.command);
   const app = fakePi();
   entry.default(app.pi);
   try {
@@ -273,16 +260,16 @@ test("real TypeScript 7.0.2 initializes, syncs, and serves the registered tools"
     await client.waitForDiagnostics(file);
     assert.deepEqual(client.diagnostics(file).get(file), []);
     for (const name of ["lsp_go_to_definition", "lsp_find_references"]) {
-      const result = await app.tools.get(name).execute("integration", { file, line: 2, column: 28 }, undefined, undefined, { cwd: agentRoot });
+      const result = await app.tools.get(name).execute("integration", { file, line: 2, column: 28 }, undefined, undefined, { cwd: workspace });
       assert.ok(result.details.locations.length > 0, JSON.stringify(result));
     }
     writeFileSync(file, "export const value = 1;\nconst use: string = value;\n");
-    const result = await app.tools.get("lsp_diagnostics").execute("integration", { file }, undefined, undefined, { cwd: agentRoot });
+    const result = await app.tools.get("lsp_diagnostics").execute("integration", { file }, undefined, undefined, { cwd: workspace });
     assert.ok(result.details.diagnostics.some((d) => d.code === 2322), JSON.stringify(result));
   } finally {
     await client.shutdown();
     for (const h of app.handlers.filter((h) => h.name === "session_shutdown")) await h.handler();
-    rmSync(file, { force: true });
+    rmSync(workspace, { recursive: true, force: true });
   }
   assert.equal(client.isRunning, false);
 });

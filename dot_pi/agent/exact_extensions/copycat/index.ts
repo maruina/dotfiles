@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { copyToClipboard, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { KeyId } from "@earendil-works/pi-tui";
-import { CopyBar } from "./bar.js";
-import { assistantText, BlockRegistry, extractBlocks, labelMarkdown, type NumberedBlock, runTexts } from "./blocks.js";
-import { readConfig } from "./config.js";
-import { pickBlock } from "./picker.js";
+import { CopyBar } from "./bar.ts";
+import { assistantText, BlockRegistry, extractBlocks, labelMarkdown, type NumberedBlock, runTexts } from "./blocks.ts";
+import { readConfig } from "./config.ts";
+import { pickBlock } from "./picker.ts";
 
 const ENTRY_TYPE = "copycat";
 

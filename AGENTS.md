@@ -31,7 +31,7 @@ Declare Homebrew packages in `run_onchange_brew-install.sh.tmpl`. Do not install
 
 ## Pi Agent Development
 - `dot_pi/agent/exact_prompts/*.md` defines global slash commands. The filename defines the command; keep lifecycle behavior in these prompts rather than duplicating it in guidance.
-- `dot_pi/agent/exact_extensions/*.ts` contains auto-discovered extension entrypoints, which must export a default factory. Put helpers and tests under `_shared/` or an extension subdirectory.
+- `dot_pi/agent/exact_extensions/*.ts` and `exact_extensions/<name>/index.ts` are auto-discovered extension entrypoints, which must export a default factory. Use a directory with `index.ts` for every multi-file extension; keep only tiny single-file extensions flat, and put cross-extension helpers under `_shared/`.
 - The work-profile `models.json.tmpl` header `x-dd-tag-client_session_id: $PI_CLIENT_SESSION_ID` requires `exact_extensions/pi-client-session-id/`; without it, every Gateway request fails, including `pi --no-extensions` unless the extension is loaded explicitly with `-e`.
 - Lifecycle templates own policy; `/implement` uses `_bridge.ts` only in fresh RPC children with a valid `PI_LIFECYCLE_CHILD_CONFIG`. Ordinary sessions must not receive bridge tools. When changing lifecycle contracts, update `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs` and `dot_pi/agent/exact_extensions/ship-conductor/*.test.ts`; `_rpc.test.ts` must run against Pi 1.6.0 and prove approval and outcome events through the real agent loop. Do not parse prose markers as lifecycle control. Usage and recovery are documented in `dot_pi/agent/exact_extensions/ship-conductor/README.md`.
 - `/implement` traps found in live runs:
@@ -42,6 +42,11 @@ Declare Homebrew packages in `run_onchange_brew-install.sh.tmpl`. Do not install
   - Completion fixes are safe only in this order: `arp-fix` commit → completion `verify` for the exact candidate → `pr-publish` that verified head → `arp-review` settlement and re-review. Do not settle addressed findings or request re-review before verification and publish succeed.
 - Live `/implement` testing: use a disposable worktree with a committed smoke plan and a launcher that sets `PI_CODING_AGENT_DIR` to a temporary agent directory whose `prompts/` holds the candidate templates (the coordinator checks child templates against `getAgentDir()/prompts`), loads the candidate extension with `--extension`, and symlinks the other agent files. Relative local package paths in `settings.json` resolve from the agent directory, so keep them absolute (`modify_private_settings.json.tmpl`) or the temporary directory loses `pi-dd-ai-gateway` and every authenticated model. Child commits need a working signing agent; an unlocked 1Password SSH agent is required.
 - Runtime dependencies belong under `~/.pi/agent/node_modules`. Dependencies under `dot_pi/agent/node_modules` are disposable and excluded from Git and chezmoi rendering.
+- Test tiers under `dot_pi/agent/` (via `exact_scripts/test-runner.mjs`):
+  - `npm test`: fast unit, script, prompt, and skill checks; use during development and for routine changes.
+  - `npm run typecheck`: TypeScript type check (`tsc -p tsconfig.json`); run after TypeScript edits.
+  - `npm run test:integration`: slow subprocess/RPC tests (`ship-conductor` conductor/RPC/worktree suites and `worktrunk/activity.test.ts`); run when touching those extensions or lifecycle contracts, and before final `/verify`.
+  - `npm run test:all`: runs `npm test`, `test:integration`, `typecheck`, and `test:smoke`; run before `/verify` and PR closeout.
 - Before `/verify` for changes under `dot_pi/agent/`, run `npm ci --ignore-scripts` in that directory. Keep dependencies until `npm test` and `npm run test:all` complete, then remove them.
 
 ## Completion Workflow

@@ -88,36 +88,28 @@ Challenge scope against the smallest user-feedback slice, not only against the d
 9. Close with the next action from `## Handoff`.
 
 ## Output format
+Return a concise review:
 
-Return a concise review with these sections:
-
-1. **Scope reviewed** — target, context, files/components; for PRs, the PR URL, base ref, head SHA, and resolved worktree.
-2. **Discovery summary** — behavior, patterns, and assumptions from `codebase-research`.
-3. **Skills loaded and used** — per `skill-loader` provenance rules; explicitly state when none were needed.
+1. **Scope reviewed** — target, context, files/components (for PRs: PR URL, base ref, head SHA, and resolved worktree).
+2. **Discovery summary** — behavior, patterns, assumptions from `codebase-research`.
+3. **Skills loaded and used** — per `skill-loader` provenance rules; state when none were needed.
 4. **Executive summary** — 3-5 highest-risk themes.
-5. **Findings** — sorted by severity. For each finding include:
-   - Severity: Critical / High / Medium / Low
-   - Evidence: file path and line/function references
-   - Why it matters
-   - Suggested fix or alternative
-   - Confidence: High / Medium / Low
-6. **Design challenge** — argue against the current design and propose one better alternative, including trade-offs.
-7. **Test gaps** — meaningful missing tests or tests that overfit implementation details.
-8. **Open questions** — only questions that block confidence or change the recommendation.
+5. **Findings** — sorted by severity (Critical / High / Medium / Low), with Evidence (`file:line`/function), Why it matters, Suggested fix/alternative, and Confidence (High / Medium / Low).
+6. **Design challenge** — argue against the current design and propose one better alternative with trade-offs.
+7. **Test gaps** — meaningful missing tests or tests overfitting implementation details.
+8. **Open questions** — only questions blocking confidence or recommendations.
 9. **Handoff** — close with the next action from `## Handoff`.
 
 If no issues are found, say so; include the design challenge and residual risks.
 
 ## Fix findings
-This section does not apply to design-only reviews.
+This section does not apply to design-only reviews. After the report, propose fixes:
 
-After the report, propose fixes instead of leaving them entirely to the user:
-
-1. List fixable findings, files, smallest changes, and checks. Prioritize Critical and High; explain Low findings left unchanged.
-2. Ask the user which findings to apply. Do not edit before an explicit confirmation.
-3. Stay in the resolved worktree, use `skill-loader` for touched files, apply each confirmed fix minimally, and run focused checks. For PRs, stop if the reviewed head or clean state changed. Do not run fork code.
+1. List fixable findings, files, smallest changes, and checks. Prioritize Critical/High; explain Low findings left unchanged.
+2. Ask which findings to apply; do not edit before explicit confirmation.
+3. Stay in the resolved worktree, use `skill-loader` for touched files, apply each confirmed fix minimally, and run focused checks. For PRs, stop if head or clean state changed. Do not run fork code.
 4. Stop and ask if a fix is ambiguous, exceeds the finding, needs design decisions, or touches unrelated code.
-5. For `plan.md`, require a clean worktree before editing; otherwise stop and ask. If a confirmed fix disproves the planned approach, use the `learning-candidates` skill to record it. Rerun the plan checklist, then commit only confirmed plan changes with a Conventional Commit such as `docs: update <feature> implementation plan`. Exclude pre-existing changes. Leave other targets uncommitted. Summarize fixes, commits, skips, and reasons.
+5. For `plan.md`, require a clean worktree before editing; otherwise stop and ask. If a confirmed fix disproves the planned approach, use the `learning-candidates` skill to record it. Rerun the plan checklist, then commit only confirmed plan changes (`docs: update <feature> implementation plan`), excluding pre-existing changes. Leave other targets uncommitted. Summarize fixes, commits, skips, and reasons.
 
 ## Handoff
 Use one exact command per standalone `md` fenced block. Quote paths with spaces. Keep prose outside. Omit commands with missing arguments.
@@ -125,4 +117,4 @@ Use one exact command per standalone `md` fenced block. Quote paths with spaces.
 - For a `plan.md` target with no blocking findings, show `/execute <absolute-path-to-plan.md>`.
 - For a `plan.md` target with blocking findings, explain that the user can address the findings and then rerun `/systematic-review <absolute-path-to-plan.md>`, or return to `/plan` to revise the plan. Do not offer `/execute`.
 - After confirmed `plan.md` fixes, commit per `## Fix findings` and use the applicable handoff above.
-- For code without a plan, recommend the highest-priority next action and offer to apply the proposed fixes on request.
+- For code without a plan, recommend the next action and offer to apply fixes. After applying confirmed fixes, show `/verify <absolute-worktree-path> --implemented-by <current-model-id> --task '<quoted-fix-summary>'` (escape `'` as `\'`) and note to switch models with `/model` and run `/new`.

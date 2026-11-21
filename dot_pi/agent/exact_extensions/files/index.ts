@@ -32,7 +32,7 @@ import {
   Spacer,
   Text,
 } from "@earendil-works/pi-tui";
-import { parseGitStatusPorcelainZ } from "./files/_git.ts";
+import { parseGitStatusPorcelainZ } from "./_git.ts";
 
 type ContentBlock = {
   type?: string;
@@ -183,7 +183,7 @@ const extractFileReferencesFromContent = (content: unknown): string[] => {
 
 const extractFileReferencesFromEntry = (entry: SessionEntry): string[] => {
   if (entry.type === "message") {
-    return extractFileReferencesFromContent(entry.message.content);
+    return "content" in entry.message ? extractFileReferencesFromContent(entry.message.content) : [];
   }
 
   if (entry.type === "custom_message") {

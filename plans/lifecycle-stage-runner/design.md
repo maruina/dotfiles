@@ -19,7 +19,7 @@ The goal is to replace `ship-conductor` with a small, deterministic stage runner
 - Run post-plan implementation hands-off as a **sliced `execute` loop → single `simplify` → single `verify`**, printing compact live progress lines in the invoking Rex pane.
 - Enforce safety checks deterministically in code (not in a coordinator LLM): clean worktree after every successful write stage, `HEAD` advancement after every `execute` slice, bounded loop iterations, and writer-vs-verifier model independence across both automated runs and interactive recovery.
 - Keep semantic plan-fidelity judgment inside `verify`.
-- Escalate failures, blockers, or dirty worktrees to an interactive Rex split pane: resume `pi --session <id>` for `execute` or `simplify` failures, and open a fresh writer-model Rex pane (never resuming or editing inside the `verify` session) for any non-`VERIFIED` `verify` outcome.
+- Escalate failures, blockers, or dirty worktrees to an interactive Rex split pane: resume `pi --session <id>` for `execute` or `simplify` failures with a resumable session (otherwise stop and report the error), and open a fresh writer-model Rex pane (never resuming or editing inside the `verify` session) for any non-`VERIFIED` `verify` outcome.
 - Eliminate custom RPC framing and dual-mode bridge tools (`lifecycle_request_decision`, `lifecycle_submit_outcome`).
 - Design the stage contract and Rex launcher as reusable primitives so later slices can automate `brainstorm → systematic-review → plan` (auto-approving and launching `/plan` on a clean review) and trigger the work-profile `pr-publish → arp-review → arp-fix → verify` completion loop automatically when `verify` returns `VERIFIED`.
 
@@ -38,7 +38,7 @@ The goal is to replace `ship-conductor` with a small, deterministic stage runner
 ### Slice 1 (first deliverable): Reusable stage runner for `execute → simplify → verify`
 Build the deterministic stage runner (`pi --mode json` + live progress formatter + JSON handoff validation + deterministic Git and model checks + Rex anchored split escalation) and expose it behind a standalone entry command while keeping `ship-conductor` and `/implement` untouched as fallback.
 
-- **What the user sees:** You launch a run against a committed plan in a feature worktree, pick writer and verifier models once upfront (verifier choices exclude writer models), and watch live progress lines in the Rex pane as each `execute` slice, then `simplify`, then `verify` runs hands-off. If a stage blocks, fails, or leaves dirty files, Rex opens an interactive split pane (`pi --session <id>` for writer stages, or a fresh writer-model pane for any non-`VERIFIED` `verify` outcome) so you can fix or inspect the issue and resume.
+- **What the user sees:** You launch a run against a committed plan in a feature worktree, pick writer and verifier models once upfront (verifier choices exclude writer models), and watch live progress lines in the Rex pane as each `execute` slice, then `simplify`, then `verify` runs hands-off. If a writer fails before Pi saves a resumable session, the runner reports the startup error and stops. For other failures, blockers, or dirty files, Rex opens an interactive split pane (`pi --session <id>` for writer stages, or a fresh writer-model pane for any non-`VERIFIED` `verify` outcome) so you can fix or inspect the issue and resume.
 - **What we learn:** Whether native `pi --mode json`, prompt-written JSON handoff files, and `pi --session` Rex resume reliably replace `ship-conductor`'s RPC bridge on authenticated runs, and whether sliced `execute` followed by single `simplify → verify` keeps context bounded while reducing overhead.
 - **Why no smaller slice produces this feedback:** Running `pi --mode json` on a single prompt does not test stage-to-stage handoffs, Git cleanliness gates, sliced `execute` looping, or writer-vs-verifier isolation across Rex recovery.
 
@@ -60,16 +60,16 @@ The runner is a deterministic Node.js/TypeScript CLI script (with an optional th
        stream NDJSON stdout -> compact progress lines in invoking Rex pane
        capture session_id from first JSONL record (`type: "session"`)
        validate handoff JSON + clean worktree + HEAD advanced
-       on failure/blocker/dirty -> open Rex split `pi --session <session_id>`
+       on failure/blocker/dirty -> use writer recovery below; stop if no resumable session
   4. Single simplify stage (same writer/simplify model, feature diff `base..HEAD`):
        spawn `pi --mode json`, validate handoff JSON + clean worktree
-       on failure/blocker/dirty -> open Rex split `pi --session <session_id>`
+       on failure/blocker/dirty -> same writer recovery as execute
   5. Single verify stage (independent verifier model, feature diff `base..HEAD`):
        spawn `pi --mode json`, validate handoff JSON (`VERIFIED` | `BLOCKED`) + clean worktree
        on any non-`VERIFIED` outcome (`BLOCKED`, non-zero exit, missing/invalid JSON, timeout, dirty worktree) ->
          open Rex split with a fresh WRITER model (never resume verifier session),
          seeded with findings (`BLOCKED`) or failure reason + stderr + verifier artifact/session paths
-       after pane closes -> re-check clean worktree + model independence -> start a fresh `verify` run
+       after recovery Pi exits -> close its split if still open -> re-check clean worktree + model independence -> start a fresh `verify` run
   6. Terminal state (Slices 1–3): `VERIFIED`; between Slice 2 and Slice 4, work-profile users publish and handle PR/ARP manually (Slice 4 restores automatic `pr-publish → arp-review → arp-fix → verify`)
 ```
 
@@ -85,7 +85,7 @@ Before launching a stage, the runner creates a unique output path inside a priva
 The runner validates the JSON file strictly (UTF-8, size <= 64 KiB, required fields, closed status enum) before advancing:
 - **Writer stages (`execute`, `simplify`):** `{ "schemaVersion": 1, "stage": "execute"|"simplify", "status": "success"|"blocked", "summary": "...", "blocker"?: { "step": "...", "reason": "...", "evidence": "...", "nextAction": "..." } }`.
 - **Verifier stage (`verify`):** `{ "schemaVersion": 1, "stage": "verify", "status": "VERIFIED"|"BLOCKED", "summary": "...", "findings"?: [ ... ] }`.
-- **Missing or invalid JSON:** Treated as a stage failure (never parsed from prose fallback) and escalated to Rex using the stage's recovery path (`pi --session <id>` for writer stages; a fresh writer-model split for `verify`).
+- **Missing or invalid JSON:** Treated as a stage failure (never parsed from prose fallback) and handled by the stage's recovery rule below.
 
 ### Deterministic transition gates
 The runner enforces these invariants in code between every stage:
@@ -97,20 +97,20 @@ The runner enforces these invariants in code between every stage:
 ### Interactive Rex escalation and recovery
 When a stage stops (non-zero exit, missing/invalid handoff JSON, `status: "blocked"`, `status: "BLOCKED"`, or dirty worktree):
 - **Local Rex verification:** Reuse the verified local Rex pattern from `maruina/rex-design-review` (`rex whoami --json`, matching `REX_SESSION`/`REX_BLOCK`, anchored `session.new_split` with direct argv and no shell-string interpolation).
-- **Writer failure (`execute` or `simplify`):** Launch interactive `pi --session <session-file> --provider <writer-provider> --model <writer-model>` in the Rex split so the user lands directly in the failed conversation with full tool history.
+- **Writer failure (`execute` or `simplify`):** If the failed writer has no resumable session, the runner reports the stage and error in the invoking pane and stops. It does not open a split, retry, or advance. This includes startup failure before Pi emits the session header or saves the session file. If the failed session is resumable, launch interactive `pi --session <session-file> --provider <writer-provider> --model <writer-model>` in the Rex split so the user lands directly in the failed conversation with full tool history.
 - **Any non-`VERIFIED` `verify` outcome (`verify`):** `verify` has two outcomes: `VERIFIED` and anything else (`BLOCKED`, non-zero exit, missing or malformed handoff JSON, timeout, or dirty worktree). For any non-`VERIFIED` outcome, never resume the `verify` session (`pi --session <verifier-id>`), because editing in that session would make the verifier model a writer. Instead, launch an interactive Rex split running a fresh writer-model Pi session seeded with:
   - for a valid `BLOCKED` verdict: the verifier's `summary` and structured `findings`;
   - for any failure without a valid verdict: the failure reason (exit code, JSON validation error, timeout, or dirty worktree), the bounded verifier stderr, and the paths to the raw handoff file (if present) and persisted verifier session file so the user can inspect them.
-  In the writer-model pane, the user can fix code, clean a dirty worktree, inspect the verifier artifacts, or make no edits (for a transient crash) and close the pane.
-- **Resuming the run:** After the user finishes and closes the interactive pane (or confirms readiness in the runner pane), the runner re-checks worktree cleanliness, records the recovery session's model(s) as writers, re-verifies writer-vs-verifier independence, and continues from the stopped stage (for `verify`, starting a fresh headless `verify` run with the independent verifier model).
+  In the writer-model pane, the user can fix code, clean a dirty worktree, inspect the verifier artifacts, or make no edits (for a transient crash) and exit Pi.
+- **Resuming the run:** The runner waits for the interactive recovery Pi process to exit. An idle prompt is not completion, and there is no readiness override. Once Pi exits, the runner closes that recovery split if it is still open. Only then does it check worktree cleanliness, record the recovery session's models as writers, and check writer-vs-verifier independence. If both checks pass, it continues from the stopped stage (for `verify`, starting a fresh headless `verify` run with the independent verifier model).
 
 ### Reuse across Slices 3 and 4
 - **Slice 3 (`brainstorm → systematic-review → plan`):** Uses the same Rex split launcher for interactive `/brainstorm` and `/plan`, and runs `/systematic-review` via `pi --mode json` with a `review` handoff schema (`clean` | `needs-human`). When `clean`, the runner commits `Status: Approved` and launches `/plan` in a Rex pane; when `needs-human`, it opens a Rex split running `pi --session <reviewer-session-id>`.
 - **Slice 4 (PR/ARP completion):** Adds `pr-publish`, `arp-review`, and `arp-fix` stage definitions on the same runner, triggered automatically after `verify` returns `VERIFIED` in the work profile, with deterministic bounds (max 3 reviewed heads, 20-minute deadline per head, exact verified-head publish before ARP settlement/re-review).
 
 ## Risks and mitigations
-- **Model omits or misformats the JSON handoff file:** Without a custom `lifecycle_submit_outcome` tool, a model can finish a turn without writing valid JSON. *Mitigation:* Treat missing or schema-invalid JSON as a stage failure and never fall back to prose parsing. Escalate writer stages to a Rex split running `pi --session <id>` so session context is preserved, and escalate `verify` to a fresh writer-model Rex split seeded with the failure reason, bounded stderr, and the verifier session and raw handoff paths so the user can inspect or retry without opening writes in the verifier session. If Slice 1 live runs show frequent handoff formatting failures, add one bounded in-session retry prompt or revisit a tiny single-tool extension.
-- **Interactive recovery silently breaks model independence:** A user could switch models inside an interactive Rex recovery pane to the model selected for `verify`. *Mitigation:* Read the persisted session file's model-change entries after interactive recovery closes and refuse to run `verify` if any writer turn used the verifier model.
+- **Model omits or misformats the JSON handoff file:** Without a custom `lifecycle_submit_outcome` tool, a model can finish a turn without writing valid JSON. *Mitigation:* Treat missing or schema-invalid JSON as a stage failure and never fall back to prose parsing. Stop and report the error if no resumable writer session exists. Otherwise, escalate writer failures to a Rex split running `pi --session <id>` so session context is preserved, and escalate `verify` to a fresh writer-model Rex split seeded with the failure reason, bounded stderr, and the verifier session and raw handoff paths so the user can inspect or retry without opening writes in the verifier session. If Slice 1 live runs show frequent handoff formatting failures, add one bounded in-session retry prompt or revisit a tiny single-tool extension.
+- **Interactive recovery silently breaks model independence:** A user could switch models inside an interactive Rex recovery pane to the model selected for `verify`. *Mitigation:* Read the persisted session file's model-change entries after the interactive recovery Pi process exits and refuse to run `verify` if any writer turn used the verifier model.
 - **Uncertain Rex split creation leaves orphan panes:** A Rex RPC call can time out after creating a split. *Mitigation:* Never auto-retry an uncertain `session.new_split` call; print the exact recovery command (`pi --session <id>` for writer stages, or the fresh writer-model `pi` command plus verifier artifact paths for `verify`) and the Rex session/pane IDs so the user can inspect and recover manually.
 - **Unbounded `execute` loop on a stuck slice:** A slice that commits without checking off plan tasks could loop indefinitely. *Mitigation:* Require both `HEAD` advancement and unchecked-task reduction per slice, capped at 20 iterations.
 - **Auto-approval in Slice 3 approves a design the author did not re-read:** When `/systematic-review` applies mechanical fixes and auto-commits `Status: Approved`, the author does not review the final diff before `/plan` starts. *Mitigation:* Explicitly accepted by the user; restrict auto-approval to runs with zero unresolved questions and zero blocking findings, and surface the committed diff summary at `/plan` start.
@@ -118,7 +118,7 @@ When a stage stops (non-zero exit, missing/invalid handoff JSON, `status: "block
 ## Operability
 - **State layout:** Store run records, handoff JSONs, session files (`--session-dir`), and cooperative worktree locks under `~/.pi/agent/lifecycle-runs/` with mode `0700` directories and `0600` files. Retain the latest 100 completed runs and prune older bundles.
 - **Concurrency:** Hold a cooperative worktree lock keyed by canonical worktree path; refuse to start a second run on the same worktree and never steal a lock while its owning PID is alive.
-- **Cancellation and timeouts:** Handle `SIGINT`/`SIGTERM` by forwarding `SIGTERM` (then `SIGKILL` after 5 seconds) to the active `pi --mode json` child, releasing the worktree lock only after child exit is confirmed, and printing the saved `session_id` for manual inspection. Apply a configurable per-stage inactivity/wall-clock timeout.
+- **Cancellation and timeouts:** Handle `SIGINT`/`SIGTERM` by forwarding `SIGTERM` (then `SIGKILL` after 5 seconds) to the active `pi --mode json` child, releasing the worktree lock only after child exit is confirmed, and printing the `session_id` (if available) for manual inspection. Apply a configurable per-stage inactivity/wall-clock timeout.
 - **Observability:** Print concise stage, slice, tool, and elapsed-time lines to the invoking Rex pane; persist full stage stderr (bounded to 16 KiB) and handoff JSONs in the run directory for post-mortem inspection.
 
 ## Rollout and rollback
@@ -134,8 +134,8 @@ When a stage stops (non-zero exit, missing/invalid handoff JSON, `status: "block
 ## Testing strategy and validation limits
 ### Testing strategy
 - **Unit tests:** Cover LF-only JSONL stream parsing, handoff JSON schema validation (valid, missing, oversized, malformed), Git preflight and clean-worktree/HEAD-advance checks, sliced `execute` loop termination and bounds, writer-vs-verifier model-independence enforcement (including post-recovery session inspection), and Rex failure/uncertain-split handling.
-- **Isolated integration tests:** Drive a fake/fixture `pi --mode json` process to verify live progress streaming, `agent_settled` gating, and recovery branching (including writer `pi --session` resume and fresh writer-model escalation plus fresh `verify` restart for both `BLOCKED` and no-verdict `verify` failures) without network calls.
-- **Live authenticated trial (required before Slice 2 cutover):** Run a real multi-slice plan in a disposable worktree through Slice 1, verifying the hands-off happy path, Rex `pi --session` escalation for a writer blocker, and fresh writer-model Rex escalation for a non-`VERIFIED` `verify` outcome.
+- **Isolated integration tests:** Drive a fake/fixture `pi --mode json` process to verify live progress streaming, `agent_settled` gating, and recovery branching (including writer `pi --session` resume and fresh writer-model escalation plus fresh `verify` restart for both `BLOCKED` and no-verdict `verify` failures) without network calls. Simulate a writer failing before it emits a header or saves a session: assert the runner reports the stage and error, opens no split, and stops. Keep a fixture recovery process idle, then exit it: assert no stage starts while it is alive and that cleanup targets only its split before the checks run.
+- **Live authenticated trial (required before Slice 2 cutover):** Run a real multi-slice plan in a disposable worktree through Slice 1, verifying the hands-off happy path, Rex `pi --session` escalation for a writer blocker, and fresh writer-model Rex escalation for a non-`VERIFIED` `verify` outcome. Confirm the runner waits while recovery Pi is idle and leaves no recovery split after Pi exits.
 
 ### Validation limits
 - Unit and fake-process tests do not prove live LLM compliance with prompt-written JSON handoff files or real Rex/Pi authentication; the live disposable-worktree trial is required before Slice 2 cutover (accepted as a post-unit-test gate in Slice 1, blocking Slice 2).
@@ -178,4 +178,6 @@ When a stage stops (non-zero exit, missing/invalid handoff JSON, `status: "block
 | `chezmoi` | `skill-loader` | Dotfiles-managed Pi configuration | Scoped additive rollout and rollback to explicit chezmoi source/target paths |
 | `rex` | `agent-selected` | Rex pane handoff | Verified local pane verification and anchored split pattern from `design-review` |
 | `feature-worktree` | `prompt-required` | Durable design commit | Created `maruina/lifecycle-stage-runner` worktree from `origin/main` while keeping base on `main` |
+| `obsidian-cli` | `agent-selected` | Recovery guidance lookup | Queried the advisory store; no matching recovery guidance |
+| `cli-best-practices` | `skill-loader` | Writer startup failure | Distinguished an actionable error from a resume command with no target |
 | `write` | `skill-loader` | Design artifact drafting | Enforced concrete mechanism descriptions, specific failure risks, and concise ASD-STE100 prose |

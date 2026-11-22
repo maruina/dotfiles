@@ -135,6 +135,23 @@ if (process.env.FAIL !== "header") console.log(JSON.stringify({ type: "session",
 if (process.env.FAIL === "hang" || process.env.FAIL === "timeout")
   await new Promise((resolve) => setTimeout(resolve, 30000));
 if (noProgress) fs.writeFileSync(process.env.ARGV_LOG + ".once", "1");
+if (!fail && stage === "simplify") {
+  const start = (id, file, nested = false) => console.log(JSON.stringify({ type: "tool_execution_start",
+    toolName: "read", toolCallId: String(id), args: { path: file }, ...(nested && { parentToolCallId: "outer" }) }));
+  const end = (id, isError = false) => console.log(JSON.stringify({ type: "tool_execution_end",
+    toolName: "read", toolCallId: String(id), isError, ...(id === 1 && { parentToolCallId: "outer" }) }));
+  end("missing");
+  for (const file of ["Bad/SKILL.md", "wrong/README.md", "failed/SKILL.md"]) {
+    start("invalid", file);
+    end("invalid", file.startsWith("failed"));
+  }
+  for (let i = 0; i <= 256; i++) start(i, "private/skill-" + i + "/SKILL.md", i === 1);
+  end(256);
+  end(0);
+  start("duplicate", "skill-0/SKILL.md");
+  end("duplicate");
+  for (let i = 1; i <= 16; i++) end(i);
+}
 if (stage === "execute" && process.env.FAIL !== "progress" && !noProgress) completeTask();
 if (process.env.FAIL === "dirty") fs.writeFileSync("untracked", "dirty");
 if (

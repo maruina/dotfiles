@@ -1,5 +1,5 @@
 # Separate binding contracts from implementation suggestions in lifecycle plans
-**Status:** Draft
+**Status:** Approved
 
 ## Summary
 A fresh `/execute` agent must know which plan elements are binding contracts and which elements are implementation suggestions it can vary without stopping. Keep every observable requirement, safety boundary, agreed design decision, and testing/verification rule binding. Allow `/execute` to adapt routine implementation details ("the how"), guided by the model and loaded skills, and catch self-contradictory controls during `/plan` final review before commit.

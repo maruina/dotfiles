@@ -65,6 +65,11 @@ The installed system SHALL expose `/stage-runner` and `/stage-runner-cancel`, wi
 - WHEN the operator installs the candidate and restarts Pi,
 - THEN both runner commands and the three direct lifecycle prompts remain discoverable and none of the three retired names is discoverable, including as an alias.
 
+#### Scenario: Hand off a clean plan review (Task 2)
+- GIVEN `/systematic-review` finds no blocking findings in a `plan.md`,
+- WHEN it reports the handoff,
+- THEN it shows `/stage-runner <absolute-path-to-plan.md>` for an unstarted plan and `/execute <absolute-path-to-plan.md>` as the manual alternative. For a started plan, it shows only `/execute`, because `/stage-runner` preflight in `_runner.ts` rejects a plan with any checked task box or an `**In progress**` or `**Execution writer**` ledger line. With blocking findings, it offers neither command.
+
 #### Scenario: Run a reviewed plan (Tasks 1 and 3)
 - GIVEN an unstarted plan in a clean feature worktree,
 - WHEN the existing runner receives successful writer handoffs and an independent `VERIFIED` verdict,
@@ -99,10 +104,11 @@ No task is a separate release. Run repository commands from the feature worktree
 ### Task 2: Document the cutover and manual publication workflow
 **Delivers:** Operators and future agents have one supported automated entry point and a safe manual path after verification.
 **Blocked by:** Task 1
-**Traces to:** Operator-controlled publication; installed commands and surviving contracts.
+**Traces to:** Operator-controlled publication; installed commands and surviving contracts; clean plan review handoff.
 **Files:** `AGENTS.md`, `dot_pi/agent/AGENTS.md`, `dot_pi/agent/exact_extensions/stage-runner/README.md`, `dot_pi/agent/exact_prompts/{plan,systematic-review}.md`, and `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`.
 
-- [ ] First change the `plan.md` assertion in `exact_scripts/lifecycle-prompts.test.mjs` that matches the `/implement` preflight wording (`preflight rejects checkboxes outside numbered tasks`) so it requires the same rule without a parser claim. Run the focused test and confirm it fails against the current `plan.md`.
+- [ ] First change the `plan.md` assertion in `exact_scripts/lifecycle-prompts.test.mjs` that matches the `/implement` preflight wording (`preflight rejects checkboxes outside numbered tasks`) so it requires the same rule without a parser claim. In the same file, change the `systematic-review.md` handoff assertion (`with no blocking findings, show \`/execute <absolute-path-to-plan.md>\``) to require the handoff scenario above, and extend the blocking-findings assertion to reject `/stage-runner` as well as `/execute`. Run the focused test and confirm both assertions fail against the current prompts.
+- [ ] Update `## Handoff` in `dot_pi/agent/exact_prompts/systematic-review.md` to match the handoff scenario. Change no other handoff in this task.
 - [ ] Replace fallback, bridge-testing, and rollback guidance. Preserve plan formatting conventions; remove claims that a retired `/implement` parser enforces them. Distinguish unstarted automation from manual continuation of an already-started plan.
 - [ ] Document initial publish/open or update, exact local and remote head checks, and separately authorized work-profile review. Explain `/pr-create` opt-in and `/pr-update` status-only behavior. For a fix, require a clean commit, fresh independent feature-wide `/verify` with publication excluded and all writer IDs, publication of the verified SHA, then evidenced settlement and re-review. Do not invent a `/pr-publish` command. For settlement and re-review, document the direct `agentic-review` MCP tools named under Key decisions, with these guards from the retired `arp-review.md`: compare `gh pr view --json headRefOid` with the expected head before each ARP write; ask the operator to authorize each write and choose `silent`; request a review only through the `allowed_action` that `agentic_review_get_status` returns, with `expected_head_sha`; resolve a finding as `addressed` only with the published fix commit SHA, or as `invalid` only with code or test evidence; treat empty findings as clean only when `reviewed_sha` equals the head, `review_in_progress` is false, and capture is complete; state that resolutions are permanent. Cover missing evidence, denial, head drift, and unavailable ARP.
 - [ ] Walk both publication scenarios without remote writes. Run `node --test exact_scripts/{lifecycle-prompts,arp-prompts}.test.mjs`; expect green. Check active guidance for stale commands, separating migration notes from invocation instructions. Commit `docs(pi): document manual publication after stage verification`.

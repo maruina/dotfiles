@@ -175,32 +175,6 @@ async function attempt(o: Options, stage: Stage, dir: string, prompt: string, si
           if (e.type === "agent_start") settled = false;
           if (e.type === "agent_settled") settled = e.aborted === false;
           if (e.type === "turn_start") turn++;
-          if (
-            [
-              "session",
-              "tool_execution_start",
-              "tool_execution_end",
-              "turn_start",
-              "turn_end",
-              "agent_settled",
-            ].includes(e.type)
-          )
-            o.progress(
-              safe(
-                stage +
-                  " " +
-                  path.basename(dir) +
-                  " " +
-                  e.type +
-                  " " +
-                  (e.toolName ?? "") +
-                  " turn " +
-                  turn +
-                  " " +
-                  Math.floor((Date.now() - started) / 1000) +
-                  "s",
-              ),
-            );
         }
       } catch (err) {
         stop("Invalid Pi stream: " + safe(String(err)));
@@ -325,7 +299,7 @@ export async function run(o: Options) {
           : "status success or blocked; blocked requires blocker {step,reason,evidence,nextAction}.") +
         "\nHandoff path: " +
         JSON.stringify(out);
-      o.progress(stage + " " + n + "; evidence " + dir);
+      o.progress(`Starting ${stage} (attempt ${n}); evidence ${dir}`);
       let snapshotChecked = false;
       if (stage === "verify") {
         clean();
@@ -410,6 +384,7 @@ export async function run(o: Options) {
           ...recoveryArgs,
         ];
         privateFile(failureFile, String(error).slice(0, 65536));
+        o.progress(`Opening Rex recovery for ${stage} (attempt ${n}). Finish the recovery and exit Pi in that pane.`);
         await recovery({
           cwd,
           env: o.env ?? process.env,

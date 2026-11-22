@@ -6,7 +6,7 @@ If execution has already started manually, finish manually: repeat `/execute` fo
 ## Start or cancel a run
 1. Open interactive Pi 1.6.0 in a local Rex pane. Use a clean feature worktree with the plan tracked at `HEAD`. Confirm that the signing agent can sign child commits and that the scoped models include an authenticated verifier distinct from both writers.
 2. Enter `/stage-runner plans/my-feature/plan.md`, replacing the example path with your plan. Select a model and a supported thinking level for execute, simplify, and verify. Check the plan path before confirming the run.
-3. Watch the stage and attempt in the Pi status line. On success, Pi reports `VERIFIED` and the evidence directory. Review that evidence before deciding whether to publish separately.
+3. Watch the **Stage runner** entries in the invoking Pi transcript. They show the stage and attempt, when to use the Rex recovery pane, and the final result. On `VERIFIED`, review the reported evidence directory before deciding whether to publish separately.
 
 To stop, enter `/stage-runner-cancel` in the invoking Pi session. Session shutdown also requests cancellation. Leave edits and commits in place. Check the reported run directory before starting more work; cancellation does not roll back a partial slice.
 

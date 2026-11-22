@@ -3,6 +3,7 @@ import path from "node:path";
 import os from "node:os";
 import { getSupportedThinkingLevels } from "@earendil-works/pi-ai";
 import { VERSION, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { Text } from "@earendil-works/pi-tui";
 import { qualifiedId } from "./_model.ts";
 import { run, type Choice } from "./_runner.ts";
 
@@ -39,8 +40,16 @@ async function checkRex(pi: ExtensionAPI) {
 }
 
 export default function stageRunner(pi: ExtensionAPI) {
-  let active: AbortController | undefined, finished: Promise<void> | undefined;
+  const entryType = "stage-runner-progress";
+  pi.registerEntryRenderer<string>(entryType, (entry, _options, theme) =>
+    new Text(`${theme.fg("accent", "Stage runner")} — ${entry.data ?? ""}`, 1, 0),
+  );
+  let active: AbortController | undefined, finished: Promise<void> | undefined, shuttingDown = false;
+  const progress = (message: string) => {
+    if (!shuttingDown) pi.appendEntry(entryType, message.replace(/[\x00-\x1f\x7f-\x9f]/g, "?"));
+  };
   pi.on("session_shutdown", async () => {
+    shuttingDown = true;
     active?.abort();
     await finished;
   });
@@ -98,6 +107,7 @@ export default function stageRunner(pi: ExtensionAPI) {
         )
           return;
         const plan = path.resolve(ctx.cwd, arg.trim().replace(/^(['"])(.*)\1$/, "$2"));
+        progress("Run started.");
         const evidence = await run({
           cwd: path.dirname(plan),
           plan,
@@ -108,21 +118,22 @@ export default function stageRunner(pi: ExtensionAPI) {
           wallMs: deadline("PI_STAGE_RUNNER_WALL_MS", 3600000),
           notify: (message) => ctx.ui.notify(message, "warning"),
           approve: (changes, signal) => ctx.ui.confirm("Accept recovered writer?", changes, { signal }),
-          progress: (message) => ctx.ui.setStatus("stage-runner", message),
+          progress,
         });
-        ctx.ui.notify("VERIFIED; evidence " + evidence, "info");
+        progress("VERIFIED; evidence " + evidence);
       })()
-        .catch((e) =>
+        .catch((e) => {
+          if (shuttingDown) return;
+          progress(controller.signal.aborted ? "Run canceled." : "Run stopped. See the error notification for details.");
           ctx.ui.notify(
             String(e)
               .replace(/[^\x20-\x7e]/g, "?")
               .slice(0, 1024),
             "error",
-          ),
-        )
+          );
+        })
         .finally(() => {
           active = undefined;
-          ctx.ui.setStatus("stage-runner", undefined);
         });
     },
   });

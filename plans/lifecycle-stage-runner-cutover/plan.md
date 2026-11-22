@@ -38,12 +38,15 @@
 | `codebase-research` | `skill-loader` | Cross-component removal | Mapped command owners, bridge references, and test tiers. |
 | `cli-best-practices` | `skill-loader` | Command retirement | Kept the supported start, cancel, and handoff interfaces. |
 | `chezmoi` | `skill-loader` | Managed resource removal | Changed source only; left installed targets untouched. |
+| `learning-candidates` | `prompt-required` | Test environment assumption | Recorded the inherited child flag and passing isolated command. |
 | `diataxis` | `skill-loader` | Operator instructions | Separated publication, repair, and installation procedures from source evidence. |
 | `write` | `skill-loader` | Prompt and runbook text | Kept operator actions and stop conditions explicit. |
 
 Task 1: The focused tests failed against the legacy resources as expected, then passed 71/71 after retirement. The runner still clears the obsolete environment variable in child processes.
 
 Task 2: Both updated contract tests failed before the prompt edits. The focused suite then passed 71/71. The review handoff stays within its 12,500-byte budget. Walked the fix and head-drift scenarios against the PR prompts and MCP schemas without remote writes: the published verified head gates settlement; a mismatch or missing review capture stops the affected action.
+
+Task 3: Source checks found both runner registrations and all three direct lifecycle prompts, with no retired resource or command alias. `_runner.ts`, `index.ts`, and the runner integration suite are unchanged. `npm ci --ignore-scripts` and `npm test` passed (498 passed, 3 skipped; 46 skills validated). The first `npm run test:all` stopped at runner integration because the parent child flag caused `Nested stage-runner is not allowed` in the disposable fixture runs. `env -u PI_STAGE_RUNNER_CHILD npm run test:all` passed all tiers: fast tests, 31 integration tests, typecheck, and offline smoke. That command isolates the test environment without changing production or fixture code. Removed disposable dependencies and passed `git diff --check`. Installed command discovery remains pending operator rollout after independent verification.
 
 ## Implementation Contract
 Source: design Slice 2 in `plans/lifecycle-stage-runner/design.md`. The operator approved two changes during alignment: retire `/implement` instead of routing it to the runner, and retire both orchestrated-only ARP commands instead of converting them to direct commands. This plan controls those decisions. Do not rewrite the design or the completed Slice 1 qualification record. The scoped `Datadog/Learnings.md` lookup returned no matching sections; no source was skipped.
@@ -141,5 +144,8 @@ For this retirement only, replace the root `AGENTS.md` requirement to update `sh
 **Traces to:** Both requirements; rollout, rollback, and future-agent guidance.
 **Files:** Record sanitized writer evidence in `plans/lifecycle-stage-runner-cutover/plan.md`; check that `dot_pi/agent/exact_extensions/stage-runner/README.md` distinguishes source checks from operator rollout.
 
-- [ ] Verify that the focused tests check both runner registrations and all three surviving prompts. Confirm the absence of the conductor directory, profile template, and retired prompts in source. Search the remaining command registrations for retired names, including aliases. Do not run `chezmoi apply` in any stage. Independent `/verify` must collect fresh source and test results; the operator runs the live discovery check only after `VERIFIED`.
-- [ ] Run `npm ci --ignore-scripts`, `npm test`, and `npm run test:all` from `dot_pi/agent/`; require fast, integration (including stage runner), typecheck, and smoke tiers to pass. Remove disposable dependencies after all tiers finish. Run `git diff --check`. Do not exercise real publication or ARP writes. Record source checks, test results, and any blocker. Keep the installed command result pending until operator rollout. Commit `docs: record stage runner cutover verification`.
+- [x] Verify that the focused tests check both runner registrations and all three surviving prompts. Confirm the absence of the conductor directory, profile template, and retired prompts in source. Search the remaining command registrations for retired names, including aliases. Do not run `chezmoi apply` in any stage. Independent `/verify` must collect fresh source and test results; the operator runs the live discovery check only after `VERIFIED`.
+- [x] Run `npm ci --ignore-scripts`, `npm test`, and `npm run test:all` from `dot_pi/agent/`; require fast, integration (including stage runner), typecheck, and smoke tiers to pass. Remove disposable dependencies after all tiers finish. Run `git diff --check`. Do not exercise real publication or ARP writes. Record source checks, test results, and any blocker. Keep the installed command result pending until operator rollout. Commit `docs: record stage runner cutover verification`.
+
+## Learning candidates
+- 2026-11-22: The stage-runner integration fixtures cannot start from a stage-runner child environment unless the test subprocess clears the inherited `PI_STAGE_RUNNER_CHILD` flag — evidence: `npm run test:all` failed with `Nested stage-runner is not allowed`; `env -u PI_STAGE_RUNNER_CHILD npm run test:all` passed.

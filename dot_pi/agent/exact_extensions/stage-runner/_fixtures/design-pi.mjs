@@ -7,6 +7,14 @@ const git = (...a) => execFileSync('git', a, { encoding: 'utf8' }).trimEnd();
 const rel = 'plans/demo/design.md', plan = 'plans/demo/plan.md';
 const stage = env.PI_DESIGN_STAGE ?? 'design-review';
 const id = 'fixture-' + stage;
+if (args.includes('--session')) {
+  assert.equal(value('--model'),'reviewer');
+  assert.equal(env.PI_DESIGN_HANDOFF,undefined);
+  const saved = JSON.parse(fs.readFileSync(value('--session'),'utf8').split('\n')[0]);
+  fs.appendFileSync(env.ARGV_LOG+'.resumed',saved.id+'\n');
+  if (env.FAIL === 'blocker-cancel') await new Promise(resolve=>setTimeout(resolve,30000));
+  process.exit(0);
+}
 if (args.includes('--session-dir')) {
   const rows = [{type:'session', id, cwd:process.cwd()}, {type:'model_change', provider:'p', modelId:env.FAIL === 'overlap' && stage === 'design-review' ? 'author' : value('--model')}];
   fs.writeFileSync(path.join(value('--session-dir'), id+'.jsonl'),rows.map(r=>JSON.stringify(r)).join('\n')+'\n',{mode:0o600});
@@ -36,8 +44,9 @@ if (stage === 'design-draft') {
   }
   if (env.FAIL === 'dirty') fs.writeFileSync('unrelated','uncommitted');
   out = JSON.parse(prompt.match(/to (".*?") with schemaVersion/)[1]);
-  console.log(JSON.stringify({type:'session',id}));
+  console.log(JSON.stringify({type:'session',id:env.FAIL === 'blocker-session' ? 'wrong' : id}));
   result = {status:'clean',reviewedBlob:env.FAIL === 'corrected-stale' ? draftBlob : env.FAIL === 'stale' ? '1'.repeat(40) : git('rev-parse','HEAD:'+rel)};
+  if (env.FAIL?.startsWith('blocker')) Object.assign(result,{status:'needs-human',questions:['Which behavior?']});
   console.log(JSON.stringify({type:'agent_settled',aborted:false}));
 } else {
   assert.equal(git('status','--porcelain'),''); assert.equal(git('branch','--show-current'),'feature');

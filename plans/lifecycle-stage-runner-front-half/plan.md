@@ -172,6 +172,7 @@ The reviewer SHALL check the revised text after committing mechanical correction
 - [x] Run `node --experimental-strip-types --test --test-name-pattern='corrected design' exact_extensions/stage-runner/_integration.test.ts` and `npm test`; expect positive and stale-result tests to pass. Rerun after any refactoring. Commit `feat(pi): approve the corrected design revision`.
 
 ### Task 3: Return a blocking decision to the same reviewer
+Task 3 verified by `openai/gpt-6.2-astra`. Before implementation, the runner rejected the blocker instead of resuming. All four blocker tests and both integration suites passed (77 Stage Runner and 5 Worktrunk tests). The terminal outcome is not a successful plan.
 **Delivers:** The operator can continue the review with its original context; no automated approval follows the escalation.
 **Blocked by:** Task 1
 **Traces to:** Roadmap `needs-human` path and preservation of operator decisions.
@@ -190,9 +191,9 @@ The runner SHALL open the saved reviewer session for a valid `needs-human` resul
 - WHEN escalation cannot complete safely
 - THEN the runner stops without retry, approval, or planning and reports the available recovery evidence.
 
-- [ ] Add a failing `design blocker` subprocess test, implement resume with `sessionInfo` and `recovery`, and assert the resumed session identity and the absence of an approval commit. After the resumed pane exits, assert that the lock is released, the completion reason is `needs-human`, and no planning pane opened. Exercise failure and cancellation without creating duplicate panes. Assert that an invalid review handoff with a valid session prints the `pi --session` command and opens no split.
-- [ ] Add a `S/lifecycle-prompts.test.mjs` marker that the managed review authority ends when the handoff is written and later turns follow the standalone confirmation gate.
-- [ ] Run `node --experimental-strip-types --test --test-name-pattern='design blocker' exact_extensions/stage-runner/_integration.test.ts`; expect the operator path to pass. Rerun the integration tier after any shared-launcher change. Commit `feat(pi): resume blocked design reviews in Rex`.
+- [x] Add a failing `design blocker` subprocess test, implement resume with `sessionInfo` and `recovery`, and assert the resumed session identity and the absence of an approval commit. After the resumed pane exits, assert that the lock is released, the completion reason is `needs-human`, and no planning pane opened. Exercise failure and cancellation without creating duplicate panes. Assert that an invalid review handoff with a valid session prints the `pi --session` command and opens no split.
+- [x] Add a `S/lifecycle-prompts.test.mjs` marker that the managed review authority ends when the handoff is written and later turns follow the standalone confirmation gate.
+- [x] Run `node --experimental-strip-types --test --test-name-pattern='design blocker' exact_extensions/stage-runner/_integration.test.ts`; expect the operator path to pass. Rerun the integration tier after any shared-launcher change. Commit `feat(pi): resume blocked design reviews in Rex`.
 
 ### Task 4: Final verification
 **Delivers:** Operator guidance and release evidence for the two outcomes in the approved brief.

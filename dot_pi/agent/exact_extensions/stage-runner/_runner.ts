@@ -61,11 +61,13 @@ async function designStages(o: DesignOptions, dir: string, start: string, git: (
     ensure(fs.realpathSync(p) === p && fs.lstatSync(p).isFile() && /^100(?:644|755) blob /.test(git("ls-tree", commit, "--", rel)), "Expected regular tracked artifact");
     return p;
   };
+  const openPane = (f: string, argv: string[]) => recovery({ cwd: o.cwd, env: o.env!, rex: o.rexCommand, argv, signal, owner,
+    manual: (cmd, display) => { if (display) o.notify?.(cmd); else privateFile(path.join(f, "manual-command"), cmd); } });
   const pane = async (f: string, stage: "design-draft" | "design-plan", prompt: string, args: string[], input: Record<string, string>) => {
     const out = path.join(f, "handoff.json");
     const argv = paneArgv(o, o.author, [...args, prompt + " Stay in the current worktree and branch. Write a 0600 UTF-8 JSON handoff <=64 KiB to PI_DESIGN_HANDOFF with schemaVersion:1, stage:" + stage + ", nonblank summary and the required revision fields."], { PI_DESIGN_HANDOFF: out, PI_DESIGN_STAGE: stage, ...input });
     o.progress("Starting " + stage + "; evidence " + f);
-    await recovery({ cwd: o.cwd, env: o.env!, rex: o.rexCommand, argv, signal, owner, manual: (cmd, display) => { if (display) o.notify?.(cmd); else privateFile(path.join(f, "manual-command"), cmd); } });
+    await openPane(f, argv);
     signal.throwIfAborted(); clean(); return handoff(out, stage);
   };
   const draftDir = folder("design-draft"), sessions = path.join(draftDir, "sessions");
@@ -98,9 +100,16 @@ async function designStages(o: DesignOptions, dir: string, start: string, git: (
   const checked = head();
   const reviewedBlob = git("rev-parse", checked + ":" + rel);
   const changed = git("diff", "--no-renames", "--name-only", "-z", d, checked);
-  ensure(review.status === "clean" && review.reviewedBlob === reviewedBlob && (!changed || changed === rel + "\0"), `Design changed or needs review: draft ${d}, observed ${checked}; reviewed blob ${review.reviewedBlob}`);
+  ensure(review.reviewedBlob === reviewedBlob && (!changed || changed === rel + "\0"), `Design changed or needs review: draft ${d}, observed ${checked}; reviewed blob ${review.reviewedBlob}`);
   const original = readBlob(reviewedBlob);
   ensure(decode(original).split("\n")[1] === "Status: Draft", "Invalid reviewed Draft header");
+  if (review.status === "needs-human") {
+    o.progress("Resuming design reviewer; evidence " + r);
+    await openPane(r, paneArgv(o, o.reviewer, ["--session", reviewer.file]));
+    privateFile(path.join(dir, "completed"), "needs-human");
+    prune(o.root);
+    throw Error("needs-human: design review ended without automatic approval");
+  }
   const range = d + ".." + checked;
   const correctionSummary = changed ? git("log", "--format=%s", range) + "\n" + git("diff", "--stat", range) : "";
   const plannerInput = JSON.stringify({ designPath: design, correctionSummary });

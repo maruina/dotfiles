@@ -7,8 +7,8 @@ import os from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { run } from "./_runner.ts";
-for (const [failure, error] of Object.entries({ corrected: "", "corrected-stale": "Design changed", "corrected-other": "Design changed", "corrected-header": "Draft header", "": "", early: "handoff", header: "Draft header", path: "artifact path", overlap: "author model", stale: "Design changed", invalid: "pi --session", "no-plan": "handoff", reverted: "unrelated path", dirty: "dirty", switch: "Author used reviewer", "pre-check": "Design changed", "approval-race": "expected parent [a-f0-9]+, observed [a-f0-9]+" }))
- test((failure.startsWith("corrected") ? "corrected design: " : "clean design: ") + (failure || "committed plan without publication"), async (t) => {
+for (const [failure, error] of Object.entries({ blocker: "needs-human", "blocker-cancel": "abort", "blocker-uncertain": "uncertain recovery", "blocker-session": "identity mismatch", corrected: "", "corrected-stale": "Design changed", "corrected-other": "Design changed", "corrected-header": "Draft header", "": "", early: "handoff", header: "Draft header", path: "artifact path", overlap: "author model", stale: "Design changed", invalid: "pi --session", "no-plan": "handoff", reverted: "unrelated path", dirty: "dirty", switch: "Author used reviewer", "pre-check": "Design changed", "approval-race": "expected parent [a-f0-9]+, observed [a-f0-9]+" }))
+ test((failure.startsWith("blocker") ? "design blocker: " : failure.startsWith("corrected") ? "corrected design: " : "clean design: ") + (failure || "committed plan without publication"), async (t) => {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), "design-test-"));
   t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
   const cwd = path.join(temp, "work");
@@ -36,7 +36,22 @@ for (const [failure, error] of Object.entries({ corrected: "", "corrected-stale"
     executable: process.execPath, prefix: [path.join(import.meta.dirname, "_fixtures/design-pi.mjs")],
     rexCommand: [process.execPath, path.join(import.meta.dirname, "_fixtures/rex.mjs")] });
   if (error) {
-    await assert.rejects(result, new RegExp(error));
+    if (failure === "blocker-cancel") {
+      const wait = async () => {
+        for (let i = 0; i < 500 && !fs.existsSync(env.ARGV_LOG+".resumed"); i++) await delay(10);
+        controller.abort();
+      };
+      await Promise.all([assert.rejects(result, /abort/i), wait()]);
+    } else await assert.rejects(result, new RegExp(error));
+    if (failure.startsWith("blocker")) {
+      assert.equal(git("log","-1","--format=%s"),"draft");
+      const state = path.join(temp,"state"), files = fs.readdirSync(state);
+      assert.equal(files.some(s => s.startsWith("lock-")), failure === "blocker-uncertain");
+      if (failure === "blocker" || failure === "blocker-cancel") {
+        assert.equal(fs.readFileSync(env.ARGV_LOG+".resumed","utf8"),"fixture-design-review\n");
+      }
+      if (failure === "blocker") assert.equal(fs.readFileSync(path.join(state,files.find(s => s.startsWith("run-"))!,"completed"),"utf8"),"needs-human");
+    }
     if (["approval-race", "pre-check"].includes(failure)) {
       const competing = fs.readFileSync(env.ARGV_LOG + ".competing", "utf8").trim();
       git("merge-base", "--is-ancestor", competing, "HEAD");

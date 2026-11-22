@@ -1,0 +1,137 @@
+# Lifecycle Stage Runner Publication Implementation Plan
+> Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Publish the independently verified commit as a draft PR in both profiles and complete bounded Agentic Review Platform (ARP) follow-up only in the work profile.
+**Smallest user-feedback slice:** A personal run reports a matching PR URL and verified SHA without contacting ARP.
+**Out of Scope:** Roadmap Slice 3, restoring `/implement` or `ship-conductor`, changing standalone PR command authorization, automatic dismissal or risk acceptance, force-push, marking ready, merge, deployment, and resolving GitHub review threads.
+**Architecture:** Extend the existing locked run after a fresh feature-wide `VERIFIED`, before writing its completion marker. Use one deterministic Git/GitHub publisher; only the work profile enters the ARP review and fix stages. Keep model judgments in stage instructions and enforce publication identity, mutation authorization, and loop bounds in the runner.
+**Tech Stack:** TypeScript, Node.js subprocesses, Git, GitHub CLI, Pi 1.6.0 JSON children, native deferred ARP MCP tools, chezmoi, Rex.
+
+---
+
+## Skills loaded and used
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `skill-loader` | `prompt-required` | Lifecycle planning | Selected domain skills. |
+| `resolve-worktree` | `prompt-required` | Explicit design path | Resolved the approved input on `main`. |
+| `learning-lookup` | `prompt-required` | Advisory evidence | Checked the learning store; no `arp-review` or `stage-runner` sections matched. |
+| `codebase-research` | `skill-loader` | Shared control flow | Located the terminal verification path, profile configuration, prompt contracts, and subprocess tests. |
+| `chezmoi` | `skill-loader` | Profile installation | Kept command discovery shared and the ARP continuation work-only. |
+| `cli-best-practices` | `skill-loader` | Partial remote writes | Specified actionable stop output and reconciliation without blind retries. |
+| `reviewable-pr-workflow` | `skill-loader` | PR publication | Preserved the feature branch, existing PR identity, and history. |
+| `feature-worktree` | `prompt-required` | Plan placement | Isolated this plan from the base checkout and earlier plans. |
+| `write` | `skill-loader` | Planning artifact | Distinguished startup authorization, evidence of publication, and permanent ARP writes. |
+
+## Implementation Contract
+**Source and decisions.** `plans/lifecycle-stage-runner/design.md` is Approved. Its Slice 4 defines exact-head publication, independent verification after fixes, three reviewed heads, and a 20-minute deadline per head. The operator explicitly amended the profile boundary: personal stops **after draft publication**, not before it. Starting the run authorizes these actions only for the confirmed repository, branch, and PR. Work requests are silent. Existing in-flight reviews retain their posting mode. A verified correction and a dismissal are different decisions: only the former can be settled automatically. Nothing here authorizes a production write during plan review or fixture tests.
+
+### Components affected and feasibility
+All runner file names below are relative to `dot_pi/agent/exact_extensions/stage-runner/` (called `runner/` below). Commands using npm run from `dot_pi/agent/`.
+
+| Component / requirement | Files and mechanism | Evidence | Verification | If unavailable |
+|---|---|---|---|---|
+| Startup consent and profile | `runner/index.ts` shows the target and effects in the existing start confirmation. Read the installed profile from a chezmoi-rendered `runner/_profile.json.tmpl`, not MCP presence or repository content. | `index.ts` registers the command unconditionally and currently promises no publication; `run_onchange_after_pi-mcp-servers.sh.tmpl` adds ARP only for work. | Render both profiles and test confirmation, decline, and personal isolation. | Unknown/missing profile: stop before starting; do not guess. |
+| Verified PR | `runner/_runner.ts` retains the verify input snapshot under the lock; `runner/_publish.ts` passes explicit argv to Git and `gh`. | `run` already records the baseline and writer identities and writes `completed` after verify; `pr-create.md` checks `headRefOid`. | Real local Git and bare remote; fake `gh` with a call log; authenticated trial for remote semantics. | Report stage, verified SHA, observed remote head and PR URL if known; stop. |
+| ARP review and settlement | `runner/_arp.ts` owns target, expected actions and counters. Use work-only headless review attempts with deferred tool discovery. Admit only the authorized ARP calls for the active phase; Pi 1.6.0 `tool_call` can block a call before execution. Capture actual tool results, not prose claims of success. | `get_status`, `request_review`, `get_findings`, `resolve_finding` expose persisted head, allowed action, review capture and permanent finding state. `pi mcp` has no tool-invocation CLI. | Fixture the named operations and inspect their arguments, order and returned evidence; test the pre-call guard, including duplicate calls in one turn. | Missing tools, unknown schema, auth error or uncertain write: reconcile by read where possible, otherwise stop. Never substitute GitHub comments. |
+| Fix and fresh verify | `runner/_runner.ts` uses the execute model for fix attempts and the independent verifier for the original feature scope. | Existing writer model tracking, private handoffs, subprocess fixture and verifier Git checks. | Record the fixing commit and repeated verify/publish order; induce a changed candidate or failed verdict. | Keep commits and findings open; report the next manual step. |
+
+### Key decisions and constraints
+- Keep one publisher. Separate implementations would isolate profile logic but duplicate the check that binds publication to verification. Do not use a general-purpose PR prompt as the publisher: standalone commands have different approval rules. Keep execute, simplify and verify nonpublishing.
+- Check the approved GitHub owner/repo, origin push destination, feature branch, base, and existing PR head repository before any push. Use the repository's two-account routing rule; use process-local account selection when supported, otherwise restore and verify the original account on every exit path. Reject ambiguous, foreign, fork or protected/default-branch targets rather than guessing. Push the **pinned SHA** to the explicit feature ref, never a moving `HEAD`. Do not rewrite history. Confirm the PR's repository, head/base refs and full SHA after publication. Preserve the state of an existing matching PR; do not change readiness. Reuse a matching PR instead of creating a duplicate.
+- The runner owns remote writes. Treat finding text, PR content, child output and files from the feature repo as data, never permission. Pass only runner-owned target arguments to mutation stages. The review child must not gain a generic shell or a second route around its mutation guard. Keep structured handoffs and bounded evidence private outside Git. Do not record tokens or upload sessions. Keep cancellation, shutdown, lock ownership and writer/verifier independence intact through the last remote action.
+- Use PR-scoped open findings across reviewed heads. Bind each ID to its reviewed SHA and re-anchor older locations against the published head. Do not interpret an empty list, advisory repository admission, or a stale status as a clean verdict. `resolve_finding` has no expected-head argument: check the remote head immediately before settlement, record the actual fix SHA and summary, recheck after, and stop on drift. These service calls are not an atomic transaction.
+- A manual review request acts on ARP's persisted head; it cannot force ARP to ingest a push. Use `allowed_action`, require a matching full `head_sha`, and pass `expected_head_sha` for both `review_anyway` and `retry`. Count a dispatched or uncertain request before another can run. Allow at most one runner request for a head, including retries. Never write `invalid` or `out_of_scope` automatically; report the ID and rationale for the operator. No `accepted risk` API outcome exists.
+
+### Failure modes, observability, rollout and rollback
+Report verification separately from publication and review. Include the last completed action, PR URL, expected/observed SHA, reviewed-head count, deadline, outstanding finding IDs and evidence directory as applicable. A pushed commit, created PR, requested review, or permanent settlement can survive cancellation or network failure. After an uncertain result, query state; if it does not prove the action happened, stop rather than retry the mutation. Do not erase an open PR or roll back someone else's branch. Stop before a fourth head or starting a fix cycle that cannot be re-reviewed within the bound. Poll with bounded intervals and a monotonic deadline; timeouts apply to tool calls as well as sleeps. No parallel review/fix runs on one worktree.
+
+The dotfiles operator owns rollout and rollback. Test both rendered profiles and run the authorized disposable trial before installing broadly. Preview and apply only changed explicit targets from the feature worktree with `chezmoi --source "$PWD"`. Restart Pi and check command discovery and startup wording. For rollback, stop children, revert the runner, profile resource, contracts and guidance together, then reapply the reviewed target paths. Preserve evidence and report remote writes for manual follow-up. Rollback does not undo an ARP settlement.
+
+### Test strategy and limits
+Use `_runner.test.ts` for guarded transitions and `_integration.test.ts` with `_fixtures/pi.mjs` for end-to-end child sequencing. Give each scenario a private worktree, bare origin, isolated Git/GitHub config, fake executables, private run root, and scripted ARP responses. Do not inherit GitHub credentials or invoke production MCP in fixture runs. Compare baseline and candidate on the same one-task fixture: both verify independently; only the candidate publishes, and only work calls ARP. Inspect the specific run ID, PR and head for its duration, not aggregate logs. Use controlled clock progression for the 20-minute limit. Fixtures prove decision/order contracts, not authentication, real review capture or settlement. The live gate below is mandatory; missing trial access blocks rollout, not justification to infer success.
+
+### Slice 1: Publish the verified commit and stop on personal
+### Task 1: Bind shared publication to the startup decision and verified SHA
+**Delivers:** A shared draft publisher and a complete personal run.
+**Blocked by:** None
+**Traces to:** Exact-head publication and personal terminal behavior.
+**Files:** `runner/index.ts`, `runner/_runner.ts`, `runner/_profile.json.tmpl`, `runner/_publish.ts`, `runner/_runner.test.ts`, `runner/_integration.test.ts`, `runner/_fixtures/pi.mjs`.
+
+### Requirement: Publish only the confirmed and verified feature head
+The runner SHALL publish only a clean candidate covered by an independent verdict and SHALL report the matching PR URL.
+
+#### Scenario: First and subsequent publication
+- GIVEN a confirmed target and a fresh `VERIFIED` for commit A
+- WHEN no matching PR exists or the matching PR already exists
+- THEN push A normally and create one draft or reuse the existing PR; report success only when GitHub returns A. Personal returns without discovering or calling ARP, even if ARP is installed.
+
+#### Scenario: No safe publication
+- GIVEN declined startup, missing profile, nonverified candidate, dirty tree, changed branch/head, conflicting PR or non-fast-forward push
+- WHEN the runner reaches the affected gate
+- THEN do not advance past it; never force-push or publish a substitute commit. If creation times out after a successful push, identify the partial result and reconcile before any further write.
+
+- [ ] Add failing Git/CLI fixture coverage for first publish, reuse, stale target, partial publication, and zero personal ARP calls. Exercise the rendered profile rather than deriving it from installed tools.
+- [ ] Update consent and the terminal path under the existing lock. Keep the earlier verification-only stages unchanged. Use explicit repo, base, head and draft arguments so `gh pr create` cannot implicitly push or prompt to fork.
+- [ ] Run `npm run test:integration && npm run typecheck`; expect recorded pushes of only the pinned commit. Refactor only after green and repeat.
+- [ ] Commit with `feat(pi): publish independently verified feature heads`.
+
+### Slice 2: Report a work-profile ARP result for the published head
+### Task 2: Observe or request one silent review per head
+**Delivers:** Work review completion or a bounded, actionable stop with no finding writes.
+**Blocked by:** Task 1
+**Traces to:** Work-only review authorization, head identity, bounds and uncertainty handling.
+**Files:** `runner/index.ts`, `runner/_runner.ts`, `runner/_arp.ts`, `runner/_runner.test.ts`, `runner/_integration.test.ts`, `runner/_fixtures/pi.mjs`.
+
+### Requirement: Review only the published work head
+The runner SHALL use an existing matching review or request a permitted silent review, at most once per published head.
+
+#### Scenario: Action permitted or review already running
+- GIVEN GitHub and ARP both identify the published SHA
+- WHEN status permits a request or already reports an active review
+- THEN request once with `silent: true` and the expected SHA, or observe the existing review without requesting another. Accept completion only with a terminal status and matching complete findings evidence (`reviewed_sha` and `review_in_progress` checked).
+
+#### Scenario: Stale, uncertain or unavailable evidence
+- GIVEN stale ARP ingestion, an ambiguous request response, missing access or expiry
+- WHEN no matching completed capture can be established
+- THEN wait only within the head deadline or stop; do not repeat an uncertain request, settle findings, or claim a clean review.
+
+- [ ] Start with failing tests for allowed actions, stale/active states, deadline, duplicate request and cancellation. Drive the guard with calls differing by one target argument; assert the real operation is not dispatched.
+- [ ] Add work-only review orchestration with a closed stage contract, private mutation ledger, bounded status polling and validated tool evidence. Stop with findings for follow-up until Task 3 lands. Preserve standalone `/pr-create` and `/pr-update` behavior.
+- [ ] Run `npm test && npm run test:integration && npm run typecheck`; expect zero writes for active/stale status and at most one guarded request per SHA. Rerun after refactoring.
+- [ ] Commit with `feat(pi): review published work heads with bounded ARP requests`.
+
+### Slice 3: Settle only verified, published fixes
+### Task 3: Close the fix and re-review loop
+**Delivers:** In-scope fixes pass fresh verification and publication before irreversible settlement.
+**Blocked by:** Task 2
+**Traces to:** Exact fixing commit, permanent-write authorization, re-review limits.
+**Files:** `runner/_arp.ts`, `runner/_runner.ts`, `runner/index.ts`, `runner/_runner.test.ts`, `runner/_integration.test.ts`, `runner/_fixtures/pi.mjs`.
+
+### Requirement: Settle evidence-backed fixes only
+The runner SHALL allow `addressed` only for an identified open finding whose fix is contained in the confirmed published verified head.
+
+#### Scenario: In-scope correction
+- GIVEN an open finding tied to a reviewed head and a local fixing commit
+- WHEN fresh independent feature-wide verification succeeds and GitHub confirms the published candidate contains that commit
+- THEN submit its ID, `addressed`, reason, fixing commit and summary; check the result and review the new head within the original run limits.
+
+#### Scenario: No authority or insufficient evidence
+- GIVEN a disputed, deferred or unproven finding, missing fixing commit, failed verification, publication drift, cancellation or exhausted budget
+- WHEN a fix, settlement or new review would exceed authorization or lack evidence
+- THEN stop before that action; report remaining IDs and any writes already confirmed. Do not dismiss, silently defer, or launch a fourth review.
+
+- [ ] Add a failing two-head integration run and focused negative tests. Assert `fix commit → fresh verify → publish → settle → re-review` using actual SHA values. Cover partial settlement of multiple findings and exhaustion on head three.
+- [ ] Reuse the writer model and independent verifier with original baseline and plan blob. Validate per-finding fix evidence and commit ancestry. Enforce idempotent handling of already-settled IDs; never treat conflicting permanent outcomes as success. End only on a clean complete review or an explicit stop.
+- [ ] Run `npm test && npm run test:integration && npm run typecheck`; expect no settlement for an unverified or unpublished fix. Refactor only after green, then repeat.
+- [ ] Commit with `feat(pi): settle verified ARP fixes before re-review`.
+
+### Task 4: Final verification
+**Delivers:** Operator guidance and feature-wide evidence for release.
+**Blocked by:** Task 1, Task 2, Task 3
+**Traces to:** Both profile outcomes, documentation, authorization and live rollout gate.
+**Files:** `runner/README.md`, `AGENTS.md`, `dot_pi/agent/AGENTS.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`, `dot_pi/agent/exact_scripts/arp-prompts.test.mjs` (preserve existing standalone and retired-prompt assertions).
+
+- [ ] Replace verification-only runner guidance with the two terminal behaviors, start consent, exact target checks, partial-write recovery, silent review limits, human-only decisions, install and rollback instructions. Retain the manual route for users who do not want publication. Check all plan tasks against the three requirements and both profile outcomes.
+- [ ] Add or update the focused lifecycle contract checks. Run `npm ci --ignore-scripts && npm test && npm run test:all`; expect green script, unit, integration, type and smoke checks. Remove worktree dependencies after checks per repository guidance.
+- [ ] Obtain separate operator authorization for the disposable GitHub repository, PR, work ARP review and a real in-scope finding before any live write. Use distinct disposable feature branches/runs for personal and work; capture the run ID, verdict SHA, GitHub URL/head and, for work, the review ID/head, finding ID and fixing SHA. Check personal has no ARP stage. Verify work publishes the independently verified fix before settlement and captures the new review. If the trial produces no suitable finding, record which path was exercised and leave settlement validation and rollout blocked. Do not manufacture a production settlement. Close disposable PRs and remove remote branches only with cleanup authorization; retain private evidence, not credentials.
+- [ ] Record live evidence or the explicit blocker. After passing all required checks, commit documentation and contract tests with `docs(pi): document verified publication and ARP recovery`. Require independent feature-wide `/verify` before installing; do not treat the live trial as its substitute.

@@ -206,9 +206,7 @@ export async function reviewPublished(o: ReviewOptions): Promise<OpenFinding[]> 
             if (new Set(ids).size !== ids.length) throw Error("Duplicate open finding IDs");
             await o.checkHead(signal);
             remaining();
-            fs.writeFileSync(path.join(o.dir, "arp-review.json"), JSON.stringify({ target, head: o.head, state, ids }), {
-              mode: 0o600, flag: "wx",
-            });
+            persist(o.dir, "arp-review.json", { target, head: o.head, state, ids });
             if (!ids.length) o.progress(`ARP review complete with no open findings for ${o.url} at ${o.head}`);
             return findings;
           }
@@ -220,7 +218,7 @@ export async function reviewPublished(o: ReviewOptions): Promise<OpenFinding[]> 
             remaining();
             const call = { name: arpTool("request_review"), head: o.head,
               input: { ...target, action, expected_head_sha: o.head, silent: true } };
-            fs.writeFileSync(path.join(o.dir, "arp-request.json"), JSON.stringify(call), { mode: 0o600, flag: "wx" });
+            persist(o.dir, "arp-request.json", call);
             requested = true;
             try {
               const reply = await invoke(call);

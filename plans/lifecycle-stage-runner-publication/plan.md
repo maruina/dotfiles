@@ -199,6 +199,9 @@ The runner SHALL allow `addressed` only for an identified open finding whose fix
 - [x] Add or update the focused lifecycle contract checks. Run `npm ci --ignore-scripts && npm test && npm run test:all`; expect green script, unit, integration, type and smoke checks. Remove worktree dependencies after checks per repository guidance.
 - [x] Record the approved deferral and commit documentation and contract tests with `docs(pi): document verified publication and ARP recovery` after the local checks pass.
 
+### Simplification
+GPT-6.2 Sol (`openai/gpt-6.2-sol`) reused `_arp.ts`'s existing `persist()` helper for the review capture and request ledger. File names, JSON, permissions, exclusive creation, and write order are unchanged. Kept all production paths and test cases. The 23 focused ARP tests passed before and after, and `npm run test:all` passed after the change. No live writes or installation occurred.
+
 ## Rollout gate (deferred)
 The following checks are outside Task 4 completion. Do not install or enable the feature until they pass.
 

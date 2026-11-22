@@ -30,6 +30,16 @@ test("plan separates binding contracts from implementation suggestions", () => {
   assert.doesNotMatch(plan, /\*\*Small:\*\*[^\n]*exact files/);
 });
 
+test("plan final review traces an allowed scenario through its controls", () => {
+  const review = prompt("plan.md").split("## Final review")[1].split("## Learning candidates")[0];
+  requireMarkers(review, [
+    /trace one allowed scenario through every applicable control and prerequisite/i,
+    /resolve the contradiction before commit/i,
+    /pre-written implementation choreography/,
+    /happy\/edge\/failure\/negative paths/,
+  ]);
+});
+
 const skillsDir = existsSync(path.join(agentDir, "exact_skills"))
   ? path.join(agentDir, "exact_skills")
   : path.join(agentDir, "skills");

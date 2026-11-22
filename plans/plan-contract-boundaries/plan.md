@@ -190,11 +190,13 @@ The new marker failed alone. The first prompt edit exceeded the budget by 17 byt
 **Traces to:** Requirement: Final review traces an allowed scenario through its controls; Requirement: Prompt budgets stay bounded
 **Files:** `dot_pi/agent/exact_prompts/plan.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`
 
-- [ ] Add test `plan final review traces an allowed scenario through its controls`. It asserts the trace through every applicable control and prerequisite and the resolve-before-commit rule. It also asserts that `pre-written implementation choreography` and `happy/edge/failure/negative paths` remain.
-- [ ] Run `cd dot_pi/agent && node --test exact_scripts/lifecycle-prompts.test.mjs`; expect only the new test to fail.
-- [ ] Edit `## Final review` in `plan.md`, keeping the budget requirement.
-- [ ] Run `cd dot_pi/agent && node --test exact_scripts/lifecycle-prompts.test.mjs`; expect all tests to pass.
-- [ ] Commit with `docs(pi): check plan control reachability in final review`.
+- [x] Add test `plan final review traces an allowed scenario through its controls`. It asserts the trace through every applicable control and prerequisite and the resolve-before-commit rule. It also asserts that `pre-written implementation choreography` and `happy/edge/failure/negative paths` remain.
+- [x] Run `cd dot_pi/agent && node --test exact_scripts/lifecycle-prompts.test.mjs`; expect only the new test to fail.
+- [x] Edit `## Final review` in `plan.md`, keeping the budget requirement.
+- [x] Run `cd dot_pi/agent && node --test exact_scripts/lifecycle-prompts.test.mjs`; expect all tests to pass.
+- [x] Commit with `docs(pi): check plan control reachability in final review`.
+
+Only the new trace test failed before the edit. Trimming first broke existing negative-scenario and telemetry markers; restored the markers without changing assertions. All 69 tests passed within budget.
 
 ### Task 3: Bounded non-blocking open questions
 **Delivers:** `brainstorm.md` and `plan.md` allow open questions in `design.md` and `plan.md` only when each states why it does not block approval, its resolving stage, and its binding boundary.

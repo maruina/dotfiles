@@ -46,7 +46,7 @@ Read the current body and final branch state. Preserve accurate handwritten cont
 
 Treat the PR body as a coherent explanation of the final change, not a record of the implementation process. Do not replace useful context with a compressed diff summary or restore a reviewer checklist.
 
-Use the `reviewable-pr-workflow` body template. Include `## Lessons learned` only for reviewer-relevant surprises or tradeoffs. Include `## Evidence` only when external artifacts help reviewers verify or understand the change.
+Use `## Shared PR drafting` in `reviewable-pr-workflow` to refresh the body.
 
 Before refreshing the description, run the `## Pre-description check` in `reviewable-pr-workflow` against the full diff, task context, relevant design artifacts, OpenSpec proposals or specs, and linked issue.
 

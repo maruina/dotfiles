@@ -49,9 +49,7 @@ Apply the split and commit-story guidance in `reviewable-pr-workflow`:
 - After an approved rewrite, verify a clean working tree and that the final diff contains only intended changes.
 
 ## Phase 3: Push and create the draft PR
-Draft a title and body using the `reviewable-pr-workflow` template. Include an optional `## Design & implementation plan` section only when matching plan artifacts exist:
-- link `design.md` as the reviewer-facing design record;
-- link `plan.md` as optional implementation context.
+Draft the title and body in create mode using `## Shared PR drafting` in `reviewable-pr-workflow`.
 
 Before publishing the body, apply `## Reader check and visual assessment` from `reviewable-pr-workflow` (including reading `explain` and its `references/visual-assessment.md` to run the single Jev assessment on the drafted explanation, and loading `mermaid-best-practices` before authoring Mermaid).
 

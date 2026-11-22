@@ -6,6 +6,79 @@ import os from "node:os";
 import { events, validate, preflight, prune } from "./_runner.ts";
 
 import { sessionInfo } from "./_recovery.ts";
+import { arpTool, reviewGuard, reviewPublished } from "./_arp.ts";
+
+test("ARP discovery does not authorize other calls or replenish the request budget", () => {
+  const name = arpTool("request_review");
+  const input = { owner: "fixture", repo: "demo", pull_number: 1, action: "retry", silent: true,
+    expected_head_sha: "a".repeat(40) };
+  const guard = reviewGuard({ name, input });
+  const dispatched: string[] = [];
+  function dispatch(toolName: string, args: object, parentToolCallId?: string) {
+    if (!guard({ toolName, input: args, parentToolCallId })) dispatched.push(toolName);
+  }
+  dispatch("tool_search", { query: name });
+  for (const [key, value] of Object.entries({
+    owner: "other", repo: "other", pull_number: 2, action: "review_anyway", silent: false,
+    expected_head_sha: "b".repeat(40), unexpected: true,
+  })) dispatch(name, { ...input, [key]: value });
+  for (const blocked of ["bash", "write", "codemode", arpTool("get_status"), "mcp__agentic_review__agentic_review_resolve_finding"])
+    dispatch(blocked, input);
+  dispatch(name, input, "parent");
+  dispatch(name, input);
+  dispatch(name, input);
+  assert.deepEqual(dispatched, ["tool_search", name]);
+});
+
+test("ARP settlement authorization binds one addressed call to the exact fix", () => {
+  const name = arpTool("resolve_finding");
+  const input = { owner: "fixture", repo: "demo", finding_id: 42, resolution: "addressed",
+    fix_commit_sha: "a".repeat(40), fix_change_summary: "Keep the lock", reason: "Verified fix" };
+  const guard = reviewGuard({ name, input });
+  for (const wrong of [{ resolution: "invalid" }, { finding_id: 43 }, { fix_commit_sha: "b".repeat(40) }]) {
+    assert.ok(guard({ toolName: name, input: { ...input, ...wrong } })?.block);
+  }
+  assert.equal(guard({ toolName: name, input }), undefined);
+  assert.ok(guard({ toolName: name, input })?.block);
+});
+
+for (const outcome of ["matching", "dismissed", "wrong-sha", "drift"] as const) {
+  test(`ARP settlement reconciles ${outcome} without an unauthorized write`, async (t) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "arp-settlement-"));
+    t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+    const target = { owner: "fixture", repo: "demo", pull_number: 1 };
+    const head = "a".repeat(40), reviewedSha = "b".repeat(40);
+    const operations: string[] = [];
+    const result = reviewPublished({
+      dir, repo: "fixture/demo", number: 1, url: "https://github.com/fixture/demo/pull/1", head,
+      signal: new AbortController().signal, progress() {},
+      fixes: [{ id: 42, fixSha: head, reviewedSha, changeSummary: "Keep the lock" }],
+      async checkHead() {
+        if (outcome === "drift") throw Error("Published PR changed");
+      },
+      async call({ name, input }) {
+        operations.push(name);
+        if (name === arpTool("get_status")) return { ...target, head_sha: head, status: "REVIEW_STATUS_NO_ISSUES_FOUND" };
+        assert.equal(name, arpTool("get_findings"));
+        const findings = input.status === "open" ? [] : [{ finding_id: 42, reviewed_sha: reviewedSha,
+          status: outcome === "dismissed" ? "dismissed" : outcome === "drift" ? "open" : "addressed",
+          settlement: outcome === "drift" ? undefined : {
+            resolution: outcome === "dismissed" ? "invalid" : "addressed", fix_commit_sha: outcome === "wrong-sha" ? reviewedSha : head,
+          },
+        }];
+        return { ...target, scope: "pull_request", status_filter: input.status, reviewed_sha: head,
+          review_in_progress: false, finding_count: findings.length, findings };
+      },
+    });
+    if (outcome === "matching") {
+      assert.deepEqual(await result, []);
+      assert.deepEqual(operations, [arpTool("get_findings"), arpTool("get_status"), arpTool("get_findings")]);
+    } else {
+      await assert.rejects(result, outcome === "drift" ? /Published PR changed/ : /conflicting permanent outcome/);
+      assert.deepEqual(operations, [arpTool("get_findings")]);
+    }
+  });
+}
 
 test("record selected and actual assistant models; reject unknown provenance", (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "session-"));

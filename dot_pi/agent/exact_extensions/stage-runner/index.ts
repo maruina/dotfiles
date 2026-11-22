@@ -61,7 +61,7 @@ export default function stageRunner(pi: ExtensionAPI) {
     },
   });
   pi.registerCommand("stage-runner", {
-    description: "Run an unstarted committed plan through independent verification",
+    description: "Verify and publish an unstarted committed plan; check Agentic Review in the work profile",
     handler: async (arg, ctx) => {
       if (active || process.env.PI_STAGE_RUNNER_CHILD === "1" || !ctx.hasUI || !arg.trim()) {
         ctx.ui.notify("Use /stage-runner <plan-path> in an idle interactive parent session", "error");
@@ -98,14 +98,6 @@ export default function stageRunner(pi: ExtensionAPI) {
           if (!thinking) return;
           models[stage] = { provider: model.provider, id: model.id, thinking };
         }
-        if (
-          !(await ctx.ui.confirm(
-            "Start stage runner?",
-            arg + " — run execute, simplify and independent verify without publishing.",
-            { signal: controller.signal },
-          ))
-        )
-          return;
         const plan = path.resolve(ctx.cwd, arg.trim().replace(/^(['"])(.*)\1$/, "$2"));
         progress("Run started.");
         const evidence = await run({
@@ -113,6 +105,7 @@ export default function stageRunner(pi: ExtensionAPI) {
           plan,
           root: path.join(os.homedir(), ".pi/agent/lifecycle-runs"),
           models,
+          confirm: (target, signal) => ctx.ui.confirm("Start stage runner and publish?", target, { signal }),
           signal: controller.signal,
           idleMs: deadline("PI_STAGE_RUNNER_IDLE_MS", 600000),
           wallMs: deadline("PI_STAGE_RUNNER_WALL_MS", 3600000),
@@ -120,7 +113,7 @@ export default function stageRunner(pi: ExtensionAPI) {
           approve: (changes, signal) => ctx.ui.confirm("Accept recovered writer?", changes, { signal }),
           progress,
         });
-        progress("VERIFIED; evidence " + evidence);
+        progress("Run complete; evidence " + evidence);
       })()
         .catch((e) => {
           if (shuttingDown) return;

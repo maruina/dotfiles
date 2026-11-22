@@ -31,6 +31,14 @@ test("ARP remains optional and requires deferred tool discovery", () => {
 test("publication has no model prompt", () => {
   assert.equal(existsSync(new URL("pr-publish.md", promptsDir)), false);
 });
+test("stage runner guide distinguishes automatic settlement from standalone ARP approval", () => {
+  const extensions = existsSync(new URL("../exact_extensions/", import.meta.url)) ? "exact_extensions" : "extensions";
+  const guide = readFileSync(new URL(`../${extensions}/stage-runner/README.md`, import.meta.url), "utf8");
+  assert.match(guide, /one silent review request per head/);
+  assert.match(guide, /fresh independent feature-wide `\/verify`[^\n]*GitHub confirms[^\n]*`addressed`/);
+  assert.match(guide, /## Review or fix a finding manually[^\n]*\n[\s\S]*?Before each ARP write, obtain explicit operator approval for that write/);
+});
+
 test("completion ARP prompt resources are retired", () => {
   for (const name of ["arp-review", "arp-fix"]) {
     assert.equal(existsSync(new URL(`${name}.md`, promptsDir)), false, name);

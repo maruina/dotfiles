@@ -4,9 +4,9 @@
 **Goal:** Show which background phase is active, how long each phase took, which skills the active child loaded, and Rex working state for the invoking pane, without opening a pane.
 **Smallest user-feedback slice:** Slice 1. The invoking Pi displays a live phase timer, retains completed durations across transitions, and writes one summary entry at exit.
 **Out of Scope:** A watch pane, SQLite, changes to verdict validation, changes to publication or recovery authority, reporting model reasoning or tool payloads, writes to Pi's root OSC 7501 record, and OSC 9;4 terminal progress. Rex tab spinners come from OSC 7501 records, so the runner does not need OSC 9;4. Pi's own `showTerminalProgress` behavior stays unchanged.
-**Architecture:** The parent owns the display and derives status from typed phase events that `run()` emits, plus structured child events. The existing evidence files remain authoritative for acceptance and recovery. Display updates must not control phase transitions.
+**Architecture:** The parent owns the display and derives status, Rex activity, and the exit summary from one typed event stream emitted by `run()` and `_arp.ts` (`reviewPublished`). The existing evidence files remain authoritative for acceptance and recovery. Display updates must not control phase transitions.
 **Tech Stack:** TypeScript, Pi JSON mode, Pi TUI widgets, the Rex Program Status Protocol (OSC 7501), Node test runner.
-**Approval source:** The operator approved the parent-only display during `/plan` on 2026-11-22. No `design.md` exists. On 2026-11-22, during `/systematic-review`, the operator directed that Requirement 3 use an OSC 7501 child record.
+**Approval source:** The operator approved the parent-only display during `/plan` on 2026-11-22. No `design.md` exists. On 2026-11-22, during `/systematic-review`, the operator directed that Requirement 3 use an OSC 7501 child record and that `run()` and `_arp.ts` emit a single unified typed event stream instead of separate `progress` and `status` callbacks.
 
 ## Skills loaded and used
 | Skill | Source | Why loaded | How used |
@@ -21,9 +21,9 @@
 | `learning-candidates` | prompt-required | `/systematic-review` disproved the planned Rex mechanism | Recorded the OSC 7501 child-record finding. |
 
 ## Implementation contract
-Suggested starting points are `dot_pi/agent/exact_extensions/stage-runner/index.ts`, `_runner.ts`, and the existing integration fixture in that directory. These paths are binding:
-- **Seam:** `run()` reports phases through a new optional callback on its `Options` type and reads time from an injected monotonic clock that defaults to `performance.now`. An example is `status?: (event: PhaseEvent) => void` with `now?: () => number`. The consumers of `Options` are `index.ts`, `_integration.test.ts`, and `_runner.test.ts`. Each consumer must compile without passing the new fields.
-- **Labels:** Keep the per-run numeric folder IDs on disk (`execute-N`, `verify-N`). Change the `Starting ${stage} (attempt ${n})` and `Opening Rex recovery for ${stage} (attempt ${n})` messages to stage-local labels. `_integration.test.ts:328` asserts the old text; update that assertion on purpose.
+Suggested starting points are `dot_pi/agent/exact_extensions/stage-runner/index.ts`, `_runner.ts`, `_arp.ts`, and the existing test fixtures in that directory. These paths are binding:
+- **Seam:** Export `Options` from `_runner.ts`. Unify `progress` and live phase reporting into one typed event callback on `Options` (and in `_arp.ts` `reviewPublished`), with an injected monotonic clock `now?: () => number` that defaults to `performance.now`. `index.ts` is the sole formatter for the widget, OSC 7501 state, and the single `stage-runner-progress` exit summary; it must not append `stage-runner-progress` entries on intermediate events. The consumers of `_runner.ts` and `_arp.ts` are `index.ts`, `_integration.test.ts`, and `_runner.test.ts`.
+- **Labels:** Keep the per-run numeric folder IDs on disk (`execute-N`, `verify-N`). Emit stage-local labels instead of `Starting ${stage} (attempt ${n})` and `Opening Rex recovery for ${stage} (attempt ${n})`. `_integration.test.ts:328-332` and `_integration.test.ts:409-416` assert the old text; update those assertions (and `_runner.test.ts` `reviewPublished` callers) to the unified event stream.
 - **Bounds:** Preserve bounded event parsing, timeouts, and recovery. Routine timer ticks must not call `pi.appendEntry`. Clear every interval, widget, and runner-owned OSC 7501 record on every exit path.
 
 ### Requirement 1: Phase duration and retry labels
@@ -43,7 +43,7 @@ The line shows these phases: `execute`, `simplify`, `verify`, `recovery`, `publi
 
 ### Requirement 3: Native Rex activity
 - GIVEN a confirmed run in Rex, WHEN the parent supervises a phase, THEN the runner writes an OSC 7501 child record `id=stage-runner` with `app=pi-stage-runner`, state `working`, and a `msg` that names the phase. The runner writes the record on phase changes only. The protocol has no heartbeat, so ticks do not write.
-- Mechanism: write through the `Terminal` object (`tui.terminal.write()`) that the `ctx.ui.setWidget` factory receives, so the sequence goes through the same writer as TUI output. pi-tui `formatProgramStatus` supports only the root record, so add a minimal formatter for the fixed `id`. The formatter base64-encodes `msg` after it replaces control characters, and caps it at 2048 decoded bytes. Never write the root record.
+- Mechanism: mount `ctx.ui.setWidget` before `confirm` opens, returning an empty render (`() => []`) during pre-confirmation work so no widget line is shown while `tui.terminal` is captured for `confirm`. Write through that `Terminal` object (`tui.terminal.write()`), so the sequence goes through the same writer as TUI output, and keep `tui.terminal` reachable after `setWidget(key, undefined)` so `session_shutdown` can emit `clear`. pi-tui `formatProgramStatus` supports only the root record, so add a minimal formatter for the fixed `id`. The formatter base64-encodes `msg` after it replaces control characters, and caps it at 2048 decoded bytes. Never write the root record.
 - WHEN the runner waits on a Rex recovery pane, THEN report `blocked` with `kind=question`. WHEN a runner dialog (`confirm` or `approve`) is open, THEN report `blocked` with `kind=permission`.
 - WHEN the run completes, report `done`. WHEN it stops on an error, report `error`. WHEN it is canceled, report `idle`. WHEN Pi shuts down, report `clear` for `id=stage-runner`.
 - Negative: no `working` or `blocked` runner record remains after any exit path, and no Pi root record changes because of the runner. When `PI_PROGRAM_STATUS=0`, the runner writes nothing. No normal phase creates a pane.
@@ -65,8 +65,8 @@ The line shows these phases: `execute`, `simplify`, `verify`, `recovery`, `publi
 **Blocked by:** None
 **Traces to:** Requirement 1
 
-- [ ] Add a failing test that drives `run()` through the integration fixture with an injected clock. Cover execute slices, simplify, verify success, verify failure with recovery and a second verify, an accepted resumed writer, a publication, cancellation, and an error stop. Assert the phase event sequence, the stage-local labels, recovery attribution, and one summary entry. Assert that ticks do not call `appendEntry`.
-- [ ] Add the `Options` seam, render the widget from `index.ts` with a 1 s interval, and update the label assertion in `_integration.test.ts`. Document the line, its phases, and recovery time in the extension README.
+- [ ] Add a failing test that drives `run()` through the integration fixture with an injected clock. Cover execute slices, simplify, verify success, verify failure with recovery and a second verify, an accepted resumed writer, publication, ARP `review` and `fix` cycles, cancellation, and an error stop. Assert the unified event sequence, the stage-local labels, recovery attribution, and one `stage-runner-progress` summary entry at exit. Assert that ticks and intermediate events do not call `appendEntry`.
+- [ ] Export `Options` and replace `progress` with the unified event stream in `_runner.ts` and `_arp.ts` (`reviewPublished`). Render the widget from `index.ts` with a 1 s interval, update `_integration.test.ts:328-332`, `_integration.test.ts:409-416`, and `_runner.test.ts`, and update `README.md` to document the live widget line, its phases, recovery time, and the single exit summary entry.
 - [ ] From `dot_pi/agent`, run `npm ci --ignore-scripts` if `node_modules` is absent, then `npm test`, `npm run test:integration`, and `npm run typecheck`. Confirm that no evidence file, folder name, or recovery contract changed. Commit with `feat(pi): show live stage durations`.
 
 ### Slice 2: Observed skills
@@ -86,7 +86,7 @@ The line shows these phases: `execute`, `simplify`, `verify`, `recovery`, `publi
 **Blocked by:** Task 1
 **Traces to:** Requirement 3
 
-- [ ] Add failing tests with an injected writer. Assert the exact sequences for working per phase, `blocked:kind=question` during recovery, `blocked:kind=permission` during runner dialogs, and `done`, `error`, `idle`, and `clear` on completion, error stop, cancellation, and shutdown. Assert no writes when `PI_PROGRAM_STATUS=0`, no root-record writes, and `msg` sanitizing and bounds.
+- [ ] Add failing tests with an injected writer. Assert the exact sequences for working per phase, `blocked:kind=question` during recovery, `blocked:kind=permission` during runner dialogs (`confirm` and `approve`), and `done`, `error`, `idle`, and `clear` on completion, error stop, cancellation, and shutdown (including `clear` after the widget is cleared). Assert no writes when `PI_PROGRAM_STATUS=0`, no root-record writes, and `msg` sanitizing and bounds.
 - [ ] Implement the formatter and the writer from the widget factory's `Terminal`. Document the child record and the operator live check in the README.
 - [ ] Run `npm test`, `npm run test:integration`, and `npm run typecheck` from `dot_pi/agent`. Commit with `feat(pi): report stage activity to Rex`.
 

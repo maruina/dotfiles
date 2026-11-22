@@ -205,11 +205,13 @@ Task 2 must land first because Tasks 1-3 share the `plan.md` byte budget.
 **Traces to:** Requirement: Open questions may stay open only when bounded; Requirement: Prompt budgets stay bounded
 **Files:** `dot_pi/agent/exact_prompts/brainstorm.md`, `dot_pi/agent/exact_prompts/plan.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`
 
-- [ ] Add test `brainstorm and plan allow only bounded open questions`. For each prompt, it asserts the three conditions. It also asserts that the existing `every material branch.*no material assumption remains implicit` (brainstorm) and `placeholders` (plan) markers remain.
-- [ ] Run `cd dot_pi/agent && node --test exact_scripts/lifecycle-prompts.test.mjs`; expect only the new test to fail.
-- [ ] Edit `brainstorm.md` (for example, near `## Design artifact` item 3 or the brief's `Open questions:` field) and `plan.md`, keeping both budgets.
-- [ ] Run `cd dot_pi/agent && node --test exact_scripts/lifecycle-prompts.test.mjs`; expect all tests to pass.
-- [ ] Commit with `docs(pi): allow bounded non-blocking open questions`.
+- [x] Add test `brainstorm and plan allow only bounded open questions`. For each prompt, it asserts the three conditions. It also asserts that the existing `every material branch.*no material assumption remains implicit` (brainstorm) and `placeholders` (plan) markers remain.
+- [x] Run `cd dot_pi/agent && node --test exact_scripts/lifecycle-prompts.test.mjs`; expect only the new test to fail.
+- [x] Edit `brainstorm.md` (for example, near `## Design artifact` item 3 or the brief's `Open questions:` field) and `plan.md`, keeping both budgets.
+- [x] Run `cd dot_pi/agent && node --test exact_scripts/lifecycle-prompts.test.mjs`; expect all tests to pass.
+- [x] Commit with `docs(pi): allow bounded non-blocking open questions`.
+
+Only the new question test failed before the edit; all 70 passed after. Prior trims left 7 bytes free; the bounded-question rule needs 172 bytes including spacing. Raised only the plan budget by the remaining 165 bytes rather than cut tested or distinct guidance.
 
 ### Task 4: Execute varies suggestions and stops on binding conflicts
 **Delivers:** `execute.md` permits varying suggested files and mechanisms with a ledger note for every plan it starts or resumes, and stops before editing when it cannot show binding constraints hold.

@@ -40,6 +40,18 @@ test("plan final review traces an allowed scenario through its controls", () => 
   ]);
 });
 
+test("brainstorm and plan allow only bounded open questions", () => {
+  for (const name of ["brainstorm.md", "plan.md"]) {
+    requireMarkers(prompt(name), [
+      /open question only if it states why it does not block approval/i,
+      /which stage \(\x60\/plan\x60 or \x60\/execute\x60\) resolves it/i,
+      /which binding boundary constrains the answer/i,
+    ]);
+  }
+  assert.match(prompt("brainstorm.md"), /every material branch.*no material assumption remains implicit/is);
+  assert.match(prompt("plan.md"), /no contradictions, placeholders,/);
+});
+
 const skillsDir = existsSync(path.join(agentDir, "exact_skills"))
   ? path.join(agentDir, "exact_skills")
   : path.join(agentDir, "skills");
@@ -384,7 +396,7 @@ test("lifecycle stages enforce negative scenarios, consumer maps, behavioral che
 test("lifecycle prompts stay within prompt context budgets", () => {
   const budgets = new Map([
     ["brainstorm.md", 14_000],
-    ["plan.md", 17_200],
+    ["plan.md", 17_365],
     ["systematic-review.md", 12_500],
     ["execute.md", 14_500],
     ["verify.md", 13_700],

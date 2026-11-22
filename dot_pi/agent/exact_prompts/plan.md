@@ -143,6 +143,8 @@ Start every durable plan with:
 
 Preserve confirmed provenance. Add plan writing and review skills; copy design skills only if loaded and used during planning.
 
+Keep an open question only if it states why it does not block approval, which stage (`/plan` or `/execute`) resolves it, and which binding boundary constrains the answer.
+
 Right-size the remainder:
 
 - **Small:** concise `## Scope` and `## Validation`, suggested paths, ordered tasks, success criteria, documentation impact, and commit message.

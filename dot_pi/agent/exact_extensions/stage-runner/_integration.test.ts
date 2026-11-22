@@ -10,6 +10,7 @@ import { run } from "./_runner.ts";
 for (const failure of [
   "",
   "reuse",
+  "work-personal-repo",
   "uncertain-create",
   "partial",
   "wrong-login",
@@ -92,7 +93,9 @@ for (const failure of [
     git("worktree", "add", "-qb", "feature", cwd);
     const bare = path.join(temp, "bare");
     git("clone", "--bare", repo, bare);
-    git("remote", "add", "origin", "git@github.com:fixture/demo.git");
+    const arp = failure.startsWith("arp-");
+    const owner = arp ? "ddoghq" : failure === "work-personal-repo" ? "maruina" : "fixture";
+    git("remote", "add", "origin", `git@github.com:${owner}/demo.git`);
     git("update-ref", "refs/remotes/origin/main", git("rev-parse", "HEAD").toString().trim());
     git("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main");
     if (failure === "no-origin") git("remote", "remove", "origin");
@@ -118,8 +121,7 @@ for (const failure of [
         { mode: 0o700 },
       );
     const profilePath = path.join(temp, "profile.json");
-    const arp = failure.startsWith("arp-");
-    const profile = arp || failure === "recover-writer" ? "work" : "personal";
+    const profile = arp || ["recover-writer", "work-personal-repo"].includes(failure) ? "work" : "personal";
     fs.writeFileSync(
       profilePath,
       execFileSync(
@@ -159,8 +161,9 @@ for (const failure of [
       prefix: [path.join(import.meta.dirname, "_fixtures/pi.mjs")],
       profilePath: failure === "missing-profile" ? profilePath + ".absent" : profilePath,
       confirm: async (target: string) => {
-        assert.match(target, /fixture\/demo.*feature into main/);
+        assert.ok(target.includes(`${owner}/demo.git (feature into main)`));
         if (arp) assert.match(target, /silent review/i);
+        if (failure === "work-personal-repo") assert.doesNotMatch(target, /\b(ARP|review|findings)\b/i);
         if (failure === "stale") git("remote", "set-url", "--push", "origin", "git@github.com:other/demo.git");
         return failure !== "decline";
       },
@@ -173,6 +176,7 @@ for (const failure of [
         ARGV_LOG: log,
         FAIL: failure,
         BARE: bare,
+        REPO_OWNER: owner,
       },
     };
     const recovering = failure.startsWith("recover-");
@@ -264,7 +268,7 @@ for (const failure of [
       const expected = failure === "arp-draft" ? "review_anyway" : failure === "arp-retry-uncertain" ? "retry" : undefined;
       const requests = calls.filter(({ name }) => name.endsWith("request_review"));
       assert.deepEqual(requests.map(({ input }) => input), expected ? [{
-        owner: "fixture", repo: "demo", pull_number: 1, action: expected, expected_head_sha: head, silent: true,
+        owner, repo: "demo", pull_number: 1, action: expected, expected_head_sha: head, silent: true,
       }] : []);
       assert.ok(names.every((name) => ["get_status", "get_findings", "request_review"].includes(name)));
       if (!["arp-stale", "arp-cancel"].includes(failure)) assert.equal(names.at(-1), "get_findings");
@@ -285,7 +289,7 @@ for (const failure of [
       !["recover-verify", "recover-writer", "recover-progress", "recover-blocked", "recover-simplify"].includes(
         failure,
       );
-    const published = ["", "reuse", "uncertain-create"].includes(failure);
+    const published = ["", "reuse", "uncertain-create", "work-personal-repo"].includes(failure);
     if (failure === "recover-progress-unfixed") await assert.rejects(result, /No committed task progress/);
     else if (stopped) await assert.rejects(result);
     else if (failure.startsWith("verify-")) await assert.rejects(result, /Verifier Git snapshot changed/);
@@ -375,6 +379,9 @@ for (const failure of [
       assert.match(progress.at(-1)!, /pull\/1/);
       if (failure === "reuse") assert.equal(fs.existsSync(bare + ".pr.creates"), false);
       else assert.equal(fs.readFileSync(bare + ".pr.creates", "utf8"), "create\n");
+    }
+    if (failure === "work-personal-repo") {
+      assert.equal(fs.readFileSync(path.join(options.root, bundle, "completed"), "utf8"), "VERIFIED");
     }
     if (!failure) {
       for (const file of fs.readdirSync(options.root, { recursive: true, encoding: "utf8" })) {

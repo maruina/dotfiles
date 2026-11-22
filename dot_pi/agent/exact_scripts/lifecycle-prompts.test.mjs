@@ -1156,7 +1156,7 @@ test("stage runner operator guide separates verified publication from the manual
   const guide = readFileSync(path.join(agentDir, extensions, "stage-runner", "README.md"), "utf8");
   requireMarkers(guide, [
     /\*\*Personal:\*\*[^\n]*stops after GitHub confirms[^\n]*does not discover or call ARP/,
-    /\*\*Work:\*\*[^\n]*same publication[^\n]*continues to ARP/,
+    /\*\*Work:\*\*[^\n]*continues to ARP[^\n]*only for `ddoghq\/\*` and `ddoghq-sandbox\/\*`/,
     /## Run without publishing[^\n]*\n[^\n]*`\/execute`[^\n]*`\/simplify`[^\n]*`\/verify`[^\n]*publication explicitly excluded/,
   ]);
 });

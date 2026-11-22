@@ -2,12 +2,12 @@
 Use `/stage-runner` for a reviewed, committed plan that nobody has started. The runner executes one slice at a time and simplifies the full feature once. After it accepts an independent `VERIFIED` verdict, the runner pushes the exact verified commit. It creates a draft pull request (PR) or reuses the matching open PR without changing its readiness.
 
 - **Personal:** The runner reports the PR URL and verified SHA and stops after GitHub confirms the PR head. It does not discover or call ARP, even if the tools are installed.
-- **Work:** The runner performs the same publication and continues to ARP (Agentic Review Platform). It ends successfully when ARP reports a complete review of the published head with no open findings.
+- **Work:** The runner performs the same publication and continues to ARP (Agentic Review Platform) only for `ddoghq/*` and `ddoghq-sandbox/*`. For these repositories, it ends successfully when ARP reports a complete review of the published head with no open findings. For all other repositories, it stops after GitHub confirms the PR head without discovering or calling ARP.
 
 ## Start or cancel a run
 1. Open interactive Pi 1.6.0 in a local Rex pane. Use a clean feature worktree with the plan tracked at `HEAD`. Confirm that the signing agent can sign child commits and that the scoped models include an authenticated verifier distinct from both writers.
 2. Enter `/stage-runner plans/my-feature/plan.md`, replacing the example path with your plan. Select a model and a supported thinking level for execute, simplify, and verify.
-3. In **Start stage runner and publish?**, check the plan, profile, SSH repository, feature branch, base branch, GitHub login, and existing PR or draft creation. Confirm only if you authorize publication to that target. In the work profile, confirmation also authorizes the bounded review and permanent `addressed` settlements described below. If you decline, no stages start.
+3. In **Start stage runner and publish?**, check the plan, profile, SSH repository, feature branch, base branch, GitHub login, and existing PR or draft creation. Confirm only if you authorize publication to that target. For an eligible repository in the work profile, confirmation also authorizes the bounded review and permanent `addressed` settlements described below. If you decline, no stages start.
 4. Watch the **Stage runner** entries in the invoking Pi transcript. Distinguish the verifier verdict from the publication and review results. Check the reported evidence directory if the runner stops.
 
 Before confirmation and again before pushing, the publisher checks the single SSH push destination for `origin`, repository and branch identity, the PR target, and the expected account. In the work profile, it selects `matteo-ruina_ddog` for `ddoghq/*` and `ddoghq-sandbox/*`, or `maruina` otherwise. In the personal profile, it uses the active GitHub account. Both the SSH login and the GitHub API login must match. The publisher checks the clean candidate and pushes the verified SHA to the confirmed feature ref without force. It checks the remote branch and PR head before reporting publication. It does not use HTTPS as a fallback or switch the global `gh` account.
@@ -25,7 +25,7 @@ The runner stops for disputed, deferred, or unproven findings, or when it reache
 
 ## Recover after a remote action stops
 1. Read the stop reason and private run bundle. Use the last confirmed action, PR URL, verified and observed SHAs, and finding IDs to identify what may have changed. An accepted verifier handoff does not prove publication or review.
-2. Use read-only checks before any further write. Compare the remote feature ref and the PR head with the verified SHA. In the work profile, check ARP status for the exact PR and head. If settlement may have occurred, read PR-wide findings with `status: all` and compare the stored outcome and fixing SHA for each affected ID.
+2. Use read-only checks before any further write. Compare the remote feature ref and the PR head with the verified SHA. If the run included ARP, check ARP status for the exact PR and head. If settlement may have occurred, read PR-wide findings with `status: all` and compare the stored outcome and fixing SHA for each affected ID.
 3. If you cannot establish the result, stop. Do not repeat an uncertain push, PR creation, review request, or settlement. Do not force-push or delete a remote branch to recover. Keep confirmed writes and private evidence in place. Do not restart `/stage-runner` on a plan that has already started. Obtain authorization before any manual follow-up write.
 
 ## Run without publishing

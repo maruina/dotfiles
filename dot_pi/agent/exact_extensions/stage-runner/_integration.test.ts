@@ -54,6 +54,16 @@ for (const failure of [
   "arp-incomplete",
   "arp-findings",
   "arp-cancel",
+  "arp-fix-two-heads",
+  "arp-fix-missing",
+  "arp-fix-duplicate",
+  "arp-fix-unknown",
+  "arp-fix-range",
+  "arp-fix-plan",
+  "arp-fix-verify",
+  "arp-fix-partial",
+  "arp-fix-uncertain",
+  "arp-fix-limit",
 ])
   test("real Git with fixture Pi: " + (failure || "complete"), async (t) => {
     const temp = fs.mkdtempSync(path.join(os.tmpdir(), "stage-test-"));
@@ -197,6 +207,43 @@ for (const failure of [
       assert.ok(fs.existsSync(log + ".ready"));
       controller.abort();
     }
+    if (failure.startsWith("arp-fix-")) {
+      const failures: Record<string, RegExp> = {
+        missing: /Missing finding/, duplicate: /Duplicate finding/, unknown: /Unknown finding/,
+        range: /outside the fix range/, plan: /changed plan/, verify: /Pi did not settle/,
+        partial: /43.*not confirmed/, limit: /three reviewed heads/,
+      };
+      const key = failure.slice("arp-fix-".length);
+      if (failures[key]) await assert.rejects(result, failures[key]);
+      else await result;
+      const trace = fs.readFileSync(log + ".timeline", "utf8").trim().split("\n").map((line) => JSON.parse(line));
+      const fixes = trace.filter(({ event }) => event === "fix");
+      const settlements = trace.filter(({ event }) => event === "resolve_finding");
+      const statuses = trace.filter(({ event }) => event === "get_status");
+      assert.equal(fixes.length, key === "limit" ? 2 : 1);
+      assert.equal(statuses.length, key === "limit" ? 3 : ["two-heads", "uncertain"].includes(key) ? 2 : 1);
+      const baseHead = statuses[0].head;
+      const publishedHead = git("--git-dir=" + bare, "rev-parse", "feature").toString().trim();
+      if (!["two-heads", "uncertain", "partial", "limit"].includes(key)) {
+        assert.equal(publishedHead, baseHead);
+        assert.deepEqual(settlements, []);
+      } else {
+        assert.equal(publishedHead, fixes.at(-1).head);
+        for (const fix of fixes) {
+          const i = trace.indexOf(fix);
+          assert.deepEqual(trace[i + 1], { event: "verify", head: fix.head, model: "b", hasFixScope: true });
+          const settle = trace.find((e, j) => j > i && e.event === "resolve_finding");
+          assert.equal(settle.head, fix.head);
+          assert.equal(settle.published, fix.head);
+          assert.equal(settle.input.fix_commit_sha, fix.head);
+          assert.equal(settle.input.resolution, "addressed");
+          if (key !== "partial") assert.ok(trace.indexOf(settle) < trace.indexOf(statuses.find((s) => s.head === fix.head)));
+        }
+        assert.equal(settlements.length, ["partial", "limit"].includes(key) ? 2 : 1);
+        if (key === "partial") assert.ok(progress.some((message) => /42.*addressed/.test(message)));
+      }
+      return;
+    }
     if (arp) {
       if (failure === "arp-cancel") {
         for (let i = 0; i < 400 && !fs.existsSync(log + ".review-ready"); i++) await delay(10);
@@ -204,7 +251,7 @@ for (const failure of [
         controller.abort();
       }
       if (failure === "arp-stale" || failure === "arp-incomplete") await assert.rejects(result, /deadline/i);
-      else if (failure === "arp-findings") await assert.rejects(result, /finding-42/);
+      else if (failure === "arp-findings") await assert.rejects(result, /42/);
       else if (failure === "arp-cancel") await assert.rejects(result, /cancel/i);
       else await result;
       const calls = fs.readFileSync(log + ".review", "utf8").trim().split("\n").map((s) => JSON.parse(s));

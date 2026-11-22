@@ -48,6 +48,19 @@
 | `write` | `skill-loader` | Execution ledger and consent | Separated startup authorization, verification, publication, and review. |
 | `learning-candidates` | `prompt-required` | Record the discovery wiring limit | Recorded the explicit built-in extension requirement. |
 
+**Execution writer (Slice 3):** GPT-6.2 Sol (`openai/gpt-6.2-sol`).
+
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `skill-loader` | `prompt-required` | Select execution guidance | Matched skills to the runner, fixtures, and ledger. |
+| `resolve-worktree` | `prompt-required` | Find the committed plan | Confirmed the unique plan and feature branch. |
+| `feature-worktree` | `prompt-required` | Keep Slices 1 and 2 intact | Started from `8370b76` in the existing clean feature worktree. |
+| `codebase-research` | `skill-loader` | Validate the ARP contract | Traced publication and verifier gates and checked the MCP server's stored finding response in local `dd-source`. |
+| `cli-best-practices` | `skill-loader` | Guard permanent writes | Bound each resolver call to one finding and fix SHA and reported confirmed and remaining IDs on stop. |
+| `chezmoi` | `skill-loader` | Protect installed targets | Edited source only and used fixture-rendered profiles. |
+| `write` | `skill-loader` | Consent and ledger | Named permanent settlement in the start dialog and separated fixture evidence from live validation. |
+| `learning-candidates` | `prompt-required` | Record a contract correction | Recorded why the earlier fixture could not establish the settlement response schema. |
+
 ## Implementation Contract
 **Source and decisions.** `plans/lifecycle-stage-runner/design.md` is Approved. Its Slice 4 defines exact-head publication, independent verification after fixes, three reviewed heads, and a 20-minute deadline per head. The operator approved an amendment to the profile boundary and the publisher shape on 2026-11-22; `plans/lifecycle-stage-runner/design.md` records it under **Slice 4 amendment**. Personal stops **after draft publication**, not before it. Starting the run authorizes these actions only for the confirmed repository, branch, and PR. Work requests are silent. Existing in-flight reviews retain their posting mode. A verified correction and a dismissal are different decisions: only the former can be settled automatically. Nothing here authorizes a production write during plan review or fixture tests.
 
@@ -132,6 +145,7 @@ The runner SHALL use an existing matching review or request a permitted silent r
 
 ### Slice 3: Settle only verified, published fixes
 ### Task 3: Close the fix and re-review loop
+**Execution evidence:** The first two-head fixture failed because the runner rejected the numeric ARP finding ID. The local `dd-source` server implementation at `3e6512b672f4d` defines the stored finding response and the PR-wide `status: all` filter. After implementation, the fixture recorded the fixing SHA in the local commit, fresh verifier invocation, bare remote, settlement, and next review. A lost settlement response required only a read; a partial failure preserved evidence for the first finding and stopped before re-review. The runner stopped on the third head with remaining findings and did not launch another fix. `npm test` passed (504 passes and 3 skips), `npm run test:integration` passed (56 runner and 5 Worktrunk cases), and `npm run typecheck` passed. No live GitHub or ARP operation ran.
 **Delivers:** In-scope fixes pass fresh verification and publication before irreversible settlement.
 **Blocked by:** Task 2
 **Traces to:** Exact fixing commit, permanent-write authorization, re-review limits.
@@ -152,10 +166,10 @@ The runner SHALL allow `addressed` only for an identified open finding whose fix
 
 **Fix stage contract.** The fix child runs on the execute model with `--exclude-tools 'mcp__*'`, so it cannot call ARP, and an inline prompt from `runner/_arp.ts`; do not add `arp-fix.md` and do not reuse `/execute`, because the plan has no unchecked tasks and `committedProgress()` requires task reduction. The prompt carries the open finding IDs, each finding's reviewed SHA and re-anchored location, and the published head. The handoff is `{ schemaVersion: 1, stage: "arp-fix", summary, findings: [{ id, disposition: "fixed", fixSha, changeSummary } | { id, disposition: "needs-operator", reason }] }`, with every input ID listed exactly once. The gate requires an advanced `HEAD`, every `fixSha` between the published head and `HEAD`, an unchanged `plan.md`, and a clean worktree. On any failure, stop and report; the fix stage has no Rex recovery. The following `/verify` prompt receives the finding IDs and fixing SHAs and treats those commits as in scope for the original feature.
 
-- [ ] Add a failing two-head integration run and focused negative tests, including a handoff with a missing, duplicate, or unknown finding ID, a `fixSha` outside the range, and an edited `plan.md`. Assert `fix commit → fresh verify → publish → settle → re-review` using actual SHA values. Cover partial settlement of multiple findings and exhaustion on head three.
-- [ ] Reuse the writer model and independent verifier with original baseline and plan blob. Validate per-finding fix evidence and commit ancestry. Enforce idempotent handling of already-settled IDs; never treat conflicting permanent outcomes as success. End only on a clean complete review or an explicit stop.
-- [ ] Run `npm test && npm run test:integration && npm run typecheck`; expect no settlement for an unverified or unpublished fix. Refactor only after green, then repeat.
-- [ ] Commit with `feat(pi): settle verified ARP fixes before re-review`.
+- [x] Add a failing two-head integration run and focused negative tests, including a handoff with a missing, duplicate, or unknown finding ID, a `fixSha` outside the range, and an edited `plan.md`. Assert `fix commit → fresh verify → publish → settle → re-review` using actual SHA values. Cover partial settlement of multiple findings and exhaustion on head three.
+- [x] Reuse the writer model and independent verifier with original baseline and plan blob. Validate per-finding fix evidence and commit ancestry. Enforce idempotent handling of already-settled IDs; never treat conflicting permanent outcomes as success. End only on a clean complete review or an explicit stop.
+- [x] Run `npm test && npm run test:integration && npm run typecheck`; expect no settlement for an unverified or unpublished fix. Refactor only after green, then repeat.
+- [x] Commit with `feat(pi): settle verified ARP fixes before re-review`.
 
 ### Task 4: Final verification
 **Delivers:** Operator guidance and feature-wide evidence for release.
@@ -169,4 +183,5 @@ The runner SHALL allow `addressed` only for an identified open finding whose fix
 - [ ] Record live evidence or the explicit blocker. After passing all required checks, commit documentation and contract tests with `docs(pi): document verified publication and ARP recovery`. Require independent feature-wide `/verify` before installing; do not treat the live trial as its substitute.
 
 ## Learning candidates
+- 2026-11-22: The retired conductor fixture echoed resolver input, but ARP returns `{ finding }` with the stored outcome. Use `status: all` and compare the returned finding ID, reviewed SHA, status, resolution, and fixing SHA before treating a lost response as confirmed. — evidence: local `dd-source` `domains/ai-devx/apps/apis/agentic-review-mcp/internal/pkg/tools/{resolve_finding,findings,get_findings}.go` at `3e6512b672f4d` and the isolated lost-response fixture.
 - 2026-11-22: For a Pi 1.6.0 child with `--no-extensions`, explicitly load `builtin:tool-search` as well as `builtin:mcp` when the child needs deferred discovery. Selecting `tool_search` with `--tools` alone does not register the extension. — evidence: `dot_pi/agent/exact_extensions/stage-runner/_runner.ts` and the isolated review child argument checks in `_fixtures/pi.mjs`.

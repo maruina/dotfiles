@@ -66,17 +66,23 @@ export function phaseDisplay(
   function freeze(at: number) {
     if (active) totals.set(active.phase, (totals.get(active.phase) ?? 0) + at - active.at);
   }
+  let skills = "";
   const history = () => [...totals].map(([phase, ms]) => phase + " " + duration(ms)).join(" · ");
   function tick() {
     if (!active) return;
     const { phase, launch, at } = active;
     const label = launch === undefined ? phase : phase === "execute" ? `execute slice ${launch}` : `verify ${launch} of 3`;
-    present(() => widget([[`${label} · ${duration(now() - at)}`, history()].filter(Boolean).join(" | ")]));
+    present(() => widget([[`${label} · ${duration(now() - at)}`, history(), skills].filter(Boolean).join(" | ")]));
   }
   return {
     onEvent(event: RunnerEvent) {
       if (event.type === "message") {
         present(() => notify(event.message.replace(/[\x00-\x1f\x7f-\x9f]/g, "?")));
+        return;
+      }
+      if (event.type === "skills") {
+        skills = event.labels.length ? "skills: " + event.labels.join(", ") : "";
+        tick();
         return;
       }
       freeze(event.at);

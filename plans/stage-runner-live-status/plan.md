@@ -21,6 +21,8 @@
 | `learning-candidates` | prompt-required | `/systematic-review` disproved the planned Rex mechanism | Recorded the OSC 7501 child-record finding. |
 
 ### Execution
+Slice 2 writer: `openai/gpt-6.2-astra` (GPT-6.2 Astra). Slice 2 used the same execution skills and sources listed below to resolve the pinned plan, trace every `attempt()` stream, test widget output, and document observed reads in the source README.
+
 Slice 1 writer: `openai/gpt-6.2-astra` (GPT-6.2 Astra).
 
 | Skill | Source | Why loaded | How used |
@@ -88,10 +90,12 @@ The line shows these phases: `execute`, `simplify`, `verify`, `recovery`, `publi
 **Blocked by:** Task 1
 **Traces to:** Requirement 2
 
-- [ ] First, capture one real `pi --mode json` run where codemode calls `tools.read`, and confirm that nested `tool_execution_start` and `tool_execution_end` events with `parentToolCallId` appear on stdout. If they do not appear, stop and ask before you use codemode `details.calls`.
-- [ ] Add failing tests through the JSON stream fixture: direct and nested successful reads, failed reads, a missing start event, non-entrypoint paths, invalid directory names, duplicates, the 256 and 16 bounds, and child replacement. Test the line when no read is observed.
-- [ ] Implement the parser in the `attempt()` stream loop and pass labels through the Task 1 seam. Document the skill observation limit in the README.
-- [ ] Run `npm test`, `npm run test:integration`, and `npm run typecheck` from `dot_pi/agent`. Expect only current-child skills on the line. Commit with `feat(pi): report observed stage skills`.
+**Execution evidence:** The complete-run fixture failed with no skill labels before implementation. After implementation, the focused test, `npm test`, `npm run test:integration` (57 stage-runner and 5 Worktrunk tests), and `npm run typecheck` passed. The real Pi JSON probe confirmed a nested `read` start and successful end with matching child and parent IDs. The start contained `args.path`.
+
+- [x] First, capture one real `pi --mode json` run where codemode calls `tools.read`, and confirm that nested `tool_execution_start` and `tool_execution_end` events with `parentToolCallId` appear on stdout. If they do not appear, stop and ask before you use codemode `details.calls`.
+- [x] Add failing tests through the JSON stream fixture: direct and nested successful reads, failed reads, a missing start event, non-entrypoint paths, invalid directory names, duplicates, the 256 and 16 bounds, and child replacement. Test the line when no read is observed.
+- [x] Implement the parser in the `attempt()` stream loop and pass labels through the Task 1 seam. Document the skill observation limit in the README.
+- [x] Run `npm test`, `npm run test:integration`, and `npm run typecheck` from `dot_pi/agent`. Expect only current-child skills on the line. Commit with `feat(pi): report observed stage skills`.
 
 ### Slice 3: Rex activity
 ### Task 3: Report the runner's OSC 7501 child record

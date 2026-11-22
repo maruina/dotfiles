@@ -14,6 +14,7 @@ export type Choice = { provider: string; id: string; thinking: string };
 export type Phase = Stage | "recovery" | "publish" | "review" | "fix";
 export type RunnerEvent =
   | { type: "phase"; phase: Phase; at: number; launch?: number }
+  | { type: "skills"; labels: string[] }
   | { type: "message"; message: string };
 export type Options = {
   cwd: string;
@@ -189,6 +190,8 @@ async function attempt(o: Options, stage: Stage | "arp-review" | "arp-fix", dir:
     settled = false,
     turn = 0;
   let payload: ReturnType<typeof reviewPayload>, resultSeen = false;
+  const pendingReads = new Map<string, string>();
+  const labels = new Set<string>();
   child.stderr.on("data", (chunk: Buffer) => {
     stderr = Buffer.concat([stderr, chunk]).subarray(-16384);
   });
@@ -202,6 +205,22 @@ async function attempt(o: Options, stage: Stage | "arp-review" | "arp-fix", dir:
               throw Error("Missing session header");
             session = e.id;
             privateFile(path.join(dir, "session-id"), session);
+          }
+          if (labels.size < 16 && e.toolName === "read" && typeof e.toolCallId === "string" && e.toolCallId) {
+            if (e.type === "tool_execution_start" && pendingReads.size < 256 && typeof e.args?.path === "string") {
+              const file = e.args.path;
+              const label = path.basename(path.dirname(file));
+              if (path.basename(file) === "SKILL.md" && /^[a-z0-9][a-z0-9-]{0,63}$/.test(label))
+                pendingReads.set(createHash("sha256").update(e.toolCallId).digest("hex"), label);
+            } else if (e.type === "tool_execution_end") {
+              const key = createHash("sha256").update(e.toolCallId).digest("hex");
+              const label = pendingReads.get(key);
+              pendingReads.delete(key);
+              if (label && e.isError === false && !labels.has(label)) {
+                labels.add(label);
+                o.onEvent({ type: "skills", labels: [...labels] });
+              }
+            }
           }
           if (review && e.type === "tool_execution_end" && e.toolName === review.name) {
             if (resultSeen) throw Error("Multiple results for one ARP operation");
@@ -222,6 +241,7 @@ async function attempt(o: Options, stage: Stage | "arp-review" | "arp-fix", dir:
       throw Error((stopping || "Pi did not settle successfully; exit " + code) + "; session " + (session || "unknown"));
     return payload;
   } finally {
+    if (labels.size) o.onEvent({ type: "skills", labels: [] });
     clearTimeout(idle);
     clearTimeout(wall);
     clearTimeout(kill);

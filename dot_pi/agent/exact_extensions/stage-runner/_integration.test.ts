@@ -145,7 +145,11 @@ for (const failure of [
     let clock = 0;
     const summaries: string[] = [];
     let widget: string[] | undefined;
-    const display = phaseDisplay(lines => { widget = lines; }, entry => summaries.push(entry),
+    const skillLines: string[] = [];
+    const display = phaseDisplay(lines => {
+      widget = lines;
+      if (!failure && lines) skillLines.push(lines[0]);
+    }, entry => summaries.push(entry),
       message => progress.push(message), () => clock);
     t.after(() => {
       assert.equal(summaries.length, 1);
@@ -435,6 +439,10 @@ for (const failure of [
       assert.deepEqual(
         phases, ["execute:1", "execute:2", "simplify", "verify:1", "publish"],
       );
+      const labels = Array.from({ length: 16 }, (_, i) => "skill-" + i);
+      const observed = skillLines.filter(line => line.includes("skills: "));
+      assert.deepEqual([...new Set(observed)], labels.map((_, i) =>
+        "simplify · 00:00 | execute 00:02 | skills: " + labels.slice(0, i + 1).join(", ")));
       const first = path.join(options.root, bundle, "execute-1");
       assert.equal(fs.statSync(path.join(first, "stderr")).size, 16384);
       assert.equal(fs.statSync(path.join(first, "sessions")).mode & 0o777, 0o700);

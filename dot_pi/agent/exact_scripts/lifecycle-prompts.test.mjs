@@ -52,6 +52,24 @@ test("brainstorm and plan allow only bounded open questions", () => {
   assert.match(prompt("plan.md"), /no contradictions, placeholders,/);
 });
 
+test("execute varies suggestions without stopping and stops on binding conflicts", () => {
+  const execute = prompt("execute.md");
+  const posture = execute.split("## Posture")[1].split("## Slice execution")[0];
+  requireMarkers(posture, [
+    /existing, resumed, and pinned plans/i,
+    /path listed only in .*Files:.* is a suggestion/i,
+    /path the plan or approved design requires stays binding/i,
+    /vary suggested files and internal mechanisms and resolve explicitly non-binding open questions without asking/i,
+    /record each deviation in the plan ledger/i,
+    /cannot establish that every binding constraint holds, stop before editing and ask/i,
+  ]);
+  requireMarkers(execute, [
+    /Do not disable a required check, weaken an agreed expectation, or change a tolerance merely to obtain a pass/,
+    /Stop after 3 focused attempts on the same failure/,
+    /<HARD-GATE>[^<]*scope changes[^<]*<\/HARD-GATE>/,
+  ]);
+});
+
 const skillsDir = existsSync(path.join(agentDir, "exact_skills"))
   ? path.join(agentDir, "exact_skills")
   : path.join(agentDir, "skills");

@@ -40,7 +40,7 @@ Follow the plan's scope, requirements, references, and non-goals. Check paths an
 
 Continue authorized work until the current step has a blocker. A later approval or live check is not a blocker unless it is a prerequisite for that step.
 
-Change only what a plan step or user instruction requires. Follow repository patterns and reuse existing tools and libraries unless the plan requires otherwise.
+Stay within the current step and user instructions. For all plans, including existing, resumed, and pinned plans, a path listed only in `**Files:**` is a suggestion. A path the plan or approved design requires stays binding. You may vary suggested files and internal mechanisms and resolve explicitly non-binding open questions without asking. Preserve every requirement, safety boundary, agreed design decision, and test or verification contract. If you cannot establish that every binding constraint holds, stop before editing and ask. Otherwise, record each deviation in the plan ledger. Follow repository patterns and reuse existing tools and libraries unless the plan requires otherwise.
 
 For testable behavior, run a focused failing test first and make the smallest passing change. If you refactor after green, rerun verification.
 
@@ -59,7 +59,7 @@ For a plan with `### Slice N` headings, read the plan, find the first slice with
 5. Inspect referenced tickets, PRs, reviews, or discussion threads. If recent actionable feedback is missing from the plan, stop and ask whether to update it.
 6. Re-check the plan or trivial prompt against the current codebase, repository instructions, loaded skills, and operational requirements (logs, metrics, traces, alerts, dashboards, runbooks, rollout, rollback, and ownership).
 7. For plan-based execution, verify the worktree starts with committed `plans/<ticket-or-feature>/plan.md` (and sibling `design.md` when expected). If lifecycle docs are uncommitted or untracked, recover only when the sole uncommitted changes are expected lifecycle artifacts under `plans/<ticket-or-feature>/`, committing `design.md` first and `plan.md` second.
-8. Stop and ask if any uncommitted changes remain after recovery, or if concerns, blockers, or ambiguities exist before modifying files.
+8. Stop and ask if any uncommitted changes remain after recovery, or if concerns, blockers, or ambiguities remain beyond the choices permitted under `## Posture`.
 9. **Execute —** Execute tasks in order (the first slice with incomplete tasks for a grouped plan, or the single approved change for bare-prompt trivial work).
 10. For each task, update plan checkboxes as work progresses, run the specified verification, and mark steps complete only after verification passes. For plan-based work, maintain an `### Execution` subsection under `## Skills loaded and used`, preserving the planning record. Record the provider-qualified writer ID for each completed slice (or ungrouped execution) in the ledger before committing. For trivial bare prompts, track progress and skill provenance in chat.
 11. Complete the plan's documentation and future-agent guidance task, including every required `AGENTS.md` inspection (or decide whether docs are unnecessary for trivial bare prompts).
@@ -97,7 +97,7 @@ Query telemetry using the plan's selectors and observation window, and record th
 Before marking a behavior task complete, check what else runs (callbacks, reconcilers, hooks, middleware, jobs, controllers, generated code), whether alternate entrypoints behave consistently, whether partial failure can leave durable state inconsistent, whether retry/idempotency/timeout strategies align across layers, and whether tests exercise the real integration path where needed. Skip only for leaf-node changes with no behavioral or integration impact.
 
 ## Stop Conditions
-Stop and ask when the plan has gaps, conflicts with repository guidance or a loaded skill, requires an unavailable skill or missing dependency/credential/service/generated artifact, differs materially from the current codebase, or needs a scope, behavior, API, schema, rollout, or rollback change beyond the committed plan. Return to plan review after the blocker is resolved or the user approves a plan change.
+Stop and ask when the plan has gaps, conflicts with repository guidance or a loaded skill, requires an unavailable skill or missing dependency/credential/service/generated artifact, differs materially from the current codebase beyond a permitted substitution, or needs a scope, behavior, API, schema, rollout, or rollback change beyond the committed plan. Return to plan review after the blocker is resolved or the user approves a plan change.
 
 ## Plan Updates
 Use the plan file as the progress ledger:

@@ -94,8 +94,10 @@ The focused tests first rejected the missing draft child, the pre-push handling 
 **Traces to:** Requirements 1 and 2; rollout and recovery.
 **Files:** `dot_pi/agent/exact_extensions/stage-runner/README.md`, relevant `AGENTS.md` files, lifecycle prompt contracts if their wording changes.
 
-- [ ] Update the runner README with the new pre-push step, shared policy location, failure behavior, and existing-PR rule. Keep manual publication and ARP consent separate. Review repository and agent guidance; record why no `AGENTS.md` change is needed unless a durable rule is missing. No new command or prompt template is required.
-- [ ] Check README claims against the runner fixtures. A failing behavior test is not applicable because this task changes documentation only. Run `npm test` and `git diff --check`. If separate from Task 1, commit with `docs(pi): explain stage runner PR drafting`.
+- [x] Update the runner README with the new pre-push step, shared policy location, failure behavior, and existing-PR rule. Keep manual publication and ARP consent separate. Review repository and agent guidance; record why no `AGENTS.md` change is needed unless a durable rule is missing. No new command or prompt template is required.
+- [x] Check README claims against the runner fixtures. A failing behavior test is not applicable because this task changes documentation only. Run `npm test` and `git diff --check`. If separate from Task 1, commit with `docs(pi): explain stage runner PR drafting`.
+
+The integration fixtures cover the README's creation, reuse, and pre-push stop behavior. `npm test` and `git diff --check` passed. The root `AGENTS.md` already identifies the runner README as the operator contract. `dot_pi/agent/AGENTS.md` already separates publication authorization from lifecycle work. Neither file needs a drafting-specific rule. The `diataxis` skill (selected by `skill-loader`) kept the README's runtime description separate from rollout and recovery instructions.
 
 ### Task 3: Verify shared PR preparation and publication safeguards
 **Blocked by:** Tasks 1-2

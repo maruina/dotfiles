@@ -8,6 +8,76 @@ import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { phaseDisplay } from "./index.ts";
 import { run } from "./_runner.ts";
+for (const [failure, error] of Object.entries({ blocker: "needs-human", "blocker-cancel": "abort", "blocker-uncertain": "uncertain recovery", "blocker-session": "identity mismatch", corrected: "", "corrected-stale": "Design changed", "corrected-other": "Design changed", "corrected-header": "Draft header", "": "", early: "handoff", header: "Draft header", path: "artifact path", overlap: "author model", stale: "Design changed", invalid: "pi --session", "no-plan": "handoff", reverted: "unrelated path", dirty: "dirty", switch: "Author used reviewer", "pre-check": "Design changed", "approval-race": "expected parent [a-f0-9]+, observed [a-f0-9]+" }))
+ test((failure.startsWith("blocker") ? "design blocker: " : failure.startsWith("corrected") ? "corrected design: " : "clean design: ") + (failure || "committed plan without publication"), async (t) => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "design-test-"));
+  t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
+  const cwd = path.join(temp, "work");
+  fs.mkdirSync(cwd);
+  const env = { ...process.env, HOME: temp, GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null",
+    PI_STAGE_RUNNER_CHILD: "", FAIL: failure, ARGV_LOG: path.join(temp, "argv"), REX_SERVER: "unix://" + path.join(temp, "rex.sock"),
+    REX_SESSION: "session:fixture", REX_BLOCK: "block:anchor" };
+  if (["pre-check", "approval-race"].includes(failure)) {
+    const bin = path.join(temp, "bin"); fs.mkdirSync(bin);
+    fs.writeFileSync(path.join(bin, "git"), fs.readFileSync(path.join(import.meta.dirname, "_fixtures/design-git.mjs")), {mode: 0o700});
+    Object.assign(env, {REAL_GIT: execFileSync("which", ["git"], {encoding:"utf8"}).trim(), PATH: bin + path.delimiter + process.env.PATH});
+  }
+  const git = (...args: string[]) => execFileSync("git", args, { cwd, env, encoding: "utf8" }).trimEnd();
+  git("init", "-qb", "feature");
+  git("config", "user.name", "Fixture"); git("config", "user.email", "fixture@example.org");
+  git("commit", "--allow-empty", "-qm", "start");
+  const server = net.createServer();
+  await new Promise<void>((resolve, reject) => server.once("error", reject).listen(path.join(temp, "rex.sock"), resolve));
+  t.after(() => server.close());
+  const model = { provider: "p", id: "author", thinking: "off" };
+  const { runDesign } = await import("./_runner.ts");
+  const controller = new AbortController();
+  const result = runDesign({ cwd, env, root: path.join(temp, "state"), brief: "fixture design", author: model,
+    reviewer: { ...model, id: "reviewer" }, signal: controller.signal, progress: () => {},
+    executable: process.execPath, prefix: [path.join(import.meta.dirname, "_fixtures/design-pi.mjs")],
+    rexCommand: [process.execPath, path.join(import.meta.dirname, "_fixtures/rex.mjs")] });
+  if (error) {
+    if (failure === "blocker-cancel") {
+      const wait = async () => {
+        for (let i = 0; i < 500 && !fs.existsSync(env.ARGV_LOG+".resumed"); i++) await delay(10);
+        controller.abort();
+      };
+      await Promise.all([assert.rejects(result, /abort/i), wait()]);
+    } else await assert.rejects(result, new RegExp(error));
+    if (failure.startsWith("blocker")) {
+      assert.equal(git("log","-1","--format=%s"),"draft");
+      const state = path.join(temp,"state"), files = fs.readdirSync(state);
+      assert.equal(files.some(s => s.startsWith("lock-")), failure === "blocker-uncertain");
+      if (failure === "blocker" || failure === "blocker-cancel") {
+        assert.equal(fs.readFileSync(env.ARGV_LOG+".resumed","utf8"),"fixture-design-review\n");
+      }
+      if (failure === "blocker") assert.equal(fs.readFileSync(path.join(state,files.find(s => s.startsWith("run-"))!,"completed"),"utf8"),"needs-human");
+    }
+    if (["approval-race", "pre-check"].includes(failure)) {
+      const competing = fs.readFileSync(env.ARGV_LOG + ".competing", "utf8").trim();
+      git("merge-base", "--is-ancestor", competing, "HEAD");
+      assert.equal(git("show", competing + ":plans/demo/design.md"), "# Competing edit\nStatus: Draft");
+    }
+    if (!["no-plan", "reverted"].includes(failure)) assert.ok(!fs.readFileSync(env.ARGV_LOG, "utf8").includes("design-plan"));
+    return;
+  }
+  if (failure === "corrected") await result;
+  else try {
+    for (let i = 0; i < 500 && !fs.existsSync(env.ARGV_LOG + ".first-turn"); i++) await delay(10);
+    assert.equal(fs.readFileSync(env.ARGV_LOG, "utf8"), "design-draft\n");
+    fs.writeFileSync(env.ARGV_LOG + ".continue", "confirmed");
+    await result;
+  } finally { controller.abort(); await result.catch(() => {}); }
+  assert.equal(fs.readFileSync(env.ARGV_LOG,"utf8"),"design-draft\ndesign-review\ndesign-plan\n");
+  const revisionBytes = (rev: string) => execFileSync("git", ["cat-file", "blob", rev + ":plans/demo/design.md"], {cwd,env});
+  assert.deepEqual(revisionBytes("HEAD~2"), Buffer.from("# Demo\nStatus: Draft\n" + (failure ? "See correct.md\n" : "")));
+  assert.deepEqual(revisionBytes("HEAD~"), Buffer.from("# Demo\nStatus: Approved\n" + (failure ? "See correct.md\n" : "")));
+  assert.equal(git("show", "-s", "--format=%P", "HEAD~"), git("rev-parse", "HEAD~2"));
+  assert.equal(git("diff", "--name-only", "HEAD~2", "HEAD~"), "plans/demo/design.md");
+  assert.equal(git("diff", "--name-only", "HEAD~", "HEAD"), "plans/demo/plan.md");
+  assert.equal(git("status", "--porcelain"), "");
+});
+
 for (const failure of [
   "",
   "reuse",
@@ -457,6 +527,7 @@ for (const failure of [
       assert.equal(fs.readFileSync(path.join(options.root, bundle, "completed"), "utf8"), "VERIFIED");
     }
     if (!failure) {
+      assert.match(stages.at(-1)!.at(-1)!, /Set "findings" to a flat JSON array of finding objects \(use \[\] when there are none\)/);
       for (const file of fs.readdirSync(options.root, { recursive: true, encoding: "utf8" })) {
         const full = path.join(options.root, file);
         if (fs.statSync(full).isFile())

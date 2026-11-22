@@ -16,7 +16,7 @@ if (args.includes("whoami"))
   );
 else if (args.includes("split")) {
   if (!args.includes("--shell=none") || !args.includes(anchor) || !args.includes(session)) process.exit(2);
-  if (process.env.FAIL === "recover-uncertain") {
+  if (process.env.FAIL === "recover-uncertain" || (process.env.FAIL === "blocker-uncertain" && args.includes("--session"))) {
     console.log("{}");
     process.exit();
   }

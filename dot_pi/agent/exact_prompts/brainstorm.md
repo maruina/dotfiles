@@ -59,6 +59,8 @@ Classification: Small / Medium / Large/Risky
 Why:
 - ...
 
+In a managed design-draft child, stay in this worktree and branch, commit a Draft for independent comprehension review at every size, and follow the runner's draft handoff instructions.
+
 ## Pushback
 ...
 

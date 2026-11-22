@@ -4,6 +4,17 @@ Use `/stage-runner` for a reviewed, committed plan that nobody has started. The 
 - **Personal:** The runner reports the PR URL and verified SHA and stops after GitHub confirms the PR head. It does not discover or call ARP, even if the tools are installed.
 - **Work:** The runner performs the same publication and continues to ARP (Agentic Review Platform) only for `ddoghq/*` and `ddoghq-sandbox/*`. For these repositories, it ends successfully when ARP reports a complete review of the published head with no open findings. For all other repositories, it stops after GitHub confirms the PR head without discovering or calling ARP.
 
+## Take a design through review and planning
+In interactive Pi 1.6.0 in local Rex, start in a clean feature worktree and enter `/stage-runner-design <brief>`. Select an author and an independent reviewer. Starting this workflow authorizes local design corrections and an approval commit. It does not authorize publication, implementation, or ARP review.
+
+Discuss the brief in the author pane. After the author commits the Draft and hands it back, the reviewer may commit a reference, wording, or terminology correction only when the agreed intent determines the answer. A decision about behavior, scope, cost, dependencies, authorization, or validation requires the operator. The runner checks the saved session identities and the reviewed Git blob before it accepts the review.
+
+- **Clean review:** The runner commits the status change and opens the planner on the approved design. Read the Git correction summary and confirm the planning brief in that pane. When the planner commits the sibling `plan.md` and exits with a valid handoff, the runner reports the standalone plan review command.
+- **Decision required:** Continue in the resumed reviewer session. Automatic correction authority ended at the handoff. Confirm any further edits or approval there. Exit when finished; the runner releases its lock and does not open a planner. Use the standalone review's planning handoff.
+- **Failure or cancellation:** Use `/stage-runner-cancel` in the invoking pane to stop a run. Inspect the reported private evidence directory and the worktree. An approval commit can remain after a concurrent edit even when no planner opened. Do not reset it or repeat an uncertain split. If the handoff is invalid but the session is valid, inspect the reported session command before resuming manually.
+
+Before rollout, complete both authenticated local trials in the [design runner plan](../../../../plans/lifecycle-stage-runner-front-half/plan.md) and obtain independent verification. To roll back, stop active runs, confirm child exit, restore the prior extension and prompt versions, preview and apply only their explicit targets, and restart Pi. Keep the commits and continue with standalone `/brainstorm`, `/systematic-review`, and `/plan`.
+
 ## Start or cancel a run
 1. Open interactive Pi 1.6.0 in a local Rex pane. Use a clean feature worktree with the plan tracked at `HEAD`. Confirm that the signing agent can sign child commits and that the scoped models include an authenticated verifier distinct from both writers.
 2. Enter `/stage-runner plans/my-feature/plan.md`, replacing the example path with your plan. Select a model and a supported thinking level for execute, simplify, and verify.

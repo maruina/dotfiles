@@ -5,7 +5,7 @@ import { getSupportedThinkingLevels } from "@earendil-works/pi-ai";
 import { VERSION, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { qualifiedId } from "./_model.ts";
-import { run, type Choice } from "./_runner.ts";
+import { handoff, run, runDesign, type Choice } from "./_runner.ts";
 
 function deadline(name: string, fallback: number) {
   const ms = Number(process.env[name] ?? fallback);
@@ -40,6 +40,13 @@ async function checkRex(pi: ExtensionAPI) {
 }
 
 export default function stageRunner(pi: ExtensionAPI) {
+  const managedStage = process.env.PI_DESIGN_STAGE, managedFile = process.env.PI_DESIGN_HANDOFF;
+  if (process.env.PI_STAGE_RUNNER_CHILD === "1" && managedFile && (managedStage === "design-draft" || managedStage === "design-plan")) {
+    pi.on("agent_settled", (_, ctx) => {
+      try { handoff(managedFile, managedStage); } catch { return; }
+      ctx.shutdown();
+    });
+  }
   const entryType = "stage-runner-progress";
   pi.registerEntryRenderer<string>(entryType, (entry, _options, theme) =>
     new Text(`${theme.fg("accent", "Stage runner")} — ${entry.data ?? ""}`, 1, 0),
@@ -60,11 +67,11 @@ export default function stageRunner(pi: ExtensionAPI) {
       else ctx.ui.notify("No active stage runner", "info");
     },
   });
-  pi.registerCommand("stage-runner", {
-    description: "Verify and publish an unstarted committed plan; check Agentic Review in the work profile",
+  const command = (design: boolean): Parameters<ExtensionAPI["registerCommand"]>[1] => ({
+    description: design ? "Design interactively, review independently, and plan in this worktree" : "Verify and publish an unstarted committed plan; check Agentic Review in the work profile",
     handler: async (arg, ctx) => {
       if (active || process.env.PI_STAGE_RUNNER_CHILD === "1" || !ctx.hasUI || !arg.trim()) {
-        ctx.ui.notify("Use /stage-runner <plan-path> in an idle interactive parent session", "error");
+        ctx.ui.notify(`Use ${design ? "/stage-runner-design <brief>" : "/stage-runner <plan-path>"} in an idle interactive parent session`, "error");
         return;
       }
       const controller = new AbortController();
@@ -74,24 +81,26 @@ export default function stageRunner(pi: ExtensionAPI) {
         await checkRex(pi);
         const models = {} as Record<"execute" | "simplify" | "verify", Choice>;
         for (const stage of ["execute", "simplify", "verify"] as const) {
+          if (design && stage === "simplify") continue;
+          const label = design ? (stage === "execute" ? "author" : "reviewer") : stage;
           controller.signal.throwIfAborted();
           const available = ctx.scopedModels
             .map((entry) => entry.model)
             .filter(
               (m) =>
                 stage !== "verify" ||
-                ![models.execute, models.simplify].some((w) => qualifiedId(w.provider, w.id) === qualifiedId(m.provider, m.id)),
+                !(design ? [models.execute] : [models.execute, models.simplify]).some((w) => qualifiedId(w.provider, w.id) === qualifiedId(m.provider, m.id)),
             );
           if (!available.length) throw Error("No eligible scoped model for " + stage);
           const pick = await ctx.ui.select(
-            "Select " + stage + " model",
+            "Select " + label + " model",
             [...new Set(available.map((m) => qualifiedId(m.provider, m.id)))],
             { signal: controller.signal },
           );
           if (!pick) return;
           const model = available.find((m) => qualifiedId(m.provider, m.id) === pick)!;
           const thinking = await ctx.ui.select(
-            "Select " + stage + " thinking level",
+            "Select " + label + " thinking level",
             [...getSupportedThinkingLevels(model)],
             { signal: controller.signal },
           );
@@ -100,18 +109,16 @@ export default function stageRunner(pi: ExtensionAPI) {
         }
         const plan = path.resolve(ctx.cwd, arg.trim().replace(/^(['"])(.*)\1$/, "$2"));
         progress("Run started.");
-        const evidence = await run({
+        const shared = { root: path.join(os.homedir(), ".pi/agent/lifecycle-runs"), signal: controller.signal,
+          idleMs: deadline("PI_STAGE_RUNNER_IDLE_MS", 600000), wallMs: deadline("PI_STAGE_RUNNER_WALL_MS", 3600000),
+          notify: (message: string) => ctx.ui.notify(message, "warning"), progress };
+        const evidence = design ? await runDesign({ ...shared, cwd: ctx.cwd, brief: arg, author: models.execute, reviewer: models.verify }) : await run({
+          ...shared,
           cwd: path.dirname(plan),
           plan,
-          root: path.join(os.homedir(), ".pi/agent/lifecycle-runs"),
           models,
           confirm: (target, signal) => ctx.ui.confirm("Start stage runner and publish?", target, { signal }),
-          signal: controller.signal,
-          idleMs: deadline("PI_STAGE_RUNNER_IDLE_MS", 600000),
-          wallMs: deadline("PI_STAGE_RUNNER_WALL_MS", 3600000),
-          notify: (message) => ctx.ui.notify(message, "warning"),
           approve: (changes, signal) => ctx.ui.confirm("Accept recovered writer?", changes, { signal }),
-          progress,
         });
         progress("Run complete; evidence " + evidence);
       })()
@@ -130,4 +137,6 @@ export default function stageRunner(pi: ExtensionAPI) {
         });
     },
   });
+  pi.registerCommand("stage-runner", command(false));
+  pi.registerCommand("stage-runner-design", command(true));
 }

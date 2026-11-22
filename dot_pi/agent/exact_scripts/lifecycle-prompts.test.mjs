@@ -358,11 +358,17 @@ test("lifecycle stages enforce negative scenarios, consumer maps, behavioral che
   }
 });
 
+test("managed design prompts state only their stage exceptions", () => {
+  assert.match(prompt("brainstorm.md"), /managed design-draft child.*independent comprehension review/);
+  assert.match(prompt("plan.md"), /managed design-plan child.*PI_DESIGN_INPUT.*skip worktree discovery/);
+  assert.match(prompt("systematic-review.md"), /managed design-review.*handoff/);
+});
+
 test("lifecycle prompts stay within prompt context budgets", () => {
   const budgets = new Map([
     ["brainstorm.md", 14_000],
     ["plan.md", 17_200],
-    ["systematic-review.md", 12_500],
+    ["systematic-review.md", 13_000],
     ["execute.md", 14_500],
     ["verify.md", 13_700],
     ["simplify.md", 9_500],

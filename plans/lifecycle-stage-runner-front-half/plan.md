@@ -27,6 +27,19 @@
 | `codebase-research` | `prompt-required` | Second `/systematic-review` of this plan | Confirmed that `brainstorm.md` defines no status header, that both direct prompts use `feature-worktree`, and that the fixture Pi does not load extensions. |
 | `write` | `skill-loader` | Second review fixes | Replaced history checks with the content-based approval rule and defined the `needs-human` terminal state. |
 
+### Execution
+Slice 1 writer: `openai/gpt-6.2-astra` (GPT-6.2 Astra).
+
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `skill-loader` | `prompt-required` | Execute a lifecycle slice | Selected worktree, extension, CLI, and writing guidance. |
+| `resolve-worktree`, `feature-worktree` | `prompt-required` | Pinned plan | Confirmed the owning feature branch and the committed requirements before edits. |
+| `codebase-research` | `skill-loader` | Shared runner | Traced model choice, child launch, Git checks, cancellation, and lock ownership before reusing them. |
+| `cli-best-practices` | `skill-loader` | Interactive command | Kept design authorization separate from publication and used structured stage evidence. |
+| `chezmoi` | `skill-loader` | Managed files | Edited source only. No changes were applied. |
+| `write` | `skill-loader` | Prompt exceptions and ledger | Named the managed stage in each exception and kept the standalone policy intact. |
+| `learning-candidates` | `prompt-required` | Review execution surprises | No new candidate. The planner history check is an operator decision. |
+
 ## Implementation Contract
 Source: `plans/lifecycle-stage-runner/design.md`, approved roadmap Slice 3. The operator confirmed two vertical slices in one PR, an explicit runner, reuse of existing Stage Runner code, automatic non-blocking fixes, and interactive planning from the **updated** design. During `/systematic-review` of this plan, the operator also confirmed one command for the full front half, automatic shutdown of the author and planner panes after a valid handoff, and a run that succeeds only when a plan is committed. Neither slice rolls out alone.
 
@@ -81,6 +94,8 @@ Matteo owns the authenticated trial and rollout. Use a disposable local feature 
 ## Execution
 ### Slice 1: Plan a clean design
 **Blocked by:** None
+**Task 1 verified.** The operator confirmed that planner validation must require `approvalCommit` ancestry and reject unrelated paths in intermediate commits, even when reverted. Design approval remains content-based.
+
 This slice validates the complete no-edit path. Stop on any review requiring changes until Slice 2.
 
 ### Task 1: Deliver the opt-in draft, review, and planning path
@@ -118,10 +133,14 @@ The runner SHALL start review only after the managed author commits a Draft, wri
 - WHEN the planner exits with no valid plan handoff, or with commits that change another path
 - THEN the run stops with the reason, preserves the work, and does not report success.
 
-- [ ] Add the failing end-to-end fixture for `clean design` first. Run `node --experimental-strip-types --test --test-name-pattern='clean design' exact_extensions/stage-runner/_integration.test.ts`; expect failure before implementation and an executed, passing case afterward.
-- [ ] Register the design command in the existing extension. Share the actual run resources and launch mechanisms listed above; separate only the front-half sequencing and handoff rules. Pass explicit managed context to direct prompts without changing their default policy. Establish the private planner input with the canonical path and an empty correction summary for an unchanged draft.
-- [ ] Bind review eligibility to the saved author session and review acceptance to the saved reviewer session. Test `validate()` for the three handoff schemas, author model switching, and duplicate run/lock in `R/_runner.test.ts`. In `R/_integration.test.ts`, test an independently selected reviewer whose saved session records an author model, and commit a design change after the review handoff but before the final pre-commit check. In a separate test, pause the approval command at the fixture Git boundary before it invokes real Git. Commit a competing design edit, then release the command without timing sleeps. Assert that the competing commit remains in history, the runner reports the mismatch, and no planner starts. On success, check the approval commit's parent, changed paths, and exact design bytes against the reviewed blob with only the line 2 substitution. Assert a clean worktree on the pinned branch at the approval commit. Test early author exit, a draft whose line 2 is not `Status: Draft`, a design path outside `^[A-Za-z0-9._/-]+$`, malformed review result, dirty or stale revision, and planner exit without a plan. Assert that the author and planner argv carry the instruction to stay in the current worktree. In `R/_index.test.ts`, call the `R/index.ts` default export with a fake `ExtensionAPI` and a `ctx.shutdown` spy; expect no shutdown without managed environment variables, with a missing or invalid handoff, or with a valid handoff for another stage, and one shutdown for a valid handoff for the expected stage. Assert the managed-exception line of each direct prompt and the `systematic-review.md` budget in `S/lifecycle-prompts.test.mjs`.
-- [ ] Run `npm test && npm run test:integration && npm run typecheck`; expect the new transitions and existing post-plan consent, recovery, and publication tests to pass. Refactor only while green and rerun. Commit `feat(pi): plan independently reviewed designs with stage runner`.
+- [x] Add the failing end-to-end fixture for `clean design` first. Run `node --experimental-strip-types --test --test-name-pattern='clean design' exact_extensions/stage-runner/_integration.test.ts`; expect failure before implementation and an executed, passing case afterward.
+- [x] Register the design command in the existing extension. Share the actual run resources and launch mechanisms listed above; separate only the front-half sequencing and handoff rules. Pass explicit managed context to direct prompts without changing their default policy. Establish the private planner input with the canonical path and an empty correction summary for an unchanged draft.
+- [x] Bind review eligibility to the saved author session and review acceptance to the saved reviewer session. Test `validate()` for the three handoff schemas, author model switching, and duplicate run/lock in `R/_runner.test.ts`. In `R/_integration.test.ts`, test an independently selected reviewer whose saved session records an author model, and commit a design change after the review handoff but before the final pre-commit check. In a separate test, pause the approval command at the fixture Git boundary before it invokes real Git. Commit a competing design edit, then release the command without timing sleeps. Assert that the competing commit remains in history, the runner reports the mismatch, and no planner starts. On success, check the approval commit's parent, changed paths, and exact design bytes against the reviewed blob with only the line 2 substitution. Assert a clean worktree on the pinned branch at the approval commit. Test early author exit, a draft whose line 2 is not `Status: Draft`, a design path outside `^[A-Za-z0-9._/-]+$`, malformed review result, dirty or stale revision, and planner exit without a plan. Assert that the author and planner argv carry the instruction to stay in the current worktree. In `R/_index.test.ts`, call the `R/index.ts` default export with a fake `ExtensionAPI` and a `ctx.shutdown` spy; expect no shutdown without managed environment variables, with a missing or invalid handoff, or with a valid handoff for another stage, and one shutdown for a valid handoff for the expected stage. Assert the managed-exception line of each direct prompt and the `systematic-review.md` budget in `S/lifecycle-prompts.test.mjs`.
+- [x] Run `npm test && npm run test:integration && npm run typecheck`; expect the new transitions and existing post-plan consent, recovery, and publication tests to pass. Refactor only while green and rerun. Commit `feat(pi): plan independently reviewed designs with stage runner`.
+
+**Slice 1 evidence:** The focused test first failed because `runDesign` did not exist. All 13 `clean design` subprocess cases passed after implementation, including a reverted unrelated planner edit and the two approval races. The fast suite passed 510 tests and skipped 3. The integration suites passed 69 Stage Runner tests and 5 Worktrunk tests. TypeScript passed. The tests simulate a parent runner with `PI_STAGE_RUNNER_CHILD` unset. An initial fast-suite failure required preserving the existing literal command registration; the check itself did not change.
+
+**Implementation notes:** The two new design fixture programs keep Git race injection and the managed Pi protocol separate from publication fixtures. The child receives the brief through a private JSON file, so user text does not become runner instructions. The author-model-switch case exercises the real session reader through the integration test instead of mocking its caller. The fixtures do not establish live model compliance or Rex shutdown timing; Task 4 retains those gates.
 
 ### Slice 2: Plan a corrected design or resume its reviewer
 **Blocked by:** Task 1

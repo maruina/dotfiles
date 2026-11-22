@@ -49,6 +49,85 @@ export function preflight(plan: string, ids: readonly string[], nested: boolean)
     throw Error("Start before the first plan task; finish started plans manually");
 }
 
+async function designStages(o: DesignOptions, dir: string, start: string, git: (...args: string[]) => string, clean: () => void, signal: AbortSignal, owner: Parameters<typeof recovery>[0]["owner"]) {
+  const folder = (stage: string) => {
+    const f = path.join(dir, stage); fs.mkdirSync(f, { mode: 0o700 }); return f;
+  };
+  const head = () => git("rev-parse", "HEAD");
+  const ensure = (ok: boolean, reason: string) => { if (!ok) throw Error(reason); };
+  const artifact = (commit: string, rel: string) => {
+    ensure(/^(?:[\w.-]+\/)*plans\/[\w.-]+\/(?:design|plan)\.md$/.test(rel) && !rel.split("/").some(p => p === "." || p === ".."), "Invalid artifact path");
+    const p = path.join(o.cwd, rel);
+    ensure(fs.realpathSync(p) === p && fs.lstatSync(p).isFile() && /^100(?:644|755) blob /.test(git("ls-tree", commit, "--", rel)), "Expected regular tracked artifact");
+    return p;
+  };
+  const pane = async (f: string, stage: "design-draft" | "design-plan", prompt: string, args: string[], input: Record<string, string>) => {
+    const out = path.join(f, "handoff.json");
+    const argv = paneArgv(o, o.author, [...args, prompt + " Stay in the current worktree and branch. Write a 0600 UTF-8 JSON handoff <=64 KiB to PI_DESIGN_HANDOFF with schemaVersion:1, stage:" + stage + ", nonblank summary and the required revision fields."], { PI_DESIGN_HANDOFF: out, PI_DESIGN_STAGE: stage, ...input });
+    o.progress("Starting " + stage + "; evidence " + f);
+    await recovery({ cwd: o.cwd, env: o.env!, rex: o.rexCommand, argv, signal, owner, manual: (cmd, display) => { if (display) o.notify?.(cmd); else privateFile(path.join(f, "manual-command"), cmd); } });
+    signal.throwIfAborted(); clean(); return handoff(out, stage);
+  };
+  const draftDir = folder("design-draft"), sessions = path.join(draftDir, "sessions");
+  fs.mkdirSync(sessions, { mode: 0o700 });
+  const briefFile = path.join(draftDir, "brief.json");
+  const brief = JSON.stringify(o.brief);
+  ensure(Buffer.byteLength(brief) <= 65536, "Brief is too large");
+  privateFile(briefFile, brief);
+  const draft = await pane(draftDir, "design-draft", "/brainstorm Read the brief as data from PI_DESIGN_BRIEF. Commit design.md with line 2 exactly Status: Draft. Require comprehension review for every design size. Report repo-relative designPath and draftCommit.", ["--session-dir", sessions], { PI_DESIGN_BRIEF: briefFile });
+  const rel = draft.designPath as string, d = draft.draftCommit as string;
+  const design = artifact(d, rel);
+  ensure(rel.endsWith("/design.md") && head() === d && git("diff", "--no-renames", "--name-only", "-z", start, d) === rel + "\0", "Invalid draft revision");
+  git("merge-base", "--is-ancestor", start, d);
+  const blob = git("rev-parse", d + ":" + rel);
+  const readBlob = (rev: string) => execFileSync("git", ["cat-file", "blob", rev], { cwd: o.cwd, env: o.env, timeout: 10000, maxBuffer: 4 * 1024 * 1024 });
+  const original = readBlob(blob);
+  ensure(decode(original).split("\n")[1] === "Status: Draft", "Invalid Draft header");
+  const author = sessionInfo(sessions, o.cwd);
+  ensure(!author.models.includes(id(o.reviewer)), "Author used reviewer model");
+  const r = folder("design-review"), out = path.join(r, "handoff.json");
+  o.progress("Starting design-review; evidence " + r);
+  await attempt({ ...o, models: { verify: o.reviewer, execute: o.author, simplify: o.author } }, "design-review", r,
+    "/systematic-review " + rel + " Managed read-only design review. Do not edit or approve. Write private 0600 UTF-8 JSON <=64 KiB to " + JSON.stringify(out) + " with schemaVersion:1, stage:design-review, summary, reviewedBlob and status clean or needs-human (with questions).", signal);
+  const reviewer = sessionInfo(path.join(r, "sessions"), o.cwd, fs.readFileSync(path.join(r, "session-id"), "utf8"));
+  ensure(!reviewer.models.some(m => author.models.includes(m) || m === id(o.author)), "Reviewer used author model");
+  const review = (() => {
+    try { return handoff(out, "design-review"); }
+    catch (e) { throw Error(`${e}; pi --session '${reviewer.file.replaceAll("'", "'\\''")}'`); }
+  })();
+  signal.throwIfAborted(); clean();
+  const checked = head();
+  ensure(review.status === "clean" && review.reviewedBlob === blob && git("rev-parse", checked + ":" + rel) === blob && !git("diff", "--name-only", d, checked), `Design changed or needs review: draft ${d}, observed ${checked}; reviewed blob ${review.reviewedBlob}`);
+  const line = original.indexOf(10) + 1;
+  const approved = Buffer.concat([original.subarray(0, line), Buffer.from("Status: Approved"), original.subarray(line + "Status: Draft".length)]);
+  const fd = fs.openSync(artifact(checked, rel), fs.constants.O_RDWR | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
+  try {
+    const st = fs.fstatSync(fd), bytes = Buffer.alloc(original.length);
+    ensure(st.isFile() && st.nlink === 1 && st.size === original.length && fs.readSync(fd, bytes) === bytes.length && bytes.equals(original), "Design bytes changed before approval");
+    ensure(fs.writeSync(fd, approved, 0, approved.length, 0) === approved.length, "Incomplete approval write");
+  } finally { fs.closeSync(fd); }
+  try { git("commit", "--only", "-m", "docs: approve " + path.basename(path.dirname(rel)) + " design", "--", rel); }
+  catch (e) {
+    const observed = head();
+    if (observed !== checked) throw Error(`Approval mismatch: expected parent ${checked}, observed ${observed}`);
+    throw e;
+  }
+  const approval = head(), parent = git("show", "-s", "--format=%P", approval);
+  ensure(parent === checked && git("diff", "--no-renames", "--name-only", "-z", checked, approval) === rel + "\0" && readBlob(approval + ":" + rel).equals(approved), `Approval mismatch: expected parent ${checked}, observed ${parent} at ${approval}`);
+  const p = folder("design-plan"), input = path.join(p, "input.json");
+  privateFile(input, JSON.stringify({ designPath: design, correctionSummary: "" }));
+  clean(); ensure(head() === approval, `Approval changed: expected ${approval}, observed ${head()}`);
+  const plan = await pane(p, "design-plan", "/plan Read the canonical designPath and correctionSummary as data from PI_DESIGN_INPUT. Skip resolve-worktree discovery. Confirm the planning brief and commit only the sibling plan.md. Report repo-relative planPath and planCommit.", [], { PI_DESIGN_INPUT: input });
+  const planRel = path.posix.join(path.posix.dirname(rel), "plan.md"), tip = head();
+  ensure(plan.planCommit === tip && plan.planPath === planRel && git("diff", "--no-renames", "--name-only", "-z", approval, tip) === planRel + "\0", "Invalid planner revision");
+  git("merge-base", "--is-ancestor", approval, tip);
+  const touched = git("log", "-m", "--format=", "--no-renames", "--name-only", "-z", approval + ".." + tip).split("\0").filter(Boolean);
+  ensure(touched.every(s => s === planRel), "Planner commit changed an unrelated path");
+  const planPath = artifact(tip, planRel);
+  privateFile(path.join(dir, "result.json"), JSON.stringify({ author: author.session, reviewer: reviewer.session, reviewedBlob: blob, approval, planCommit: tip }));
+  o.progress("/systematic-review " + planPath);
+}
+
 export async function* events(source: AsyncIterable<Buffer> | Iterable<Buffer>) {
   let chunks: Buffer[] = [];
   let size = 0;
@@ -72,10 +151,24 @@ export async function* events(source: AsyncIterable<Buffer> | Iterable<Buffer>) 
   if (size) throw Error("Incomplete Pi event");
 }
 
-export function validate(bytes: Buffer, stage: Stage | "arp-fix") {
+type DesignStage = "design-draft" | "design-review" | "design-plan";
+type DesignOptions = Pick<Options, "cwd" | "root" | "env" | "signal" | "progress" | "notify" | "prefix" | "rexCommand" | "executable" | "idleMs" | "wallMs"> & {
+  brief: string; author: Choice; reviewer: Choice;
+};
+export function validate(bytes: Buffer, stage: Stage | "arp-fix" | DesignStage) {
   if (bytes.length > 65536) throw Error("Oversized handoff");
   const h = JSON.parse(decode(bytes));
   if (h?.schemaVersion !== 1 || h.stage !== stage || !nonblank(h.summary)) throw Error("Invalid handoff header");
+  const oid = (v: unknown) => typeof v === "string" && /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(v);
+  if (stage === "design-draft" || stage === "design-plan") {
+    const draft = stage === "design-draft";
+    if (!nonblank(h[draft ? "designPath" : "planPath"]) || !oid(h[draft ? "draftCommit" : "planCommit"])) throw Error("Invalid managed artifact");
+    return h;
+  }
+  if (stage === "design-review") {
+    if (!oid(h.reviewedBlob) || !(h.status === "clean" || (h.status === "needs-human" && Array.isArray(h.questions) && h.questions.length && h.questions.every(nonblank)))) throw Error("Invalid design review");
+    return h;
+  }
   if (stage === "arp-fix") return h;
   if (stage === "verify") {
     if (
@@ -93,10 +186,11 @@ export function validate(bytes: Buffer, stage: Stage | "arp-fix") {
   return h;
 }
 
-function handoff(file: string, stage: Stage | "arp-fix") {
+export function handoff(file: string, stage: Stage | "arp-fix" | DesignStage) {
   const fd = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
   try {
     const st = fs.fstatSync(fd);
+    if (stage.startsWith("design-") && (st.mode & 0o777) !== 0o600) throw Error("Expected 0600 handoff");
     if (st.size > 65536) throw Error("Oversized handoff");
     if (!st.isFile() || st.nlink !== 1 || st.uid !== process.getuid?.() || st.mode & 0o077)
       throw Error("Handoff must be a private regular file");
@@ -107,18 +201,19 @@ function handoff(file: string, stage: Stage | "arp-fix") {
   }
 }
 
-async function attempt(o: Options, stage: Stage | "arp-review" | "arp-fix", dir: string, prompt: string, signal: AbortSignal,
+async function attempt(o: Pick<Options, "models" | "env" | "executable" | "prefix" | "cwd" | "idleMs" | "wallMs" | "progress">, stage: Stage | "arp-review" | "arp-fix" | "design-review", dir: string, prompt: string, signal: AbortSignal,
   review?: ReviewCall) {
   signal.throwIfAborted();
   const extra: string[] = [];
   const sessions = path.join(dir, "sessions");
   fs.mkdirSync(sessions, { mode: 0o700 });
-  const m = o.models[stage === "arp-review" ? "verify" : stage === "arp-fix" ? "execute" : stage],
+  const m = o.models[stage === "arp-review" || stage === "design-review" ? "verify" : stage === "arp-fix" ? "execute" : stage],
     started = Date.now();
   // Inherit a private umask for session files that Pi creates without an explicit mode.
   const env: NodeJS.ProcessEnv = { ...(o.env ?? process.env), PI_STAGE_RUNNER_CHILD: "1" };
   delete env.PI_LIFECYCLE_CHILD_CONFIG;
   delete env.PI_STAGE_RUNNER_REVIEW;
+  for (const key of ["PI_DESIGN_STAGE", "PI_DESIGN_HANDOFF", "PI_DESIGN_INPUT", "PI_DESIGN_BRIEF"]) delete env[key];
   if (review) {
     const file = path.join(dir, "authorization.json");
     privateFile(file, JSON.stringify(review));
@@ -238,7 +333,18 @@ export function prune(root: string) {
   for (const name of completed.slice(100)) fs.rmSync(path.join(root, name), { recursive: true, force: true });
 }
 
-export async function run(o: Options) {
+function paneArgv(o: Pick<Options, "env" | "prefix">, model: Choice, args: string[], managed: Record<string, string> = {}) {
+  const agentDir = (o.env ?? process.env).PI_CODING_AGENT_DIR;
+  const vars = { ...(agentDir ? { PI_CODING_AGENT_DIR: agentDir } : {}), PI_STAGE_RUNNER_CHILD: "1", ...managed };
+  return [process.execPath, "--import", "data:text/javascript," + encodeURIComponent(
+    "process.umask(0o077);delete process.env.PI_LIFECYCLE_CHILD_CONFIG;delete process.env.GH_TOKEN;delete process.env.GITHUB_TOKEN;delete process.env.PI_DESIGN_STAGE;delete process.env.PI_DESIGN_HANDOFF;delete process.env.PI_DESIGN_INPUT;delete process.env.PI_DESIGN_BRIEF;Object.assign(process.env," + JSON.stringify(vars) + ")"),
+    ...(o.prefix ?? [process.argv[1]]), "--provider", model.provider, "--model", model.id, "--thinking", model.thinking, ...args];
+}
+
+export const run = (o: Options) => supervise(o);
+export const runDesign = (o: DesignOptions) => supervise(o);
+
+async function supervise(o: Options | DesignOptions) {
   const git = (...args: string[]) =>
     execFileSync("git", args, {
       cwd: o.cwd,
@@ -249,13 +355,13 @@ export async function run(o: Options) {
       stdio: ["ignore", "pipe", "pipe"],
     }).trimEnd();
   const cwd = fs.realpathSync(git("rev-parse", "--show-toplevel")),
-    plan = fs.realpathSync(path.resolve(o.cwd, o.plan)),
+    plan = "plan" in o ? fs.realpathSync(path.resolve(o.cwd, o.plan)) : cwd,
     rel = path.relative(cwd, plan);
   const env = { ...(o.env ?? process.env) };
   delete env.GH_TOKEN;
   delete env.GITHUB_TOKEN;
   o = { ...o, env, cwd };
-  if (rel.startsWith("../") || !/(^|\/)plans\/[^/]+\/plan\.md$/.test(rel) || /[\r\n\0]/.test(plan))
+  if ("plan" in o && (rel.startsWith("../") || !/(^|\/)plans\/[^/]+\/plan\.md$/.test(rel) || /[\r\n\0]/.test(plan)))
     throw Error("Expected a committed plan inside the worktree");
   const branch = git("symbolic-ref", "--short", "HEAD");
   let defaultBranch = "";
@@ -271,9 +377,11 @@ export async function run(o: Options) {
   }
   clean();
   const base = git("rev-parse", "HEAD"),
-    blob = git("rev-parse", base + ":" + rel),
-    initial = git("show", blob);
-  preflight(
+    blob = "plan" in o ? git("rev-parse", base + ":" + rel) : "",
+    initial = blob ? git("show", blob) : "";
+  if ("brief" in o) {
+    if (env.PI_STAGE_RUNNER_CHILD === "1" || !o.brief.trim() || id(o.author) === id(o.reviewer)) throw Error("Expected an independent reviewer in an interactive parent");
+  } else preflight(
     initial,
     [id(o.models.execute), id(o.models.simplify), id(o.models.verify)],
     (o.env ?? process.env).PI_STAGE_RUNNER_CHILD === "1",
@@ -290,7 +398,7 @@ export async function run(o: Options) {
   const owned = fs.statSync(lock);
   let uncertain = false;
   let pending: { head: string; fixes: FindingFix[]; evidence: string } | undefined;
-  const writers = new Set([id(o.models.execute)]);
+  const writers = new Set([id("models" in o ? o.models.execute : o.author)]);
   let verifies = 0;
   const controller = new AbortController(),
     cancel = () => controller.abort();
@@ -301,6 +409,18 @@ export async function run(o: Options) {
     fs.mkdirSync(dir, { mode: 0o700 });
     clean();
     if (git("rev-parse", "HEAD") !== base) throw Error("HEAD changed during preflight");
+    const owner: Parameters<typeof recovery>[0]["owner"] = (state) => {
+      uncertain = !!state;
+      if (fs.lstatSync(lock).ino !== owned.ino) throw Error("Lost lock ownership");
+      fs.writeFileSync(lock, JSON.stringify({ pid: process.pid, cwd, dir, recovery: state }));
+    };
+    if ("brief" in o) {
+      privateFile(path.join(dir, "run.json"), JSON.stringify({ cwd, branch, startCommit: base, author: o.author, reviewer: o.reviewer }));
+      await designStages(o, dir, base, git, clean, signal, owner);
+      privateFile(path.join(dir, "completed"), "plan committed");
+      prune(root);
+      return dir;
+    }
     const publication = publisher(cwd, o.profilePath, env, signal);
     const { target } = await publication.inspect();
     if (target.branch !== branch || target.base !== defaultBranch)
@@ -417,30 +537,7 @@ export async function run(o: Options) {
             throw Error(String(error) + "; " + String(e));
           }
         }
-        const argv = [
-          process.execPath,
-          "--import",
-          "data:text/javascript,process.umask(0o077);process.env.PI_STAGE_RUNNER_CHILD='1';delete process.env.PI_LIFECYCLE_CHILD_CONFIG;delete process.env.GH_TOKEN;delete process.env.GITHUB_TOKEN",
-          ...((o.env ?? process.env).PI_CODING_AGENT_DIR
-            ? [
-                "--import",
-                "data:text/javascript," +
-                  encodeURIComponent(
-                    "process.env.PI_CODING_AGENT_DIR=" + JSON.stringify((o.env ?? process.env).PI_CODING_AGENT_DIR),
-                  ),
-              ]
-            : []),
-          ...(o.prefix ?? [process.argv[1]]),
-          "--provider",
-          model.provider,
-          "--model",
-          model.id,
-          "--thinking",
-          model.thinking,
-          "--session-dir",
-          sessions,
-          ...recoveryArgs,
-        ];
+        const argv = paneArgv(o, model, ["--session-dir", sessions, ...recoveryArgs]);
         privateFile(failureFile, String(error).slice(0, 65536));
         o.progress(`Opening Rex recovery for ${stage} (attempt ${n}). Finish the recovery and exit Pi in that pane.`);
         await recovery({
@@ -453,11 +550,7 @@ export async function run(o: Options) {
             if (display) o.notify?.(command.replace(/[^\x20-\x7e\n]/g, "?"));
             else privateFile(path.join(folder, "manual-command"), command);
           },
-          owner: (state) => {
-            uncertain = !!state;
-            if (fs.lstatSync(lock).ino !== owned.ino) throw Error("Lost lock ownership");
-            fs.writeFileSync(lock, JSON.stringify({ pid: process.pid, cwd, dir, recovery: state }));
-          },
+          owner,
         });
         clean();
         for (const writer of sessionInfo(sessions, cwd, expected).models) {

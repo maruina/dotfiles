@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { events, validate, preflight, prune } from "./_runner.ts";
+import { events, validate, preflight, prune, runDesign } from "./_runner.ts";
 
 import { sessionInfo } from "./_recovery.ts";
 import { arpTool, reviewGuard, reviewPublished } from "./_arp.ts";
@@ -114,6 +116,34 @@ test("handoff requires matching stage, status, UTF-8 and complete blocker", () =
     ),
   ]) {
     assert.throws(() => validate(bytes, "execute"));
+  }
+});
+
+test("design refuses the shared worktree lock without opening a child", async (t) => {
+  const temp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "design-lock-")));
+  t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
+  const cwd = path.join(temp,"work"), root = path.join(temp,"runs");
+  fs.mkdirSync(cwd); fs.mkdirSync(root,{mode:0o700});
+  const env = { ...process.env, PI_STAGE_RUNNER_CHILD:"", GIT_CONFIG_GLOBAL:"/dev/null", GIT_CONFIG_NOSYSTEM:"1" };
+  const git = (...args: string[]) => execFileSync("git",args,{cwd,env,stdio:"pipe"});
+  git("init","-b","feature"); git("-c","user.name=Fixture","-c","user.email=fixture@example.org","commit","--allow-empty","-qm","base");
+  const lock = path.join(root,"lock-"+createHash("sha256").update(cwd).digest("hex"));
+  fs.writeFileSync(lock,"existing owner",{mode:0o600});
+  const author = {provider:"p", id:"a", thinking:"off"};
+  await assert.rejects(runDesign({cwd,root,env,author,reviewer:{...author,id:"b"},brief:"fixture",progress() {},signal:new AbortController().signal}), /EEXIST/);
+  assert.equal(fs.readFileSync(lock,"utf8"),"existing owner");
+});
+
+test("design handoffs bind each stage to its revision fields", () => {
+  const sha = "a".repeat(40);
+  for (const [stage, fields] of [["design-draft", {designPath: "plans/demo/design.md", draftCommit: sha}], ["design-review", {status:"clean", reviewedBlob:sha}], ["design-plan", {planPath:"plans/demo/plan.md",planCommit:sha}]] as const) {
+    const bytes = (extra: object) => Buffer.from(JSON.stringify({ schemaVersion:1,stage,summary:"done",...extra }));
+    assert.equal(validate(bytes(fields),stage).stage,stage);
+    assert.throws(() => validate(bytes({}),stage));
+    if (stage === "design-review") {
+      assert.throws(() => validate(bytes({...fields,status:"needs-human"}),stage));
+      assert.equal(validate(bytes({...fields,status:"needs-human",questions:["Which scope?"]}),stage).status,"needs-human");
+    }
   }
 });
 

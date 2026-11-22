@@ -170,6 +170,8 @@ For Medium and Large/Risky durable designs, require a fresh, design-only compreh
 This prompt ends at the review handoff. The reviewer session owns the remaining gate steps: it applies the confirmed comprehension fixes, and asks for and records user approval of the reviewed design before the `/plan` handoff. Resume this session only when a proposed fix needs a design decision the reviewer cannot make; record the decision, commit it, and return to the reviewer session for a fresh review when the revision is material. Preserve validation limits in the durable design, including explicitly accepted gaps. A comprehension review does not establish technical correctness.
 
 ## Design artifact
+Keep an open question only if it states why it does not block approval, which stage (`/plan` or `/execute`) resolves it, and which binding boundary constrains the answer.
+
 When creating or updating `design.md`:
 
 1. Use the `feature-worktree` skill to continue in the correct existing worktree or create one from the latest default branch.

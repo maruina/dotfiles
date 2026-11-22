@@ -17,6 +17,59 @@ function requireMarkers(text, markers) {
   for (const marker of markers) assert.ok(marker.test(text), `Missing required marker: ${marker}`);
 }
 
+test("plan separates binding contracts from implementation suggestions", () => {
+  const plan = prompt("plan.md");
+  const task = plan.split("### Task contract")[1].split("## Final review")[0];
+  requireMarkers(task, [
+    /\*\*Files:\*\* \[suggested repo-relative starting points/i,
+    /internal mechanisms are suggestions/i,
+    /name the requirement, safety constraint, test seam, or agreed design decision that makes a path or mechanism binding/i,
+    /acceptance scenarios, testing rules, and verification commands are binding/i,
+  ]);
+  assert.doesNotMatch(task, /exact repo-relative files to create, modify, or test/);
+  assert.doesNotMatch(plan, /\*\*Small:\*\*[^\n]*exact files/);
+});
+
+test("plan final review traces an allowed scenario through its controls", () => {
+  const review = prompt("plan.md").split("## Final review")[1].split("## Learning candidates")[0];
+  requireMarkers(review, [
+    /trace one allowed scenario through every applicable control and prerequisite/i,
+    /resolve the contradiction before commit/i,
+    /pre-written implementation choreography/,
+    /happy\/edge\/failure\/negative paths/,
+  ]);
+});
+
+test("brainstorm and plan allow only bounded open questions", () => {
+  for (const name of ["brainstorm.md", "plan.md"]) {
+    requireMarkers(prompt(name), [
+      /open question only if it states why it does not block approval/i,
+      /which stage \(\x60\/plan\x60 or \x60\/execute\x60\) resolves it/i,
+      /which binding boundary constrains the answer/i,
+    ]);
+  }
+  assert.match(prompt("brainstorm.md"), /every material branch.*no material assumption remains implicit/is);
+  assert.match(prompt("plan.md"), /no contradictions, placeholders,/);
+});
+
+test("execute varies suggestions without stopping and stops on binding conflicts", () => {
+  const execute = prompt("execute.md");
+  const posture = execute.split("## Posture")[1].split("## Slice execution")[0];
+  requireMarkers(posture, [
+    /existing, resumed, and pinned plans/i,
+    /path listed only in .*Files:.* is a suggestion/i,
+    /path the plan or approved design requires stays binding/i,
+    /vary suggested files and internal mechanisms and resolve explicitly non-binding open questions without asking/i,
+    /record each deviation in the plan ledger/i,
+    /cannot establish that every binding constraint holds, stop before editing and ask/i,
+  ]);
+  requireMarkers(execute, [
+    /Do not disable a required check, weaken an agreed expectation, or change a tolerance merely to obtain a pass/,
+    /Stop after 3 focused attempts on the same failure/,
+    /<HARD-GATE>[^<]*scope changes[^<]*<\/HARD-GATE>/,
+  ]);
+});
+
 const skillsDir = existsSync(path.join(agentDir, "exact_skills"))
   ? path.join(agentDir, "exact_skills")
   : path.join(agentDir, "skills");
@@ -367,7 +420,7 @@ test("managed design prompts state only their stage exceptions", () => {
 test("lifecycle prompts stay within prompt context budgets", () => {
   const budgets = new Map([
     ["brainstorm.md", 14_000],
-    ["plan.md", 17_200],
+    ["plan.md", 17_525],
     ["systematic-review.md", 13_000],
     ["execute.md", 14_500],
     ["verify.md", 13_700],
@@ -1162,7 +1215,7 @@ test("stage runner operator guide separates verified publication from the manual
   const guide = readFileSync(path.join(agentDir, extensions, "stage-runner", "README.md"), "utf8");
   requireMarkers(guide, [
     /\*\*Personal:\*\*[^\n]*stops after GitHub confirms[^\n]*does not discover or call ARP/,
-    /\*\*Work:\*\*[^\n]*same publication[^\n]*continues to ARP/,
+    /\*\*Work:\*\*[^\n]*continues to ARP[^\n]*only for `ddoghq\/\*` and `ddoghq-sandbox\/\*`/,
     /## Run without publishing[^\n]*\n[^\n]*`\/execute`[^\n]*`\/simplify`[^\n]*`\/verify`[^\n]*publication explicitly excluded/,
   ]);
 });

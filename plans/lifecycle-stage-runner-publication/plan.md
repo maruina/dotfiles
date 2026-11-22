@@ -61,6 +61,19 @@
 | `write` | `skill-loader` | Consent and ledger | Named permanent settlement in the start dialog and separated fixture evidence from live validation. |
 | `learning-candidates` | `prompt-required` | Record a contract correction | Recorded why the earlier fixture could not establish the settlement response schema. |
 
+**Execution writer (Task 4):** GPT-6.2 Sol (`openai/gpt-6.2-sol`).
+
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `skill-loader` | `prompt-required` | Select execution guidance | Mapped the operator guide, source checks, and ledger to the applicable skills. |
+| `resolve-worktree` | `prompt-required` | Find the committed plan | Resolved the absolute path to the existing feature worktree. |
+| `feature-worktree` | `prompt-required` | Preserve prior slices | Confirmed a clean start at `8c5d80f` on the feature branch. |
+| `codebase-research` | `skill-loader` | Trace the documented behavior | Compared startup consent, exact-head publication, review, and settlement with the runner and its fixtures. |
+| `chezmoi` | `skill-loader` | Document installation and rollback | Used explicit source and target paths in the guide and left installed targets unchanged. |
+| `diataxis` | `skill-loader` | Write the operator guide | Separated automated use, manual publication, remote recovery, and rollout procedures. |
+| `write` | `skill-loader` | Revise guidance and ledger | Distinguished a verifier verdict from confirmed GitHub and ARP results. |
+| `explain` | `agent-selected` | Explain the order of publication and settlement | Used short ordered prose for the operator procedures; did not send repository material to a classifier because its routing approval was not established. |
+
 ## Implementation Contract
 **Source and decisions.** `plans/lifecycle-stage-runner/design.md` is Approved. Its Slice 4 defines exact-head publication, independent verification after fixes, three reviewed heads, and a 20-minute deadline per head. The operator approved an amendment to the profile boundary and the publisher shape on 2026-11-22; `plans/lifecycle-stage-runner/design.md` records it under **Slice 4 amendment**. Personal stops **after draft publication**, not before it. Starting the run authorizes these actions only for the confirmed repository, branch, and PR. Work requests are silent. Existing in-flight reviews retain their posting mode. A verified correction and a dismissal are different decisions: only the former can be settled automatically. Nothing here authorizes a production write during plan review or fixture tests.
 
@@ -172,15 +185,25 @@ The runner SHALL allow `addressed` only for an identified open finding whose fix
 - [x] Commit with `feat(pi): settle verified ARP fixes before re-review`.
 
 ### Task 4: Final verification
+**Local evidence:** Task 4 only, starting at `8c5d80f`. The new guide checks failed against the verification-only README. After the update, both prompt contract suites passed (73 tests). `npm ci --ignore-scripts && npm test && npm run test:all` passed in `dot_pi/agent/` (506 fast passes and 3 skips, 56 stage-runner and 5 Worktrunk integration passes, TypeScript check, and offline smoke). Removed disposable `dot_pi/agent/node_modules` after the checks. Inspected both `AGENTS.md` files and updated their runner guidance.
+
+**Requirement check:** The personal fixture confirms that GitHub reports the accepted verifier SHA and that the runner performs no ARP calls. The work fixtures confirm the matching-head review gate and a single guarded request per head. The two-head work fixture confirms that the fix passes fresh verification and is published before settlement, then the next review runs. Negative fixtures cover target drift, exhausted review limits, and unverified or unpublished fixes. These checks exercise local Git and simulated service boundaries, not live GitHub or ARP.
+
+**Approved deferral:** The operator deferred live testing until a suitable use case is available and approved completing Task 4 and proceeding to `/simplify` and independent feature-wide `/verify` without the trial. A read-only check of `ddoghq/k8s-release-mgmt-resources#5147` found a complete clean ARP review at the current head, with no permitted review request or open finding. This check did not exercise Stage Runner end to end. No GitHub or ARP writes occurred. Live testing remains a rollout prerequisite.
 **Delivers:** Operator guidance and feature-wide evidence for release.
 **Blocked by:** Task 1, Task 2, Task 3
 **Traces to:** Both profile outcomes, documentation, authorization and live rollout gate.
 **Files:** `runner/README.md`, `AGENTS.md`, `dot_pi/agent/AGENTS.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`, `dot_pi/agent/exact_scripts/arp-prompts.test.mjs` (preserve existing standalone and retired-prompt assertions).
 
-- [ ] Replace verification-only runner guidance with the two terminal behaviors, start consent, exact target checks, partial-write recovery, silent review limits, human-only decisions, install and rollback instructions. Retain the manual route for users who do not want publication. Check all plan tasks against the three requirements and both profile outcomes.
-- [ ] Add or update the focused lifecycle contract checks. Run `npm ci --ignore-scripts && npm test && npm run test:all`; expect green script, unit, integration, type and smoke checks. Remove worktree dependencies after checks per repository guidance.
+- [x] Replace verification-only runner guidance with the two terminal behaviors, start consent, exact target checks, partial-write recovery, silent review limits, human-only decisions, install and rollback instructions. Retain the manual route for users who do not want publication. Check all plan tasks against the three requirements and both profile outcomes.
+- [x] Add or update the focused lifecycle contract checks. Run `npm ci --ignore-scripts && npm test && npm run test:all`; expect green script, unit, integration, type and smoke checks. Remove worktree dependencies after checks per repository guidance.
+- [x] Record the approved deferral and commit documentation and contract tests with `docs(pi): document verified publication and ARP recovery` after the local checks pass.
+
+## Rollout gate (deferred)
+The following checks are outside Task 4 completion. Do not install or enable the feature until they pass.
+
 - [ ] Obtain separate operator authorization for the disposable GitHub repository, PR, work ARP review and a real in-scope finding before any live write. Use distinct disposable feature branches/runs for personal and work; confirm that the SSH login for the push destination and the login returned by `gh api user` under the publisher's token both match the expected account; capture the run ID, verdict SHA, GitHub URL/head and, for work, the review ID/head, finding ID and fixing SHA. Check personal has no ARP stage. Verify work publishes the independently verified fix before settlement and captures the new review. If the trial produces no suitable finding, record which path was exercised and leave settlement validation and rollout blocked. Do not manufacture a production settlement. Close disposable PRs and remove remote branches only with cleanup authorization; retain private evidence, not credentials.
-- [ ] Record live evidence or the explicit blocker. After passing all required checks, commit documentation and contract tests with `docs(pi): document verified publication and ARP recovery`. Require independent feature-wide `/verify` before installing; do not treat the live trial as its substitute.
+- [ ] Record live evidence or the explicit blocker. Require both a passing live trial and independent feature-wide `/verify` before installing. Neither check substitutes for the other.
 
 ## Learning candidates
 - 2026-11-22: The retired conductor fixture echoed resolver input, but ARP returns `{ finding }` with the stored outcome. Use `status: all` and compare the returned finding ID, reviewed SHA, status, resolution, and fixing SHA before treating a lost response as confirmed. — evidence: local `dd-source` `domains/ai-devx/apps/apis/agentic-review-mcp/internal/pkg/tools/{resolve_finding,findings,get_findings}.go` at `3e6512b672f4d` and the isolated lost-response fixture.

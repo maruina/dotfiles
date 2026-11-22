@@ -1145,6 +1145,18 @@ test("stage runner owns lifecycle automation without legacy resources", () => {
   for (const file of ["execute.md", "simplify.md", "verify.md"]) {
     const body = prompt(file);
     assert.doesNotMatch(body, /lifecycle_request_decision|lifecycle_submit_outcome|protocol version 3/);
-    assert.match(body, /stage-runner[^\n]*JSON handoff/i);
+    const attempt = body.match(/^For a `\/stage-runner` attempt, .+$/m)?.[0] ?? "";
+    assert.match(attempt, /private JSON handoff outside Git/, file);
+    assert.match(attempt, /Do not push, publish, apply, or create a PR\./, file);
   }
+});
+
+test("stage runner operator guide separates verified publication from the manual route", () => {
+  const extensions = existsSync(path.join(agentDir, "exact_extensions")) ? "exact_extensions" : "extensions";
+  const guide = readFileSync(path.join(agentDir, extensions, "stage-runner", "README.md"), "utf8");
+  requireMarkers(guide, [
+    /\*\*Personal:\*\*[^\n]*stops after GitHub confirms[^\n]*does not discover or call ARP/,
+    /\*\*Work:\*\*[^\n]*same publication[^\n]*continues to ARP/,
+    /## Run without publishing[^\n]*\n[^\n]*`\/execute`[^\n]*`\/simplify`[^\n]*`\/verify`[^\n]*publication explicitly excluded/,
+  ]);
 });

@@ -17,6 +17,19 @@ function requireMarkers(text, markers) {
   for (const marker of markers) assert.ok(marker.test(text), `Missing required marker: ${marker}`);
 }
 
+test("plan separates binding contracts from implementation suggestions", () => {
+  const plan = prompt("plan.md");
+  const task = plan.split("### Task contract")[1].split("## Final review")[0];
+  requireMarkers(task, [
+    /\*\*Files:\*\* \[suggested repo-relative starting points/i,
+    /internal mechanisms are suggestions/i,
+    /name the requirement, safety constraint, test seam, or agreed design decision that makes a path or mechanism binding/i,
+    /acceptance scenarios, testing rules, and verification commands are binding/i,
+  ]);
+  assert.doesNotMatch(task, /exact repo-relative files to create, modify, or test/);
+  assert.doesNotMatch(plan, /\*\*Small:\*\*[^\n]*exact files/);
+});
+
 const skillsDir = existsSync(path.join(agentDir, "exact_skills"))
   ? path.join(agentDir, "exact_skills")
   : path.join(agentDir, "skills");

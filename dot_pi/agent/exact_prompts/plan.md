@@ -145,7 +145,7 @@ Preserve confirmed provenance and add skills used to write or review the plan; c
 
 Right-size the remainder:
 
-- **Small:** concise `## Scope` and `## Validation`, exact files, ordered tasks, success criteria, documentation impact, and commit message.
+- **Small:** concise `## Scope` and `## Validation`, suggested paths, ordered tasks, success criteria, documentation impact, and commit message.
 - **Medium / Large/Risky:** add `## Implementation Contract` containing **Components Affected** (`Component | Files | Responsibility | Verification`), **Key Decisions** (decision, rationale, and rejected alternative's benefit), **Implementation Constraints** (ADRs, assumptions, stop conditions, and safety/performance/DX requirements or why inapplicable), **Security and Observability Requirements** (or why none apply), **Failure Modes to Handle**, **Rollout and Rollback** (with owner), and **Test Strategy** (highest deterministic supported interface, seams, system boundaries to mock, and narrow failing command).
 
 For integration, reliability, performance, or cost checks, define comparable baseline and candidate workloads where applicable. Specify telemetry selectors for the exact instance, version, traffic cohort, and observation window. Define isolation for mutable state, queues, background jobs, and downstream effects, not only ports or incoming traffic. Record mock limitations and which claims require real dependencies. If required traffic, telemetry, or isolation is unavailable, name the gap and do not plan to infer success from absent errors.
@@ -173,14 +173,14 @@ The system SHALL <normative statement>.
 Every requirement needs a scenario through a supported interface and must map to a task. Each behavior requirement also needs a negative scenario in which the system must not act or produce output, or a one-line reason why none applies; every behavior task maps back to a requirement. Prefer a focused automated test; tests must cover distinct contracts without multiplying independent dimensions or repeating expensive integration scenarios. When automation is impractical, specify reproducible setup, invocation, expected result, cleanup, and why automation is impractical. Small plans may inline one or two scenarios under `## Validation`.
 
 ### Task contract
-Each task must be understandable and executable by a fresh agent from the plan and repository alone. Use:
+A fresh agent must be able to execute each task from the plan and repository alone. Paths and internal mechanisms are suggestions by default. Name the requirement, safety constraint, test seam, or agreed design decision that makes a path or mechanism binding. Acceptance scenarios, testing rules, and verification commands are binding.
 
 ```md
 ### Task N: <title>
 **Delivers:** [narrow, complete, independently verifiable outcome]
 **Blocked by:** [genuine prerequisite task numbers, or None]
 **Traces to:** [requirement, goal, or explicit instruction]
-**Files:** [exact repo-relative files to create, modify, or test]
+**Files:** [suggested repo-relative starting points]
 
 - [ ] Add or run the focused failing test when applicable.
 - [ ] Implement the smallest change that passes.
@@ -189,7 +189,7 @@ Each task must be understandable and executable by a fresh agent from the plan a
 - [ ] Commit with `<Conventional Commit message>` when applicable.
 ```
 
-Keep task metadata in the format below. Write `**Blocked by:**` with only task references or `None`. Give each reference its own `Task` keyword: `Task 1 and Task 2` or `Task 1, Task 3, Task 4`; a contiguous run may use `Tasks 3-5`. Put explanatory notes on their own line below `**Blocked by:**`, never in parentheses on that line. Every checkbox belongs to a task body.
+Write `**Blocked by:**` with only task references or `None`. Give each reference its own `Task` keyword: `Task 1 and Task 2` or `Task 1, Task 3, Task 4`; a contiguous run may use `Tasks 3-5`. Put explanatory notes on their own line below `**Blocked by:**`, never in parentheses on that line. Every checkbox belongs to a task body.
 
 Order blockers before dependents so `/execute` can proceed sequentially. Default to tracer-bullet vertical slices: one public behavior, its focused test through a supported interface, and the smallest implementation across every affected layer. A completed slice must be independently demoable or verifiable; do not separate layers horizontally when they can land together or group all tests before all implementation.
 

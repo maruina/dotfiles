@@ -21,6 +21,17 @@
 | `feature-worktree` | `prompt-required` | Isolate writes | Continued in the existing feature worktree and rebased it onto `origin/main` (`3c69f96`) before committing the plan. |
 | `write` | `skill-loader` | Plan prose | Named exact prompt sections and markers, stated mechanisms, and framed risks as specific failures. |
 
+### Execution
+Writer: GPT-6.2 Astra (openai/gpt-6.2-astra).
+
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| skill-loader | prompt-required | Route execution skills | Selected prompt, source, and prose guidance. |
+| resolve-worktree, feature-worktree | prompt-required | Locate and isolate edits | Confirmed the unique plan on the pinned feature branch. |
+| codebase-research | skill-loader | Trace contracts | Checked the prompt sections and existing marker tests. |
+| chezmoi | skill-loader | Select source files | Edited managed sources without applying targets. |
+| write | skill-loader | Edit prompt prose | Named binding rules directly and trimmed repeated instructions. |
+
 ## Advisory learnings
 - `Datadog/Learnings.md` returned one section, "Render piped chezmoi templates against an initialized config, not `--init`". It does not apply because this change renders no templates.
 
@@ -165,11 +176,13 @@ No new external calls, credentials, permissions, hooks, or telemetry. The change
 **Traces to:** Requirement: Plan tasks separate binding contracts from suggestions; Requirement: Prompt budgets stay bounded
 **Files:** `dot_pi/agent/exact_prompts/plan.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`
 
-- [ ] Add test `plan separates binding contracts from implementation suggestions`. It asserts the starting-point suggestion wording, the requirement/safety constraint/test seam/design decision rule, and binding acceptance scenarios, testing rules, and verification commands. It also uses `assert.doesNotMatch` for `exact repo-relative files to create, modify, or test` and for `exact files` in the `**Small:**` right-sizing line.
-- [ ] Run `cd dot_pi/agent && node --test exact_scripts/lifecycle-prompts.test.mjs`; expect only the new test to fail.
-- [ ] Edit `### Task contract` in `plan.md`, and qualify `exact files` in the `**Small:**` right-sizing line so that it does not contradict the suggestion rule. Trim redundant `plan.md` prose so the file stays within the budget, or raise the `plan.md` budget by the shortfall (at most `17_600`) and record the reason in the ledger.
-- [ ] Run `cd dot_pi/agent && node --test exact_scripts/lifecycle-prompts.test.mjs`; expect all tests to pass, including the budget test.
-- [ ] Commit with `docs(pi): separate binding plan contracts from suggestions`.
+- [x] Add test `plan separates binding contracts from implementation suggestions`. It asserts the starting-point suggestion wording, the requirement/safety constraint/test seam/design decision rule, and binding acceptance scenarios, testing rules, and verification commands. It also uses `assert.doesNotMatch` for `exact repo-relative files to create, modify, or test` and for `exact files` in the `**Small:**` right-sizing line.
+- [x] Run `cd dot_pi/agent && node --test exact_scripts/lifecycle-prompts.test.mjs`; expect only the new test to fail.
+- [x] Edit `### Task contract` in `plan.md`, and qualify `exact files` in the `**Small:**` right-sizing line so that it does not contradict the suggestion rule. Trim redundant `plan.md` prose so the file stays within the budget, or raise the `plan.md` budget by the shortfall (at most `17_600`) and record the reason in the ledger.
+- [x] Run `cd dot_pi/agent && node --test exact_scripts/lifecycle-prompts.test.mjs`; expect all tests to pass, including the budget test.
+- [x] Commit with `docs(pi): separate binding plan contracts from suggestions`.
+
+The new marker failed alone. The first prompt edit exceeded the budget by 17 bytes. Removing a repeated format instruction kept the budget unchanged; all 68 tests passed.
 
 ### Task 2: Plan final review traces an allowed scenario through its controls
 **Delivers:** `plan.md` `## Final review` catches controls that block an allowed outcome before commit.

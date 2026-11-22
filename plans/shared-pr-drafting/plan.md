@@ -100,10 +100,15 @@ The focused tests first rejected the missing draft child, the pre-push handling 
 The integration fixtures cover the README's creation, reuse, and pre-push stop behavior. `npm test` and `git diff --check` passed. The root `AGENTS.md` already identifies the runner README as the operator contract. `dot_pi/agent/AGENTS.md` already separates publication authorization from lifecycle work. Neither file needs a drafting-specific rule. The `diataxis` skill (selected by `skill-loader`) kept the README's runtime description separate from rollout and recovery instructions.
 
 ### Task 3: Verify shared PR preparation and publication safeguards
-**In progress:** Task 3, read-only drafting sample.
 **Blocked by:** Tasks 1-2
 **Traces to:** Requirements 1, 2, and 3; rollout and recovery.
 
 - [x] Install dependencies with `npm ci --ignore-scripts` in `dot_pi/agent`, then run `npm run test:all` and `git diff --check`. This task checks the completed feature; the focused failing tests belong to Task 1.
-- [ ] Run and record the read-only drafting sample. Check that the draft explains the verified change using the pinned comparison and does not claim tests or rollout results without evidence. Do not push or create a PR for the sample.
-- [ ] Record the feature-wide evidence and remaining live validation gap for independent `/verify`. Keep rollout blocked until the trial or release-specific waiver described above.
+- [x] Run and record the read-only drafting sample. Check that the draft explains the verified change using the pinned comparison and does not claim tests or rollout results without evidence. Do not push or create a PR for the sample.
+- [x] Record the feature-wide evidence and remaining live validation gap for independent `/verify`. Keep rollout blocked until the trial or release-specific waiver described above.
+
+`npm ci --ignore-scripts`, `npm run test:all`, and `git diff --check` passed. The test suite reported 514 unit passes and 3 skips, 63 Stage Runner integration passes, 5 Worktrunk integration passes, and successful typecheck and smoke checks.
+
+A read-only live sample called `prepareDraft` with `openai/gpt-6.2-sol` and excluded the publisher. It compared `48996df53b88ed070aa28a461b3df8786643f50f` against merge base `cd950f4dc2c7b383223daff7aebf57ad2319cc33`, calculated from confirmed `origin/main` tip `8c916cb85a08099fc7558e9a90c2e4ea733ea50b`. The full diff was 50,076 bytes. The returned title described the change. The body explained the shared policy, pre-push checks, and unchanged existing-PR behavior. The SHA-pinned links and test counts matched the evidence. The draft did not claim an independent verdict or a live GitHub or ARP result. The worktree remained clean.
+
+Independent `/verify` is still required. Do not roll out until the operator completes the applicable disposable GitHub and ARP trial or explicitly waives it for this release.

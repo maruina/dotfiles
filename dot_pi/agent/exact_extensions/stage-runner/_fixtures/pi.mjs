@@ -4,6 +4,12 @@ if (process.env.GH_TOKEN || process.env.GITHUB_TOKEN) throw Error('GitHub creden
 const args = process.argv.slice(2),
   prompt = args.at(-1),
   stage = prompt.slice(1).split(" ")[0];
+const drafting = prompt.startsWith("Prepare a PR draft.");
+if (drafting) {
+  if (process.env.SSH_AUTH_SOCK || process.env.GH_ENTERPRISE_TOKEN || process.env.GH_CONFIG_DIR)
+    throw Error("GitHub credential configuration reached drafting child");
+  Object.assign(process.env, JSON.parse(fs.readFileSync("../draft-fixture.json", "utf8")));
+}
 fs.appendFileSync(process.env.ARGV_LOG, JSON.stringify(args) + "\n");
 const fail = process.env.FAIL,
   writer = fail.startsWith("recover-") && !["recover-verify", "recover-limit", "recover-blocked"].includes(fail);
@@ -12,6 +18,23 @@ function completeTask() {
   const file = "plans/demo/plan.md";
   fs.writeFileSync(file, fs.readFileSync(file, "utf8").replace("- [ ]", "- [x]"));
   execFileSync("git", ["commit", "-qam", "complete task"]);
+}
+if (drafting) {
+  if (fail === "draft-dirty") fs.writeFileSync("untracked", "changed candidate");
+  if (fail === "draft-pr-race") fs.writeFileSync(process.env.BARE + ".pr", "1");
+  if (fail === "draft-cancel") {
+    fs.writeFileSync(process.env.ARGV_LOG + ".draft-ready", "ready");
+    await new Promise(resolve => setTimeout(resolve, 30000));
+  }
+  const draft = fail === "draft-malformed" ? "not JSON" : JSON.stringify({
+    title: "Explain the verified feature",
+    body: fail === "draft-oversized" ? "x".repeat(70000) : "## What is this PR?\nFixture explanation.",
+  });
+  console.log(JSON.stringify({ type: "session", id: "fixture-draft" }));
+  console.log(JSON.stringify({ type: "message_end", message: { role: "assistant", stopReason: "stop",
+    content: [{ type: "text", text: draft }] } }));
+  await new Promise(resolve => process.stdout.write(JSON.stringify({ type: "agent_settled", aborted: false }) + "\n", resolve));
+  process.exit();
 }
 const loop = fail.startsWith("arp-fix-");
 const timeline = (event, fields) => fs.appendFileSync(process.env.ARGV_LOG + ".timeline", JSON.stringify({ event, ...fields }) + "\n");

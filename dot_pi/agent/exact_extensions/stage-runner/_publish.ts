@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 
 const exec = promisify(execFile);
+export type Draft = { title: string; body: string };
 const fields = "number,url,headRefOid,headRefName,baseRefName,headRepository,headRepositoryOwner,isCrossRepository";
 export function publisher(
   cwd: string,
@@ -141,13 +142,51 @@ export function publisher(
   }
   return {
     inspect,
-    async publish(approved: Awaited<ReturnType<typeof inspect>>["target"], sha: string, check: () => void) {
+    async publish(approved: Awaited<ReturnType<typeof inspect>>["target"], sha: string, check: () => void,
+      draft: (base: string, mergeBase: string, diff: string) => Promise<Draft>,
+      onDraftError: (step: string, error: unknown) => never,
+    ) {
       let prUrl = approved.pr;
       let observed = "unknown";
       try {
-        const { target, gh, lookup, remote } = await inspect();
-        if (JSON.stringify(target) !== JSON.stringify(approved))
-          throw Error("Publication target changed since confirmation");
+        const confirmed = async () => {
+          const current = await inspect();
+          if (JSON.stringify(current.target) !== JSON.stringify(approved))
+            throw Error("Publication target changed since confirmation");
+          return current;
+        };
+        let checked = await confirmed();
+        let metadata: Draft | undefined;
+        if (!approved.pr) {
+          let step = "verified candidate changed";
+          try {
+            check();
+            step = "could not supply the full pinned comparison";
+            const ref = `refs/heads/${approved.base}`;
+            const [base, name] = (await git("ls-remote", "--heads", "origin", ref)).split("\t");
+            if (!/^[0-9a-f]{40}$/.test(base) || name !== ref) throw Error("Cannot pin remote base");
+            await git("fetch", "--no-tags", "--no-recurse-submodules", "--no-write-fetch-head", "--no-auto-maintenance", "origin", base);
+            const mergeBase = await git("merge-base", base, sha);
+            const { stdout } = await exec("git", ["diff", "--no-ext-diff", "--no-textconv", "--binary", mergeBase, sha], {
+              cwd, env: gitEnv, timeout: 10000, maxBuffer: 64 * 1024, signal, encoding: "buffer",
+            });
+            const diff = new TextDecoder("utf8", { fatal: true }).decode(stdout);
+            step = "verified candidate changed";
+            check();
+            step = "could not prepare the draft";
+            metadata = await draft(base, mergeBase, diff);
+            step = "verified candidate changed";
+            check();
+            step = "could not reconfirm the publication target after drafting";
+            checked = await confirmed();
+            step = "verified candidate changed";
+            check();
+          } catch (error) {
+            onDraftError(step, error);
+          }
+        }
+        const { target, gh, lookup, remote } = checked;
+        if (!target.pr && !metadata) throw Error("Missing draft metadata");
         if ((await git("remote", "get-url", "--push", "--all", "origin")) !== target.url)
           throw Error("Push destination changed");
         check();
@@ -174,6 +213,7 @@ export function publisher(
         if ((pr?.url ?? null) !== approved.pr) throw Error("PR changed during publication");
         if (!pr) {
           check();
+          if (!metadata) throw Error("Missing draft metadata");
           try {
             await gh(
               "pr",
@@ -186,9 +226,9 @@ export function publisher(
               target.base,
               "--draft",
               "--title",
-              target.branch,
+              metadata.title,
               "--body",
-              `Independently verified commit: ${sha}`,
+              metadata.body,
             );
           } catch {
             /* A timeout can follow successful creation. */

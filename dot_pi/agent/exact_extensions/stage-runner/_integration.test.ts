@@ -11,6 +11,12 @@ import { run } from "./_runner.ts";
 for (const failure of [
   "",
   "reuse",
+  "draft-malformed",
+  "draft-oversized",
+  "draft-dirty",
+  "draft-pr-race",
+  "draft-cancel",
+  "draft-base-unavailable",
   "work-personal-repo",
   "uncertain-create",
   "partial",
@@ -99,6 +105,16 @@ for (const failure of [
     git("remote", "add", "origin", `git@github.com:${owner}/demo.git`);
     git("update-ref", "refs/remotes/origin/main", git("rev-parse", "HEAD").toString().trim());
     git("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main");
+    if (!failure) {
+      fs.writeFileSync(path.join(repo, "base-only"), "already on main\n");
+      git("add", "base-only");
+      git("commit", "-qm", "advance main");
+      git("--git-dir=" + bare, "fetch", repo, "refs/heads/main:refs/heads/main");
+      git("-C", cwd, "merge", "--ff-only", "main");
+      fs.writeFileSync(path.join(cwd, "before-startup"), "existing feature change\n");
+      git("-C", cwd, "add", "before-startup");
+      git("-C", cwd, "commit", "-qm", "start feature");
+    }
     if (failure === "no-origin") git("remote", "remove", "origin");
     if (failure === "foreign" || failure === "https")
       git(
@@ -109,6 +125,8 @@ for (const failure of [
         failure === "foreign" ? "git@github.com:other/demo.git" : "https://github.com/fixture/demo.git",
       );
     if (failure === "reuse" || failure === "conflict") fs.writeFileSync(bare + ".pr", "1");
+    if (failure === "draft-pr-race") git("--git-dir=" + bare, "update-ref", "refs/heads/feature", "main");
+    if (failure === "draft-base-unavailable") git("--git-dir=" + bare, "update-ref", "-d", "refs/heads/main");
     if (failure === "non-fast-forward") {
       git("commit", "--allow-empty", "-qm", "other writer");
       git("--git-dir=" + bare, "fetch", repo, "+refs/heads/main:refs/heads/feature");
@@ -139,6 +157,7 @@ for (const failure of [
     );
     const log = path.join(temp, "argv"),
       controller = new AbortController();
+    fs.writeFileSync(path.join(temp, "draft-fixture.json"), JSON.stringify({ ARGV_LOG: log, FAIL: failure, BARE: bare }));
     const model = { provider: "p", id: failure ? "a" : "p/a", thinking: "off" };
     const progress: string[] = [];
     const phases: string[] = [];
@@ -196,6 +215,9 @@ for (const failure of [
         GIT_CONFIG_GLOBAL: "/dev/null",
         GIT_CONFIG_NOSYSTEM: "1",
         GH_TOKEN: "fixture-inherited",
+        GH_ENTERPRISE_TOKEN: "fixture-enterprise",
+        GH_CONFIG_DIR: path.join(temp, "gh"),
+        SSH_AUTH_SOCK: path.join(temp, "ssh-socket"),
         ARGV_LOG: log,
         FAIL: failure,
         BARE: bare,
@@ -323,7 +345,23 @@ for (const failure of [
     if (failure === "recover-progress-unfixed") await assert.rejects(result, /No committed task progress/);
     else if (stopped) await assert.rejects(result);
     else if (failure.startsWith("verify-")) await assert.rejects(result, /Verifier Git snapshot changed/);
-    else if (!published && !recovering) await assert.rejects(result);
+    else if (failure.startsWith("draft-")) {
+      if (failure === "draft-cancel") {
+        for (let i = 0; i < 400 && !fs.existsSync(log + ".draft-ready"); i++) await delay(10);
+        assert.ok(fs.existsSync(log + ".draft-ready"));
+        controller.abort();
+      }
+      const reasons: Record<string, RegExp> = {
+        "draft-dirty": /Drafting stopped: verified candidate changed/,
+        "draft-pr-race": /Drafting stopped: could not reconfirm the publication target/,
+        "draft-cancel": /Drafting stopped: cancelled/,
+        "draft-base-unavailable": /Drafting stopped: could not supply the full pinned comparison/,
+      };
+      await assert.rejects(result, reasons[failure] ?? /Drafting stopped: invalid or oversized title or body/);
+      assert.equal(fs.existsSync(bare + ".pushes"), false);
+      assert.equal(fs.existsSync(bare + ".pr.creates"), false);
+      return;
+    } else if (!published && !recovering) await assert.rejects(result);
     else await result;
     if (["partial", "non-fast-forward", "stale"].includes(failure)) {
       const remote = git("--git-dir=" + bare, "rev-parse", "feature").toString();
@@ -401,8 +439,11 @@ for (const failure of [
       assert.ok(calls.findLast((a) => a.at(-1)!.startsWith("/verify "))!.at(-1)!.includes("--implemented-by 'p/c'"));
       return;
     }
+    const drafting = calls.filter(args => args.at(-1)!.startsWith("Prepare a PR draft."));
+    assert.equal(drafting.length, published && failure !== "reuse" ? 1 : 0);
+    const stages = calls.filter(args => !drafting.includes(args));
     assert.deepEqual(
-      calls.map((args) => args.at(-1)!.split(" ")[0]),
+      stages.map((args) => args.at(-1)!.split(" ")[0]),
       !published && !failure.startsWith("verify-") ? ["/execute"] : ["/execute", "/execute", "/simplify", "/verify"],
     );
     const [bundle] = fs.readdirSync(options.root);
@@ -447,7 +488,17 @@ for (const failure of [
       assert.equal(fs.statSync(path.join(first, "stderr")).size, 16384);
       assert.equal(fs.statSync(path.join(first, "sessions")).mode & 0o777, 0o700);
       assert.equal(fs.statSync(path.join(first, "session-id")).mode & 0o777, 0o600);
-      assert.ok(calls.at(-1)!.at(-1)!.includes("--implemented-by 'p/a' --simplified-by 'p/a'"));
+      assert.ok(stages.at(-1)!.at(-1)!.includes("--implemented-by 'p/a' --simplified-by 'p/a'"));
+      const [argv] = drafting;
+      assert.equal(argv![argv!.indexOf("--tools") + 1], "read");
+      assert.ok(argv!.includes("--no-extensions"));
+      const prompt = argv!.at(-1)!;
+      assert.match(prompt, /diff --git a\/before-startup b\/before-startup/);
+      assert.doesNotMatch(prompt, /diff --git a\/base-only b\/base-only/);
+      assert.ok(prompt.includes(git("rev-parse", "main").toString().trim()));
+      const create = JSON.parse(fs.readFileSync(bare + ".pr.argv", "utf8"));
+      assert.equal(create[create.indexOf("--title") + 1], "Explain the verified feature");
+      assert.equal(create[create.indexOf("--body") + 1], "## What is this PR?\nFixture explanation.");
     }
     assert.ok(
       calls.every((args) => args.includes("--session-dir") && args.includes("--mode") && args.includes("--thinking")),

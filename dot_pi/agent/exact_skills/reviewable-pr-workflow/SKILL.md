@@ -81,6 +81,11 @@ gh stack submit
 
 GitHub shows stack navigation and PR status in the UI. Do not maintain a duplicate manual stack map in each PR body. When rewriting a stacked branch, inspect the full stack and update affected descendants. Do not rewrite only a parent and leave descendants based on old commits. If rewriting a reviewed parent would force rewriting a reviewed descendant, stop and ask unless the user explicitly requested a stack rewrite.
 
+## Shared PR drafting
+Use this workflow to prepare text, not to authorize GitHub writes or changes to history. For a new PR, write a short title that names the change. When refreshing a PR, preserve accurate handwritten content and propose a title change only if the existing title is stale. The caller owns approval. Report only tests and rollout results supported by the evidence.
+
+Follow the pre-description check, body template, and reader check below. When matching plan artifacts exist and help the reviewer, use an optional `## Design & implementation plan` section. Link `design.md` as the design record and `plan.md` as implementation context. When external visual assessment is unavailable, use prose and still perform the reader check.
+
 ## Pre-description check
 Before writing or refreshing the description, compare the full diff with the task context, relevant design artifacts, OpenSpec proposals or specs, and linked issue. Check:
 - **Need:** Assess whether the evidence supports the problem, necessity, and scope. Do not present the author's rationale as independent validation.

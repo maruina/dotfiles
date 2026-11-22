@@ -18,6 +18,20 @@
 | `feature-worktree` | prompt-required | Durable plan | Created a separate worktree from `origin/main`. |
 | `write` | skill-loader | Plan prose | Made expected behavior, failure conditions, and exclusions explicit. |
 
+### Execution
+**Execution writer:** `openai/gpt-6.2-sol` (GPT-6.2 Sol), Slice 1.
+
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `skill-loader` | prompt-required | Stage setup | Selected execution guidance. |
+| `resolve-worktree` | prompt-required | Absolute plan path | Resolved the plan in its feature worktree. |
+| `feature-worktree` | prompt-required | Local writes | Confirmed the feature branch and clean starting state. |
+| `chezmoi` | skill-loader | Managed source files | Changed only the source. Did not apply it. |
+| `codebase-research` | skill-loader | Shared behavior | Traced the runner attempt, verified publication, and standalone prompt paths. |
+| `reviewable-pr-workflow` | agent-selected | Shared authoring policy | Kept authoring separate from history, approval, and publication rules. |
+| `cli-best-practices` | skill-loader | Drafting input and output | Bounded evidence and structured output. Reported stop reasons without draft text. |
+| `write` | skill-loader | Policy and ledger | Kept evidence, instructions, and limitations distinct. |
+
 ## Implementation Contract
 ### Components affected
 | Component | Files | Responsibility | Verification |
@@ -66,11 +80,13 @@ Rollout remains blocked until the operator authorizes and completes the applicab
 **Traces to:** Requirements 1, 2, and 3.
 **Files:** See the component table; use the existing `_fixtures/pi.mjs` and `_fixtures/gh.mjs` seams.
 
-- [ ] Add focused failing checks for the pinned comparison with a stale tracking ref and pre-existing feature commits, valid metadata passed to `gh pr create`, malformed and oversized output rejected before publication, and reuse without drafting or metadata writes. Check the drafting child tool allowlist and environment, and check that the standalone prompts use the shared workflow without changing their safeguards. Run `npm run test:integration` and `npm test` from `dot_pi/agent` to observe the relevant failures.
-- [ ] Extract the common authoring instructions within `reviewable-pr-workflow` and make both standalone prompts use them. Keep their command-specific commit, stack, title approval, and ARP instructions.
-- [ ] Connect the read-only drafting step and validated result to first draft creation. Cover candidate changes, cancellation, and the pre-push target check detecting a PR that appears during drafting. Keep the existing uncertain-create reconciliation test and ARP guards. Run LSP diagnostics after the TypeScript changes.
-- [ ] Run `npm test`, `npm run test:integration`, and `npm run typecheck` from `dot_pi/agent`; expect the new assertions and the existing publication fixtures to pass.
-- [ ] Commit with `fix(pi): draft stage runner PRs with shared guidance`.
+- [x] Add focused failing checks for the pinned comparison with a stale tracking ref and pre-existing feature commits, valid metadata passed to `gh pr create`, malformed and oversized output rejected before publication, and reuse without drafting or metadata writes. Check the drafting child tool allowlist and environment, and check that the standalone prompts use the shared workflow without changing their safeguards. Run `npm run test:integration` and `npm test` from `dot_pi/agent` to observe the relevant failures.
+- [x] Extract the common authoring instructions within `reviewable-pr-workflow` and make both standalone prompts use them. Keep their command-specific commit, stack, title approval, and ARP instructions.
+- [x] Connect the read-only drafting step and validated result to first draft creation. Cover candidate changes, cancellation, and the pre-push target check detecting a PR that appears during drafting. Keep the existing uncertain-create reconciliation test and ARP guards. Run LSP diagnostics after the TypeScript changes.
+- [x] Run `npm test`, `npm run test:integration`, and `npm run typecheck` from `dot_pi/agent`; expect the new assertions and the existing publication fixtures to pass.
+- [x] Commit with `fix(pi): draft stage runner PRs with shared guidance`.
+
+The focused tests first rejected the missing draft child, the pre-push handling of invalid output, and the missing shared policy references. During full integration, the oversized-output fixture exited before all stdout reached the parent. The fixture now waits for stdout to flush. The focused check and all 68 integration checks passed after the fix. `npm test` and `npm run typecheck` passed; LSP reported no diagnostics in the three changed TypeScript files.
 
 ### Task 2: Document the drafting boundary
 **Delivers:** Operators can tell when drafting runs, why it can stop publication, and what the runner does with an existing PR.

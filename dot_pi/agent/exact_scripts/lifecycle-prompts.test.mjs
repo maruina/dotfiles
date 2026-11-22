@@ -1030,6 +1030,14 @@ test("PR validation and cleanup delegate worktree identity to the same script", 
   assert.match(prompt("pr-cleanup.md"), /workspace\.mjs" cleanup/);
 });
 
+test("standalone PR commands use shared PR drafting guidance", () => {
+  for (const name of ["pr-create.md", "pr-update.md"]) {
+    const text = prompt(name);
+    assert.match(text, /Shared PR drafting/);
+    assert.match(text, /Reader check and visual assessment/);
+  }
+});
+
 test("PR creation derives explanations from the change and checks final references", () => {
   requireMarkers(prompt("pr-create.md"), [
     /problem, behavior, design choices, and representative examples/,

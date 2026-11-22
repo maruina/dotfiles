@@ -18,7 +18,10 @@ else if (cmd === "api" && op === "repos/" + repo) json({ full_name: repo, defaul
 else if (cmd === "api" && op.endsWith("/rules/branches/feature")) json([]);
 else if (cmd === "api" && op.endsWith("/branches/feature")) json({ protected: false });
 else if (cmd === "pr" && args.includes(repo) && args.includes("--head") && args.includes("feature")) {
-  if (op === "create") fs.appendFileSync(marker + ".creates", "create\n");
+  if (op === "create") {
+    fs.appendFileSync(marker + ".creates", "create\n");
+    fs.writeFileSync(marker + ".argv", JSON.stringify(args));
+  }
   if (
     op === "create" &&
     args.includes("--draft") &&

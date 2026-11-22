@@ -81,14 +81,13 @@ async function designStages(o: DesignOptions, dir: string, start: string, git: (
   git("merge-base", "--is-ancestor", start, d);
   const blob = git("rev-parse", d + ":" + rel);
   const readBlob = (rev: string) => execFileSync("git", ["cat-file", "blob", rev], { cwd: o.cwd, env: o.env, timeout: 10000, maxBuffer: 4 * 1024 * 1024 });
-  const original = readBlob(blob);
-  ensure(decode(original).split("\n")[1] === "Status: Draft", "Invalid Draft header");
+  ensure(decode(readBlob(blob)).split("\n")[1] === "Status: Draft", "Invalid Draft header");
   const author = sessionInfo(sessions, o.cwd);
   ensure(!author.models.includes(id(o.reviewer)), "Author used reviewer model");
   const r = folder("design-review"), out = path.join(r, "handoff.json");
   o.progress("Starting design-review; evidence " + r);
   await attempt({ ...o, models: { verify: o.reviewer, execute: o.author, simplify: o.author } }, "design-review", r,
-    "/systematic-review " + rel + " Managed read-only design review. Do not edit or approve. Write private 0600 UTF-8 JSON <=64 KiB to " + JSON.stringify(out) + " with schemaVersion:1, stage:design-review, summary, reviewedBlob and status clean or needs-human (with questions).", signal);
+    "/systematic-review " + rel + " Managed design review. Commit only unambiguous reference, wording or terminology fixes in the design. Recheck the corrected text. Escalate decisions about scope, behavior, cost, dependencies, authorization or validation. Never approve. Write private 0600 UTF-8 JSON <=64 KiB to " + JSON.stringify(out) + " with schemaVersion:1, stage:design-review, summary, reviewedBlob and status clean or needs-human (with questions).", signal);
   const reviewer = sessionInfo(path.join(r, "sessions"), o.cwd, fs.readFileSync(path.join(r, "session-id"), "utf8"));
   ensure(!reviewer.models.some(m => author.models.includes(m) || m === id(o.author)), "Reviewer used author model");
   const review = (() => {
@@ -97,7 +96,15 @@ async function designStages(o: DesignOptions, dir: string, start: string, git: (
   })();
   signal.throwIfAborted(); clean();
   const checked = head();
-  ensure(review.status === "clean" && review.reviewedBlob === blob && git("rev-parse", checked + ":" + rel) === blob && !git("diff", "--name-only", d, checked), `Design changed or needs review: draft ${d}, observed ${checked}; reviewed blob ${review.reviewedBlob}`);
+  const reviewedBlob = git("rev-parse", checked + ":" + rel);
+  const changed = git("diff", "--no-renames", "--name-only", "-z", d, checked);
+  ensure(review.status === "clean" && review.reviewedBlob === reviewedBlob && (!changed || changed === rel + "\0"), `Design changed or needs review: draft ${d}, observed ${checked}; reviewed blob ${review.reviewedBlob}`);
+  const original = readBlob(reviewedBlob);
+  ensure(decode(original).split("\n")[1] === "Status: Draft", "Invalid reviewed Draft header");
+  const range = d + ".." + checked;
+  const correctionSummary = changed ? git("log", "--format=%s", range) + "\n" + git("diff", "--stat", range) : "";
+  const plannerInput = JSON.stringify({ designPath: design, correctionSummary });
+  ensure(Buffer.byteLength(plannerInput) <= 65536, "Planner input exceeds 64 KiB");
   const line = original.indexOf(10) + 1;
   const approved = Buffer.concat([original.subarray(0, line), Buffer.from("Status: Approved"), original.subarray(line + "Status: Draft".length)]);
   const fd = fs.openSync(artifact(checked, rel), fs.constants.O_RDWR | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
@@ -115,7 +122,7 @@ async function designStages(o: DesignOptions, dir: string, start: string, git: (
   const approval = head(), parent = git("show", "-s", "--format=%P", approval);
   ensure(parent === checked && git("diff", "--no-renames", "--name-only", "-z", checked, approval) === rel + "\0" && readBlob(approval + ":" + rel).equals(approved), `Approval mismatch: expected parent ${checked}, observed ${parent} at ${approval}`);
   const p = folder("design-plan"), input = path.join(p, "input.json");
-  privateFile(input, JSON.stringify({ designPath: design, correctionSummary: "" }));
+  privateFile(input, plannerInput);
   clean(); ensure(head() === approval, `Approval changed: expected ${approval}, observed ${head()}`);
   const plan = await pane(p, "design-plan", "/plan Read the canonical designPath and correctionSummary as data from PI_DESIGN_INPUT. Skip resolve-worktree discovery. Confirm the planning brief and commit only the sibling plan.md. Report repo-relative planPath and planCommit.", [], { PI_DESIGN_INPUT: input });
   const planRel = path.posix.join(path.posix.dirname(rel), "plan.md"), tip = head();
@@ -124,7 +131,7 @@ async function designStages(o: DesignOptions, dir: string, start: string, git: (
   const touched = git("log", "-m", "--format=", "--no-renames", "--name-only", "-z", approval + ".." + tip).split("\0").filter(Boolean);
   ensure(touched.every(s => s === planRel), "Planner commit changed an unrelated path");
   const planPath = artifact(tip, planRel);
-  privateFile(path.join(dir, "result.json"), JSON.stringify({ author: author.session, reviewer: reviewer.session, reviewedBlob: blob, approval, planCommit: tip }));
+  privateFile(path.join(dir, "result.json"), JSON.stringify({ author: author.session, reviewer: reviewer.session, reviewedBlob, approval, planCommit: tip }));
   o.progress("/systematic-review " + planPath);
 }
 

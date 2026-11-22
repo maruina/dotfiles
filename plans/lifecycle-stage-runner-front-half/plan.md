@@ -28,6 +28,8 @@
 | `write` | `skill-loader` | Second review fixes | Replaced history checks with the content-based approval rule and defined the `needs-human` terminal state. |
 
 ### Execution
+Slice 2 Task 2 writer: `openai/gpt-6.2-astra`. The execution skills below also apply to this slice.
+
 Slice 1 writer: `openai/gpt-6.2-astra` (GPT-6.2 Astra).
 
 | Skill | Source | Why loaded | How used |
@@ -147,6 +149,7 @@ The runner SHALL start review only after the managed author commits a Draft, wri
 Complete both outcomes and validate the feature before rollout.
 
 ### Task 2: Review and approve the corrected revision
+Task 2 verified: the positive correction test failed before implementation. All four corrected-design tests then passed. `npm test` passed 510 tests and skipped 3.
 **Delivers:** The planner receives the final corrected design and a summary of committed edits.
 **Blocked by:** Task 1
 **Traces to:** Automatic non-blocking review fixes and exact-revision approval.
@@ -165,8 +168,8 @@ The reviewer SHALL check the revised text after committing mechanical correction
 - WHEN the runner validates the result
 - THEN it preserves the work, reports the mismatch, and neither approves nor launches planning.
 
-- [ ] Add a failing `corrected design` fixture that checks the exact parent, changed paths, final content, and private planning input. Test Pi 1.6.0 prompt expansion with a multiline correction summary that contains quotes: the file preserves the summary and the design path, but the expanded prompt contains neither value. Populate the existing planner input with the bounded summary for a corrected draft. Implement only the managed correction policy and its Git and input checks.
-- [ ] Run `node --experimental-strip-types --test --test-name-pattern='corrected design' exact_extensions/stage-runner/_integration.test.ts` and `npm test`; expect positive and stale-result tests to pass. Rerun after any refactoring. Commit `feat(pi): approve the corrected design revision`.
+- [x] Add a failing `corrected design` fixture that checks the exact parent, changed paths, final content, and private planning input. Test Pi 1.6.0 prompt expansion with a multiline correction summary that contains quotes: the file preserves the summary and the design path, but the expanded prompt contains neither value. Populate the existing planner input with the bounded summary for a corrected draft. Implement only the managed correction policy and its Git and input checks.
+- [x] Run `node --experimental-strip-types --test --test-name-pattern='corrected design' exact_extensions/stage-runner/_integration.test.ts` and `npm test`; expect positive and stale-result tests to pass. Rerun after any refactoring. Commit `feat(pi): approve the corrected design revision`.
 
 ### Task 3: Return a blocking decision to the same reviewer
 **Delivers:** The operator can continue the review with its original context; no automated approval follows the escalation.

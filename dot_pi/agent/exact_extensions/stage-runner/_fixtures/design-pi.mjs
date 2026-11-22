@@ -27,15 +27,30 @@ if (stage === 'design-draft') {
   fs.mkdirSync('plans/demo',{recursive:true}); fs.writeFileSync(rel,'# Demo\nStatus: '+(env.FAIL === 'header' ? 'Approved' : 'Draft')+'\n');
   git('add',rel);git('commit','-qm','draft'); result = {designPath:env.FAIL === 'path' ? 'plans/demo with space/design.md' : rel,draftCommit:git('rev-parse','HEAD')};
 } else if (stage === 'design-review') {
+  const draftBlob = git('rev-parse','HEAD:'+rel);
+  if (env.FAIL?.startsWith('corrected')) {
+    fs.appendFileSync(rel,'See correct.md\n');
+    if (env.FAIL === 'corrected-header') fs.writeFileSync(rel,'# Demo\nStatus: Approved\n');
+    if (env.FAIL === 'corrected-other') fs.writeFileSync('other','unrelated');
+    git('add','.');git('commit','-qm','Fix "reference"');
+  }
   if (env.FAIL === 'dirty') fs.writeFileSync('unrelated','uncommitted');
   out = JSON.parse(prompt.match(/to (".*?") with schemaVersion/)[1]);
   console.log(JSON.stringify({type:'session',id}));
-  result = {status:'clean',reviewedBlob:env.FAIL === 'stale' ? '1'.repeat(40) : git('rev-parse','HEAD:'+rel)};
+  result = {status:'clean',reviewedBlob:env.FAIL === 'corrected-stale' ? draftBlob : env.FAIL === 'stale' ? '1'.repeat(40) : git('rev-parse','HEAD:'+rel)};
   console.log(JSON.stringify({type:'agent_settled',aborted:false}));
 } else {
   assert.equal(git('status','--porcelain'),''); assert.equal(git('branch','--show-current'),'feature');
   assert.equal(fs.statSync(env.PI_DESIGN_INPUT).mode & 0o777,0o600);
-  assert.deepEqual(JSON.parse(fs.readFileSync(env.PI_DESIGN_INPUT)),{designPath:path.join(process.cwd(),rel),correctionSummary:''});
+  const data = JSON.parse(fs.readFileSync(env.PI_DESIGN_INPUT));
+  assert.equal(data.designPath,path.join(process.cwd(),rel));
+  if (env.FAIL === 'corrected') {
+    assert.match(data.correctionSummary,/Fix "reference"\n[\s\S]*design\.md/);
+    const {expandPromptTemplate} = await import('../../../node_modules/@earendil-works/pi-coding-agent/dist/core/prompt-templates.js');
+    const content = fs.readFileSync(new URL('../../../exact_prompts/plan.md',import.meta.url),'utf8');
+    const expanded = expandPromptTemplate(prompt,[{name:'plan',content}]);
+    assert.ok(expanded.includes('PI_DESIGN_INPUT') && !expanded.includes(data.designPath) && !expanded.includes('Fix "reference"'));
+  } else assert.equal(data.correctionSummary,'');
   if (env.FAIL === 'no-plan') process.exit(0);
   if (env.FAIL === 'reverted') { fs.writeFileSync('other','edit');git('add','other');git('commit','-qm','unrelated');git('revert','--no-edit','HEAD'); }
   fs.writeFileSync(plan,'# Plan\n');git('add',plan);git('commit','-qm','plan');result = {planPath:plan,planCommit:git('rev-parse','HEAD')};

@@ -23,7 +23,7 @@ Load `skill-loader` first.
 - **No target** — use the current repository root.
 
 ## Design-only review
-For a managed design-review, report the verdict in the runner's handoff instead of asking for approval. Do not edit the design or change its status.
+For a managed design-review only, commit unambiguous corrections within the runner's stated limits, review the final text, and write the handoff. Do not change the status. This authority ends when you write the handoff; later turns require standalone confirmation.
 
 Run in a fresh `/new` session with only the design as task context. If earlier conversation or another artifact already supplied the proposal's meaning, stop and request a fresh session. Load `skill-loader` and `write`; use path resolution and Git metadata only to identify the artifact and its version. Do not read code, sibling artifacts, or prior conversation to complete its meaning. Do not apply the general code/plan review method, design challenge, or handoff below.
 

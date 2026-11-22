@@ -7,8 +7,8 @@ import os from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { run } from "./_runner.ts";
-for (const [failure, error] of Object.entries({ "": "", early: "handoff", header: "Draft header", path: "artifact path", overlap: "author model", stale: "Design changed", invalid: "pi --session", "no-plan": "handoff", reverted: "unrelated path", dirty: "dirty", switch: "Author used reviewer", "pre-check": "Design changed", "approval-race": "expected parent [a-f0-9]+, observed [a-f0-9]+" }))
- test("clean design: " + (failure || "committed plan without publication"), async (t) => {
+for (const [failure, error] of Object.entries({ corrected: "", "corrected-stale": "Design changed", "corrected-other": "Design changed", "corrected-header": "Draft header", "": "", early: "handoff", header: "Draft header", path: "artifact path", overlap: "author model", stale: "Design changed", invalid: "pi --session", "no-plan": "handoff", reverted: "unrelated path", dirty: "dirty", switch: "Author used reviewer", "pre-check": "Design changed", "approval-race": "expected parent [a-f0-9]+, observed [a-f0-9]+" }))
+ test((failure.startsWith("corrected") ? "corrected design: " : "clean design: ") + (failure || "committed plan without publication"), async (t) => {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), "design-test-"));
   t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
   const cwd = path.join(temp, "work");
@@ -35,7 +35,7 @@ for (const [failure, error] of Object.entries({ "": "", early: "handoff", header
     reviewer: { ...model, id: "reviewer" }, signal: controller.signal, progress: () => {},
     executable: process.execPath, prefix: [path.join(import.meta.dirname, "_fixtures/design-pi.mjs")],
     rexCommand: [process.execPath, path.join(import.meta.dirname, "_fixtures/rex.mjs")] });
-  if (failure) {
+  if (error) {
     await assert.rejects(result, new RegExp(error));
     if (["approval-race", "pre-check"].includes(failure)) {
       const competing = fs.readFileSync(env.ARGV_LOG + ".competing", "utf8").trim();
@@ -45,7 +45,8 @@ for (const [failure, error] of Object.entries({ "": "", early: "handoff", header
     if (!["no-plan", "reverted"].includes(failure)) assert.ok(!fs.readFileSync(env.ARGV_LOG, "utf8").includes("design-plan"));
     return;
   }
-  try {
+  if (failure === "corrected") await result;
+  else try {
     for (let i = 0; i < 500 && !fs.existsSync(env.ARGV_LOG + ".first-turn"); i++) await delay(10);
     assert.equal(fs.readFileSync(env.ARGV_LOG, "utf8"), "design-draft\n");
     fs.writeFileSync(env.ARGV_LOG + ".continue", "confirmed");
@@ -53,8 +54,8 @@ for (const [failure, error] of Object.entries({ "": "", early: "handoff", header
   } finally { controller.abort(); await result.catch(() => {}); }
   assert.equal(fs.readFileSync(env.ARGV_LOG,"utf8"),"design-draft\ndesign-review\ndesign-plan\n");
   const revisionBytes = (rev: string) => execFileSync("git", ["cat-file", "blob", rev + ":plans/demo/design.md"], {cwd,env});
-  assert.deepEqual(revisionBytes("HEAD~2"), Buffer.from("# Demo\nStatus: Draft\n"));
-  assert.deepEqual(revisionBytes("HEAD~"), Buffer.from("# Demo\nStatus: Approved\n"));
+  assert.deepEqual(revisionBytes("HEAD~2"), Buffer.from("# Demo\nStatus: Draft\n" + (failure ? "See correct.md\n" : "")));
+  assert.deepEqual(revisionBytes("HEAD~"), Buffer.from("# Demo\nStatus: Approved\n" + (failure ? "See correct.md\n" : "")));
   assert.equal(git("show", "-s", "--format=%P", "HEAD~"), git("rev-parse", "HEAD~2"));
   assert.equal(git("diff", "--name-only", "HEAD~2", "HEAD~"), "plans/demo/design.md");
   assert.equal(git("diff", "--name-only", "HEAD~", "HEAD"), "plans/demo/plan.md");

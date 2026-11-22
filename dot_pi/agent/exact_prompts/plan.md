@@ -155,7 +155,7 @@ Carry the approved validation limits into the durable plan. Missing required evi
 ### Slice grouping
 Group tasks under `### Slice N: <title>` headings only when the plan needs more than one shippable slice: Medium or Large/Risky work, or work with deliberately deferred scope. Each heading names the user feedback it delivers. Slice 1 is the smallest user-feedback slice. Small/direct plans keep the concise `## Scope` and `## Validation` shape with one execution unit and no slice headings.
 
-When slice grouping exists, a task outside the current slice is a follow-up, not plan scope. Deferred work appears under `Out of Scope` or as a later slice with a blocking edge. Each acceptance scenario maps to a slice through its task. A multi-slice plan records the feature-level acceptance criteria that only the completed feature can satisfy as `### Task N: Final verification` in the last slice, blocked by the tasks it gates; never as a standalone checklist section, because the `/implement` preflight rejects checkboxes outside numbered tasks.
+When slice grouping exists, a task outside the current slice is a follow-up, not plan scope. Deferred work appears under `Out of Scope` or as a later slice with a blocking edge. Each acceptance scenario maps to a slice through its task. A multi-slice plan records the feature-level acceptance criteria that only the completed feature can satisfy as `### Task N: Final verification` in the last slice, blocked by the tasks it gates; never as a standalone checklist section. Keep checkboxes inside numbered tasks.
 
 ### Acceptance criteria
 Express success as observable behavior contracts. Use RFC 2119 keywords and Given/When/Then:
@@ -189,7 +189,7 @@ Each task must be understandable and executable by a fresh agent from the plan a
 - [ ] Commit with `<Conventional Commit message>` when applicable.
 ```
 
-Keep the task metadata machine-parseable: the `/implement` preflight parses these lines and rejects other shapes. Write `**Blocked by:**` with only task references or `None`. Give each reference its own `Task` keyword: `Task 1 and Task 2` or `Task 1, Task 3, Task 4`; a contiguous run may use `Tasks 3-5`. Put explanatory notes on their own line below `**Blocked by:**`, never in parentheses on that line. Every checkbox belongs to a task body.
+Keep task metadata in the format below. Write `**Blocked by:**` with only task references or `None`. Give each reference its own `Task` keyword: `Task 1 and Task 2` or `Task 1, Task 3, Task 4`; a contiguous run may use `Tasks 3-5`. Put explanatory notes on their own line below `**Blocked by:**`, never in parentheses on that line. Every checkbox belongs to a task body.
 
 Order blockers before dependents so `/execute` can proceed sequentially. Default to tracer-bullet vertical slices: one public behavior, its focused test through a supported interface, and the smallest implementation across every affected layer. A completed slice must be independently demoable or verifiable; do not separate layers horizontally when they can land together or group all tests before all implementation.
 
@@ -200,7 +200,7 @@ Prefer a script over long inline CI YAML when logic contains branching, retries,
 For Medium and Large/Risky work, end with a documentation and future-agent guidance task covering user/developer docs, READMEs, runbooks, examples or generated references, and every relevant `AGENTS.md` (adding only durable commands, generation steps, traps, source-of-truth rules, and testing/rollout procedures); update each or record why not. Small plans must state documentation impact.
 
 ## Final review
-Before committing, self-review as a skeptical implementer and fix issues inline: confirm the interactive alignment brief was approved, shared-component scope choices were asked, scope/requirements/tasks/validation trace bidirectionally, referenced paths/commands/types exist, tasks form ordered vertical slices, scenarios cover material happy/edge/failure/negative paths without redundant dimensions, slice grouping is used only when the plan needs it, task and slice metadata parses for the `/implement` preflight, scope beyond the smallest user-feedback slice is explicitly deferred, skill provenance is accurate, and no contradictions, placeholders, or pre-written implementation choreography remain.
+Before committing, self-review as a skeptical implementer and fix issues inline: confirm the interactive alignment brief was approved, shared-component scope choices were asked, scope/requirements/tasks/validation trace bidirectionally, referenced paths/commands/types exist, tasks form ordered vertical slices, scenarios cover material happy/edge/failure/negative paths without redundant dimensions, slice grouping is used only when the plan needs it, task and slice metadata follows the plan format, scope beyond the smallest user-feedback slice is explicitly deferred, skill provenance is accurate, and no contradictions, placeholders, or pre-written implementation choreography remain.
 
 ## Learning candidates
 When `/systematic-review` findings or reviewer feedback disprove an initial approach and change the design or plan, record a learning candidate in the plan with the `learning-candidates` skill.

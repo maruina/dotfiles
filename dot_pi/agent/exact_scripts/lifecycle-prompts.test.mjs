@@ -321,7 +321,7 @@ test("plan anchors scope to the smallest user-feedback slice with conditional gr
     /slice 1 is the smallest user-feedback slice/i,
     /task outside the current slice is a follow-up/i,
     /feature-level acceptance criteria.*`### Task N: Final verification`.*last slice.*blocked by the tasks it gates/is,
-    /never as a standalone checklist section.*preflight rejects checkboxes outside numbered tasks/is,
+    /never as a standalone checklist section\. Keep checkboxes inside numbered tasks\./i,
     /slice grouping is used only when the plan needs it/i,
     /scope beyond the smallest.*explicitly deferred/is,
   ]);
@@ -602,8 +602,8 @@ test("copyable handoffs preserve review gates and chat-only behavior", () => {
     /For a chat-only plan[^\n]*without a command/,
   ]);
   requireMarkers(prompt("systematic-review.md"), [
-    /with no blocking findings, show `\/execute <absolute-path-to-plan\.md>`/,
-    /with blocking findings[^\n]*`\/systematic-review <absolute-path-to-plan\.md>`[^\n]*Do not offer `\/execute`/,
+    /with no blocking findings[\s\S]*?unstarted plan[^\n]*`\/stage-runner <absolute-path-to-plan\.md>`[^\n]*`\/execute <absolute-path-to-plan\.md>`[^\n]*manual alternative[\s\S]*?started plan[^\n]*only `\/execute <absolute-path-to-plan\.md>`/i,
+    /with blocking findings[^\n]*`\/systematic-review <absolute-path-to-plan\.md>`[^\n]*Do not offer `\/stage-runner` or `\/execute`/i,
   ]);
   requireMarkers(prompt("execute.md"), [
     /If skipped, select another model with `\/model`, start `\/new`, confirm `## Current Model`/,

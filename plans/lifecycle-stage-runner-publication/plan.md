@@ -35,6 +35,19 @@
 | `chezmoi` | `skill-loader` | Installed profile | Rendered the shared template in the fixture instead of reading the operator's profile. |
 | `write` | `skill-loader` | Execution ledger | Distinguished fixture evidence from live validation. |
 
+**Execution writer (Slice 2):** GPT-6.2 Sol (`openai/gpt-6.2-sol`).
+
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `skill-loader` | `prompt-required` | Select execution guidance | Matched skills to the runner, tests, and ledger. |
+| `resolve-worktree` | `prompt-required` | Resolve the amended plan | Confirmed the unique plan path and feature branch. |
+| `feature-worktree` | `prompt-required` | Preserve the accepted baseline | Continued from the clean amended-plan commit in the existing feature worktree. |
+| `codebase-research` | `skill-loader` | Guard the review boundary | Traced verified publication, native MCP discovery, and JSON tool results. |
+| `cli-best-practices` | `skill-loader` | Restrict child operations | Used explicit child arguments and reported the PR, head, and request state on stop. |
+| `chezmoi` | `skill-loader` | Protect installed targets | Changed source only and tested with fixture-rendered profiles. |
+| `write` | `skill-loader` | Execution ledger and consent | Separated startup authorization, verification, publication, and review. |
+| `learning-candidates` | `prompt-required` | Record the discovery wiring limit | Recorded the explicit built-in extension requirement. |
+
 ## Implementation Contract
 **Source and decisions.** `plans/lifecycle-stage-runner/design.md` is Approved. Its Slice 4 defines exact-head publication, independent verification after fixes, three reviewed heads, and a 20-minute deadline per head. The operator approved an amendment to the profile boundary and the publisher shape on 2026-11-22; `plans/lifecycle-stage-runner/design.md` records it under **Slice 4 amendment**. Personal stops **after draft publication**, not before it. Starting the run authorizes these actions only for the confirmed repository, branch, and PR. Work requests are silent. Existing in-flight reviews retain their posting mode. A verified correction and a dismissal are different decisions: only the former can be settled automatically. Nothing here authorizes a production write during plan review or fixture tests.
 
@@ -91,6 +104,7 @@ The runner SHALL publish only a clean candidate covered by an independent verdic
 
 ### Slice 2: Report a work-profile ARP result for the published head
 ### Task 2: Observe or request one silent review per head
+**Execution evidence:** The focused guard and draft fixture tests failed before implementation. The first focused rerun exposed a missing authorization argument at the review child boundary. After the runner passed the argument, the focused tests passed. `npm test` passed with 499 tests and 3 skips. `npm run test:integration` passed with 46 runner cases and 5 Worktrunk cases, and `npm run typecheck` passed. The stale and active fixtures sent no requests. The uncertain retry fixture continued to offer retry after the first request, but the runner did not send a second request. Cancellation stopped the review child. The guard fixture recorded only discovery and the single authorized dispatch. The publisher returns the confirmed PR identity and a read-only head check so the runner does not parse its progress message or change Slice 1 push behavior. The GitHub and ARP subprocess results were local fixtures; live authentication and review capture remain unverified.
 **Delivers:** Work review completion or a bounded, actionable stop with no finding writes.
 **Blocked by:** Task 1
 **Traces to:** Work-only review authorization, head identity, bounds and uncertainty handling.
@@ -111,10 +125,10 @@ The runner SHALL use an existing matching review or request a permitted silent r
 
 **Review stage contract.** The runner supplies the review child with a fixed authorization (owner, repo, PR number, expected head SHA, permitted operations, and request budget) that the child cannot change. Keep authorization files, if used, private (`0600`) in the attempt directory. The child can discover the three permitted deferred tools with `tool_search` or an equivalent mechanism. Discovery does not authorize invocation. Before dispatch, the guard checks the operation, runner-owned arguments, and remaining request budget. Only `mcp__agentic_review__agentic_review_get_status`, `mcp__agentic_review__agentic_review_request_review`, and `mcp__agentic_review__agentic_review_get_findings` may reach ARP. The child cannot settle findings, run a shell, write files, or use `codemode` or another path to bypass the guard. The runner uses actual tool execution results as evidence, not model claims. The execution agent chooses the discovery wiring and internal file and prompt layout.
 
-- [ ] Start with failing tests for allowed actions, stale/active states, deadline, duplicate request and cancellation. Exercise the actual guard in a supported test seam because fixture Pi does not run `tool_call` handlers. Prove that discovery allows a subsequent authorized call without broadening invocation permissions. Test calls that differ by one target argument, a blocked tool name, and two sibling requests in one turn. Assert that denied calls never dispatch.
-- [ ] Add work-only review orchestration with a closed stage contract, private mutation ledger, bounded status polling and validated tool evidence. Stop with findings for follow-up until Task 3 lands. Preserve standalone `/pr-create` and `/pr-update` behavior.
-- [ ] Run `npm test && npm run test:integration && npm run typecheck`; expect zero writes for active/stale status and at most one guarded request per SHA. Rerun after refactoring.
-- [ ] Commit with `feat(pi): review published work heads with bounded ARP requests`.
+- [x] Start with failing tests for allowed actions, stale/active states, deadline, duplicate request and cancellation. Exercise the actual guard in a supported test seam because fixture Pi does not run `tool_call` handlers. Prove that discovery allows a subsequent authorized call without broadening invocation permissions. Test calls that differ by one target argument, a blocked tool name, and two sibling requests in one turn. Assert that denied calls never dispatch.
+- [x] Add work-only review orchestration with a closed stage contract, private mutation ledger, bounded status polling and validated tool evidence. Stop with findings for follow-up until Task 3 lands. Preserve standalone `/pr-create` and `/pr-update` behavior.
+- [x] Run `npm test && npm run test:integration && npm run typecheck`; expect zero writes for active/stale status and at most one guarded request per SHA. Rerun after refactoring.
+- [x] Commit with `feat(pi): review published work heads with bounded ARP requests`.
 
 ### Slice 3: Settle only verified, published fixes
 ### Task 3: Close the fix and re-review loop
@@ -153,3 +167,6 @@ The runner SHALL allow `addressed` only for an identified open finding whose fix
 - [ ] Add or update the focused lifecycle contract checks. Run `npm ci --ignore-scripts && npm test && npm run test:all`; expect green script, unit, integration, type and smoke checks. Remove worktree dependencies after checks per repository guidance.
 - [ ] Obtain separate operator authorization for the disposable GitHub repository, PR, work ARP review and a real in-scope finding before any live write. Use distinct disposable feature branches/runs for personal and work; confirm that the SSH login for the push destination and the login returned by `gh api user` under the publisher's token both match the expected account; capture the run ID, verdict SHA, GitHub URL/head and, for work, the review ID/head, finding ID and fixing SHA. Check personal has no ARP stage. Verify work publishes the independently verified fix before settlement and captures the new review. If the trial produces no suitable finding, record which path was exercised and leave settlement validation and rollout blocked. Do not manufacture a production settlement. Close disposable PRs and remove remote branches only with cleanup authorization; retain private evidence, not credentials.
 - [ ] Record live evidence or the explicit blocker. After passing all required checks, commit documentation and contract tests with `docs(pi): document verified publication and ARP recovery`. Require independent feature-wide `/verify` before installing; do not treat the live trial as its substitute.
+
+## Learning candidates
+- 2026-11-22: For a Pi 1.6.0 child with `--no-extensions`, explicitly load `builtin:tool-search` as well as `builtin:mcp` when the child needs deferred discovery. Selecting `tool_search` with `--tools` alone does not register the extension. — evidence: `dot_pi/agent/exact_extensions/stage-runner/_runner.ts` and the isolated review child argument checks in `_fixtures/pi.mjs`.

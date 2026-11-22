@@ -47,6 +47,13 @@ for (const failure of [
   "recover-limit",
   "verify-dirty",
   "verify-commit",
+  "arp-active",
+  "arp-draft",
+  "arp-retry-uncertain",
+  "arp-stale",
+  "arp-incomplete",
+  "arp-findings",
+  "arp-cancel",
 ])
   test("real Git with fixture Pi: " + (failure || "complete"), async (t) => {
     const temp = fs.mkdtempSync(path.join(os.tmpdir(), "stage-test-"));
@@ -101,7 +108,8 @@ for (const failure of [
         { mode: 0o700 },
       );
     const profilePath = path.join(temp, "profile.json");
-    const profile = failure === "recover-writer" ? "work" : "personal";
+    const arp = failure.startsWith("arp-");
+    const profile = arp || failure === "recover-writer" ? "work" : "personal";
     fs.writeFileSync(
       profilePath,
       execFileSync(
@@ -120,8 +128,17 @@ for (const failure of [
       controller = new AbortController();
     const model = { provider: "p", id: failure ? "a" : "p/a", thinking: "off" };
     const progress: string[] = [];
+    let reviewTime = 0;
     const options = {
       cwd,
+      reviewClock: {
+        now: () => reviewTime,
+        sleep: async (ms: number, signal: AbortSignal) => {
+          assert.equal(ms, 30000);
+          signal.throwIfAborted();
+          reviewTime += ms;
+        },
+      },
       plan: "plans/demo/plan.md",
       root: path.join(temp, "state"),
       models: { execute: model, simplify: model, verify: { ...model, id: "b" } },
@@ -133,6 +150,7 @@ for (const failure of [
       profilePath: failure === "missing-profile" ? profilePath + ".absent" : profilePath,
       confirm: async (target: string) => {
         assert.match(target, /fixture\/demo.*feature into main/);
+        if (arp) assert.match(target, /silent review/i);
         if (failure === "stale") git("remote", "set-url", "--push", "origin", "git@github.com:other/demo.git");
         return failure !== "decline";
       },
@@ -178,6 +196,42 @@ for (const failure of [
       for (let i = 0; i < 300 && !fs.existsSync(log + ".ready"); i++) await delay(10);
       assert.ok(fs.existsSync(log + ".ready"));
       controller.abort();
+    }
+    if (arp) {
+      if (failure === "arp-cancel") {
+        for (let i = 0; i < 400 && !fs.existsSync(log + ".review-ready"); i++) await delay(10);
+        assert.ok(fs.existsSync(log + ".review-ready"));
+        controller.abort();
+      }
+      if (failure === "arp-stale" || failure === "arp-incomplete") await assert.rejects(result, /deadline/i);
+      else if (failure === "arp-findings") await assert.rejects(result, /finding-42/);
+      else if (failure === "arp-cancel") await assert.rejects(result, /cancel/i);
+      else await result;
+      const calls = fs.readFileSync(log + ".review", "utf8").trim().split("\n").map((s) => JSON.parse(s));
+      const head = git("--git-dir=" + bare, "rev-parse", "feature").toString().trim();
+      const names = calls.map(({ name }) => name.split("agentic_review_").at(-1));
+      const statuses = names.filter((name) => name === "get_status");
+      assert.equal(statuses.length, failure === "arp-stale" || failure === "arp-incomplete" ? 40 :
+        failure === "arp-cancel" || failure === "arp-findings" ? 1 : failure === "arp-retry-uncertain" ? 3 : 2);
+      assert.equal(names[0], "get_status");
+      const expected = failure === "arp-draft" ? "review_anyway" : failure === "arp-retry-uncertain" ? "retry" : undefined;
+      const requests = calls.filter(({ name }) => name.endsWith("request_review"));
+      assert.deepEqual(requests.map(({ input }) => input), expected ? [{
+        owner: "fixture", repo: "demo", pull_number: 1, action: expected, expected_head_sha: head, silent: true,
+      }] : []);
+      assert.ok(names.every((name) => ["get_status", "get_findings", "request_review"].includes(name)));
+      if (!["arp-stale", "arp-cancel"].includes(failure)) assert.equal(names.at(-1), "get_findings");
+      for (const call of calls) assert.equal(call.published, head);
+      const entries = fs.readdirSync(options.root);
+      assert.equal(entries.length, 1);
+      const dir = path.join(options.root, entries[0]!);
+      const ledger = path.join(dir, "arp-request.json");
+      assert.equal(fs.existsSync(ledger), Boolean(expected));
+      if (expected) assert.equal(fs.statSync(ledger).mode & 0o777, 0o600);
+      assert.equal(fs.readFileSync(path.join(dir, "completed"), "utf8") === "VERIFIED; ARP complete",
+        ["arp-active", "arp-draft", "arp-retry-uncertain"].includes(failure));
+      if (failure === "arp-retry-uncertain") assert.ok(progress.some((message) => /request result uncertain/.test(message)));
+      return;
     }
     const stopped =
       recovering &&
@@ -261,7 +315,7 @@ for (const failure of [
         else assert.ok(!a.includes("--session"));
       }
       assert.ok(interactive.every((a) => a.includes("--session-dir") && !a.includes("--fork")));
-      assert.ok(calls.at(-1)!.at(-1)!.includes("--implemented-by 'p/c'"));
+      assert.ok(calls.findLast((a) => a.at(-1)!.startsWith("/verify "))!.at(-1)!.includes("--implemented-by 'p/c'"));
       return;
     }
     assert.deepEqual(

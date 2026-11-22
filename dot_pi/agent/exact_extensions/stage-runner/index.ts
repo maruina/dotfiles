@@ -61,7 +61,7 @@ export default function stageRunner(pi: ExtensionAPI) {
     },
   });
   pi.registerCommand("stage-runner", {
-    description: "Run an unstarted committed plan through independent verification and draft PR publication",
+    description: "Verify and publish an unstarted committed plan; check Agentic Review in the work profile",
     handler: async (arg, ctx) => {
       if (active || process.env.PI_STAGE_RUNNER_CHILD === "1" || !ctx.hasUI || !arg.trim()) {
         ctx.ui.notify("Use /stage-runner <plan-path> in an idle interactive parent session", "error");
@@ -113,7 +113,7 @@ export default function stageRunner(pi: ExtensionAPI) {
           approve: (changes, signal) => ctx.ui.confirm("Accept recovered writer?", changes, { signal }),
           progress,
         });
-        progress("VERIFIED; evidence " + evidence);
+        progress("Run complete; evidence " + evidence);
       })()
         .catch((e) => {
           if (shuttingDown) return;

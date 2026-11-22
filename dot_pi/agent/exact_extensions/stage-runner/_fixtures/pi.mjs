@@ -13,6 +13,51 @@ function completeTask() {
   fs.writeFileSync(file, fs.readFileSync(file, "utf8").replace("- [ ]", "- [x]"));
   execFileSync("git", ["commit", "-qam", "complete task"]);
 }
+if (prompt.startsWith("ARP operation.")) {
+  for (const required of ["--no-extensions", "--no-approve", "builtin:mcp", "builtin:tool-search"])
+    if (!args.includes(required)) throw Error("Missing restricted Pi argument: " + required);
+  const file = process.env.PI_STAGE_RUNNER_REVIEW;
+  if ((fs.statSync(file).mode & 0o777) !== 0o600) throw Error("Review authorization is not private");
+  const { name, input, head } = JSON.parse(fs.readFileSync(file, "utf8"));
+  if (option("--tools") !== "tool_search," + name || option("--exclude-tools") !== "codemode")
+    throw Error("Review tools are not restricted to the authorized operation");
+  const log = process.env.ARGV_LOG + ".review";
+  const prior = fs.existsSync(log) ? fs.readFileSync(log, "utf8") : "";
+  const published = execFileSync("git", ["--git-dir=" + process.env.BARE, "rev-parse", "feature"], { encoding: "utf8" }).trim();
+  if (!fs.existsSync(process.env.BARE + ".pr")) throw Error("Review started before publication");
+  fs.appendFileSync(log, JSON.stringify({ name, input, published }) + "\n");
+  console.log(JSON.stringify({ type: "session", id: "fixture-review" }));
+  if (fail === "arp-cancel") {
+    fs.writeFileSync(log + "-ready", "ready");
+    await new Promise((resolve) => setTimeout(resolve, 30000));
+  }
+  const target = { owner: input.owner, repo: input.repo, pull_number: input.pull_number };
+  let payload;
+  if (name.endsWith("get_status")) {
+    const checks = prior.split("get_status").length - 1;
+    let status = "NO_ISSUES_FOUND", action;
+    if ((fail === "arp-draft" && checks === 0) || fail === "arp-stale") {
+      status = "SKIPPED";
+      action = "REVIEW_ACTION_REVIEW_ANYWAY";
+    } else if (fail === "arp-retry-uncertain" && checks < 2) {
+      status = "FAILED";
+      action = "REVIEW_ACTION_RETRY";
+    } else if (fail === "arp-active" && checks === 0) status = "IN_PROGRESS";
+    payload = { ...target, head_sha: fail === "arp-stale" ? "0".repeat(40) : head, status: "REVIEW_STATUS_" + status,
+      ...(action ? { allowed_action: action } : {}) };
+  } else if (name.endsWith("request_review")) {
+    if (fail === "arp-retry-uncertain") process.exit(1);
+    payload = { ...target, head_sha: head, status: "REVIEW_STATUS_QUEUED" };
+  } else {
+    payload = { ...target, reviewed_sha: head, review_in_progress: fail === "arp-incomplete",
+      finding_count: fail === "arp-findings" ? 1 : 0,
+      findings: fail === "arp-findings" ? [{ finding_id: "finding-42", reviewed_sha: head }] : [] };
+  }
+  console.log(JSON.stringify({ type: "tool_execution_end", toolName: name, isError: false,
+    result: { structuredContent: { content: [], structuredContent: payload } } }));
+  console.log(JSON.stringify({ type: "agent_settled", aborted: false }));
+  process.exit();
+}
 const noProgress = fail.startsWith("recover-progress") && !fs.existsSync(process.env.ARGV_LOG + ".once");
 if (!args.includes("--mode")) {
   if (fail === "recover-progress") completeTask();

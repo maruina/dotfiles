@@ -6,6 +6,29 @@ import os from "node:os";
 import { events, validate, preflight, prune } from "./_runner.ts";
 
 import { sessionInfo } from "./_recovery.ts";
+import { arpTool, reviewGuard } from "./_arp.ts";
+
+test("ARP discovery does not authorize other calls or replenish the request budget", () => {
+  const name = arpTool("request_review");
+  const input = { owner: "fixture", repo: "demo", pull_number: 1, action: "retry", silent: true,
+    expected_head_sha: "a".repeat(40) };
+  const guard = reviewGuard({ name, input });
+  const dispatched: string[] = [];
+  function dispatch(toolName: string, args: object, parentToolCallId?: string) {
+    if (!guard({ toolName, input: args, parentToolCallId })) dispatched.push(toolName);
+  }
+  dispatch("tool_search", { query: name });
+  for (const [key, value] of Object.entries({
+    owner: "other", repo: "other", pull_number: 2, action: "review_anyway", silent: false,
+    expected_head_sha: "b".repeat(40), unexpected: true,
+  })) dispatch(name, { ...input, [key]: value });
+  for (const blocked of ["bash", "write", "codemode", arpTool("get_status"), "mcp__agentic_review__agentic_review_resolve_finding"])
+    dispatch(blocked, input);
+  dispatch(name, input, "parent");
+  dispatch(name, input);
+  dispatch(name, input);
+  assert.deepEqual(dispatched, ["tool_search", name]);
+});
 
 test("record selected and actual assistant models; reject unknown provenance", (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "session-"));

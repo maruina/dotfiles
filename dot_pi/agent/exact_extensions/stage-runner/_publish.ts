@@ -22,7 +22,7 @@ export function publisher(
   for (const key of ["GH_TOKEN", "GITHUB_TOKEN", "GH_DEBUG", "GIT_SSH", "GIT_SSH_COMMAND"]) delete env[key];
   const sshOptions = ["-oBatchMode=yes", "-oStrictHostKeyChecking=yes"];
   const gitEnv = { ...env, GIT_SSH_COMMAND: ["ssh", ...sshOptions].join(" "), GIT_SSH_VARIANT: "ssh" };
-  async function command(bin: string, args: string[], vars = env) {
+  async function command(bin: string, args: string[], vars = env, readSignal?: AbortSignal) {
     signal.throwIfAborted();
     try {
       // Keep the lock until an in-flight mutation exits, even when the operator cancels.
@@ -30,6 +30,7 @@ export function publisher(
         cwd,
         env: vars,
         timeout: 30000,
+        signal: readSignal,
         killSignal: "SIGKILL",
         maxBuffer: 1024 * 1024,
       });
@@ -90,7 +91,8 @@ export function publisher(
     }
     const token = await command("gh", ["auth", "token", "--hostname", "github.com", "--user", login]);
     if (!token) throw Error("Missing GitHub API credential");
-    const gh = (...args: string[]) => command("gh", args, { ...env, GH_TOKEN: token });
+    const ghEnv = { ...env, GH_TOKEN: token };
+    const gh = (...args: string[]) => command("gh", args, ghEnv);
     if (JSON.parse(await gh("api", "user")).login !== login) throw Error("Unexpected GitHub API login");
     const info = JSON.parse(await gh("api", `repos/${repo}`));
     const base = info.default_branch;
@@ -110,9 +112,10 @@ export function publisher(
       JSON.parse(await gh("api", `repos/${repo}/branches/${encodeURIComponent(branch)}`)).protected !== false
     )
       throw Error("Protected branch");
-    const lookup = async () => {
+    const lookup = async (readSignal?: AbortSignal) => {
       const prs = JSON.parse(
-        await gh("pr", "list", "--repo", repo, "--head", branch, "--state", "open", "--limit", "2", "--json", fields),
+        await command("gh", ["pr", "list", "--repo", repo, "--head", branch, "--state", "open", "--limit", "2",
+          "--json", fields], ghEnv, readSignal),
       );
       if (!Array.isArray(prs)) throw Error("Invalid PR response");
       if (!prs.length) return undefined;
@@ -191,7 +194,12 @@ export function publisher(
         prUrl = pr?.url ?? prUrl;
         observed = await remote();
         if (observed !== sha || pr?.headRefOid !== sha) throw Error("PR head not confirmed");
-        return `${pr.url} at ${sha}`;
+        const { url, number } = pr as { url: string; number: number };
+        return { url, number, async checkHead(readSignal: AbortSignal) {
+          const current = await lookup(readSignal);
+          if (current?.url !== url || current.headRefOid !== sha)
+            throw Error(`Published PR changed; observed head: ${current?.headRefOid ?? "unknown"}`);
+        } };
       } catch (e) {
         throw Error(
           `Publication stopped: verified ${sha}; observed ${observed}; ${prUrl ?? approved.repo + ":" + approved.branch}; ${e}`,

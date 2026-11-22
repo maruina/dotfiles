@@ -141,14 +141,16 @@ Start every durable plan with:
 [table per `skill-loader` `## Provenance record`]
 ```
 
-Preserve confirmed provenance and add skills used to write or review the plan; copy skills from `design.md` only if loaded and used during planning.
+Preserve confirmed provenance. Add plan writing and review skills; copy design skills only if loaded and used during planning.
+
+Keep an open question only if it states why it does not block approval, which stage (`/plan` or `/execute`) resolves it, and which binding boundary constrains the answer.
 
 Right-size the remainder:
 
-- **Small:** concise `## Scope` and `## Validation`, exact files, ordered tasks, success criteria, documentation impact, and commit message.
+- **Small:** concise `## Scope` and `## Validation`, suggested paths, ordered tasks, success criteria, documentation impact, and commit message.
 - **Medium / Large/Risky:** add `## Implementation Contract` containing **Components Affected** (`Component | Files | Responsibility | Verification`), **Key Decisions** (decision, rationale, and rejected alternative's benefit), **Implementation Constraints** (ADRs, assumptions, stop conditions, and safety/performance/DX requirements or why inapplicable), **Security and Observability Requirements** (or why none apply), **Failure Modes to Handle**, **Rollout and Rollback** (with owner), and **Test Strategy** (highest deterministic supported interface, seams, system boundaries to mock, and narrow failing command).
 
-For integration, reliability, performance, or cost checks, define comparable baseline and candidate workloads where applicable. Specify telemetry selectors for the exact instance, version, traffic cohort, and observation window. Define isolation for mutable state, queues, background jobs, and downstream effects, not only ports or incoming traffic. Record mock limitations and which claims require real dependencies. If required traffic, telemetry, or isolation is unavailable, name the gap and do not plan to infer success from absent errors.
+For integration, reliability, performance, or cost checks, define comparable baseline and candidate workloads where applicable. Specify the exact instance, version, traffic cohort, and observation window in telemetry selectors. Isolate mutable state, queues, background jobs, and downstream effects, not just ports or traffic. Record mock limitations and claims that require real dependencies. If required traffic, telemetry, or isolation is missing, name the gap. Do not infer success from absent errors.
 
 Carry the approved validation limits into the durable plan. Missing required evidence blocks delivery; an accepted gap does not waive a required check. New or widened gaps require user approval.
 
@@ -170,17 +172,17 @@ The system SHALL <normative statement>.
 - THEN <observable outcome>
 ```
 
-Every requirement needs a scenario through a supported interface and must map to a task. Each behavior requirement also needs a negative scenario in which the system must not act or produce output, or a one-line reason why none applies; every behavior task maps back to a requirement. Prefer a focused automated test; tests must cover distinct contracts without multiplying independent dimensions or repeating expensive integration scenarios. When automation is impractical, specify reproducible setup, invocation, expected result, cleanup, and why automation is impractical. Small plans may inline one or two scenarios under `## Validation`.
+Every requirement needs a scenario through a supported interface and must map to a task. Each behavior requirement also needs a negative scenario (no action or output) or a one-line reason why none applies; every behavior task maps back to a requirement. Prefer a focused automated test; tests must cover distinct contracts without multiplying independent dimensions or repeating expensive integration scenarios. If automation is impractical, say why and specify reproducible setup, invocation, expected result, and cleanup. Small plans may inline one or two scenarios under `## Validation`.
 
 ### Task contract
-Each task must be understandable and executable by a fresh agent from the plan and repository alone. Use:
+A fresh agent must be able to use each task with only the repository and plan. Paths and internal mechanisms are suggestions by default. Name the requirement, safety constraint, test seam, or agreed design decision that makes a path or mechanism binding. Acceptance scenarios, testing rules, and verification commands are binding.
 
 ```md
 ### Task N: <title>
 **Delivers:** [narrow, complete, independently verifiable outcome]
 **Blocked by:** [genuine prerequisite task numbers, or None]
 **Traces to:** [requirement, goal, or explicit instruction]
-**Files:** [exact repo-relative files to create, modify, or test]
+**Files:** [suggested repo-relative starting points]
 
 - [ ] Add or run the focused failing test when applicable.
 - [ ] Implement the smallest change that passes.
@@ -189,7 +191,7 @@ Each task must be understandable and executable by a fresh agent from the plan a
 - [ ] Commit with `<Conventional Commit message>` when applicable.
 ```
 
-Keep task metadata in the format below. Write `**Blocked by:**` with only task references or `None`. Give each reference its own `Task` keyword: `Task 1 and Task 2` or `Task 1, Task 3, Task 4`; a contiguous run may use `Tasks 3-5`. Put explanatory notes on their own line below `**Blocked by:**`, never in parentheses on that line. Every checkbox belongs to a task body.
+Write `**Blocked by:**` with only task references or `None`. Give each reference its own `Task` keyword: `Task 1 and Task 2` or `Task 1, Task 3, Task 4`; a contiguous run may use `Tasks 3-5`. Put notes on a separate line below `**Blocked by:**`, never in parentheses on that line. Every checkbox belongs to a task body.
 
 Order blockers before dependents so `/execute` can proceed sequentially. Default to tracer-bullet vertical slices: one public behavior, its focused test through a supported interface, and the smallest implementation across every affected layer. A completed slice must be independently demoable or verifiable; do not separate layers horizontally when they can land together or group all tests before all implementation.
 
@@ -200,7 +202,9 @@ Prefer a script over long inline CI YAML when logic contains branching, retries,
 For Medium and Large/Risky work, end with a documentation and future-agent guidance task covering user/developer docs, READMEs, runbooks, examples or generated references, and every relevant `AGENTS.md` (adding only durable commands, generation steps, traps, source-of-truth rules, and testing/rollout procedures); update each or record why not. Small plans must state documentation impact.
 
 ## Final review
-Before committing, self-review as a skeptical implementer and fix issues inline: confirm the interactive alignment brief was approved, shared-component scope choices were asked, scope/requirements/tasks/validation trace bidirectionally, referenced paths/commands/types exist, tasks form ordered vertical slices, scenarios cover material happy/edge/failure/negative paths without redundant dimensions, slice grouping is used only when the plan needs it, task and slice metadata follows the plan format, scope beyond the smallest user-feedback slice is explicitly deferred, skill provenance is accurate, and no contradictions, placeholders, or pre-written implementation choreography remain.
+Trace one allowed scenario through every applicable control and prerequisite. If any blocks the outcome, resolve the contradiction before commit.
+
+Review as a skeptical implementer. Fix issues before committing. Confirm the interactive alignment brief was approved, shared-component scope choices were asked, scope/requirements/tasks/validation trace bidirectionally, referenced paths/commands/types exist, tasks form ordered vertical slices, scenarios cover material happy/edge/failure/negative paths without redundant dimensions, slice grouping is used only when the plan needs it, task and slice metadata follows the plan format, scope beyond the smallest user-feedback slice is explicitly deferred, skill provenance is accurate, and no contradictions, placeholders, or pre-written implementation choreography remain.
 
 ## Learning candidates
 When `/systematic-review` findings or reviewer feedback disprove an initial approach and change the design or plan, record a learning candidate in the plan with the `learning-candidates` skill.

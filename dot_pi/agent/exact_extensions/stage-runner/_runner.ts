@@ -312,7 +312,7 @@ export async function run(o: Options) {
     const decision = `${plan}: verify independently, then push the verified commit to ${target.url} ` +
       `(${target.branch} into ${target.base}) as ${target.login} and ` +
       `${target.pr ? "reuse " + target.pr : "create a draft PR"}. Profile: ${target.profile}.` +
-      (target.profile === "work" ? " Observe or request one silent review per head. For up to three reviewed heads, fix in-scope findings locally and independently verify and push the fixes before permanently recording them as addressed." : "");
+      (target.review ? " Observe or request one silent review per head. For up to three reviewed heads, fix in-scope findings locally and independently verify and push the fixes before permanently recording them as addressed." : "");
     if (!(await o.confirm(decision, signal))) throw Error("Publication declined; no stages started");
     clean();
     if (git("rev-parse", "HEAD") !== base) throw Error("Candidate changed during confirmation");
@@ -527,7 +527,7 @@ export async function run(o: Options) {
         if (headDir !== dir) fs.mkdirSync(headDir, { mode: 0o700 });
         privateFile(path.join(headDir, "published"), publishedHead);
         o.progress("Published " + publishedHead);
-        if (target.profile !== "work") break;
+        if (!target.review) break;
         approved = { ...approved, pr: published.url };
         priorPublication = published;
         reviewedHeads++;
@@ -610,7 +610,7 @@ export async function run(o: Options) {
       }
       stage = stage === "execute" ? (remaining.length ? "execute" : "simplify") : "verify";
     }
-    privateFile(path.join(dir, "completed"), target.profile === "work" ? "VERIFIED; ARP complete" : "VERIFIED");
+    privateFile(path.join(dir, "completed"), target.review ? "VERIFIED; ARP complete" : "VERIFIED");
     prune(root);
     return dir;
   } catch (error) {

@@ -56,9 +56,10 @@ export function publisher(
     )
       throw Error("Expected matching GitHub SSH origin and single push destination");
     const branch = await git("symbolic-ref", "--short", "HEAD");
+    const workOrganization = /^(ddoghq|ddoghq-sandbox)\//i.test(repo);
     const login =
       profile === "work"
-        ? /^(ddoghq|ddoghq-sandbox)\//i.test(repo)
+        ? workOrganization
           ? "matteo-ruina_ddog"
           : "maruina"
         : JSON.parse(await command("gh", ["auth", "status", "--json", "hosts"])).hosts["github.com"].find(
@@ -133,7 +134,10 @@ export function publisher(
       return pr;
     };
     const pr = await lookup();
-    return { target: { profile, repo, url, branch, base, login, pr: pr?.url ?? null }, gh, lookup, remote };
+    return {
+      target: { profile, repo, url, branch, base, login, pr: pr?.url ?? null, review: profile === "work" && workOrganization },
+      gh, lookup, remote,
+    };
   }
   return {
     inspect,

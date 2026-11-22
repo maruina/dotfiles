@@ -3,6 +3,7 @@ import * as fs from "node:fs";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 
+import { publisher } from "./_publish.ts";
 import { qualifiedId } from "./_model.ts";
 import { recovery, sessionInfo } from "./_recovery.ts";
 
@@ -15,6 +16,8 @@ type Options = {
   models: Record<Stage, Choice>;
   signal: AbortSignal;
   progress: (message: string) => void;
+  profilePath?: string;
+  confirm: (target: string, signal: AbortSignal) => Promise<boolean>;
   executable?: string;
   prefix?: string[];
   env?: NodeJS.ProcessEnv;
@@ -209,6 +212,7 @@ export async function run(o: Options) {
   const git = (...args: string[]) =>
     execFileSync("git", args, {
       cwd: o.cwd,
+      env: o.env,
       encoding: "utf8",
       timeout: 10000,
       maxBuffer: 4 * 1024 * 1024,
@@ -217,7 +221,10 @@ export async function run(o: Options) {
   const cwd = fs.realpathSync(git("rev-parse", "--show-toplevel")),
     plan = fs.realpathSync(path.resolve(o.cwd, o.plan)),
     rel = path.relative(cwd, plan);
-  o = { ...o, cwd };
+  const env = { ...(o.env ?? process.env) };
+  delete env.GH_TOKEN;
+  delete env.GITHUB_TOKEN;
+  o = { ...o, env, cwd };
   if (rel.startsWith("../") || !/(^|\/)plans\/[^/]+\/plan\.md$/.test(rel) || /[\r\n\0]/.test(plan))
     throw Error("Expected a committed plan inside the worktree");
   const branch = git("symbolic-ref", "--short", "HEAD");
@@ -263,7 +270,17 @@ export async function run(o: Options) {
     fs.mkdirSync(dir, { mode: 0o700 });
     clean();
     if (git("rev-parse", "HEAD") !== base) throw Error("HEAD changed during preflight");
-    privateFile(path.join(dir, "run.json"), JSON.stringify({ base, blob, plan, models: o.models }));
+    const publication = publisher(cwd, o.profilePath, env, signal);
+    const { target } = await publication.inspect();
+    if (target.branch !== branch || target.base !== defaultBranch)
+      throw Error("GitHub target differs from local branch or base");
+    const decision = `${plan}: verify independently, then push the verified commit to ${target.url} ` +
+      `(${target.branch} into ${target.base}) as ${target.login} and ` +
+      `${target.pr ? "reuse " + target.pr : "create a draft PR"}. Profile: ${target.profile}.`;
+    if (!(await o.confirm(decision, signal))) throw Error("Publication declined; no stages started");
+    clean();
+    if (git("rev-parse", "HEAD") !== base) throw Error("Candidate changed during confirmation");
+    privateFile(path.join(dir, "run.json"), JSON.stringify({ base, blob, plan, models: o.models, target }));
     let remaining = unchecked(initial),
       n = 0,
       stage: Stage = "execute";
@@ -362,7 +379,7 @@ export async function run(o: Options) {
         const argv = [
           process.execPath,
           "--import",
-          "data:text/javascript,process.umask(0o077);process.env.PI_STAGE_RUNNER_CHILD='1';delete process.env.PI_LIFECYCLE_CHILD_CONFIG",
+          "data:text/javascript,process.umask(0o077);process.env.PI_STAGE_RUNNER_CHILD='1';delete process.env.PI_LIFECYCLE_CHILD_CONFIG;delete process.env.GH_TOKEN;delete process.env.GITHUB_TOKEN",
           ...((o.env ?? process.env).PI_CODING_AGENT_DIR
             ? [
                 "--import",
@@ -455,7 +472,17 @@ export async function run(o: Options) {
               : "validated handoff",
         }),
       );
-      if (stage === "verify") break;
+      if (stage === "verify") {
+        const published = await publication.publish(target, prev, () => {
+          signal.throwIfAborted();
+          clean();
+          if (fs.lstatSync(lock).ino !== owned.ino || git("rev-parse", "HEAD") !== prev)
+            throw Error("Publication lock or verified head changed");
+        });
+        privateFile(path.join(dir, "published"), published);
+        o.progress("Published " + published);
+        break;
+      }
       stage = stage === "execute" ? (remaining.length ? "execute" : "simplify") : "verify";
     }
     privateFile(path.join(dir, "completed"), "VERIFIED");

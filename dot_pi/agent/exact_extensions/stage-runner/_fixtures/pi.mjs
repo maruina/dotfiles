@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import { execFileSync } from "node:child_process";
+if (process.env.GH_TOKEN || process.env.GITHUB_TOKEN) throw Error('GitHub credential reached stage child');
 const args = process.argv.slice(2),
   prompt = args.at(-1),
   stage = prompt.slice(1).split(" ")[0];

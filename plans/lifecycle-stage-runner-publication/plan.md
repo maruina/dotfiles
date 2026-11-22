@@ -22,6 +22,19 @@
 | `feature-worktree` | `prompt-required` | Plan placement | Isolated this plan from the base checkout and earlier plans. |
 | `write` | `skill-loader` | Planning artifact | Distinguished startup authorization, evidence of publication, and permanent ARP writes. |
 
+### Execution
+**Execution writer (Slice 1):** GPT-6.2 Astra (`openai/gpt-6.2-astra`).
+
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `skill-loader` | `prompt-required` | Select execution guidance | Matched skills to the runner, tests, profile, and ledger. |
+| `resolve-worktree` | `prompt-required` | Resolve the pinned plan | Confirmed the unique plan path and branch. |
+| `feature-worktree` | `prompt-required` | Isolate writes | Continued in the feature worktree owned by the recovery pane. |
+| `codebase-research` | `skill-loader` | Locate the publication boundary | Traced startup, verifier acceptance, recovery, and lock release before inserting the publisher. |
+| `cli-best-practices` | `skill-loader` | Remote writes | Used explicit arguments and reported the verified and observed heads on partial publication. |
+| `chezmoi` | `skill-loader` | Installed profile | Rendered the shared template in the fixture instead of reading the operator's profile. |
+| `write` | `skill-loader` | Execution ledger | Distinguished fixture evidence from live validation. |
+
 ## Implementation Contract
 **Source and decisions.** `plans/lifecycle-stage-runner/design.md` is Approved. Its Slice 4 defines exact-head publication, independent verification after fixes, three reviewed heads, and a 20-minute deadline per head. The operator approved an amendment to the profile boundary and the publisher shape on 2026-11-22; `plans/lifecycle-stage-runner/design.md` records it under **Slice 4 amendment**. Personal stops **after draft publication**, not before it. Starting the run authorizes these actions only for the confirmed repository, branch, and PR. Work requests are silent. Existing in-flight reviews retain their posting mode. A verified correction and a dismissal are different decisions: only the former can be settled automatically. Nothing here authorizes a production write during plan review or fixture tests.
 
@@ -52,6 +65,7 @@ Use `_runner.test.ts` for guarded transitions and `_integration.test.ts` with `_
 
 ### Slice 1: Publish the verified commit and stop on personal
 ### Task 1: Bind shared publication to the startup decision and verified SHA
+**Execution evidence:** Before implementation, the complete fixture independently verified its candidate but the bare remote still held the baseline SHA. After implementation, the fixture recorded exactly one push with the SHA from the accepted verifier handoff. A successful create with a lost response needed no second create. An unconfirmed create left the pushed commit in place and stopped. `npm run test:integration && npm run typecheck` passed after refactoring (39 runner cases and 5 Worktrunk cases). Tests used fake `gh` and SSH executables; no live GitHub or ARP operation ran.
 **Delivers:** A shared draft publisher and a complete personal run.
 **Blocked by:** None
 **Traces to:** Exact-head publication and personal terminal behavior.
@@ -70,10 +84,10 @@ The runner SHALL publish only a clean candidate covered by an independent verdic
 - WHEN the runner reaches the affected gate
 - THEN do not advance past it; never force-push or publish a substitute commit. If creation times out after a successful push, identify the partial result and reconcile before any further write.
 
-- [ ] Add failing Git/CLI fixture coverage for first publish, reuse, stale target, partial publication, missing, foreign or non-SSH push destinations rejected before execute, and a mismatched or unverifiable SSH login blocking publication. Assert that `GH_TOKEN` is absent from the push and stage-child environments and from evidence files, and that personal runs make no ARP calls. Exercise the rendered profile rather than deriving it from installed tools.
-- [ ] Update consent and the terminal path under the existing lock. Keep the earlier verification-only stages unchanged. Use explicit repo, base, head and draft arguments so `gh pr create` cannot implicitly push or prompt to fork.
-- [ ] Run `npm run test:integration && npm run typecheck`; expect recorded pushes of only the pinned commit. Refactor only after green and repeat.
-- [ ] Commit with `feat(pi): publish independently verified feature heads`.
+- [x] Add failing Git/CLI fixture coverage for first publish, reuse, stale target, partial publication, missing, foreign or non-SSH push destinations rejected before execute, and a mismatched or unverifiable SSH login blocking publication. Assert that `GH_TOKEN` is absent from the push and stage-child environments and from evidence files, and that personal runs make no ARP calls. Exercise the rendered profile rather than deriving it from installed tools.
+- [x] Update consent and the terminal path under the existing lock. Keep the earlier verification-only stages unchanged. Use explicit repo, base, head and draft arguments so `gh pr create` cannot implicitly push or prompt to fork.
+- [x] Run `npm run test:integration && npm run typecheck`; expect recorded pushes of only the pinned commit. Refactor only after green and repeat.
+- [x] Commit with `feat(pi): publish independently verified feature heads`.
 
 ### Slice 2: Report a work-profile ARP result for the published head
 ### Task 2: Observe or request one silent review per head

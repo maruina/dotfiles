@@ -9,6 +9,19 @@ import { setTimeout as delay } from "node:timers/promises";
 import { run } from "./_runner.ts";
 for (const failure of [
   "",
+  "reuse",
+  "uncertain-create",
+  "partial",
+  "wrong-login",
+  "unknown-login",
+  "no-origin",
+  "foreign",
+  "https",
+  "decline",
+  "stale",
+  "missing-profile",
+  "conflict",
+  "non-fast-forward",
   "absent",
   "abort",
   "exit",
@@ -60,6 +73,49 @@ for (const failure of [
     git("add", ".");
     git("commit", "-qm", "plan");
     git("worktree", "add", "-qb", "feature", cwd);
+    const bare = path.join(temp, "bare");
+    git("clone", "--bare", repo, bare);
+    git("remote", "add", "origin", "git@github.com:fixture/demo.git");
+    git("update-ref", "refs/remotes/origin/main", git("rev-parse", "HEAD").toString().trim());
+    git("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main");
+    if (failure === "no-origin") git("remote", "remove", "origin");
+    if (failure === "foreign" || failure === "https")
+      git(
+        "remote",
+        "set-url",
+        "--push",
+        "origin",
+        failure === "foreign" ? "git@github.com:other/demo.git" : "https://github.com/fixture/demo.git",
+      );
+    if (failure === "reuse" || failure === "conflict") fs.writeFileSync(bare + ".pr", "1");
+    if (failure === "non-fast-forward") {
+      git("commit", "--allow-empty", "-qm", "other writer");
+      git("--git-dir=" + bare, "fetch", repo, "+refs/heads/main:refs/heads/feature");
+    }
+    const bin = path.join(temp, "bin");
+    fs.mkdirSync(bin);
+    for (const name of ["ssh", "gh"])
+      fs.writeFileSync(
+        path.join(bin, name),
+        fs.readFileSync(path.join(import.meta.dirname, "_fixtures", name + ".mjs")),
+        { mode: 0o700 },
+      );
+    const profilePath = path.join(temp, "profile.json");
+    const profile = failure === "recover-writer" ? "work" : "personal";
+    fs.writeFileSync(
+      profilePath,
+      execFileSync(
+        "chezmoi",
+        [
+          "--source",
+          path.resolve(import.meta.dirname, "../../../.."),
+          "execute-template",
+          "--override-data",
+          JSON.stringify({ profile }),
+        ],
+        { input: fs.readFileSync(path.join(import.meta.dirname, "_profile.json.tmpl")) },
+      ),
+    );
     const log = path.join(temp, "argv"),
       controller = new AbortController();
     const model = { provider: "p", id: failure ? "a" : "p/a", thinking: "off" };
@@ -74,7 +130,22 @@ for (const failure of [
       progress: (message: string) => progress.push(message),
       executable: process.execPath,
       prefix: [path.join(import.meta.dirname, "_fixtures/pi.mjs")],
-      env: { ...process.env, HOME: temp, ARGV_LOG: log, FAIL: failure },
+      profilePath: failure === "missing-profile" ? profilePath + ".absent" : profilePath,
+      confirm: async (target: string) => {
+        assert.match(target, /fixture\/demo.*feature into main/);
+        if (failure === "stale") git("remote", "set-url", "--push", "origin", "git@github.com:other/demo.git");
+        return failure !== "decline";
+      },
+      env: {
+        PATH: bin + path.delimiter + process.env.PATH,
+        HOME: temp,
+        GIT_CONFIG_GLOBAL: "/dev/null",
+        GIT_CONFIG_NOSYSTEM: "1",
+        GH_TOKEN: "fixture-inherited",
+        ARGV_LOG: log,
+        FAIL: failure,
+        BARE: bare,
+      },
     };
     const recovering = failure.startsWith("recover-");
     const socket = path.join(temp, "rex.sock");
@@ -109,13 +180,36 @@ for (const failure of [
       controller.abort();
     }
     const stopped =
-      recovering && !["recover-verify", "recover-writer", "recover-progress", "recover-blocked", "recover-simplify"].includes(failure);
+      recovering &&
+      !["recover-verify", "recover-writer", "recover-progress", "recover-blocked", "recover-simplify"].includes(
+        failure,
+      );
+    const published = ["", "reuse", "uncertain-create"].includes(failure);
     if (failure === "recover-progress-unfixed") await assert.rejects(result, /No committed task progress/);
     else if (stopped) await assert.rejects(result);
     else if (failure.startsWith("verify-")) await assert.rejects(result, /Verifier Git snapshot changed/);
-    else if (failure && !recovering) await assert.rejects(result);
+    else if (!published && !recovering) await assert.rejects(result);
     else await result;
-    if (failure === "started") {
+    if (["partial", "non-fast-forward", "stale"].includes(failure)) {
+      const remote = git("--git-dir=" + bare, "rev-parse", "feature").toString();
+      assert.equal(remote === git("-C", cwd, "rev-parse", "HEAD").toString(), failure === "partial");
+      assert.equal(fs.existsSync(bare + ".pr"), false);
+      assert.match(fs.readFileSync(log, "utf8"), /\/verify /);
+      return;
+    }
+    if (
+      [
+        "started",
+        "wrong-login",
+        "unknown-login",
+        "no-origin",
+        "foreign",
+        "https",
+        "decline",
+        "missing-profile",
+        "conflict",
+      ].includes(failure)
+    ) {
       assert.equal(fs.existsSync(log), false);
       return;
     }
@@ -127,7 +221,10 @@ for (const failure of [
     if (recovering) {
       if (failure === "recover-writer") {
         assert.match(progress[0]!, /^Starting execute \(attempt 1\); evidence /);
-        assert.equal(progress[1], "Opening Rex recovery for execute (attempt 1). Finish the recovery and exit Pi in that pane.");
+        assert.equal(
+          progress[1],
+          "Opening Rex recovery for execute (attempt 1). Finish the recovery and exit Pi in that pane.",
+        );
       }
       const interactive = calls.filter((a) => !a.includes("--mode"));
       const entries = fs.readdirSync(options.root);
@@ -135,7 +232,10 @@ for (const failure of [
         entries.some((n) => n.startsWith("lock-")),
         failure === "recover-uncertain",
       );
-      const bundle = path.join(options.root, entries.find((n) => n.startsWith("run-"))!);
+      const bundle = path.join(
+        options.root,
+        entries.find((n) => n.startsWith("run-"))!,
+      );
       assert.equal(fs.existsSync(path.join(bundle, "completed")), failure !== "recover-uncertain");
       if (failure === "recover-cancel")
         assert.equal(fs.readFileSync(log + ".term", "utf8"), fs.readFileSync(log + ".ready", "utf8"));
@@ -166,14 +266,44 @@ for (const failure of [
     }
     assert.deepEqual(
       calls.map((args) => args.at(-1)!.split(" ")[0]),
-      failure && !failure.startsWith("verify-") ? ["/execute"] : ["/execute", "/execute", "/simplify", "/verify"],
+      !published && !failure.startsWith("verify-") ? ["/execute"] : ["/execute", "/execute", "/simplify", "/verify"],
     );
     const [bundle] = fs.readdirSync(options.root);
     assert.match(bundle, /^run-/);
+    if (published) {
+      assert.match(progress.at(-1)!, /pull\/1/);
+      if (failure === "reuse") assert.equal(fs.existsSync(bare + ".pr.creates"), false);
+      else assert.equal(fs.readFileSync(bare + ".pr.creates", "utf8"), "create\n");
+    }
     if (!failure) {
+      for (const file of fs.readdirSync(options.root, { recursive: true, encoding: "utf8" })) {
+        const full = path.join(options.root, file);
+        if (fs.statSync(full).isFile())
+          assert.doesNotMatch(fs.readFileSync(full, "utf8"), /fixture-(api-secret|inherited)/);
+      }
+      const verified = JSON.parse(
+        fs.readFileSync(path.join(options.root, bundle, "verify-4", "accepted.json"), "utf8"),
+      ).head;
+      assert.equal(
+        git("--git-dir=" + bare, "rev-parse", "feature")
+          .toString()
+          .trim(),
+        verified,
+      );
+      assert.equal(fs.readFileSync(bare + ".pushes", "utf8").trim(), verified);
+      assert.equal(
+        calls.some((argv) => argv.some((arg) => /mcp__agentic_review|\/arp-review/.test(arg))),
+        false,
+      );
+      assert.match(progress.at(-1)!, /https:\/\/github.com\/fixture\/demo\/pull\/1/);
       assert.deepEqual(
-        progress.map((message) => message.split("; evidence ")[0]),
-        ["Starting execute (attempt 1)", "Starting execute (attempt 2)", "Starting simplify (attempt 3)", "Starting verify (attempt 4)"],
+        progress.slice(0, -1).map((message) => message.split("; evidence ")[0]),
+        [
+          "Starting execute (attempt 1)",
+          "Starting execute (attempt 2)",
+          "Starting simplify (attempt 3)",
+          "Starting verify (attempt 4)",
+        ],
       );
       const first = path.join(options.root, bundle, "execute-1");
       assert.equal(fs.statSync(path.join(first, "stderr")).size, 16384);

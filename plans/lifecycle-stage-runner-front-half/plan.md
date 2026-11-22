@@ -21,9 +21,11 @@
 | `cli-best-practices` | `skill-loader` | Operator entry point | Separated design authorization from publication consent. |
 | `chezmoi` | `skill-loader` | Managed extension and prompts | Limited rollout to explicit target files. |
 | `write` | `skill-loader` | Plan and alignment brief | Described observable transitions and failure boundaries. |
+| `codebase-research` | `prompt-required` | `/systematic-review` of this plan | Confirmed prompt budgets, `validate()` stages, `recovery()` lock and pane behavior, and `prune()` deletion of run sessions. |
+| `write` | `skill-loader` | Review fixes to this plan | Stated the handoff contracts, terminal state, and session storage as concrete mechanisms. |
 
 ## Implementation Contract
-Source: `plans/lifecycle-stage-runner/design.md`, approved roadmap Slice 3. The operator confirmed two vertical slices in one PR, an explicit runner, reuse of existing Stage Runner code, automatic non-blocking fixes, and interactive planning from the **updated** design. Neither slice rolls out alone.
+Source: `plans/lifecycle-stage-runner/design.md`, approved roadmap Slice 3. The operator confirmed two vertical slices in one PR, an explicit runner, reuse of existing Stage Runner code, automatic non-blocking fixes, and interactive planning from the **updated** design. During `/systematic-review` of this plan, the operator also confirmed one command for the full front half, automatic shutdown of the author and planner panes after a valid handoff, and a run that ends only when a plan is committed. Neither slice rolls out alone.
 
 ### Components affected and feasibility
 In file lists below, `R` means `dot_pi/agent/exact_extensions/stage-runner/`, `P` means `dot_pi/agent/exact_prompts/`, and `S` means `dot_pi/agent/exact_scripts/`. Test commands run from `dot_pi/agent/` unless noted.
@@ -31,9 +33,9 @@ In file lists below, `R` means `dot_pi/agent/exact_extensions/stage-runner/`, `P
 | Component | Files | Responsibility and existing mechanism | Verification; if unavailable |
 |---|---|---|---|
 | Interactive commands | `R/index.ts`, `R/_model.ts` | Reuse scoped model choices, `qualifiedId`, active run, cancellation, progress, version and Rex checks. Use the author's model for planning; exclude every recorded author model from review. | No eligible independent reviewer or unverified Rex means stop. Existing execution startup and consent remain unchanged. |
-| Managed interactive draft | `P/brainstorm.md`, `R/index.ts`, `R/_recovery.ts` | Existing Rex launcher takes argv and observes process identity/exit. In the managed author child only, use Pi's documented `agent_settled` and `ctx.shutdown()` after a valid private draft handoff. A settled conversation turn alone does not mean a draft is ready. | Multi-turn fixture plus live interactive trial; no valid handoff or exit evidence means no review. |
+| Managed interactive children | `P/brainstorm.md`, `P/plan.md`, `R/index.ts`, `R/_recovery.ts` | Existing Rex launcher takes argv and observes process identity/exit. In the managed author and planner children only, use Pi's documented `agent_settled` and `ctx.shutdown()` after that child's handoff file validates. A settled conversation turn alone does not mean a draft or plan is ready. | Multi-turn fixture plus live interactive trial; no valid handoff or exit evidence means no next stage. |
 | Run supervision and review | `R/_runner.ts`, `R/_recovery.ts`, `P/systematic-review.md` | Reuse `attempt`, `events`, bounded private file reads, `sessionInfo`, cooperative lock, ownership and cleanup. Existing `run` inspects publication targets, so do not route a design run through its post-plan startup. Share the minimum internal code needed, keeping existing handoff schemas valid. | Exercise both modes with real Git and fixture subprocesses; stop on bad session, handoff, or Git evidence. |
-| Planning handoff | `P/plan.md` (existing consumer), `R/_recovery.ts`, `R/index.ts` | Launch a fresh interactive session with `/plan` and the explicit approved design; expose the committed correction summary at startup without making it a path argument. Preserve the plan prompt's clean, committed, Approved input check and alignment gate. | Capture argv and input in fixtures; verify actual prompt resolution and interaction live. Do not launch if approval fails. |
+| Planning stage | `P/plan.md`, `R/_recovery.ts`, `R/index.ts` | Launch a fresh interactive session with `/plan` and the explicit approved design. Pass the Git-derived correction summary after the path as quoted data. Preserve the plan prompt's clean, committed, Approved input check and alignment gate; the operator still confirms the planning brief in the pane. The run ends after the planner commits the plan and writes a valid plan handoff. | Capture argv and input in fixtures; verify actual prompt resolution and interaction live. Do not launch if approval fails. |
 | Existing consumers | `R/index.ts`, `R/_runner.ts`, `R/_runner.test.ts`, `R/_integration.test.ts`, `R/_recovery.ts` | `index.ts` and integration tests call `run`; unit tests use `validate`, `preflight`, `events`, `prune`, `sessionInfo`. Both runner and recovery use model identity. Preserve current call behavior. No publisher, ARP, or profile contract change. | Existing fast and integration suites must stay green. |
 
 ### Key decisions and constraints
@@ -41,27 +43,45 @@ In file lists below, `R` means `dot_pi/agent/exact_extensions/stage-runner/`, `P
 - Authorize review fixes and the approval commit only in the explicit design run. The reviewer may correct a reference, wording, or inconsistent terminology when the agreed intent determines the answer. A choice about scope, behavior, cost, dependencies, authorization, or validation goes to the operator. An independent comprehension review is not proof of technical correctness.
 - Pin canonical worktree, branch, starting commit, draft path, draft commit, and reviewed commit/blob. Require a regular tracked design at the expected `plans/<feature>/design.md` location (nested package roots allowed); reject escapes, unrelated writes, ambiguous artifacts, and stale or rewritten history. Never approve from transcript text, pane closure, a status word without revision evidence, or an unverified session.
 - The approval commit must have the reviewed revision as parent and alter only the status header in that design. Recheck the clean worktree and approved commit/blob before launching planning. The cooperative lock does not exclude external Git clients; detect drift and stop, do not discard other people's changes.
+- The run holds the lock until the planner exits. It ends successfully only when the worktree is clean, `HEAD` descends from the approval commit, commits after the approval change only `plans/<feature>/plan.md` beside the approved design, and the plan handoff names that commit and path. Then the runner releases the lock and prints `/systematic-review <absolute-plan-path>`. `/stage-runner-cancel` stops the planner like any other managed child.
+- Keep handoff schemas and managed instructions in the text that the runner appends after each slash command, as `run()` does for `/execute`. Each direct prompt gets at most one line that states its managed exception. Raise the `systematic-review.md` budget in `S/lifecycle-prompts.test.mjs` from 12,500 to 13,000 bytes because it has 9 bytes of headroom. Keep `brainstorm.md` and `plan.md` within their existing budgets; any other increase needs operator approval.
+- A managed child receives its handoff path and expected stage through environment variables set only in that child's argv. The child extension shuts down only when that file validates for that stage; standalone sessions never shut down automatically.
+
+### Handoff and header contracts
+Each handoff is a private (0600) UTF-8 JSON file of at most 64 KiB inside the attempt folder, validated by `validate()` with a closed `stage` value. Missing or invalid JSON is a stage failure and is never parsed from prose.
+
+| Stage | Writer | Required fields | Runner check |
+|---|---|---|---|
+| `design-draft` | Managed `/brainstorm` author | `schemaVersion: 1`, `stage`, nonblank `summary`, `designPath`, `draftCommit` | `draftCommit` is `HEAD`, descends from the starting commit, and changes only `designPath`; line 2 of the design is exactly `Status: Draft`. |
+| `design-review` | Headless `/systematic-review` | `schemaVersion: 1`, `stage`, `status` (`clean` or `needs-human`), nonblank `summary`, `reviewedCommit`, `reviewedBlob`; `needs-human` also requires nonempty `questions: string[]` | `reviewedCommit` is `HEAD`, `reviewedBlob` equals `git rev-parse HEAD:<designPath>`, commits after `draftCommit` change only `designPath`, and line 2 is still `Status: Draft`. |
+| `design-plan` | Managed `/plan` | `schemaVersion: 1`, `stage`, nonblank `summary`, `planPath`, `planCommit` | `planCommit` is `HEAD`, descends from the approval commit, and changes only `planPath`, which is `plan.md` beside the approved design. |
+
+On `clean`, the runner replaces line 2 with `Status: Approved` and commits only that change as `docs: approve <feature> design`. The runner builds the correction summary from `git log --format=%s` and `git diff --stat` for `draftCommit..reviewedCommit`; it does not copy the reviewer's prose into the `/plan` prompt.
+
+### Session storage
+Author and reviewer sessions stay in the attempt folder because `sessionInfo` requires exactly one saved session there to prove identity and models. *Deliberate limit:* `prune()` deletes them after 100 completed runs; the committed design is the durable record. The planner uses Pi's default session directory, so pruning never deletes the planning conversation.
 
 ### Security, observability, and failure handling
-Use the existing private run root, file permissions, pruning, bounded file sizes, headless idle/wall deadlines, and argv-based child launching. Treat brief, filenames, model output, and correction summaries as data, not shell commands or authority. Scope managed context to the intended child and attempt. Keep private evidence outside Git. Record stage, session identity, disposition, reviewed revision, approval commit, and reason for stopping; do not log the entire design. Do not acquire publication credentials or contact GitHub or ARP for this workflow.
+Use the existing private run root, file permissions, pruning, bounded file sizes, headless idle/wall deadlines, and argv-based child launching. Treat brief, filenames, model output, and correction summaries as data, not shell commands or authority. The managed review instructions state that the automatic-fix authority ends when the handoff is written; any later turn, including a Rex resume, follows the standalone review gate and needs explicit user confirmation for fixes and approval. Scope managed context to the intended child and attempt. Keep private evidence outside Git. Record stage, session identity, disposition, reviewed revision, approval commit, and reason for stopping; do not log the entire design. Do not acquire publication credentials or contact GitHub or ARP for this workflow.
 
-Use one review attempt on the automatic path. When it reports unresolved questions or blockers, resume its saved session in Rex for the manual review workflow, not another automatic approval loop. If the handoff or session is missing or invalid, report the reason and evidence location; never approve. On cancel or timeout, start no next stage, preserve edits, and apply existing child-exit and retained-lock rules. Never retry an uncertain Rex split. Do not close the interactive planning pane just because its first turn settled. Only the managed author handoff triggers automatic child shutdown.
+Use one review attempt on the automatic path. When it reports unresolved questions or blockers, resume its saved session in Rex for the manual review workflow, not another automatic approval loop. If the review session is missing or invalid, report the reason and evidence location; never approve. If the review handoff is missing or invalid but its session is valid, print the `pi --session <file>` command and stop without opening a split. If the author or planner exits without a valid handoff, stop, preserve the work, and report the reason. On cancel or timeout, start no next stage, preserve edits, and apply existing child-exit and retained-lock rules. Never retry an uncertain Rex split. A settled turn never closes a pane; only a valid managed author or planner handoff triggers automatic child shutdown.
 
 ### Test strategy and validation limits
 Use the command/prompt contract for standalone behavior and the runner boundary with the existing fixture Pi and Rex for transitions. Use independent disposable Git worktrees, session roots, locks, and fake external commands per scenario. Check actual Git blobs, parent commits, child invocations, and pane ownership rather than absence of errors. No throughput, cost, or reliability-rate claim. Fixtures cannot establish real model compliance, Pi shutdown timing, authentication, or whether a correction preserved intent. Both live paths in Task 4 are delivery gates, not follow-ups.
 
 ### Rollout and rollback
-Matteo owns the authenticated trial and rollout. Use a disposable local feature worktree and isolated candidate extension/prompts for the trial; do not load two copies of Stage Runner. Keep publication disabled by selecting the design command. After independent verification and passing live gates, review `chezmoi --source "$PWD" diff` for each changed managed target and apply only those explicit paths. To roll back, stop active runs, confirm child exit, restore prior extension and prompt versions, apply the same targets, and restart Pi. Preserve design commits; standalone `/brainstorm`, `/systematic-review`, and `/plan` remain available.
+Matteo owns the authenticated trial and rollout. Use a disposable local feature worktree and a temporary `PI_CODING_AGENT_DIR` that holds the candidate extension and prompts plus copies of the operator's model and authentication configuration; the recovery argv already forwards `PI_CODING_AGENT_DIR` to children. Do not load two copies of Stage Runner. Keep publication disabled by selecting the design command. After independent verification and passing live gates, review `chezmoi --source "$PWD" diff` for each changed managed target and apply only those explicit paths. To roll back, stop active runs, confirm child exit, restore prior extension and prompt versions, apply the same targets, and restart Pi. Preserve design commits; standalone `/brainstorm`, `/systematic-review`, and `/plan` remain available.
 
 ## Execution
 ### Slice 1: Plan a clean design
-**Blocked by:** None. This slice validates the complete no-edit path. Stop on any review requiring changes until Slice 2.
+**Blocked by:** None
+This slice validates the complete no-edit path. Stop on any review requiring changes until Slice 2.
 
 ### Task 1: Deliver the opt-in draft, review, and planning path
 **Delivers:** A clean design reaches an independent reviewer and then interactive planning with no manual handoff.
 **Blocked by:** None
 **Traces to:** Roadmap Slice 3, explicit runner, safe reuse, and standalone escape hatch.
-**Files:** `R/index.ts`, `R/_runner.ts`, `R/_recovery.ts`, `R/_runner.test.ts`, `R/_integration.test.ts`, `R/_fixtures/pi.mjs`, `R/_fixtures/rex.mjs`, `P/brainstorm.md`, `P/systematic-review.md`, `S/lifecycle-prompts.test.mjs`.
+**Files:** `R/index.ts`, `R/_runner.ts`, `R/_recovery.ts`, `R/_runner.test.ts`, `R/_integration.test.ts`, `R/_fixtures/pi.mjs`, `R/_fixtures/rex.mjs`, `P/brainstorm.md`, `P/systematic-review.md`, `P/plan.md`, `S/lifecycle-prompts.test.mjs`.
 
 ### Requirement: Advance only from completed managed stages
 The runner SHALL start review only after the managed author commits a Draft, writes the draft handoff, and exits; it SHALL launch planning only for an independently reviewed and approved revision.
@@ -69,20 +89,27 @@ The runner SHALL start review only after the managed author commits a Draft, wri
 #### Scenario: Valid unchanged draft
 - GIVEN a clean feature worktree and two eligible scoped models
 - WHEN the managed brainstorm completes and the independent headless reviewer returns a valid `clean` handoff for the unchanged draft
-- THEN the runner commits only the approval header and opens interactive `/plan` for that design, without entering post-plan execution.
+- THEN the runner commits only the approval header and opens interactive `/plan` for that design, without entering post-plan execution
+- AND after the planner commits `plan.md` and writes a valid plan handoff, the planner pane shuts down, the lock is released, and the run reports `/systematic-review <absolute-plan-path>`.
 
 #### Scenario: No authority to advance
 - GIVEN a standalone brainstorm, an unfinished managed conversation, or an invalid managed stage result
 - WHEN a turn settles or a pane closes
 - THEN no automatic approval or plan launch occurs; standalone design review still requires explicit user approval.
 
+#### Scenario: Planner exits without a plan
+- GIVEN an approved design and a managed planner
+- WHEN the planner exits with no valid plan handoff, or with commits that change another path
+- THEN the run stops with the reason, preserves the work, and does not report success.
+
 - [ ] Add the failing end-to-end fixture for `clean design` first. Run `node --experimental-strip-types --test --test-name-pattern='clean design' exact_extensions/stage-runner/_integration.test.ts`; expect failure before implementation and an executed, passing case afterward.
 - [ ] Register the design command in the existing extension. Share the actual run resources and launch mechanisms listed above; separate only the front-half sequencing and handoff rules. Pass explicit managed context to direct prompts without changing their default policy.
-- [ ] Bind review eligibility to the actual saved author session, not only the initial model selection. Exercise model switching, duplicate run/lock, early exit, malformed result, dirty or stale revision, and standalone behavior at the cheapest existing seam that observes each rejection.
+- [ ] Bind review eligibility to the actual saved author session, not only the initial model selection. Test `validate()` for the three handoff schemas, author model switching, and duplicate run/lock in `R/_runner.test.ts`. Test early author exit, malformed review result, dirty or stale revision, planner exit without a plan, and standalone no-shutdown behavior in `R/_integration.test.ts`. Assert the managed-exception line of each direct prompt and the `systematic-review.md` budget in `S/lifecycle-prompts.test.mjs`.
 - [ ] Run `npm test && npm run test:integration && npm run typecheck`; expect the new transitions and existing post-plan consent, recovery, and publication tests to pass. Refactor only while green and rerun. Commit `feat(pi): plan independently reviewed designs with stage runner`.
 
 ### Slice 2: Plan a corrected design or resume its reviewer
-**Blocked by:** Slice 1. Complete both outcomes and validate the feature before rollout.
+**Blocked by:** Task 1
+Complete both outcomes and validate the feature before rollout.
 
 ### Task 2: Review and approve the corrected revision
 **Delivers:** The planner receives the final corrected design and a summary of committed edits.
@@ -96,7 +123,7 @@ The reviewer SHALL check the revised text after committing mechanical correction
 #### Scenario: Correct a reference
 - GIVEN a draft with a wrong reference and one unambiguous intended target
 - WHEN the reviewer commits the correction and reports a clean result bound to the revised blob
-- THEN the approved document matches the corrected document except for its status, and planning starts with the correction summary.
+- THEN the approved document matches the corrected document except for its status, and planning starts with the Git-derived correction summary passed after the design path as quoted data.
 
 #### Scenario: Stale or excessive changes
 - GIVEN the review result names the old blob, another path changed, or the review changed the status itself
@@ -125,7 +152,8 @@ The runner SHALL open the saved reviewer session for a valid `needs-human` resul
 - WHEN escalation cannot complete safely
 - THEN the runner stops without retry, approval, or planning and reports the available recovery evidence.
 
-- [ ] Add a failing `design blocker` subprocess test, implement resume with `sessionInfo` and `recovery`, and assert the resumed session identity and the absence of an approval commit. Exercise failure and cancellation without creating duplicate panes.
+- [ ] Add a failing `design blocker` subprocess test, implement resume with `sessionInfo` and `recovery`, and assert the resumed session identity and the absence of an approval commit. Exercise failure and cancellation without creating duplicate panes. Assert that an invalid review handoff with a valid session prints the `pi --session` command and opens no split.
+- [ ] Add a `S/lifecycle-prompts.test.mjs` marker that the managed review authority ends when the handoff is written and later turns follow the standalone confirmation gate.
 - [ ] Run `node --experimental-strip-types --test --test-name-pattern='design blocker' exact_extensions/stage-runner/_integration.test.ts`; expect the operator path to pass. Rerun the integration tier after any shared-launcher change. Commit `feat(pi): resume blocked design reviews in Rex`.
 
 ### Task 4: Final verification

@@ -5,8 +5,30 @@ import path from "node:path";
 import os from "node:os";
 import { events, validate, preflight, prune } from "./_runner.ts";
 
+import { phaseDisplay } from "./index.ts";
 import { sessionInfo } from "./_recovery.ts";
 import { arpTool, reviewGuard, reviewPublished } from "./_arp.ts";
+
+test("phase ticks update only the widget and exit freezes the total", (t) => {
+  t.mock.timers.enable({ apis: ["setInterval"] });
+  let now = 0;
+  const lines: (string[] | undefined)[] = [], entries: string[] = [];
+  const display = phaseDisplay(value => lines.push(value), value => entries.push(value), () => {}, () => now);
+  assert.deepEqual(lines, []);
+  display.onEvent({ type: "phase", phase: "execute", launch: 1, at: now });
+  now = 2000;
+  t.mock.timers.tick(1000);
+  assert.deepEqual(lines.at(-1), ["execute slice 1 · 00:02"]);
+  display.onEvent({ type: "phase", phase: "verify", launch: 2, at: now });
+  now += 1000;
+  t.mock.timers.tick(1000);
+  assert.deepEqual(lines.at(-1), ["verify 2 of 3 · 00:01 | execute 00:02"]);
+  assert.deepEqual(entries, []);
+  display.finish("stopped");
+  t.mock.timers.tick(1000);
+  assert.equal(lines.at(-1), undefined);
+  assert.deepEqual(entries, ["stopped | execute 00:02 · verify 00:01"]);
+});
 
 test("ARP discovery does not authorize other calls or replenish the request budget", () => {
   const name = arpTool("request_review");
@@ -51,7 +73,7 @@ for (const outcome of ["matching", "dismissed", "wrong-sha", "drift"] as const) 
     const operations: string[] = [];
     const result = reviewPublished({
       dir, repo: "fixture/demo", number: 1, url: "https://github.com/fixture/demo/pull/1", head,
-      signal: new AbortController().signal, progress() {},
+      signal: new AbortController().signal, onEvent() {},
       fixes: [{ id: 42, fixSha: head, reviewedSha, changeSummary: "Keep the lock" }],
       async checkHead() {
         if (outcome === "drift") throw Error("Published PR changed");

@@ -5,7 +5,7 @@ import { getSupportedThinkingLevels } from "@earendil-works/pi-ai";
 import { VERSION, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { qualifiedId } from "./_model.ts";
-import { run, type Choice } from "./_runner.ts";
+import { run, type Choice, type Phase, type RunnerEvent } from "./_runner.ts";
 
 function deadline(name: string, fallback: number) {
   const ms = Number(process.env[name] ?? fallback);
@@ -39,15 +39,69 @@ async function checkRex(pi: ExtensionAPI) {
     throw Error("Rex identity does not match the invoking pane");
 }
 
+function duration(ms: number) {
+  const seconds = Math.floor(ms / 1000);
+  return [Math.floor(seconds / 60), seconds % 60].map(n => String(n).padStart(2, "0")).join(":");
+}
+
+export function phaseDisplay(
+  widget: (lines: string[] | undefined) => void,
+  append: (summary: string) => void,
+  notify: (message: string) => void,
+  now = () => performance.now(),
+) {
+  // A disposed UI must not stop the runner or interrupt its evidence writes.
+  let warned = false;
+  function present(update: () => void) {
+    try {
+      update();
+    } catch {
+      if (!warned) console.warn("Stage runner could not update the Pi display.");
+      warned = true;
+    }
+  }
+  const totals = new Map<Phase, number>();
+  let active: Extract<RunnerEvent, { type: "phase" }> | undefined;
+  let interval: ReturnType<typeof setInterval> | undefined;
+  function freeze(at: number) {
+    if (active) totals.set(active.phase, (totals.get(active.phase) ?? 0) + at - active.at);
+  }
+  const history = () => [...totals].map(([phase, ms]) => phase + " " + duration(ms)).join(" · ");
+  function tick() {
+    if (!active) return;
+    const { phase, launch, at } = active;
+    const label = launch === undefined ? phase : phase === "execute" ? `execute slice ${launch}` : `verify ${launch} of 3`;
+    present(() => widget([[`${label} · ${duration(now() - at)}`, history()].filter(Boolean).join(" | ")]));
+  }
+  return {
+    onEvent(event: RunnerEvent) {
+      if (event.type === "message") {
+        present(() => notify(event.message.replace(/[\x00-\x1f\x7f-\x9f]/g, "?")));
+        return;
+      }
+      freeze(event.at);
+      active = event;
+      tick();
+      interval ??= setInterval(tick, 1000);
+    },
+    finish(outcome: string) {
+      clearInterval(interval);
+      freeze(now());
+      try {
+        append([outcome, history()].filter(Boolean).join(" | "));
+      } finally {
+        present(() => widget(undefined));
+      }
+    },
+  };
+}
+
 export default function stageRunner(pi: ExtensionAPI) {
   const entryType = "stage-runner-progress";
   pi.registerEntryRenderer<string>(entryType, (entry, _options, theme) =>
     new Text(`${theme.fg("accent", "Stage runner")} — ${entry.data ?? ""}`, 1, 0),
   );
   let active: AbortController | undefined, finished: Promise<void> | undefined, shuttingDown = false;
-  const progress = (message: string) => {
-    if (!shuttingDown) pi.appendEntry(entryType, message.replace(/[\x00-\x1f\x7f-\x9f]/g, "?"));
-  };
   pi.on("session_shutdown", async () => {
     shuttingDown = true;
     active?.abort();
@@ -69,6 +123,9 @@ export default function stageRunner(pi: ExtensionAPI) {
       }
       const controller = new AbortController();
       active = controller;
+      const display = phaseDisplay(lines => ctx.ui.setWidget(entryType, lines),
+        summary => pi.appendEntry(entryType, summary), message => ctx.ui.notify(message, "info"));
+      let outcome = "Run canceled.";
       finished = (async () => {
         if (VERSION !== "1.6.0") throw Error("Stage runner requires Pi 1.6.0");
         await checkRex(pi);
@@ -99,7 +156,6 @@ export default function stageRunner(pi: ExtensionAPI) {
           models[stage] = { provider: model.provider, id: model.id, thinking };
         }
         const plan = path.resolve(ctx.cwd, arg.trim().replace(/^(['"])(.*)\1$/, "$2"));
-        progress("Run started.");
         const evidence = await run({
           cwd: path.dirname(plan),
           plan,
@@ -111,13 +167,13 @@ export default function stageRunner(pi: ExtensionAPI) {
           wallMs: deadline("PI_STAGE_RUNNER_WALL_MS", 3600000),
           notify: (message) => ctx.ui.notify(message, "warning"),
           approve: (changes, signal) => ctx.ui.confirm("Accept recovered writer?", changes, { signal }),
-          progress,
+          onEvent: display.onEvent,
         });
-        progress("Run complete; evidence " + evidence);
+        outcome = "Run complete; evidence " + evidence;
       })()
         .catch((e) => {
+          outcome = controller.signal.aborted ? "Run canceled." : "Run stopped. See the error notification for details.";
           if (shuttingDown) return;
-          progress(controller.signal.aborted ? "Run canceled." : "Run stopped. See the error notification for details.");
           ctx.ui.notify(
             String(e)
               .replace(/[^\x20-\x7e]/g, "?")
@@ -127,6 +183,7 @@ export default function stageRunner(pi: ExtensionAPI) {
         })
         .finally(() => {
           active = undefined;
+          display.finish(outcome.replace(/[\x00-\x1f\x7f-\x9f]/g, "?"));
         });
     },
   });

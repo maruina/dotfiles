@@ -111,7 +111,7 @@ type ReviewOptions = {
   clock?: ReviewClock;
   checkHead: (signal: AbortSignal) => Promise<void>;
   call: (call: ReviewCall, signal: AbortSignal, wallMs: number) => Promise<Record<string, unknown> | undefined>;
-  progress: (message: string) => void;
+  onEvent: import("./_runner.ts").Options["onEvent"];
   fixes?: FindingFix[];
 };
 
@@ -177,7 +177,7 @@ export async function reviewPublished(o: ReviewOptions): Promise<OpenFinding[]> 
       persist(o.dir, `arp-settlement-${fix.id}-confirmed.json`, stored);
       await o.checkHead(signal);
       remaining();
-      o.progress(`Finding ${fix.id} addressed by ${fix.fixSha}`);
+      o.onEvent({ type: "message", message: `Finding ${fix.id} addressed by ${fix.fixSha}` });
     }
     for (;;) {
       const status = await read("get_status");
@@ -207,7 +207,7 @@ export async function reviewPublished(o: ReviewOptions): Promise<OpenFinding[]> 
             await o.checkHead(signal);
             remaining();
             persist(o.dir, "arp-review.json", { target, head: o.head, state, ids });
-            if (!ids.length) o.progress(`ARP review complete with no open findings for ${o.url} at ${o.head}`);
+            if (!ids.length) o.onEvent({ type: "message", message: `ARP review complete with no open findings for ${o.url} at ${o.head}` });
             return findings;
           }
         } else if (!["REVIEW_STATUS_QUEUED", "REVIEW_STATUS_IN_PROGRESS"].includes(state)) {
@@ -225,7 +225,7 @@ export async function reviewPublished(o: ReviewOptions): Promise<OpenFinding[]> 
               if (reply.head_sha !== o.head) throw Error("Request response has a different head");
             } catch {
               remaining();
-              o.progress("ARP request result uncertain. Reconcile by status; do not request again.");
+              o.onEvent({ type: "message", message: "ARP request result uncertain. Reconcile by status; do not request again." });
             }
           } else if (!requested && (state === "REVIEW_STATUS_SKIPPED" || state === "REVIEW_STATUS_FAILED")) {
             throw Error("ARP review cannot run; no permitted request action");

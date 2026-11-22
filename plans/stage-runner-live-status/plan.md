@@ -20,6 +20,18 @@
 | `write` | skill-loader | Plan prose | Distinguished retries from forward progress. |
 | `learning-candidates` | prompt-required | `/systematic-review` disproved the planned Rex mechanism | Recorded the OSC 7501 child-record finding. |
 
+### Execution
+Slice 1 writer: `openai/gpt-6.2-astra` (GPT-6.2 Astra).
+
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `skill-loader` | prompt-required | Select execution guidance | Matched the extension, CLI, and README changes to skills. |
+| `resolve-worktree`, `feature-worktree` | prompt-required | Verify the plan owner | Resolved the absolute plan path and kept edits on its feature branch. |
+| `codebase-research` | skill-loader | Trace existing progress reports | Checked the command, runner, ARP callback, and fixtures before changing the seam. |
+| `chezmoi` | skill-loader | Edit managed files | Changed only source files. |
+| `cli-best-practices` | skill-loader | Change command output | Kept phase identity and launch counts separate from messages. |
+| `diataxis`, `write` | skill-loader | Update operator instructions | Described how to read the widget and how to distinguish duration from success. |
+
 ## Implementation contract
 Suggested starting points are `dot_pi/agent/exact_extensions/stage-runner/index.ts`, `_runner.ts`, `_arp.ts`, and the existing test fixtures in that directory. These paths are binding:
 - **Seam:** Export `Options` from `_runner.ts`. Unify `progress` and live phase reporting into one typed event callback on `Options` (and in `_arp.ts` `reviewPublished`), with an injected monotonic clock `now?: () => number` that defaults to `performance.now`. `index.ts` is the sole formatter for the widget, OSC 7501 state, and the single `stage-runner-progress` exit summary; it must not append `stage-runner-progress` entries on intermediate events. The consumers of `_runner.ts` and `_arp.ts` are `index.ts`, `_integration.test.ts`, and `_runner.test.ts`.
@@ -61,13 +73,14 @@ The line shows these phases: `execute`, `simplify`, `verify`, `recovery`, `publi
 ## Tasks
 ### Slice 1: Live phase timer
 ### Task 1: Show phase timing in the parent
+**Execution evidence:** The focused complete-run test failed against the old `progress` callback. It passed with the typed event stream. A first type check caught a shadowed test variable. After correcting it and isolating UI errors from phase transitions, `npm test`, `npm run test:integration` (57 stage-runner and 5 Worktrunk tests), and `npm run typecheck` passed. No evidence file, folder name, or recovery contract changed. For ARP fix candidates, the widget shows `verify` without a retry count because each candidate requires a fresh verdict.
 **Delivers:** Active elapsed time, completed durations, correct labels, and one summary entry at exit.
 **Blocked by:** None
 **Traces to:** Requirement 1
 
-- [ ] Add a failing test that drives `run()` through the integration fixture with an injected clock. Cover execute slices, simplify, verify success, verify failure with recovery and a second verify, an accepted resumed writer, publication, ARP `review` and `fix` cycles, cancellation, and an error stop. Assert the unified event sequence, the stage-local labels, recovery attribution, and one `stage-runner-progress` summary entry at exit. Assert that ticks and intermediate events do not call `appendEntry`.
-- [ ] Export `Options` and replace `progress` with the unified event stream in `_runner.ts` and `_arp.ts` (`reviewPublished`). Render the widget from `index.ts` with a 1 s interval, update `_integration.test.ts:328-332`, `_integration.test.ts:409-416`, and `_runner.test.ts`, and update `README.md` to document the live widget line, its phases, recovery time, and the single exit summary entry.
-- [ ] From `dot_pi/agent`, run `npm ci --ignore-scripts` if `node_modules` is absent, then `npm test`, `npm run test:integration`, and `npm run typecheck`. Confirm that no evidence file, folder name, or recovery contract changed. Commit with `feat(pi): show live stage durations`.
+- [x] Add a failing test that drives `run()` through the integration fixture with an injected clock. Cover execute slices, simplify, verify success, verify failure with recovery and a second verify, an accepted resumed writer, publication, ARP `review` and `fix` cycles, cancellation, and an error stop. Assert the unified event sequence, the stage-local labels, recovery attribution, and one `stage-runner-progress` summary entry at exit. Assert that ticks and intermediate events do not call `appendEntry`.
+- [x] Export `Options` and replace `progress` with the unified event stream in `_runner.ts` and `_arp.ts` (`reviewPublished`). Render the widget from `index.ts` with a 1 s interval, update `_integration.test.ts:328-332`, `_integration.test.ts:409-416`, and `_runner.test.ts`, and update `README.md` to document the live widget line, its phases, recovery time, and the single exit summary entry.
+- [x] From `dot_pi/agent`, run `npm ci --ignore-scripts` if `node_modules` is absent, then `npm test`, `npm run test:integration`, and `npm run typecheck`. Confirm that no evidence file, folder name, or recovery contract changed. Commit with `feat(pi): show live stage durations`.
 
 ### Slice 2: Observed skills
 ### Task 2: Report skills observed in the active child

@@ -13,10 +13,8 @@ Simplify code for clarity and maintainability while preserving behavior exactly.
 Do not change behavior. Existing tests must pass before and after; run the focused tests for the touched code first, and again after simplifying. If no tests cover the touched code, say so and stop rather than guessing at behavior. Do not add features, abstractions, or configurability. Do not start on `main` or `master` without explicit user consent.
 </HARD-GATE>
 
-## Lifecycle mode
-Only use the bridge when the injected stage contract validates protocol version 3, run ID, stage `simplify`, fixed unit, pinned baseline, model, thinking, and both `lifecycle_request_decision` and `lifecycle_submit_outcome` tools are available. If a present contract is malformed/mismatched or a tool is missing, stop and ask. Otherwise, use ordinary conversational approvals and manual handoffs.
-
-In orchestrated mode, require a clean candidate worktree at stage start. Validate the `Pinned baseline commit`, `Unit base commit`, `Pinned plan blob`, `Pinned design blob`, `Selected unit`, and `Selected task numbers`. Pinned objects define requirements; the current plan is only a ledger. Mismatch blocks without edits. Simplify only the fixed unit, scoped from `Unit base commit`; the broader diff is context only. Use `lifecycle_request_decision` only within scope. If rejected or dismissed, stop the stage without an outcome. For another blocker, submit the stage-appropriate `blocked` outcome. After checks and any required commit or push, submit exactly one `success` outcome with `change: changed` or `change: unchanged`. Unchanged means no commit; the parent still runs fresh verification.
+## Stage runner
+For a `/stage-runner` attempt, write only the requested private JSON handoff outside Git, at the supplied path and in the supplied schema. Do not push, publish, apply, or create a PR. Check the supplied feature baseline, requirements plan blob, and current candidate before work. Use the pinned plan for requirements and the current plan as the progress ledger. Stop on a mismatch. Require a clean candidate worktree at stage start.
 
 ## Handoff metadata
 `--implemented-by` is handoff metadata. For a plan, accept repeatable `--implemented-by <id>` and preserve every writer ID. `--task` carries exact planless requirements. Strip `--implemented-by`, `--task`, and `--base` before target resolution; treat everything after `--task` as literal text, not flags. A plan path is the requirements source when present; use `--task` only for planless work. Preserve the exact original task and base meaning.
@@ -56,7 +54,7 @@ A change must materially reduce reader concepts, branches, duplication, indirect
 ## Guardrail
 Simplicity serves the reader, not brevity. Keep useful abstractions, seams, and names. Do not harm debugging, error messages, or maintainability, or churn clear code.
 
-Skip cosmetic changes. If no change is needed, continue to Handoff. In `/implement`, always submit the unchanged outcome; the parent still runs fresh verification.
+Skip cosmetic changes. If no change is needed, continue to Handoff.
 
 ## Commit
 Snapshot `git status --porcelain=v1 --untracked-files=all`. Commit changed simplifications only if the worktree started clean:
@@ -75,7 +73,7 @@ Use one exact command per standalone `md` fenced block. Quote paths with spaces.
 
 Summarize the diff, tests before and after, items left alone, and commit message/hash or why no commit was made. Include **Skills loaded and used** as a `Skill | Source | Why loaded | How used` table; explicitly say when none were needed.
 
-In orchestrated mode, submit the structured result; the parent always starts fresh `/verify`, including after unchanged simplification.
+For a stage-runner attempt, write the requested handoff even when unchanged. The runner starts fresh `/verify`.
 
 In direct mode, plan-backed work requires a fresh `/verify` even when unchanged. For planless work, an earlier independent verdict remains valid only for the exact candidate and requirements. Use the original plan path or exact task. If the requirements or any `--implemented-by` ID is missing, ask the user before emitting `/verify`; do not infer it. Report all execution IDs and the stable provider-qualified simplification ID from `## Current Model`; ask if it is missing.
 
@@ -85,4 +83,4 @@ Simplification model: `<name> (<simp-id>)`
 - `/verify <absolute-plan-path> --implemented-by <exec-id> --simplified-by <simp-id>`; repeat `--implemented-by <exec-id>` for every writer ID.
 - `/verify --implemented-by <exec-id> --simplified-by <simp-id> --task <quoted-original-request>`
 
-Quote the task as one single-quoted Pi argument and escape each embedded apostrophe as `\'`. Preserve whitespace, quotes, flags, and literal `$ARGUMENTS`. For manual verification, run `/model`, pick a model different from every writer, run `/new`, and confirm `## Current Model`. An orchestrated verifier is fresh without a literal `/new` command.
+Quote the task as one single-quoted Pi argument and escape each embedded apostrophe as `\'`. Preserve whitespace, quotes, flags, and literal `$ARGUMENTS`. For manual verification, run `/model`, pick a model different from every writer, run `/new`, and confirm `## Current Model`.

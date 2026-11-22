@@ -27,6 +27,21 @@
 | `diataxis` | `skill-loader` | Manual workflow | Separated operator instructions from qualification evidence. |
 | `write` | `skill-loader` | Planning | Made the actor, commit identity, and stop conditions explicit. |
 
+### Execution
+**Execution writer (ungrouped):** `openai/gpt-6.2-sol`.
+
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `skill-loader` | `prompt-required` | Execution | Selected guidance for prompts, tests, and managed resources. |
+| `resolve-worktree` | `prompt-required` | Plan path | Resolved the plan to its owning worktree. |
+| `feature-worktree` | `prompt-required` | Source changes | Used the existing clean feature worktree. |
+| `codebase-research` | `skill-loader` | Cross-component removal | Mapped command owners, bridge references, and test tiers. |
+| `cli-best-practices` | `skill-loader` | Command retirement | Kept the supported start, cancel, and handoff interfaces. |
+| `chezmoi` | `skill-loader` | Managed resource removal | Changed source only; left installed targets untouched. |
+| `write` | `skill-loader` | Prompt and runbook text | Kept operator actions and stop conditions explicit. |
+
+Task 1: The focused tests failed against the legacy resources as expected, then passed 71/71 after retirement. The runner still clears the obsolete environment variable in child processes.
+
 ## Implementation Contract
 Source: design Slice 2 in `plans/lifecycle-stage-runner/design.md`. The operator approved two changes during alignment: retire `/implement` instead of routing it to the runner, and retire both orchestrated-only ARP commands instead of converting them to direct commands. This plan controls those decisions. Do not rewrite the design or the completed Slice 1 qualification record. The scoped `Datadog/Learnings.md` lookup returned no matching sections; no source was skipped.
 
@@ -101,9 +116,9 @@ No task is a separate release. Run repository commands from the feature worktree
 
 For this retirement only, replace the root `AGENTS.md` requirement to update `ship-conductor/*.test.ts` and run its `_rpc.test.ts` on Pi 1.6.0. Those tests exercise the bridge and command that this task removes. Update the guidance in the same commit as their removal; require the surviving lifecycle prompt tests and stage-runner integration suite instead. Keep the existing full-suite independent verification requirements.
 
-- [ ] Replace obsolete protocol assertions with focused absence and surviving-contract checks. Run `node --test exact_scripts/{lifecycle-prompts,arp-prompts}.test.mjs` from the agent directory and confirm retirement assertions fail against the old resources.
-- [ ] Update the root `AGENTS.md` lifecycle contract paragraph, `/implement` traps and live-testing guidance, and integration suite description to remove the retired protocol and tests. Keep the requirements for the surviving suites. Remove the legacy resources and only their test registrations. Remove bridge-only instructions throughout each surviving prompt, including scope, provenance, input validation, and final handoff branches. Retain the direct writer ledger, model independence, no-publication stage contract and runner JSON handoff. Preserve PR creation opt-in and PR update status-only tests.
-- [ ] Rerun the focused tests; expect all to pass. Review remaining lifecycle protocol references for live consumers. Do not implement any alias or change runner code; keep the `PI_LIFECYCLE_CHILD_CONFIG` deletions in `_runner.ts`. Commit `refactor(pi): retire the legacy implementation conductor`.
+- [x] Replace obsolete protocol assertions with focused absence and surviving-contract checks. Run `node --test exact_scripts/{lifecycle-prompts,arp-prompts}.test.mjs` from the agent directory and confirm retirement assertions fail against the old resources.
+- [x] Update the root `AGENTS.md` lifecycle contract paragraph, `/implement` traps and live-testing guidance, and integration suite description to remove the retired protocol and tests. Keep the requirements for the surviving suites. Remove the legacy resources and only their test registrations. Remove bridge-only instructions throughout each surviving prompt, including scope, provenance, input validation, and final handoff branches. Retain the direct writer ledger, model independence, no-publication stage contract and runner JSON handoff. Preserve PR creation opt-in and PR update status-only tests.
+- [x] Rerun the focused tests; expect all to pass. Review remaining lifecycle protocol references for live consumers. Do not implement any alias or change runner code; keep the `PI_LIFECYCLE_CHILD_CONFIG` deletions in `_runner.ts`. Commit `refactor(pi): retire the legacy implementation conductor`.
 
 ### Task 2: Document the cutover and manual publication workflow
 **Delivers:** Operators and future agents have one supported automated entry point and a safe manual path after verification.

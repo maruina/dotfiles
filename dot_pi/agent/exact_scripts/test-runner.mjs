@@ -11,9 +11,6 @@ const scriptsDir = existsSync(path.join(agentRoot, "exact_scripts")) ? "exact_sc
 
 // Slow integration/RPC tests run under `npm run test:integration` (and `npm run test:all`).
 const INTEGRATION_TESTS = new Set([
-  path.join(extDir, "ship-conductor", "_conductor.test.ts"),
-  path.join(extDir, "ship-conductor", "_rpc.test.ts"),
-  path.join(extDir, "ship-conductor", "_worktree.test.ts"),
   path.join(extDir, "stage-runner", "_integration.test.ts"),
   path.join(extDir, "worktrunk", "activity.test.ts"),
 ]);

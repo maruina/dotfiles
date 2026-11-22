@@ -31,44 +31,8 @@ test("ARP remains optional and requires deferred tool discovery", () => {
 test("publication has no model prompt", () => {
   assert.equal(existsSync(new URL("pr-publish.md", promptsDir)), false);
 });
-
-test("completion ARP review prompt enforces silent bounded exact-head review with structured settlements", () => {
-  const text = prompt("arp-review");
-  for (const marker of [
-    "skill-loader",
-    "PI_LIFECYCLE_CHILD_CONFIG",
-    "tool_search",
-    "Expected review head SHA",
-    "silent: true",
-    "Max status checks",
-    "Status poll intervals",
-    "settledFindingIds",
-    "actionableFindingDetails",
-    "Pending settlement",
-    "agentic_review_get_findings",
-    "agentic_review_resolve_finding",
-    "Use `agentic_review_resolve_finding` only when concrete evidence supports",
-    "convert it to a positive integer for `finding_id`",
-    "reviewed_sha == Expected review head SHA",
-    "review_in_progress == false",
-    "Re-anchor",
-    "older reviewed heads",
-  ]) {
-    assert.ok(text.includes(marker), `arp-review must include ${marker}`);
-  }
-});
-
-test("completion review settles verified fixes before requesting re-review", () => {
-  const text = prompt("arp-review");
-  const settlement = text.indexOf("resolve each as `addressed`");
-  const request = text.indexOf("send exactly one request");
-  assert.ok(settlement >= 0 && request > settlement, "verified settlements must precede a new review request");
-  assert.match(text, /If any pending settlement fails,.*blocked.*do not request/i);
-});
-
-test("completion ARP fix prompt is orchestrated-only and returns pending settlements", () => {
-  const text = prompt("arp-fix");
-  for (const marker of ["skill-loader", "PI_LIFECYCLE_CHILD_CONFIG", "Fix target PR", "Fix reviewed head SHA", "pendingSettlements", "commitRefs", "Do not push", "Verification and publication happen in later orchestrated stages"]) {
-    assert.ok(text.includes(marker), `arp-fix must include ${marker}`);
+test("completion ARP prompt resources are retired", () => {
+  for (const name of ["arp-review", "arp-fix"]) {
+    assert.equal(existsSync(new URL(`${name}.md`, promptsDir)), false, name);
   }
 });

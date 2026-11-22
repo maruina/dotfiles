@@ -436,14 +436,12 @@ test("direct execute hands off to the next slice or closes out the complete plan
   ]);
 });
 
-test("direct verify checks the complete plan without weakening protocol-v3 slice scope", () => {
+test("verify checks the complete plan and keeps the candidate read-only", () => {
   requireMarkers(prompt("verify.md"), [
-    /for a direct plan, require `--simplified-by`\. Incomplete execution tasks require `BLOCKED`/i,
+    /for a plan, require `--simplified-by`\. Incomplete execution tasks require `BLOCKED`/i,
     /from the feature base.*every slice, including earlier slices/is,
     /every in-scope Given\/When\/Then acceptance scenario.*failed command is `BLOCKED`/is,
-    /for slice scope.*review only that fixed unit from `Unit base commit`/is,
-    /for feature scope, verify the full candidate against pinned requirements/is,
-    /in direct mode.*caller-supplied private handoff JSON path outside the worktree.*only that file.*repository.*read-only/is,
+    /stage-runner.*private JSON handoff outside Git.*Keep repository files read-only/is,
   ]);
 });
 
@@ -457,7 +455,7 @@ test("verify gates the next execution handoff on plan prerequisites, keeps fixes
     /give the exact `\/execute <absolute-plan-path>` command/i,
     /do not give a worktree root as the plan argument/i,
     /`\/verify` is read-only for repository files and must not fix or commit/i,
-    /In direct mode, when the verdict is `VERIFIED` and the final state matches the initial snapshot.*stack-split check from the `reviewable-pr-workflow` skill.*unless the user explicitly said not to open a PR.*`\/pr-create --draft`.*`\/pr-update`/i,
+    /For manual runs, when the verdict is `VERIFIED` and the final state matches the initial snapshot.*stack-split check from the `reviewable-pr-workflow` skill.*unless the user explicitly said not to open a PR.*`\/pr-create --draft`.*`\/pr-update`/i,
     /offer `\/execute` as the follow-up/i,
     /only after the fix is implemented and independently verified/i,
     /\*\*Copy-paste follow-up:\*\* when \*\*Findings\*\* contains any finding/i,
@@ -608,7 +606,6 @@ test("copyable handoffs preserve review gates and chat-only behavior", () => {
     /with blocking findings[^\n]*`\/systematic-review <absolute-path-to-plan\.md>`[^\n]*Do not offer `\/execute`/,
   ]);
   requireMarkers(prompt("execute.md"), [
-    /In orchestrated mode, submit the structured result without manual handoff commands/,
     /If skipped, select another model with `\/model`, start `\/new`, confirm `## Current Model`/,
   ]);
 });
@@ -1111,7 +1108,6 @@ test("execute offers simplify and direct verify handoffs with stable writer iden
     /preserve.*exact original task/is,
     /for planless work.*supplied `--task`.*do not infer.*diff/is,
     /when no code change.*do not write a ledger-only note or create an empty commit/is,
-    /in `\/implement`, always submit the unchanged outcome.*parent still runs fresh verification/is,
     /planless.*earlier independent verdict.*exact candidate/is,
     /repeatable `--implemented-by <id>`/i,
     /direct plan-backed.*all execution tasks.*feature base/is,
@@ -1131,50 +1127,24 @@ test("execute offers simplify and direct verify handoffs with stable writer iden
     /any writer ID matches the verifier.*`BLOCKED`/is,
     /`--task`.*remaining.*original task/is,
     /use exactly one requirements source.*a plan path or `--task`/is,
-    /manual review.*fresh `\/new` session.*orchestrated review.*newly created child session.*no preceding stage transcript.*do not require a literal manual `\/new`/is,
+    /manual review.*fresh `\/new` session.*stage-runner review.*newly created child session.*no preceding stage transcript.*do not require a literal manual `\/new`/is,
     /differs from every supplied writer model/is,
-    /do not write the report file yourself or change candidate state/i,
-    /`Unit base commit` as the orchestrated slice base.*`Pinned baseline commit` as the feature base for `Final verification`/is,
   ]);
 });
 
-test("lifecycle prompt protocol versions match the bridge protocol", () => {
+test("stage runner owns lifecycle automation without legacy resources", () => {
   const extensionsDir = existsSync(path.join(agentDir, "exact_extensions"))
     ? path.join(agentDir, "exact_extensions")
     : path.join(agentDir, "extensions");
-  const protocol = readFileSync(path.join(extensionsDir, "ship-conductor", "_protocol.ts"), "utf8");
-  const version = protocol.match(/export const PROTOCOL_VERSION = (\d+);/)?.[1];
-  assert.ok(version, "Missing protocol version declaration");
-  for (const file of ["execute.md", "simplify.md", "verify.md", "arp-review.md", "arp-fix.md"]) {
-    const versions = [...prompt(file).matchAll(/protocol version (\d+)/g)].map((match) => match[1]);
-    assert.deepEqual(versions, [version], `${file} must require the current bridge protocol version`);
+  assert.equal(existsSync(path.join(extensionsDir, "ship-conductor")), false);
+  assert.equal(existsSync(path.join(agentDir, "ship-conductor-profile.json.tmpl")), false);
+  const runner = readFileSync(path.join(extensionsDir, "stage-runner", "index.ts"), "utf8");
+  for (const command of ["stage-runner", "stage-runner-cancel"]) {
+    assert.ok(runner.includes(`registerCommand("${command}",`), command);
   }
-});
-
-test("lifecycle templates use bridge tools only with validated orchestration context", () => {
   for (const file of ["execute.md", "simplify.md", "verify.md"]) {
-    const text = prompt(file);
-    requireMarkers(text, [
-      /injected stage contract.*protocol version.*run ID.*stage/is,
-      /both `lifecycle_request_decision` and `lifecycle_submit_outcome` tools are available/is,
-      /only use.*bridge.*when.*stage contract.*both.*tools/is,
-      /otherwise.*ordinary conversational approvals.*manual handoffs/is,
-      /rejected.*or dismissed.*stops?.*stage/is,
-      /other blocker.*stage-appropriate.*`(?:blocked|BLOCKED)` outcome/is,
-    ]);
-
-    if (file === "verify.md") {
-      requireMarkers(text, [
-        /Pinned baseline commit.*Pinned plan blob.*Pinned design blob/is,
-        /Unit base commit.*Selected unit.*Selected task numbers/is,
-        /slice scope.*Unit base commit.*feature scope/is,
-      ]);
-    } else {
-      requireMarkers(text, [
-        /fixed unit.*pinned baseline/is,
-        /Pinned baseline commit.*Unit base commit.*Pinned plan blob.*Pinned design blob.*Selected unit.*Selected task numbers/is,
-        /scope.*from `Unit base commit`/is,
-      ]);
-    }
+    const body = prompt(file);
+    assert.doesNotMatch(body, /lifecycle_request_decision|lifecycle_submit_outcome|protocol version 3/);
+    assert.match(body, /stage-runner[^\n]*JSON handoff/i);
   }
 });

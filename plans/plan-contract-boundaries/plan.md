@@ -36,7 +36,7 @@
 #### Scenario: Negative — the plan prompt does not demand exact file lists or relax test contracts
 - GIVEN the same section
 - WHEN the test reads it
-- THEN the text `exact repo-relative files to create, modify, or test` is absent, and acceptance scenarios, testing rules, and verification commands are stated as binding
+- THEN the text `exact repo-relative files to create, modify, or test` is absent, the Small-plan right-sizing line no longer requires `exact files`, and acceptance scenarios, testing rules, and verification commands are stated as binding
 
 ### Requirement: Final review traces an allowed scenario through its controls
 `plan.md` `## Final review` SHALL require tracing one allowed scenario through every control and prerequisite that applies to it, and SHALL require resolving a contradiction before commit when the controls block the allowed outcome. The check SHALL NOT become a mandatory implementation sequence and SHALL NOT drop distinct happy, edge, failure, or negative cases.
@@ -75,7 +75,7 @@
 #### Scenario: Prompt states the execution boundary
 - GIVEN `dot_pi/agent/exact_prompts/execute.md`
 - WHEN the test reads it
-- THEN `## Posture` or `## Stop Conditions` permits varying suggested files and internal mechanisms with a ledger note, applies the rule to existing and pinned plans, and treats a path listed only in `**Files:**` as a suggestion
+- THEN `## Posture` or `## Stop Conditions` permits varying suggested files and internal mechanisms and resolving explicitly non-binding open questions with a ledger note, applies the rule to existing and pinned plans, and treats a path listed only in `**Files:**` as a suggestion
 
 #### Scenario: Resumed-plan fixture, two variants
 - GIVEN a plan committed before rollout whose task lists `src/a.ts` in `**Files:**`, and an implementation that writes `src/b.ts` instead while preserving all binding constraints
@@ -141,8 +141,8 @@ No new external calls, credentials, permissions, hooks, or telemetry. The change
 
 ### Rollout and Rollback
 - **Owner:** Matteo Ruina (`maruina/dotfiles`, `dot_pi/agent/`).
-- **Rollout:** After `/verify`, follow the repository completion workflow. Run `chezmoi --source "$PWD" diff` for the three prompt targets, run `chezmoi --source "$PWD" apply` for those targets, then merge through a PR to `main`. `/execute` applies the rule to existing and pinned plans after apply; no plan migration is needed.
-- **Rollback:** Revert the commits that touch the three prompts and the test file, then run `chezmoi apply` for the three prompt targets.
+- **Rollout:** After `/verify`, follow the repository completion workflow. Run `chezmoi --source "$PWD" diff` for the four changed targets (`~/.pi/agent/prompts/{plan,execute,brainstorm}.md` and `~/.pi/agent/scripts/lifecycle-prompts.test.mjs`), run `chezmoi --source "$PWD" apply` for those targets, then merge through a PR to `main`. `/execute` applies the rule to existing and pinned plans after apply; no plan migration is needed.
+- **Rollback:** Revert the commits that touch the three prompts and the test file, then run `chezmoi apply` for the same four targets.
 
 ### Test Strategy
 - Highest deterministic interface: prompt text read by `lifecycle-prompts.test.mjs` through its `prompt()` and `requireMarkers()` helpers. No new seam.
@@ -165,9 +165,9 @@ No new external calls, credentials, permissions, hooks, or telemetry. The change
 **Traces to:** Requirement: Plan tasks separate binding contracts from suggestions; Requirement: Prompt budgets stay bounded
 **Files:** `dot_pi/agent/exact_prompts/plan.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`
 
-- [ ] Add test `plan separates binding contracts from implementation suggestions`. It asserts the starting-point suggestion wording, the requirement/safety constraint/test seam/design decision rule, and binding acceptance scenarios, testing rules, and verification commands. It also uses `assert.doesNotMatch` for `exact repo-relative files to create, modify, or test`.
+- [ ] Add test `plan separates binding contracts from implementation suggestions`. It asserts the starting-point suggestion wording, the requirement/safety constraint/test seam/design decision rule, and binding acceptance scenarios, testing rules, and verification commands. It also uses `assert.doesNotMatch` for `exact repo-relative files to create, modify, or test` and for `exact files` in the `**Small:**` right-sizing line.
 - [ ] Run `cd dot_pi/agent && node --test exact_scripts/lifecycle-prompts.test.mjs`; expect only the new test to fail.
-- [ ] Edit `### Task contract` in `plan.md`. Trim redundant `plan.md` prose so the file stays within the budget, or raise the `plan.md` budget by the shortfall (at most `17_600`) and record the reason in the ledger.
+- [ ] Edit `### Task contract` in `plan.md`, and qualify `exact files` in the `**Small:**` right-sizing line so that it does not contradict the suggestion rule. Trim redundant `plan.md` prose so the file stays within the budget, or raise the `plan.md` budget by the shortfall (at most `17_600`) and record the reason in the ledger.
 - [ ] Run `cd dot_pi/agent && node --test exact_scripts/lifecycle-prompts.test.mjs`; expect all tests to pass, including the budget test.
 - [ ] Commit with `docs(pi): separate binding plan contracts from suggestions`.
 
@@ -202,9 +202,10 @@ Task 2 must land first because Tasks 1-3 share the `plan.md` byte budget.
 **Traces to:** Requirement: `/execute` varies suggestions without stopping and stops on binding conflicts; Requirement: Prompt budgets stay bounded
 **Files:** `dot_pi/agent/exact_prompts/execute.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`
 
-- [ ] Add test `execute varies suggestions without stopping and stops on binding conflicts`. It asserts the permission, the ledger note, existing and pinned plan coverage, the rule that a path listed only in `**Files:**` is a suggestion, the rule that a path the plan or design requires stays binding, and stop-before-editing when constraints cannot be shown to hold. It also asserts that the `Do not disable a required check…` and `Stop after 3 focused attempts on the same failure` markers remain.
+- [ ] Add test `execute varies suggestions without stopping and stops on binding conflicts`. It asserts the permission to vary suggestions and to resolve explicitly non-binding open questions, the ledger note, existing and pinned plan coverage, the rule that a path listed only in `**Files:**` is a suggestion, the rule that a path the plan or design requires stays binding, and stop-before-editing when constraints cannot be shown to hold. It also asserts that the `Do not disable a required check…`, `Stop after 3 focused attempts on the same failure`, and `<HARD-GATE>` `scope changes` markers remain.
 - [ ] Run `cd dot_pi/agent && node --test exact_scripts/lifecycle-prompts.test.mjs`; expect only the new test to fail.
 - [ ] Edit `## Posture` and/or `## Stop Conditions` in `execute.md`. Qualify Workflow step 8 and the `## Stop Conditions` "differs materially" clause so that a permitted suggestion variance is not a stop.
+- [ ] Trace the resumed-plan variant A through every stop control in `execute.md`: the `<HARD-GATE>` "scope changes" clause, `## Posture` "Change only what a plan step or user instruction requires", Task Rules 5 "Perform only the current step" and 9 (exact commit message), the `## Stage runner` "Stop on a mismatch" rule, and the `## Stop Conditions` "has gaps" clause. Qualify each control that blocks variant A, or record in the ledger why it does not block it. Keep the HARD-GATE stop for real scope changes and keep variant B a stop.
 - [ ] Run `cd dot_pi/agent && node --test exact_scripts/lifecycle-prompts.test.mjs`; expect all tests to pass.
 - [ ] Commit with `docs(pi): let execute vary non-binding plan suggestions`.
 

@@ -63,6 +63,7 @@ for (const failure of [
     const log = path.join(temp, "argv"),
       controller = new AbortController();
     const model = { provider: "p", id: failure ? "a" : "p/a", thinking: "off" };
+    const progress: string[] = [];
     const options = {
       cwd,
       plan: "plans/demo/plan.md",
@@ -70,7 +71,7 @@ for (const failure of [
       models: { execute: model, simplify: model, verify: { ...model, id: "b" } },
       signal: controller.signal,
       idleMs: failure === "timeout" ? 1000 : 60000,
-      progress: () => {},
+      progress: (message: string) => progress.push(message),
       executable: process.execPath,
       prefix: [path.join(import.meta.dirname, "_fixtures/pi.mjs")],
       env: { ...process.env, HOME: temp, ARGV_LOG: log, FAIL: failure },
@@ -124,6 +125,10 @@ for (const failure of [
       .split("\n")
       .map((s) => JSON.parse(s) as string[]);
     if (recovering) {
+      if (failure === "recover-writer") {
+        assert.match(progress[0]!, /^Starting execute \(attempt 1\); evidence /);
+        assert.equal(progress[1], "Opening Rex recovery for execute (attempt 1). Finish the recovery and exit Pi in that pane.");
+      }
       const interactive = calls.filter((a) => !a.includes("--mode"));
       const entries = fs.readdirSync(options.root);
       assert.equal(
@@ -166,6 +171,10 @@ for (const failure of [
     const [bundle] = fs.readdirSync(options.root);
     assert.match(bundle, /^run-/);
     if (!failure) {
+      assert.deepEqual(
+        progress.map((message) => message.split("; evidence ")[0]),
+        ["Starting execute (attempt 1)", "Starting execute (attempt 2)", "Starting simplify (attempt 3)", "Starting verify (attempt 4)"],
+      );
       const first = path.join(options.root, bundle, "execute-1");
       assert.equal(fs.statSync(path.join(first, "stderr")).size, 16384);
       assert.equal(fs.statSync(path.join(first, "sessions")).mode & 0o777, 0o700);

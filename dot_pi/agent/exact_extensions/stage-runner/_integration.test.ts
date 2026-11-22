@@ -6,6 +6,7 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { phaseDisplay } from "./index.ts";
 import { run } from "./_runner.ts";
 for (const [failure, error] of Object.entries({ blocker: "needs-human", "blocker-cancel": "abort", "blocker-uncertain": "uncertain recovery", "blocker-session": "identity mismatch", corrected: "", "corrected-stale": "Design changed", "corrected-other": "Design changed", "corrected-header": "Draft header", "": "", early: "handoff", header: "Draft header", path: "artifact path", overlap: "author model", stale: "Design changed", invalid: "pi --session", "no-plan": "handoff", reverted: "unrelated path", dirty: "dirty", switch: "Author used reviewer", "pre-check": "Design changed", "approval-race": "expected parent [a-f0-9]+, observed [a-f0-9]+" }))
  test((failure.startsWith("blocker") ? "design blocker: " : failure.startsWith("corrected") ? "corrected design: " : "clean design: ") + (failure || "committed plan without publication"), async (t) => {
@@ -210,6 +211,20 @@ for (const failure of [
       controller = new AbortController();
     const model = { provider: "p", id: failure ? "a" : "p/a", thinking: "off" };
     const progress: string[] = [];
+    const phases: string[] = [];
+    let clock = 0;
+    const summaries: string[] = [];
+    let widget: string[] | undefined;
+    const skillLines: string[] = [];
+    const display = phaseDisplay(lines => {
+      widget = lines;
+      if (!failure && lines) skillLines.push(lines[0]);
+    }, entry => summaries.push(entry),
+      message => progress.push(message), () => clock);
+    t.after(() => {
+      assert.equal(summaries.length, 1);
+      assert.equal(widget, undefined);
+    });
     let reviewTime = 0;
     const options = {
       cwd,
@@ -226,7 +241,15 @@ for (const failure of [
       models: { execute: model, simplify: model, verify: { ...model, id: "b" } },
       signal: controller.signal,
       idleMs: failure === "timeout" ? 1000 : 60000,
-      progress: (message: string) => progress.push(message),
+      now: () => (clock += 1000),
+      onEvent: (event: import("./_runner.ts").RunnerEvent) => {
+        display.onEvent(event);
+        assert.deepEqual(summaries, []);
+        if (event.type === "phase") {
+          assert.equal(event.at, clock);
+          phases.push(event.phase + (event.launch === undefined ? "" : ":" + event.launch));
+        }
+      },
       executable: process.execPath,
       prefix: [path.join(import.meta.dirname, "_fixtures/pi.mjs")],
       profilePath: failure === "missing-profile" ? profilePath + ".absent" : profilePath,
@@ -270,6 +293,12 @@ for (const failure of [
         approvals++;
         return failure !== "recover-refuse";
       },
+    }).then(value => {
+      display.finish("complete");
+      return value;
+    }, error => {
+      display.finish(controller.signal.aborted ? "canceled" : "stopped");
+      throw error;
     });
     if (failure === "hang") {
       for (let i = 0; i < 200 && !fs.existsSync(log); i++) await delay(10);
@@ -290,6 +319,7 @@ for (const failure of [
       const key = failure.slice("arp-fix-".length);
       if (failures[key]) await assert.rejects(result, failures[key]);
       else await result;
+      if (key === "two-heads") assert.deepEqual(phases.slice(-5), ["review", "fix", "verify", "publish", "review"]);
       const trace = fs.readFileSync(log + ".timeline", "utf8").trim().split("\n").map((line) => JSON.parse(line));
       const fixes = trace.filter(({ event }) => event === "fix");
       const settlements = trace.filter(({ event }) => event === "resolve_finding");
@@ -394,12 +424,14 @@ for (const failure of [
       .split("\n")
       .map((s) => JSON.parse(s) as string[]);
     if (recovering) {
+      if (failure === "recover-verify") {
+        assert.deepEqual(phases.slice(-6), ["verify:1", "recovery", "verify:2", "recovery", "verify:3", "publish"]);
+        assert.match(summaries[0]!, /verify 00:03 · recovery 00:02/);
+      }
+      if (failure === "recover-cancel") assert.match(summaries[0]!, /^canceled .*recovery/);
+      if (failure === "recover-refuse") assert.match(summaries[0]!, /^stopped .*recovery/);
       if (failure === "recover-writer") {
-        assert.match(progress[0]!, /^Starting execute \(attempt 1\); evidence /);
-        assert.equal(
-          progress[1],
-          "Opening Rex recovery for execute (attempt 1). Finish the recovery and exit Pi in that pane.",
-        );
+        assert.deepEqual(phases, ["execute:1", "recovery", "execute:2", "simplify", "verify:1", "publish"]);
       }
       const interactive = calls.filter((a) => !a.includes("--mode"));
       const entries = fs.readdirSync(options.root);
@@ -475,14 +507,12 @@ for (const failure of [
       );
       assert.match(progress.at(-1)!, /https:\/\/github.com\/fixture\/demo\/pull\/1/);
       assert.deepEqual(
-        progress.slice(0, -1).map((message) => message.split("; evidence ")[0]),
-        [
-          "Starting execute (attempt 1)",
-          "Starting execute (attempt 2)",
-          "Starting simplify (attempt 3)",
-          "Starting verify (attempt 4)",
-        ],
+        phases, ["execute:1", "execute:2", "simplify", "verify:1", "publish"],
       );
+      const labels = Array.from({ length: 16 }, (_, i) => "skill-" + i);
+      const observed = skillLines.filter(line => line.includes("skills: "));
+      assert.deepEqual([...new Set(observed)], labels.map((_, i) =>
+        "simplify · 00:00 | execute 00:02 | skills: " + labels.slice(0, i + 1).join(", ")));
       const first = path.join(options.root, bundle, "execute-1");
       assert.equal(fs.statSync(path.join(first, "stderr")).size, 16384);
       assert.equal(fs.statSync(path.join(first, "sessions")).mode & 0o777, 0o700);

@@ -234,8 +234,10 @@ Only the new test failed before implementation; all 71 passed after. Variant A c
 **Traces to:** Medium-plan documentation requirement; Rollout and Rollback
 **Files:** `AGENTS.md`, `dot_pi/agent/exact_extensions/stage-runner/README.md`, `dot_pi/agent/exact_prompts/verify.md`, `dot_pi/agent/exact_prompts/systematic-review.md`, `plans/plan-contract-boundaries/plan.md`
 
-- [ ] Inspect the repository `AGENTS.md` `## Pi Agent Development` section, `stage-runner/README.md`, `verify.md`, and `systematic-review.md` for wording that contradicts the new rules. Expect no change; the consumer map above gives the evidence.
-- [ ] Record the result for each file as a ledger note under this task. If a contradiction exists, stop and ask, because editing these files is outside the approved scope.
+- [x] Inspect the repository `AGENTS.md` `## Pi Agent Development` section, `stage-runner/README.md`, `verify.md`, and `systematic-review.md` for wording that contradicts the new rules. Expect no change; the consumer map above gives the evidence.
+- [x] Record the result for each file as a ledger note under this task. If a contradiction exists, stop and ask, because editing these files is outside the approved scope.
+
+No documentation changes required. AGENTS.md assigns policy to the templates; the Stage Runner README describes Git identity and publication, not task paths. verify.md still requires explained scope and checks each scenario. systematic-review.md rejects placeholders and scope changes; a bounded implementation choice is neither.
 
 ### Task 6: Final verification
 **Delivers:** Feature-level evidence that all requirements hold together.
@@ -243,11 +245,13 @@ Only the new test failed before implementation; all 71 passed after. Variant A c
 **Traces to:** All requirements; design `## Acceptance and validation` items 1-3
 **Files:** `dot_pi/agent/exact_prompts/plan.md`, `dot_pi/agent/exact_prompts/execute.md`, `dot_pi/agent/exact_prompts/brainstorm.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`
 
-- [ ] Run `cd dot_pi/agent && npm ci --ignore-scripts && npm test && npm run test:all`; expect every tier to pass. Then run `rm -rf node_modules` in `dot_pi/agent`.
-- [ ] Run `wc -c dot_pi/agent/exact_prompts/{plan,execute,brainstorm}.md` and record the byte counts and the `plan.md` budget in the ledger.
-- [ ] Fixture check 1: read Task 2 of `git show 030cad3:plans/lifecycle-stage-runner-publication/plan.md` against the updated `## Final review`. Record in the ledger that the rule finds the discovery-vs-guard contradiction and keeps the target/SHA, forbidden-write, and non-dispatch cases.
-- [ ] Fixture check 2: apply the updated `execute.md` to the two resumed-plan variants in the Requirement scenario. Record in the ledger that variant A proceeds with a ledger note and variant B stops before editing.
-- [ ] Confirm `git status` shows only planned files changed, and that `git diff origin/main -- dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs` removes no existing assertion.
+- [x] Run `cd dot_pi/agent && npm ci --ignore-scripts && npm test && npm run test:all`; expect every tier to pass. Then run `rm -rf node_modules` in `dot_pi/agent`.
+- [x] Run `wc -c dot_pi/agent/exact_prompts/{plan,execute,brainstorm}.md` and record the byte counts and the `plan.md` budget in the ledger.
+- [x] Fixture check 1: read Task 2 of `git show 030cad3:plans/lifecycle-stage-runner-publication/plan.md` against the updated `## Final review`. Record in the ledger that the rule finds the discovery-vs-guard contradiction and keeps the target/SHA, forbidden-write, and non-dispatch cases.
+- [x] Fixture check 2: apply the updated `execute.md` to the two resumed-plan variants in the Requirement scenario. Record in the ledger that variant A proceeds with a ledger note and variant B stops before editing.
+- [x] Confirm `git status` shows only planned files changed, and that `git diff origin/main -- dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs` removes no existing assertion.
+
+npm ci --ignore-scripts, npm test, and npm run test:all passed. The fast suite reported 510 passes and 3 skips; all 56 Stage Runner and 5 Worktrunk integration tests passed, as did typecheck and smoke. Removed dot_pi/agent/node_modules. Prompt bytes: plan 17,365 (budget 17,365), execute 14,238, brainstorm 13,605. In 030cad3 Task 2, discovery must precede status but the three-operation guard blocks discovery. The trace finds the contradiction without choosing a mechanism or dropping target/SHA checks, forbidden writes, or non-dispatch tests. In the resumed-plan fixture, writing src/b.ts instead of src/a.ts proceeds with a note only when src/a.ts is merely listed; a required src/a.ts test seam stops the edit. The diff against origin/main removes no existing assertion; only the plan budget entry changed. The baseline diff contains only the three prompts, test, and ledger. Live model adherence remains unverified.
 
 ## Learning candidates
 - None recorded during planning.

@@ -50,7 +50,7 @@ For behavior-bearing code, check resource bounds (loops, queues, goroutines, ret
 For `plan.md` targets, check that:
 
 - every requirement maps to a task or explicit follow-up
-- `/implement` metadata parses: `### Task N: <title>` and `### Slice N: <title>` headings; `**Blocked by:**` holds only `Task N` / `Tasks N-M` references or `None` (repeat `Task` per discrete reference; put notes separately); checkboxes belong inside tasks; feature-level final verification is a numbered task in the last slice
+- Plan format: `### Task N: <title>` and `### Slice N: <title>`; `**Blocked by:**` lists only `Task N`, `Tasks N-M`, or `None`. Repeat `Task` for discrete references; put notes separately. Put checkboxes inside tasks and feature-wide final verification in a numbered task in the last slice.
 - the smallest user-feedback slice is named and is slice 1
 - every requirement and task maps to a slice, unless it is explicitly deferred as a follow-up
 - scope that re-entered from an alternative design or a prior review is deferred with a revisit trigger
@@ -114,7 +114,9 @@ This section does not apply to design-only reviews. After the report, propose fi
 ## Handoff
 Use one exact command per standalone `md` fenced block. Quote paths with spaces. Keep prose outside. Omit commands with missing arguments.
 
-- For a `plan.md` target with no blocking findings, show `/execute <absolute-path-to-plan.md>`.
-- For a `plan.md` target with blocking findings, explain that the user can address the findings and then rerun `/systematic-review <absolute-path-to-plan.md>`, or return to `/plan` to revise the plan. Do not offer `/execute`.
+- For a plan with no blocking findings:
+  - Unstarted plan: `/stage-runner <absolute-path-to-plan.md>` or `/execute <absolute-path-to-plan.md>` (manual alternative).
+  - Started plan (checked box, `**In progress**`, or `**Execution writer**`): only `/execute <absolute-path-to-plan.md>`.
+- With blocking findings, fix and rerun `/systematic-review <absolute-path-to-plan.md>` or revise via `/plan`. Do not offer `/stage-runner` or `/execute`.
 - After confirmed `plan.md` fixes, commit per `## Fix findings` and use the applicable handoff above.
 - For code without a plan, recommend the next action and offer to apply fixes. After applying confirmed fixes, show `/verify <absolute-worktree-path> --implemented-by <current-model-id> --task '<quoted-fix-summary>'` (escape `'` as `\'`) and note to switch models with `/model` and run `/new`.

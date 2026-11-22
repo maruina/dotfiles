@@ -7,10 +7,8 @@ Execution input:
 
 > $ARGUMENTS
 
-## Lifecycle mode
-Only use the bridge when the injected stage contract validates protocol version 3, run ID, stage `execute`, fixed unit, pinned baseline, model, thinking, and both `lifecycle_request_decision` and `lifecycle_submit_outcome` tools are available. If a present contract is malformed/mismatched or a tool is missing, stop and ask. Otherwise, use ordinary conversational approvals and manual handoffs.
-
-Validate the `Pinned baseline commit`, `Unit base commit`, `Pinned plan blob`, `Pinned design blob`, `Selected unit`, and `Selected task numbers`. Pinned requirements govern; the current plan is only a ledger. Work only on the fixed unit, scoped from `Unit base commit`. Use `lifecycle_request_decision` only for in-scope decisions. A rejected or dismissed decision stops the stage without success. For another blocker, submit the stage-appropriate `blocked` outcome with a `blocker` object: `step` that stopped, `reason`, observed `evidence`, and `nextAction` to resume. Use nonblank plain text (1024 UTF-8 bytes per field) and a separate report. After authorized work, checks, commits, and pushes, submit exactly one `success` outcome with `change: changed` or `change: unchanged`; never use prose as the result.
+## Stage runner
+For a `/stage-runner` attempt, write only the requested private JSON handoff outside Git, at the supplied path and in the supplied schema. Do not push, publish, apply, or create a PR. Check the supplied feature baseline, requirements plan blob, and current candidate before work. Use the pinned plan for requirements and the current plan as the progress ledger. Stop on a mismatch. For a blocked handoff, include `blocker` with `step`, `reason`, `evidence`, and `nextAction`.
 
 Execute a committed implementation plan. For trivial low-risk work, `/execute` may also execute directly from a bare prompt after complexity triage.
 
@@ -63,10 +61,10 @@ For a plan with `### Slice N` headings, read the plan, find the first slice with
 7. For plan-based execution, verify the worktree starts with committed `plans/<ticket-or-feature>/plan.md` (and sibling `design.md` when expected). If lifecycle docs are uncommitted or untracked, recover only when the sole uncommitted changes are expected lifecycle artifacts under `plans/<ticket-or-feature>/`, committing `design.md` first and `plan.md` second.
 8. Stop and ask if any uncommitted changes remain after recovery, or if concerns, blockers, or ambiguities exist before modifying files.
 9. **Execute —** Execute tasks in order (the first slice with incomplete tasks for a grouped plan, or the single approved change for bare-prompt trivial work).
-10. For each task, update plan checkboxes as work progresses, run the specified verification, and mark steps complete only after verification passes. For plan-based work, maintain an `### Execution` subsection under `## Skills loaded and used`, preserving the planning record. In direct mode, record the provider-qualified writer ID for each completed slice (or ungrouped execution) in the ledger before committing. For trivial bare prompts, track progress and skill provenance in chat.
+10. For each task, update plan checkboxes as work progresses, run the specified verification, and mark steps complete only after verification passes. For plan-based work, maintain an `### Execution` subsection under `## Skills loaded and used`, preserving the planning record. Record the provider-qualified writer ID for each completed slice (or ungrouped execution) in the ledger before committing. For trivial bare prompts, track progress and skill provenance in chat.
 11. Complete the plan's documentation and future-agent guidance task, including every required `AGENTS.md` inspection (or decide whether docs are unnecessary for trivial bare prompts).
 12. **Prepare verification handoff —** Run the final implementation-evidence commands, inspect `git status`, and confirm plan fidelity (every task in the current execution unit is complete, requirements and operational checks match the plan's risk level, no unapproved scope added, and deviations documented in the plan ledger).
-13. Follow `## Handoff`. Do not run `/simplify` automatically in direct mode.
+13. Follow `## Handoff`. Do not run `/simplify` automatically.
 
 The terminal state is implemented, verified changes with the plan updated as the progress ledger when a plan exists.
 
@@ -115,12 +113,12 @@ For bare-prompt trivial work, report progress in chat and do not create a plan l
 ## Handoff
 After the final checks, report changed files, commands and results, skills (source, loading reason, and effect on execution), and follow-ups. Do not claim independent verification.
 
-In orchestrated mode, submit the structured result without manual handoff commands. In direct mode, name the implementation model and stable provider-qualified ID from `## Current Model`; if absent, say so without guessing.
+For a stage-runner attempt, write the requested handoff instead of offering manual commands. For a manual run, name the implementation model and stable provider-qualified ID from `## Current Model`; if absent, say so without guessing.
 
 Implementation model: `<name> (<provider-qualified-id>)`
 
 Use one exact command per standalone `md` fenced block. Quote paths with spaces. Keep prose outside. Omit commands with missing arguments.
 
-For a direct plan, if tasks remain, offer only `/execute <absolute-plan-path>` for the next unblocked slice; do not offer simplify, verify, or PR publication. After the last slice or an ungrouped plan, offer `/simplify <absolute-plan-path> --implemented-by <id>`; repeat `--implemented-by` for every distinct writer ID in the ledger. Do not guess missing IDs; ask.
+For a manual plan run, if tasks remain, offer only `/execute <absolute-plan-path>` for the next unblocked slice; do not offer simplify, verify, or PR publication. After the last slice or an ungrouped plan, offer `/simplify <absolute-plan-path> --implemented-by <id>`; repeat `--implemented-by` for every distinct writer ID in the ledger. Do not guess missing IDs; ask.
 
 For planless work, offer an optional `/simplify` handoff: `/simplify --implemented-by <id> --task <quoted-original-request>`. If skipped, select another model with `/model`, start `/new`, confirm `## Current Model`, then run `/verify --implemented-by <id> --task <quoted-original-request>`. If simplify runs, use its verify handoff. Preserve the original plan path or exact original task. Pass a task as one single-quoted Pi argument and escape each embedded apostrophe as `\'`.

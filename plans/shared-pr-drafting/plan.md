@@ -100,9 +100,10 @@ The focused tests first rejected the missing draft child, the pre-push handling 
 The integration fixtures cover the README's creation, reuse, and pre-push stop behavior. `npm test` and `git diff --check` passed. The root `AGENTS.md` already identifies the runner README as the operator contract. `dot_pi/agent/AGENTS.md` already separates publication authorization from lifecycle work. Neither file needs a drafting-specific rule. The `diataxis` skill (selected by `skill-loader`) kept the README's runtime description separate from rollout and recovery instructions.
 
 ### Task 3: Verify shared PR preparation and publication safeguards
+**In progress:** Task 3, read-only drafting sample.
 **Blocked by:** Tasks 1-2
 **Traces to:** Requirements 1, 2, and 3; rollout and recovery.
 
-- [ ] Install dependencies with `npm ci --ignore-scripts` in `dot_pi/agent`, then run `npm run test:all` and `git diff --check`. This task checks the completed feature; the focused failing tests belong to Task 1.
+- [x] Install dependencies with `npm ci --ignore-scripts` in `dot_pi/agent`, then run `npm run test:all` and `git diff --check`. This task checks the completed feature; the focused failing tests belong to Task 1.
 - [ ] Run and record the read-only drafting sample. Check that the draft explains the verified change using the pinned comparison and does not claim tests or rollout results without evidence. Do not push or create a PR for the sample.
 - [ ] Record the feature-wide evidence and remaining live validation gap for independent `/verify`. Keep rollout blocked until the trial or release-specific waiver described above.

@@ -5,9 +5,75 @@ import path from "node:path";
 import os from "node:os";
 import { events, validate, preflight, prune } from "./_runner.ts";
 
-import { phaseDisplay } from "./index.ts";
+import { createServer } from "node:net";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import stageRunner, { phaseDisplay, rexActivity } from "./index.ts";
 import { sessionInfo } from "./_recovery.ts";
 import { arpTool, reviewGuard, reviewPublished } from "./_arp.ts";
+
+test("Rex activity writes only bounded child records on transitions", () => {
+  const writes: string[] = [];
+  const activity = rexActivity(sequence => writes.push(sequence));
+  const prev = process.env.PI_PROGRAM_STATUS;
+  try {
+    process.env.PI_PROGRAM_STATUS = "0";
+    activity.phase("publish");
+    assert.deepEqual(writes, []);
+    process.env.PI_PROGRAM_STATUS = "1";
+    activity.permission("confirm");
+    activity.phase("execute");
+    activity.phase("execute");
+    activity.phase("recovery");
+    activity.permission("approve");
+    activity.phase("verify");
+    for (const state of ["done", "error", "idle", "clear"] as const) activity.end(state);
+    const expected = (state: string, message = "", kind = "") => `\x1b]7501;state=${state}:id=stage-runner:app=pi-stage-runner${kind && ":kind=" + kind}${message && ":msg=" + Buffer.from(message).toString("base64")}\x1b\\`;
+    assert.deepEqual(writes, [expected("blocked", "confirm", "permission"), expected("working", "execute"),
+      expected("blocked", "recovery", "question"), expected("blocked", "approve", "permission"), expected("working", "verify"),
+      ...["done", "error", "idle", "clear"].map(s => expected(s))]);
+    activity.permission("a\x1bb" + "é".repeat(2048));
+    assert.equal(writes.at(-1), expected("blocked", "a b" + "é".repeat(1022), "permission"));
+  } finally {
+    if (prev === undefined) delete process.env.PI_PROGRAM_STATUS;
+    else process.env.PI_PROGRAM_STATUS = prev;
+  }
+});
+
+test("shutdown clears the runner record after cancellation removes its widget", async t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "rex-"));
+  const server = createServer();
+  const socket = path.join(dir, "r");
+  await new Promise<void>((resolve, reject) => server.once("error", reject).listen(socket, resolve));
+  t.after(() => { server.close(); fs.rmSync(dir, { recursive: true, force: true }); });
+  const endpoint = "unix://" + socket;
+  const overrides = { REX_SERVER: endpoint, REX_SESSION: "session:test", REX_BLOCK: "block:test", PI_STAGE_RUNNER_CHILD: "0", PI_PROGRAM_STATUS: "1" };
+  for (const [name, value] of Object.entries(overrides)) {
+    const previous = process.env[name];
+    process.env[name] = value;
+    t.after(() => { if (previous === undefined) delete process.env[name]; else process.env[name] = previous; });
+  }
+  const writes: string[] = [];
+  let start!: (arg: string, ctx: unknown) => Promise<void>, shutdown!: () => Promise<void>;
+  let removed!: () => void;
+  const cleared = new Promise<void>(resolve => { removed = resolve; });
+  stageRunner({
+    registerEntryRenderer() {}, appendEntry() {},
+    registerCommand(name: string, command: { handler: typeof start }) { if (name === "stage-runner") start = command.handler; },
+    on(_event: string, handler: typeof shutdown) { shutdown = handler; },
+    exec: async () => ({ code: 0, stdout: JSON.stringify({ endpoint, principal: { kind: "peer", transport: "unix", uid: process.getuid!() }, session_id: overrides.REX_SESSION, block_id: overrides.REX_BLOCK }) }),
+  } as unknown as ExtensionAPI);
+  await start("plan.md", { hasUI: true, scopedModels: [{ model: { provider: "p", id: "m" } }], ui: {
+    select: async () => undefined, notify() {},
+    setWidget(_key: string, factory?: (tui: unknown) => { render(): string[] }) {
+      if (!factory) return removed();
+      assert.deepEqual(factory({ terminal: { write: (value: string) => writes.push(value) } }).render(), []);
+    },
+  } });
+  await cleared;
+  assert.deepEqual(writes, ["\x1b]7501;state=idle:id=stage-runner:app=pi-stage-runner\x1b\\"]);
+  await shutdown();
+  assert.equal(writes.at(1), "\x1b]7501;state=clear:id=stage-runner:app=pi-stage-runner\x1b\\");
+});
 
 test("phase ticks update only the widget and exit freezes the total", (t) => {
   t.mock.timers.enable({ apis: ["setInterval"] });

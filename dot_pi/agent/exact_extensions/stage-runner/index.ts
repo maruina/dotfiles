@@ -3,7 +3,7 @@ import path from "node:path";
 import os from "node:os";
 import { getSupportedThinkingLevels } from "@earendil-works/pi-ai";
 import { VERSION, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { Text } from "@earendil-works/pi-tui";
+import { formatProgramStatus, Text, type ProgramStatus, type Terminal } from "@earendil-works/pi-tui";
 import { qualifiedId } from "./_model.ts";
 import { run, type Choice, type Phase, type RunnerEvent } from "./_runner.ts";
 
@@ -102,16 +102,44 @@ export function phaseDisplay(
   };
 }
 
+export function rexActivity(write: (sequence: string) => void) {
+  let previous = "";
+  function report(status: ProgramStatus) {
+    if (process.env.PI_PROGRAM_STATUS === "0") return;
+    // Reuse pi-tui's bounded message encoder, but never send its root record.
+    const sequence = formatProgramStatus({ ...status, app: "pi-stage-runner" }).replace(":app=", ":id=stage-runner:app=");
+    if (sequence === previous || !sequence.includes(":id=stage-runner:")) return;
+    try {
+      write(sequence);
+      previous = sequence;
+    } catch {
+      console.warn("Stage runner could not update Rex activity.");
+    }
+  }
+  return {
+    phase: (phase: Phase) => report(phase === "recovery" ? { state: "blocked", kind: "question", message: phase } : { state: "working", message: phase }),
+    permission: (message: string) => report({ state: "blocked", kind: "permission", message }),
+    end: (state: "done" | "error" | "idle" | "clear") => report({ state }),
+  };
+}
+
 export default function stageRunner(pi: ExtensionAPI) {
   const entryType = "stage-runner-progress";
   pi.registerEntryRenderer<string>(entryType, (entry, _options, theme) =>
     new Text(`${theme.fg("accent", "Stage runner")} — ${entry.data ?? ""}`, 1, 0),
   );
   let active: AbortController | undefined, finished: Promise<void> | undefined, shuttingDown = false;
+  let terminal: Terminal | undefined;
+  const activity = rexActivity(sequence => terminal?.write(sequence));
   pi.on("session_shutdown", async () => {
     shuttingDown = true;
     active?.abort();
-    await finished;
+    try {
+      await finished;
+    } finally {
+      activity.end("clear");
+      terminal = undefined;
+    }
   });
   pi.registerCommand("stage-runner-cancel", {
     description: "Stop the current stage runner and preserve its work",
@@ -131,10 +159,16 @@ export default function stageRunner(pi: ExtensionAPI) {
       active = controller;
       const display = phaseDisplay(lines => ctx.ui.setWidget(entryType, lines),
         summary => pi.appendEntry(entryType, summary), message => ctx.ui.notify(message, "info"));
+      let state: "idle" | "done" | "error" = "idle";
+      let declined = false;
       let outcome = "Run canceled.";
       finished = (async () => {
         if (VERSION !== "1.6.0") throw Error("Stage runner requires Pi 1.6.0");
         await checkRex(pi);
+        ctx.ui.setWidget(entryType, tui => {
+          terminal = tui.terminal;
+          return { render: () => [], invalidate() {} };
+        });
         const models = {} as Record<"execute" | "simplify" | "verify", Choice>;
         for (const stage of ["execute", "simplify", "verify"] as const) {
           controller.signal.throwIfAborted();
@@ -167,18 +201,31 @@ export default function stageRunner(pi: ExtensionAPI) {
           plan,
           root: path.join(os.homedir(), ".pi/agent/lifecycle-runs"),
           models,
-          confirm: (target, signal) => ctx.ui.confirm("Start stage runner and publish?", target, { signal }),
+          confirm: async (target, signal) => {
+            activity.permission("confirm");
+            const accepted = await ctx.ui.confirm("Start stage runner and publish?", target, { signal });
+            declined = !accepted;
+            return accepted;
+          },
           signal: controller.signal,
           idleMs: deadline("PI_STAGE_RUNNER_IDLE_MS", 600000),
           wallMs: deadline("PI_STAGE_RUNNER_WALL_MS", 3600000),
           notify: (message) => ctx.ui.notify(message, "warning"),
-          approve: (changes, signal) => ctx.ui.confirm("Accept recovered writer?", changes, { signal }),
-          onEvent: display.onEvent,
+          approve: (changes, signal) => {
+            activity.permission("approve");
+            return ctx.ui.confirm("Accept recovered writer?", changes, { signal });
+          },
+          onEvent: event => {
+            if (event.type === "phase") activity.phase(event.phase);
+            display.onEvent(event);
+          },
         });
+        state = "done";
         outcome = "Run complete; evidence " + evidence;
       })()
         .catch((e) => {
-          outcome = controller.signal.aborted ? "Run canceled." : "Run stopped. See the error notification for details.";
+          state = controller.signal.aborted || declined ? "idle" : "error";
+          outcome = state === "idle" ? "Run canceled." : "Run stopped. See the error notification for details.";
           if (shuttingDown) return;
           ctx.ui.notify(
             String(e)
@@ -189,6 +236,7 @@ export default function stageRunner(pi: ExtensionAPI) {
         })
         .finally(() => {
           active = undefined;
+          activity.end(state);
           display.finish(outcome.replace(/[\x00-\x1f\x7f-\x9f]/g, "?"));
         });
     },

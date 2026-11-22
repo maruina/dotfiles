@@ -21,6 +21,8 @@
 | `learning-candidates` | prompt-required | `/systematic-review` disproved the planned Rex mechanism | Recorded the OSC 7501 child-record finding. |
 
 ### Execution
+Slice 3 writer: `openai/gpt-6.2-astra` (GPT-6.2 Astra). Slice 3 used the workflow and source-editing skills listed below. `rex` (agent-selected) identified the installed Rex protocol guide. `codebase-research` traced the Pi widget factory and the root-record encoder; `diataxis` and `write` separated the child-state reference from the operator rollout check.
+
 Slice 2 writer: `openai/gpt-6.2-astra` (GPT-6.2 Astra). Slice 2 used the same execution skills and sources listed below to resolve the pinned plan, trace every `attempt()` stream, test widget output, and document observed reads in the source README.
 
 Slice 1 writer: `openai/gpt-6.2-astra` (GPT-6.2 Astra).
@@ -103,17 +105,21 @@ The line shows these phases: `execute`, `simplify`, `verify`, `recovery`, `publi
 **Blocked by:** Task 1
 **Traces to:** Requirement 3
 
-- [ ] Add failing tests with an injected writer. Assert the exact sequences for working per phase, `blocked:kind=question` during recovery, `blocked:kind=permission` during runner dialogs (`confirm` and `approve`), and `done`, `error`, `idle`, and `clear` on completion, error stop, cancellation, and shutdown (including `clear` after the widget is cleared). Assert no writes when `PI_PROGRAM_STATUS=0`, no root-record writes, and `msg` sanitizing and bounds.
-- [ ] Implement the formatter and the writer from the widget factory's `Terminal`. Document the child record and the operator live check in the README.
-- [ ] Run `npm test`, `npm run test:integration`, and `npm run typecheck` from `dot_pi/agent`. Commit with `feat(pi): report stage activity to Rex`.
+**Execution evidence:** The focused Rex test first failed because no child-record writer existed. Exact-sequence and command shutdown tests then passed, as did `npm test`, `npm run test:integration`, and `npm run typecheck`. The formatter adds the fixed child ID to pi-tui's sanitized and byte-limited encoding before writing to the captured terminal.
+
+- [x] Add failing tests with an injected writer. Assert the exact sequences for working per phase, `blocked:kind=question` during recovery, `blocked:kind=permission` during runner dialogs (`confirm` and `approve`), and `done`, `error`, `idle`, and `clear` on completion, error stop, cancellation, and shutdown (including `clear` after the widget is cleared). Assert no writes when `PI_PROGRAM_STATUS=0`, no root-record writes, and `msg` sanitizing and bounds.
+- [x] Implement the formatter and the writer from the widget factory's `Terminal`. Document the child record and the operator live check in the README.
+- [x] Run `npm test`, `npm run test:integration`, and `npm run typecheck` from `dot_pi/agent`. Commit with `feat(pi): report stage activity to Rex`.
 
 ### Task 4: Final verification
 **Delivers:** Evidence that all requirements hold together.
 **Blocked by:** Tasks 1-3
 **Traces to:** Requirements 1-3
 
-- [ ] Review the relevant `AGENTS.md` files and change them only if a durable operator rule has changed.
-- [ ] Under `dot_pi/agent`, run `npm ci --ignore-scripts`, `npm test`, and `npm run test:all`, then remove `node_modules`. Confirm that each scenario in Requirements 1-3 maps to a passing test. List the `## Live check follow-up` as open until the operator records it.
+**Execution evidence:** Reviewed the repository and agent `AGENTS.md` files. The release-specific spinner check belongs in the README; no general operator rule changed. A clean `npm ci --ignore-scripts`, `npm test`, and `npm run test:all` passed. Removed the source worktree's `dot_pi/agent/node_modules` afterward. The runner and integration tests cover phase timing, retries, recovery, and child skill reads. The Rex writer test covers state bytes, bounds, deduplication, and opt-out. The command test checks an empty pre-confirmation widget, cancellation, and shutdown after widget removal. These tests do not establish that Rex animates the tab; the live check remains open.
+
+- [x] Review the relevant `AGENTS.md` files and change them only if a durable operator rule has changed.
+- [x] Under `dot_pi/agent`, run `npm ci --ignore-scripts`, `npm test`, and `npm run test:all`, then remove `node_modules`. Confirm that each scenario in Requirements 1-3 maps to a passing test. List the `## Live check follow-up` as open until the operator records it.
 
 ## Live check follow-up
 The operator performs this check after publication and before merge or `chezmoi apply`. It has no checkbox because no child can perform it. In an isolated Rex and Pi run, query `rex block call -b "$REX_BLOCK" program_status` during a phase and confirm a `stage-runner` record with state `working`. Focus another tab and confirm the spinner on the invoking tab while Pi's root record is idle. Confirm the final record state after exit. Record the result in the PR. If the spinner is absent, apply the stop condition in `## Validation limits`.

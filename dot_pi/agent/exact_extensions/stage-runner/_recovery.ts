@@ -1,3 +1,4 @@
+import { matchesForegroundProcess, verifyLocalRexEndpoint, verifyLocalRexPeer } from "../_shared/rex.ts";
 import { qualifiedId } from "./_model.ts";
 import * as fs from "node:fs";
 import path from "node:path";
@@ -61,10 +62,9 @@ export async function recovery(o: {
   owner: (state: Ownership | null) => void;
   manual: (command: string, display: boolean) => void;
 }) {
-  const { REX_SERVER: endpoint, REX_SESSION: session, REX_BLOCK: anchor } = o.env;
-  if (!endpoint?.startsWith("unix:///") || !session || !anchor) throw Error("Missing local Rex IDs");
-  const socket = fs.lstatSync(decodeURIComponent(new URL(endpoint).pathname));
-  if (!socket.isSocket() || socket.uid !== process.getuid?.()) throw Error("Unverified Rex socket");
+  const { REX_SERVER, REX_SESSION: session, REX_BLOCK: anchor } = o.env;
+  if (!REX_SERVER || !session || !anchor) throw Error("Missing local Rex IDs");
+  const endpoint = verifyLocalRexEndpoint(REX_SERVER);
   const [exe, ...prefix] = o.rex ?? ["rex"];
   const rexArgs = [...prefix, "--autostart=false", "--server", endpoint];
   const rexOptions = { cwd: o.cwd, env: o.env, maxBuffer: 128 * 1024, killSignal: "SIGKILL" } as const;
@@ -74,15 +74,9 @@ export async function recovery(o: {
   const command = o.argv.map((s) => "'" + s.replaceAll("'", "'\\''") + "'").join(" ");
   const instructions = "Recovery command in " + o.cwd + " (Rex " + session + " / " + anchor + "):\n" + command;
   o.manual(instructions, false);
-  const peer = JSON.parse(await rex("whoami", "--json"));
-  if (
-    peer.endpoint !== endpoint ||
-    peer.principal?.transport !== "unix" ||
-    peer.principal.kind !== "peer" ||
-    peer.principal.uid !== process.getuid?.() ||
-    peer.session_id !== session ||
-    peer.block_id !== anchor
-  ) {
+  try {
+    verifyLocalRexPeer(JSON.parse(await rex("whoami", "--json")), endpoint, { session, block: anchor });
+  } catch {
     o.manual(instructions, true);
     throw Error("Rex peer or anchor mismatch");
   }
@@ -132,11 +126,7 @@ export async function recovery(o: {
     Number.isSafeInteger(view.child?.pid) &&
     view.child.pid > 1 &&
     view.child.pid !== process.pid &&
-    view.child.pid === view.foreground?.pid &&
-    view.foreground.user_id === process.getuid?.() &&
-    view.foreground.path &&
-    fs.realpathSync(view.foreground.path) === fs.realpathSync(o.argv[0]) &&
-    fs.realpathSync(view.foreground.cwd) === fs.realpathSync(o.cwd);
+    matchesForegroundProcess(view.foreground, { pid: view.child.pid, cwd: o.cwd, execPath: o.argv[0] });
   let view = await inspect();
   const deadline = Date.now() + 5000;
   while (!identity(view) && !view.last_exit && Date.now() < deadline && !o.signal.aborted) {

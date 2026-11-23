@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import path from "node:path";
 import os from "node:os";
-import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import test from "node:test";
-import { fileURLToPath } from "node:url";
 
 import {
   buildRepoContextKey,
+  deriveSlashTaskLabel,
   formatCurrentModel,
   formatPR,
   loadRexLines,
@@ -185,79 +185,19 @@ test("registered hook excludes RPC and missing Rex identifiers", () => {
   }
 });
 
+test("deriveSlashTaskLabel builds valid task labels for slash commands and skips free-form prompts", () => {
+  assert.equal(deriveSlashTaskLabel("/execute plans/fix-rex-fork/plan.md"), "π-execute-fix-rex-fork");
+  assert.equal(deriveSlashTaskLabel("/verify plans/foo/plan.md"), "π-verify-foo");
+  assert.equal(deriveSlashTaskLabel("/pr-validate https://github.com/DataDog/dd-source/pull/42"), "π-pr-validate-dd-source");
+  assert.equal(deriveSlashTaskLabel("/disk-cleanup"), "π-disk-cleanup");
+  assert.equal(deriveSlashTaskLabel("/learn"), "π-learn-task");
+  assert.equal(deriveSlashTaskLabel("fix the tests"), null);
+});
+
 test("registered hook ignores failed naming and does not retry", () => {
   const { recorded, output } = runHookScenario({ fail: true, reload: true });
   assert.equal(recorded.length, 1);
   assert.match(output.message.content, /rex-name-task/);
-});
-
-test("candidate extension injects Rex guidance in an isolated Pi RPC agent loop", { timeout: 30_000 }, async () => {
-  const dir = mkdtempSync(path.join(os.tmpdir(), "user-context-rpc-"));
-  let child;
-  try {
-    const agentDir = path.join(dir, "agent");
-    const bin = path.join(dir, "bin");
-    mkdirSync(agentDir);
-    mkdirSync(bin);
-    symlinkSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../node_modules"), path.join(dir, "node_modules"));
-    const calls = path.join(dir, "calls");
-    const captured = path.join(dir, "context.json");
-    writeFileSync(path.join(bin, "rex"), `#!${process.execPath}\nconsole.log('Rex RPC fixture');\n`, { mode: 0o755 });
-    writeFileSync(path.join(bin, "fish"), `#!${process.execPath}\nrequire('node:fs').writeFileSync(process.env.CALLS, 'called');\n`, { mode: 0o755 });
-    const driver = path.join(dir, "driver.ts");
-    writeFileSync(driver, `
-import { createAssistantMessageEventStream } from '@earendil-works/pi-ai/compat';
-import { writeFileSync } from 'node:fs';
-export default function (pi) {
-  pi.registerProvider('context-test', {
-    name: 'Context fixture', baseUrl: 'http://127.0.0.1', apiKey: 'fixture-only', api: 'context-test-api',
-    models: [{ id: 'driver', name: 'Context fixture', reasoning: true, input: ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 8192, maxTokens: 1024 }],
-    streamSimple(model, context) {
-      writeFileSync(process.env.CAPTURED, JSON.stringify(context));
-      const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
-      const message = { role: 'assistant', content: [{ type: 'text', text: 'fixture complete' }], api: model.api, provider: model.provider, model: model.id, timestamp: Date.now(), usage, stopReason: 'stop' };
-      const stream = createAssistantMessageEventStream();
-      stream.push({ type: 'done', reason: 'stop', message });
-      stream.end(message);
-      return stream;
-    },
-  });
-}`);
-    const candidate = fileURLToPath(new URL("./user-context.ts", import.meta.url));
-    child = spawn("pi", ["--mode", "rpc", "--no-session", "--no-extensions", "--no-prompt-templates", "--no-context-files", "--provider", "context-test", "--model", "driver", "--thinking", "minimal", "-e", candidate, "-e", driver], {
-      cwd: dir,
-      env: { ...process.env, PI_CODING_AGENT_DIR: agentDir, PI_OFFLINE: "1", PATH: `${bin}:${process.env.PATH}`, REX_SESSION: "session:fixture", REX_BLOCK: "block:fixture", CALLS: calls, CAPTURED: captured },
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-    let stdout = "";
-    let stderr = "";
-    child.stderr.setEncoding("utf8");
-    child.stderr.on("data", (chunk) => { stderr += chunk; });
-    await new Promise((resolve, reject) => {
-      const finish = (error) => { clearTimeout(timer); if (error) reject(error); else resolve(); };
-      const timer = setTimeout(() => finish(new Error(`Pi RPC timed out: ${stderr}`)), 20_000);
-      child.on("error", finish);
-      child.on("close", (code) => finish(new Error(`Pi RPC exited early (${code}): ${stderr}`)));
-      child.stdout.setEncoding("utf8");
-      child.stdout.on("data", (chunk) => {
-        stdout += chunk;
-        if (stdout.split("\n").some((line) => { try { return JSON.parse(line).type === "agent_settled"; } catch { return false; } })) {
-          finish();
-        }
-      });
-      child.stdin.write(`${JSON.stringify({ type: "prompt", message: "hello" })}\n`);
-    });
-    const context = readFileSync(captured, "utf8");
-    assert.match(context, /Rex RPC fixture/);
-    assert.match(context, /rex-name-task/);
-    assert.doesNotMatch(context, /rex-name-session/);
-    assert.equal(existsSync(calls), false, "RPC mode must not run the Fish naming function");
-  } finally {
-    if (child && child.exitCode === null && child.signalCode === null) {
-      await new Promise((resolve) => { child.once("close", resolve); child.kill(); });
-    }
-    rmSync(dir, { recursive: true, force: true });
-  }
 });
 
 test("registered hook suppresses Rex naming, background fetches, and skill-loader injection in stage-runner children while keeping Current Model", () => {

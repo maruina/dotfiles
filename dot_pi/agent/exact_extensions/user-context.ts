@@ -9,6 +9,30 @@ const JIRA_KEY_RE = /\b[A-Z][A-Z0-9]+-[0-9]+\b/g;
 const DATA_DOG_ROOT = path.join(process.env.HOME ?? "", "dd");
 const DATA_DOG_WORKTREES = path.join(DATA_DOG_ROOT, ".worktrees");
 const WORK_GH_ORGS = new Set(["ddoghq", "ddoghq-sandbox"]);
+const TASK_LABEL_RE = /^π-[a-z]+(-[a-z]+){1,3}$/;
+
+export function deriveSlashTaskLabel(prompt: string): string | null {
+  const match = /^\s*\/([a-z][a-z0-9-]*)(?:\s+(.*))?$/is.exec(prompt);
+  if (!match) return null;
+  const cmdWords = match[1].toLowerCase().split("-").map((w) => w.replace(/[^a-z]/g, "")).filter(Boolean);
+  if (cmdWords.length === 0) return null;
+
+  const arg = (match[2] ?? "").trim();
+  const argWords: string[] = [];
+  const planMatch = /(?:^|\/)plans\/([^/\s]+)(?:\/|$)/.exec(arg);
+  const prMatch = /github\.com\/[^/\s]+\/([^/\s]+)\/pull\/\d+/.exec(arg);
+  const source = planMatch?.[1] ?? prMatch?.[1] ?? "";
+  if (source) {
+    for (const part of source.toLowerCase().split(/[^a-z]+/)) {
+      if (part) argWords.push(part);
+    }
+  }
+
+  const words = [...cmdWords, ...argWords].slice(0, 4);
+  if (words.length === 1) words.push("task");
+  const label = `π-${words.join("-")}`;
+  return TASK_LABEL_RE.test(label) ? label : null;
+}
 
 type CurrentPullRequest = {
   number: number;
@@ -278,11 +302,18 @@ export default function (pi: ExtensionAPI) {
     lastInjectedContent = null;
   });
 
-  pi.on("before_agent_start", async (_event, ctx) => {
+  pi.on("before_agent_start", async (event, ctx) => {
     const stageRunnerChild = process.env.PI_STAGE_RUNNER_CHILD === "1";
-    if (!stageRunnerChild && !rexNamingState.attempted && ctx.mode === "tui" && process.env.REX_SESSION && process.env.REX_BLOCK) {
+    const inInteractiveRex = !stageRunnerChild && ctx.mode === "tui" && Boolean(process.env.REX_SESSION) && Boolean(process.env.REX_BLOCK);
+    if (inInteractiveRex && !rexNamingState.attempted) {
       rexNamingState.attempted = true;
       void runAsync("fish", ["-c", "rex-name-session"], rexNamingState.startupCwd, 3000);
+    }
+    if (inInteractiveRex && event.messageType === "user" && typeof event.prompt === "string") {
+      const taskLabel = deriveSlashTaskLabel(event.prompt);
+      if (taskLabel) {
+        void runAsync("fish", ["-c", `rex-name-task ${taskLabel}`], ctx.cwd, 3000);
+      }
     }
     const { cwd } = ctx;
     const lines: string[] = [];

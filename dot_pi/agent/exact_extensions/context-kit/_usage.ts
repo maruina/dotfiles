@@ -1,5 +1,6 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
+import { writeAtomicJson } from "../_shared/fs.ts";
 import type { UsageRecord } from "./_status.ts";
 
 /**
@@ -19,10 +20,7 @@ export function usageRecordPath(usageDir: string, sessionId: string): string {
 
 export function saveUsageRecord(usageDir: string, record: UsageRecord): void {
   mkdirSync(usageDir, { recursive: true });
-  const path = usageRecordPath(usageDir, record.sessionId);
-  const tmp = `${path}.tmp.${process.pid}`;
-  writeFileSync(tmp, JSON.stringify(record));
-  renameSync(tmp, path);
+  writeAtomicJson(usageRecordPath(usageDir, record.sessionId), record);
 }
 
 export function loadUsageRecord(usageDir: string, sessionId: string): UsageRecord | null {

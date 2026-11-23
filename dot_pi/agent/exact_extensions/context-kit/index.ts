@@ -88,6 +88,7 @@ export default function (pi: ExtensionAPI) {
   let piContextPaths = new Set<string>();
   let piContextHashes = new Set<string>();
   const startupSiblingPaths = new Set<string>();
+  const ruleFileListCache = new Map<string, string[]>();
   let injectedFiles: InjectedContextFile[] = [];
   let injectionMessages = 0;
   let blockedMutations = 0;
@@ -210,7 +211,7 @@ export default function (pi: ExtensionAPI) {
         if (local) addApplicable(local, "nested instruction discovery");
       }
       for (const local of startupSiblingPaths) addApplicable(local, "Pi-loaded local sibling");
-      for (const rule of findMatchingRules({ filePath: abs, cwd, sources: defaultRuleSources(cwd) }).sort((a, b) => a.path.localeCompare(b.path))) {
+      for (const rule of findMatchingRules({ filePath: abs, cwd, sources: defaultRuleSources(cwd), fileListCache: ruleFileListCache }).sort((a, b) => a.path.localeCompare(b.path))) {
         addApplicable(rule.path, "path-scoped rule match");
       }
     } catch (error) {
@@ -303,6 +304,7 @@ export default function (pi: ExtensionAPI) {
   pi.on("before_agent_start", async (event, ctx) => {
     clearPending(state);
     startupSiblingPaths.clear();
+    ruleFileListCache.clear();
     const cwd = resolve(event.systemPromptOptions.cwd);
 
     const piContextFiles = event.systemPromptOptions.contextFiles ?? [];

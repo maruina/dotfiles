@@ -156,10 +156,13 @@ For integration, reliability, performance, or cost checks, define comparable bas
 
 Carry the approved validation limits into the durable plan. Missing required evidence blocks delivery; an accepted gap does not waive a required check. New or widened gaps require user approval.
 
+### Post-publication validation
+Keep execution and independent `/verify` checks runnable before publication. Put checks that need a published PR, merge, or rollout under `## Post-publication validation`, outside execution tasks. Use plain bullets, not checkboxes: the runner counts unchecked boxes as execution work. Name each check's requirement, procedure, owner, trigger, expected evidence, and what the check gates. These are manual delivery gates; the runner does not enforce them. If a gate must block an automated stage, resolve the ordering conflict before committing; do not defer the gate.
+
 ### Slice grouping
 Group tasks under `### Slice N: <title>` headings only when the plan needs more than one shippable slice: Medium or Large/Risky work, or work with deliberately deferred scope. Each heading names the user feedback it delivers. Slice 1 is the smallest user-feedback slice. Small/direct plans keep the concise `## Scope` and `## Validation` shape with one execution unit and no slice headings.
 
-When slice grouping exists, a task outside the current slice is a follow-up, not plan scope. Deferred work appears under `Out of Scope` or as a later slice with a blocking edge. Each acceptance scenario maps to a slice through its task. A multi-slice plan records the feature-level acceptance criteria that only the completed feature can satisfy as `### Task N: Final verification` in the last slice, blocked by the tasks it gates; never as a standalone checklist section. Keep checkboxes inside numbered tasks.
+When slice grouping exists, a task outside the current slice is a follow-up, not plan scope. Deferred work appears under `Out of Scope` or as a later slice with a blocking edge. Each pre-publication acceptance scenario maps to a slice through its task. A multi-slice plan records the pre-publication acceptance criteria that only the completed feature can satisfy as `### Task N: Final verification` in the last slice, blocked by the tasks it gates; never as a standalone checklist section. Keep checkboxes inside numbered tasks.
 
 ### Acceptance criteria
 Express success as observable behavior contracts. Use RFC 2119 keywords and Given/When/Then:
@@ -174,7 +177,7 @@ The system SHALL <normative statement>.
 - THEN <observable outcome>
 ```
 
-Every requirement needs a scenario through a supported interface and must map to a task. Each behavior requirement also needs a negative scenario (no action or output) or a one-line reason why none applies; every behavior task maps back to a requirement. Prefer a focused automated test; tests must cover distinct contracts without multiplying independent dimensions or repeating expensive integration scenarios. If automation is impractical, say why and specify reproducible setup, invocation, expected result, and cleanup. Small plans may inline one or two scenarios under `## Validation`.
+Every requirement needs a scenario through a supported interface and must map to an implementation task, a post-publication check, or both. Each behavior requirement also needs a negative scenario (no action or output) or a one-line reason why none applies; every behavior task maps back to a requirement. Prefer a focused automated test; tests must cover distinct contracts without multiplying independent dimensions or repeating expensive integration scenarios. If automation is impractical, say why and specify reproducible setup, invocation, expected result, and cleanup. Small plans may inline one or two scenarios under `## Validation`.
 
 ### Task contract
 A fresh agent must be able to use each task with only the repository and plan. Paths and internal mechanisms are suggestions by default. Name the requirement, safety constraint, test seam, or agreed design decision that makes a path or mechanism binding. Acceptance scenarios, testing rules, and verification commands are binding.

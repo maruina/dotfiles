@@ -224,19 +224,25 @@ Task 2 evidence: The two branch-guard fixtures failed before implementation beca
 - [x] Commit with `feat(pi): rebase and check the plan before stage runner execution`.
 
 ### Task 3: Force-push the rebased branch with a lease
+**Execution writer (slice 2, Task 3):** `openai/gpt-6.2-sol`.
+
+Task 3 evidence: The six new startup fixtures failed against the pre-lease runner. All 15 startup fixtures then passed. `npm test` passed (521 passed, 3 skipped), `npm run test:integration` passed (107 stage-runner and 5 Worktrunk tests), and `npm run typecheck` passed.
+
+Approved recovery clarification: After an attempted push, the publisher makes one bounded remote read even if the operator canceled. If it cannot establish the result, the runner stops before execute, keeps the rebased HEAD and lock, and records the original, captured, and rebased SHAs. It does not retry. The `startup-push-unknown` fixture changes the bare ref and fails the confirmation read. A porcelain `stale info` rejection with a different observed head permits the original HEAD to be restored, as `startup-lease-race` verifies. These checks use a local bare remote, not GitHub.
+
 **Delivers:** When an existing remote ref was rewritten, the runner updates it with an explicit lease after the accepted check and confirms the remote and PR head before slice 1.
 **Blocked by:** Task 2
 **Traces to:** Requirement: Leased startup push.
 **Files:** `dot_pi/agent/exact_extensions/stage-runner/_publish.ts`, `dot_pi/agent/exact_extensions/stage-runner/_runner.ts`, `dot_pi/agent/exact_extensions/stage-runner/_integration.test.ts`, `dot_pi/agent/exact_extensions/stage-runner/_fixtures/ssh.mjs`, `dot_pi/agent/exact_extensions/stage-runner/_fixtures/pi.mjs`.
 
-- [ ] Add failing integration cases:
+- [x] Add failing integration cases:
   - an accepted rewrite with no PR, and one with an existing PR (`reuse`), where the final `publish()` succeeds without force;
   - remote-only commits, where the runner stops before confirmation and the argv log is absent;
   - a concurrent push that `_fixtures/ssh.mjs` injects into the bare `refs/heads/feature` on the first `git-receive-pack`, before it forwards the push. The lease rejects the push, the bare `.pushes` file has no startup entry, HEAD equals the original head, and no execute starts;
   - a remote ref that is already an ancestor of the rebased HEAD, where no startup push occurs.
-- [ ] Implement the remote head capture and ancestry check before confirmation, and the rewrite disclosure in the confirmation text. Implement the leased startup push method in `publisher()` with the captured remote head as its lease, and call it from the startup gate. Restore the original head after a changed remote head or a lease rejection. Keep the remote SHA out of `target`, and leave the `publish()` push unchanged.
-- [ ] Run `cd dot_pi/agent && npm test && npm run test:integration && npm run typecheck`; expect all to pass.
-- [ ] Commit with `feat(pi): force-push the rebased stage runner branch with a lease`.
+- [x] Implement the remote head capture and ancestry check before confirmation, and the rewrite disclosure in the confirmation text. Implement the leased startup push method in `publisher()` with the captured remote head as its lease, and call it from the startup gate. Restore the original head after a changed remote head or a lease rejection. Keep the remote SHA out of `target`, and leave the `publish()` push unchanged.
+- [x] Run `cd dot_pi/agent && npm test && npm run test:integration && npm run typecheck`; expect all to pass.
+- [x] Commit with `feat(pi): force-push the rebased stage runner branch with a lease`.
 
 ### Task 4: Document the startup contract
 **Delivers:** Operator and future-agent guidance that matches the new behavior.

@@ -576,11 +576,15 @@ async function supervise(o: Options | DesignOptions) {
       throw Error(`Startup pin failed for ${target.base}; original ${originalHead}; no remote write: ${error}`);
     }
     const needsRebase = git("merge-base", pinnedBase, originalHead) !== pinnedBase;
-    // Task 3 adds consent and publication for a rewrite of a remote feature ref.
-    if (needsRebase && remoteHead !== "absent")
-      throw Error(`Startup rebase stopped: remote feature ${remoteHead}, original ${originalHead}, pinned ${pinnedBase}; no remote write`);
+    const ancestor = (older: string, newer: string) => {
+      try { return git("merge-base", older, newer) === older; }
+      catch { return false; }
+    };
+    if (needsRebase && remoteHead !== "absent" && !ancestor(remoteHead, originalHead))
+      throw Error(`Startup rebase stopped: possible remote-only commits at ${remoteHead}, original ${originalHead}, pinned ${pinnedBase}; no remote write`);
     const decision = `${plan}: pinned ${target.base} at ${pinnedBase}. ` +
       (needsRebase ? "Rebase and check the plan before slice 1. " : "") +
+      (needsRebase && remoteHead !== "absent" ? `If the rebase rewrites the remote head, force-push ${branch} with a lease on ${remoteHead} before slice 1. This changes commit SHAs and can make PR review comments outdated. Cancellation does not undo the push. ` : "") +
       `Verify independently, then push the verified commit to ${target.url} ` +
       `(${target.branch} into ${target.base}) as ${target.login} and ` +
       `${target.pr ? "reuse " + target.pr : "create a draft PR"}. Profile: ${target.profile}.` +
@@ -649,6 +653,8 @@ async function supervise(o: Options | DesignOptions) {
         throw Error(`Startup rebase stopped: ${error}; ${context}; restored ${originalHead}; no remote write`);
       }
       let rebased: string | undefined;
+      let step = "check";
+      let remoteEffect = "no remote write";
       try {
         rebased = git("rev-parse", "HEAD");
         clean();
@@ -674,18 +680,41 @@ async function supervise(o: Options | DesignOptions) {
         base = rebased;
         privateFile(path.join(dir, "startup.json"), JSON.stringify({ base, verdict }));
         message("Startup check: fits");
+        if (remoteHead !== "absent" && !ancestor(remoteHead, rebased)) {
+          step = "push";
+          const pushed = await publication.pushStartup(target, remoteHead, rebased, () => {
+            clean();
+            if (gitState().branch !== featureRef || git("rev-parse", "HEAD") !== rebased)
+              throw Error("Rebased snapshot changed before push");
+          });
+          if (pushed.state === "rejected") throw Error(`Lease rejected; observed ${pushed.observed}`);
+          remoteEffect = pushed.state === "unknown" ? `remote outcome unknown; observed ${pushed.observed}` : `remote changed to ${pushed.observed}`;
+          if (pushed.state === "unknown" || pushed.state === "changed") {
+            uncertain = true;
+            throw Error(pushed.state === "changed" ? pushed.reason : "Push result not confirmed");
+          }
+          message(`Pushed ${rebased} to ${branch} with lease on ${remoteHead}`);
+          if (signal.aborted) {
+            uncertain = true;
+            throw Error("Canceled after the push");
+          }
+        }
       } catch (error) {
+        if (remoteEffect !== "no remote write") {
+          privateFile(path.join(dir, "startup-stop.json"), JSON.stringify({ step, originalHead, pinnedBase, rebased, remoteHead, remoteEffect, reason: safe(String(error)) }));
+          throw Error(`Startup ${step} stopped: ${error}; ${context}, captured ${remoteHead}, rebased ${rebased}; ${remoteEffect}${uncertain ? "; keep the lock for manual recovery" : ""}`);
+        }
         try {
           const state = gitState();
           if (state.branch !== featureRef) throw Error(`Expected branch ${featureRef}; found ${state.branch === "HEAD" ? "detached HEAD" : state.branch} at ${state.head}; no reset attempted`);
           git("-c", "core.hooksPath=/dev/null", "reset", "--keep", originalHead);
           assertRestored();
         } catch (restoreError) {
-          recoveryFailed("Startup check restore failed", `${error}; ${restoreError}`, rebased);
+          recoveryFailed(`Startup ${step} restore failed`, `${error}; ${restoreError}`, rebased);
         }
-        privateFile(path.join(dir, "startup-stop.json"), JSON.stringify({ originalHead, pinnedBase, rebased, reason: safe(String(error)) }));
-        message(`Restored ${originalHead} after startup check stopped`);
-        throw Error(`Startup check stopped: ${error}; ${context}, rebased ${rebased ?? "unknown"}; restored ${originalHead}; no remote write`);
+        privateFile(path.join(dir, "startup-stop.json"), JSON.stringify({ step, originalHead, pinnedBase, rebased, remoteHead, reason: safe(String(error)) }));
+        message(`Restored ${originalHead} after startup ${step} stopped`);
+        throw Error(`Startup ${step} stopped: ${error}; ${context}, captured ${remoteHead}, rebased ${rebased ?? "unknown"}; restored ${originalHead}; no remote write`);
       }
     }
     let remaining = unchecked(initial),

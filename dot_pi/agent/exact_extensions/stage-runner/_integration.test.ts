@@ -87,6 +87,7 @@ for (const failure of [
   "draft-pr-race",
   "draft-cancel",
   "draft-base-unavailable",
+  "startup-rewrite", "startup-reuse", "startup-remote-only", "startup-lease-race", "startup-ancestor", "startup-push-unknown",
   "startup-fits", "startup-blocked", "startup-invalid", "startup-branch", "startup-detached", "startup-conflict", "startup-blob", "startup-pin", "startup-decline",
   "work-personal-repo",
   "uncertain-create",
@@ -225,6 +226,13 @@ for (const failure of [
         git("commit", "--allow-empty", "-qm", "advance main");
       }
       git("--git-dir=" + bare, "fetch", repo, "refs/heads/main:refs/heads/main");
+      if (["startup-rewrite", "startup-reuse", "startup-lease-race", "startup-push-unknown"].includes(failure))
+        git("--git-dir=" + bare, "fetch", cwd, "HEAD:refs/heads/feature");
+      if (failure === "startup-ancestor")
+        git("--git-dir=" + bare, "update-ref", "refs/heads/feature", "main~");
+      if (failure === "startup-remote-only")
+        git("--git-dir=" + bare, "update-ref", "refs/heads/feature", "main");
+      if (failure === "startup-reuse") fs.writeFileSync(bare + ".pr", "1");
       if (failure === "startup-pin") git("--git-dir=" + bare, "update-ref", "-d", "refs/heads/main");
     }
     const originalHead = git("-C", cwd, "rev-parse", "HEAD").toString().trim();
@@ -307,7 +315,11 @@ for (const failure of [
       prefix: [path.join(import.meta.dirname, "_fixtures/pi.mjs")],
       profilePath: failure === "missing-profile" ? profilePath + ".absent" : profilePath,
       confirm: async (target: string) => {
-        if (failure === "startup-pin") assert.fail("Pin failure must stop before confirmation");
+        if (["startup-pin", "startup-remote-only"].includes(failure)) assert.fail("Must stop before confirmation");
+        if (["startup-rewrite", "startup-reuse", "startup-lease-race", "startup-push-unknown"].includes(failure)) {
+          assert.ok(target.includes(originalHead));
+          assert.match(target, /force-push.*lease.*before slice 1.*outdated.*does not undo/i);
+        }
         if (failure.startsWith("startup-")) assert.ok(target.includes(pinnedBase));
         assert.ok(target.includes(`${owner}/demo.git (feature into main)`));
         if (arp) assert.match(target, /silent review/i);
@@ -367,7 +379,20 @@ for (const failure of [
         detached: /Startup check.*detached/i, conflict: /Startup rebase/i,
         blob: /Startup check.*plan blob/i, pin: /Startup pin/i, decline: /declined/i,
       };
-      if (caseName === "fits") {
+      if (caseName === "push-unknown") {
+        await assert.rejects(result, /Startup push.*unknown.*keep the lock/i);
+        const head = git("-C", cwd, "rev-parse", "HEAD").toString().trim();
+        assert.notEqual(head, originalHead);
+        assert.equal(git("--git-dir=" + bare, "rev-parse", "feature").toString().trim(), head);
+        assert.deepEqual(phases, ["startup"]);
+        assert.ok(fs.readdirSync(options.root).some(name => name.startsWith("lock-")));
+      } else if (caseName === "lease-race") {
+        await assert.rejects(result, new RegExp(`Startup push.*observed ${pinnedBase}`));
+        assert.equal(git("-C", cwd, "rev-parse", "HEAD").toString().trim(), originalHead);
+        assert.equal(git("--git-dir=" + bare, "rev-parse", "feature").toString().trim(), pinnedBase);
+        assert.deepEqual(phases, ["startup"]);
+        assert.equal(fs.existsSync(bare + ".pushes"), false);
+      } else if (["fits", "rewrite", "reuse", "ancestor"].includes(caseName)) {
         const dir = await result;
         const startup = JSON.parse(fs.readFileSync(path.join(dir, "startup.json"), "utf8"));
         const runInfo = JSON.parse(fs.readFileSync(path.join(dir, "run.json"), "utf8"));
@@ -379,9 +404,11 @@ for (const failure of [
         const calls = fs.readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line).at(-1));
         assert.match(calls[0], /^\/startup-check /);
         assert.ok(calls[1].includes(`Feature baseline ${startup.base}`));
-        assert.equal(fs.readFileSync(bare + ".pushes", "utf8").trim().split("\n").length, 1);
+        const pushes = fs.readFileSync(bare + ".pushes", "utf8").trim().split("\n");
+        assert.deepEqual(pushes, [...(["rewrite", "reuse"].includes(caseName) ? [startup.base] : []), git("-C", cwd, "rev-parse", "HEAD").toString().trim()]);
+        if (caseName === "reuse") assert.equal(fs.existsSync(bare + ".pr.creates"), false);
       } else {
-        await assert.rejects(result, reason[caseName]);
+        await assert.rejects(result, caseName === "remote-only" ? /Startup rebase.*remote-only/i : reason[caseName]);
         if (caseName === "blocked") await assert.rejects(run({ ...options, onEvent: () => {} }), reason.blocked);
         assert.equal(approvals, 0);
         assert.equal(fs.existsSync(bare + ".pushes"), false);

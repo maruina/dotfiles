@@ -327,6 +327,11 @@ test("plan defines attributable evidence for integration and operational checks"
   ]);
 });
 
+test("execute reviews changed code for missing rationale before final checks", () => {
+  const handoff = prompt("execute.md").split("**Prepare verification handoff —**")[1].split("\n13. ")[0];
+  assert.match(handoff, /maintainer without the design or plan.*short comment next to the decision.*what would go wrong without it.*do not restate the code.*Run the final implementation-evidence commands/s);
+});
+
 test("execute requires attributable evidence and rejects inconclusive success", () => {
   requireMarkers(prompt("execute.md"), [
     /comparable baseline and candidate workloads/i,

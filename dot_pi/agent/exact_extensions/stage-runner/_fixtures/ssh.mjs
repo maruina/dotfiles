@@ -3,7 +3,8 @@ import { spawnSync } from "node:child_process";
 const args = process.argv.slice(2);
 const owner = process.env.REPO_OWNER ?? "fixture";
 const login = owner === "ddoghq" ? "matteo-ruina_ddog" : "maruina";
-if (process.env.GH_TOKEN || !args.includes("git@github.com")) process.exit(2);
+const host = process.env.FAIL === "arp-ssh-alias" ? "ddoghq.github.com" : "github.com";
+if (process.env.GH_TOKEN || !args.includes(`git@${host}`)) process.exit(2);
 if (args.includes("-T")) {
   if (process.env.FAIL !== "unknown-login")
     console.error(

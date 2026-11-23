@@ -171,7 +171,8 @@ for (const failure of [
     fs.mkdirSync(path.join(repo, "plans/demo"), { recursive: true });
     fs.writeFileSync(
       path.join(repo, "plans/demo/plan.md"),
-      "### Slice 1\n" + (failure === "started" ? "- [x]" : "- [ ]") + " first\n### Slice 2\n- [ ] second\n",
+      `### Slice 1${failure ? "" : ": First"}\n` + (failure === "started" ? "- [x]" : "- [ ]") +
+        ` first\n### Slice 2${failure ? "" : ": Second"}\n- [ ] second\n`,
     );
     git("add", ".");
     git("commit", "-qm", "plan");
@@ -246,10 +247,10 @@ for (const failure of [
     let clock = 0;
     const summaries: string[] = [];
     let widget: string[] | undefined;
-    const skillLines: string[] = [];
+    const widgetLines: string[] = [];
     const display = phaseDisplay(lines => {
       widget = lines;
-      if (!failure && lines) skillLines.push(lines[0]);
+      if (!failure && lines) widgetLines.push(lines[0]);
     }, entry => summaries.push(entry),
       message => progress.push(message), () => clock);
     t.after(() => {
@@ -580,7 +581,9 @@ for (const failure of [
         phases, ["execute:1", "execute:2", "simplify", "verify:1", "publish"],
       );
       const labels = Array.from({ length: 16 }, (_, i) => "skill-" + i);
-      const observed = skillLines.filter(line => line.includes("skills: "));
+      assert.ok(widgetLines.some(line => line.startsWith("execute slice 1: First · ")));
+      assert.ok(widgetLines.some(line => line.startsWith("execute slice 2: Second · ")));
+      const observed = widgetLines.filter(line => line.includes("skills: "));
       assert.deepEqual([...new Set(observed)], labels.map((_, i) =>
         "simplify · 00:00 | execute 00:02 | skills: " + labels.slice(0, i + 1).join(", ")));
       const first = path.join(options.root, bundle, "execute-1");

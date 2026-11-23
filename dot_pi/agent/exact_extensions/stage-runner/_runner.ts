@@ -12,8 +12,9 @@ import { recovery, sessionInfo } from "./_recovery.ts";
 type Stage = "execute" | "simplify" | "verify";
 export type Choice = { provider: string; id: string; thinking: string };
 export type Phase = Stage | "recovery" | "publish" | "review" | "fix";
+type PlanSlice = { number: number; title: string };
 export type RunnerEvent =
-  | ({ type: "phase"; at: number; launch?: number } & (
+  | ({ type: "phase"; at: number; launch?: number; slice?: PlanSlice } & (
       { phase: Exclude<Phase, "recovery"> } | { phase: "recovery"; message: string }
     ))
   | { type: "skills"; labels: string[] }
@@ -45,6 +46,31 @@ const unchecked = (s: string): string[] => s.match(/^\s*- \[ \] .+$/gm) ?? [];
 const id = (m: Choice) => qualifiedId(m.provider, m.id);
 const privateFile = (file: string, value: string | Buffer) =>
   fs.writeFileSync(file, value, { mode: 0o600, flag: "wx" });
+
+export function activeSlice(plan: string): PlanSlice | undefined {
+  let slice: PlanSlice | undefined;
+  let fence: string | undefined;
+  for (const line of plan.split(/\r?\n/)) {
+    // deliberate: Scan top-level Markdown only. Use a Markdown parser if plans need nested fences.
+    const marker = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+    if (fence) {
+      if (marker && marker[1].startsWith(fence) && !marker[2].trim()) fence = undefined;
+      continue;
+    }
+    if (marker && (marker[1][0] === "~" || !marker[2].includes("`"))) {
+      fence = marker[1];
+      continue;
+    }
+    if (/^### Slice\b|^## /.test(line)) {
+      const heading = /^### Slice (\d+):\s*(.+)$/.exec(line);
+      const number = Number(heading?.[1]);
+      const title = heading?.[2].trim();
+      slice = title && Number.isSafeInteger(number) && number > 0 ? { number, title } : undefined;
+    } else if (slice && unchecked(line).length) {
+      return slice;
+    }
+  }
+}
 
 export function preflight(plan: string, ids: readonly string[], nested: boolean) {
   if (nested) throw Error("Nested stage-runner is not allowed");
@@ -525,8 +551,8 @@ async function supervise(o: Options | DesignOptions) {
     const writers = new Set([id(o.models.execute)]);
     let verifies = 0, slices = 0;
     const now = o.now ?? (() => performance.now());
-    const phase = (phase: Exclude<Phase, "recovery">, launch?: number) =>
-      o.onEvent({ type: "phase", phase, launch, at: now() });
+    const phase = (phase: Exclude<Phase, "recovery">, launch?: number, slice?: PlanSlice) =>
+      o.onEvent({ type: "phase", phase, launch, at: now(), ...(slice && { slice }) });
     const message = (message: string) => o.onEvent({ type: "message", message });
     const publication = publisher(cwd, o.profilePath, env, signal);
     const { target } = await publication.inspect();
@@ -589,7 +615,11 @@ async function supervise(o: Options | DesignOptions) {
         clean();
         verifies++;
       }
-      phase(stage, stage === "execute" ? ++slices : stage === "verify" && !pending ? verifies : undefined);
+      if (stage === "execute") {
+        phase(stage, ++slices, activeSlice(prev === base ? initial : git("show", prev + ":" + rel)));
+      } else {
+        phase(stage, stage === "verify" && !pending ? verifies : undefined);
+      }
       function committedProgress(head: string) {
         const next = unchecked(git("show", head + ":" + rel));
         if (prev === head || next.length >= remaining.length) throw Error("No committed task progress");

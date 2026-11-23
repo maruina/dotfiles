@@ -24,6 +24,21 @@
 | `feature-worktree` | prompt-required | Durable plan commit | Continued in the existing feature worktree. |
 | `learning-candidates` | prompt-required | Review findings changed the plan | Recorded the `confirmed()` target-equality trap and the rerun bypass that a kept local rebase causes. |
 
+### Execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `skill-loader` | prompt-required | Select execution guidance | Matched skills to the TypeScript extension and plan ledger. |
+| `resolve-worktree` | prompt-required | Resolve the supplied plan path | Confirmed the feature worktree and checked the pinned plan and candidate. |
+| `feature-worktree` | prompt-required | Keep changes off the default branch | Used the existing feature branch. |
+| `codebase-research` | skill-loader | Trace the execute phase event | Checked the committed-plan read, phase consumers, and fixture coverage. |
+| `chezmoi` | skill-loader | Change managed extension source | Edited the source worktree only. No apply. |
+| `cli-best-practices` | skill-loader | Change a command's widget | Kept the new label display-only and preserved the launch-counter fallback. |
+| `write` | skill-loader | Update the progress ledger | Recorded checks and limits without changing the requirements. |
+
+**Execution writer (slice 1):** `openai/gpt-6.2-sol`.
+
+Slice 1 evidence: The focused unit command failed because `activeSlice` did not exist. The complete fixture failed because the widget showed no slice title. After implementation, all 19 runner unit tests and the complete fixture passed. `npm test` passed (521 passed, 3 skipped), and `npm run typecheck` passed. The first integration run exceeded the 180-second tool timeout. A rerun with a 420-second tool timeout passed all 97 integration tests. The checks used local fixtures, not a live Rex/GitHub rollout trial. The README and `AGENTS.md` changes remain in Task 4.
+
 ## Implementation Contract
 ### Components Affected
 | Component | Files | Responsibility | Verification |
@@ -182,10 +197,10 @@ When a remote feature ref exists and the rebase rewrote it, the runner SHALL upd
 **Traces to:** Requirement: Display the active slice.
 **Files:** `dot_pi/agent/exact_extensions/stage-runner/_runner.ts`, `dot_pi/agent/exact_extensions/stage-runner/index.ts`, `dot_pi/agent/exact_extensions/stage-runner/_runner.test.ts`, `dot_pi/agent/exact_extensions/stage-runner/_integration.test.ts`.
 
-- [ ] Add failing tests: a pure parser case for each scenario (grouped, partial, ungrouped, fenced lookalike), and `phaseDisplay` cases for the label, control characters, the 60-character cap, and the fallback. In `_integration.test.ts`, give the fixture plan's slice headings titles, for example `### Slice 1: First`, and assert in the complete case that the recorded widget lines include `execute slice 1: First` and `execute slice 2: Second`. Use titled headings only in the complete case, so the other cases keep the untitled headings and the fallback label.
-- [ ] Add optional `slice: { number, title }` to the `phase` RunnerEvent for execute. Compute it from the plan at HEAD before each execute launch, and render it in `phaseDisplay`. Preserve the phase totals, skills, `verify N of 3`, `rexActivity`, and recovery behavior.
-- [ ] Run `cd dot_pi/agent && npm test && npm run typecheck`; expect all tests to pass.
-- [ ] Commit with `feat(pi): show stage runner slice titles`.
+- [x] Add failing tests: a pure parser case for each scenario (grouped, partial, ungrouped, fenced lookalike), and `phaseDisplay` cases for the label, control characters, the 60-character cap, and the fallback. In `_integration.test.ts`, give the fixture plan's slice headings titles, for example `### Slice 1: First`, and assert in the complete case that the recorded widget lines include `execute slice 1: First` and `execute slice 2: Second`. Use titled headings only in the complete case, so the other cases keep the untitled headings and the fallback label.
+- [x] Add optional `slice: { number, title }` to the `phase` RunnerEvent for execute. Compute it from the plan at HEAD before each execute launch, and render it in `phaseDisplay`. Preserve the phase totals, skills, `verify N of 3`, `rexActivity`, and recovery behavior.
+- [x] Run `cd dot_pi/agent && npm test && npm run typecheck`; expect all tests to pass.
+- [x] Commit with `feat(pi): show stage runner slice titles`.
 
 ### Slice 2: Rebase, check, and update the branch before implementation
 ### Task 2: Gate slice 1 on the startup rebase and plan check

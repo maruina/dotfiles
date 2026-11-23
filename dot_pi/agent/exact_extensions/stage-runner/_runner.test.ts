@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { events, validate, preflight, prune, runDesign } from "./_runner.ts";
+import { activeSlice, events, validate, preflight, prune, runDesign } from "./_runner.ts";
 
 import { createServer } from "node:net";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -76,6 +76,35 @@ test("shutdown clears the runner record after cancellation removes its widget", 
   assert.deepEqual(writes, ["\x1b]7501;state=idle:id=stage-runner:app=pi-stage-runner\x1b\\"]);
   await shutdown();
   assert.equal(writes.at(1), "\x1b]7501;state=clear:id=stage-runner:app=pi-stage-runner\x1b\\");
+});
+
+test("active slice follows committed progress within and across slices", () => {
+  const first = "### Slice 1: First\n- [x] one\n- [ ] two\n";
+  const second = "### Slice 2: Second\n- [ ] three\n";
+  assert.deepEqual(activeSlice(first + second), { number: 1, title: "First" });
+  assert.deepEqual(activeSlice(first.replace("[ ]", "[x]") + second), { number: 2, title: "Second" });
+});
+
+test("active slice ignores ungrouped tasks and fenced headings and tasks", () => {
+  assert.equal(activeSlice("- [ ] ungrouped"), undefined);
+  assert.equal(activeSlice("~~~md\n### Slice 1: Example\n- [ ] fake\n~~~\n- [ ] real"), undefined);
+  assert.equal(activeSlice("### Slice 1: First\n````md\n```\n- [ ] fake\n````\n## Other\n- [ ] real"), undefined);
+  assert.equal(activeSlice("### Slice 1: First\n### Slice 2\n- [ ] untitled"), undefined);
+});
+
+test("execute widget uses the plan slice and replaces control characters before capping the title", () => {
+  let widget: string[] | undefined;
+  const display = phaseDisplay(lines => { widget = lines; }, () => {}, () => {}, () => 0);
+  try {
+    display.onEvent({ type: "phase", phase: "execute", launch: 3, at: 0,
+      slice: { number: 1, title: "First" } });
+    assert.deepEqual(widget, ["execute slice 1: First · 00:00"]);
+    display.onEvent({ type: "phase", phase: "execute", launch: 4, at: 0,
+      slice: { number: 2, title: "A\x1b\x9b" + "é".repeat(58) } });
+    assert.deepEqual(widget, ["execute slice 2: A??" + "é".repeat(56) + "… · 00:00 | execute 00:00"]);
+  } finally {
+    display.finish("complete");
+  }
 });
 
 test("phase ticks update only the widget and exit freezes the total", (t) => {

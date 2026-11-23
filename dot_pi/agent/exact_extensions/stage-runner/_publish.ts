@@ -44,20 +44,26 @@ export function publisher(
   const git = (...args: string[]) => command("git", args, gitEnv);
   async function inspect() {
     const url = await git("remote", "get-url", "--push", "--all", "origin");
-    const parse = (s: string) =>
-      /^(?:git@github\.com:|ssh:\/\/git@(?:github\.com(?::22)?|ssh\.github\.com:443)\/)([\w.-]+\/[\w.-]+?)(?:\.git)?$/.exec(
-        s,
-      )?.[1];
-    const repo = parse(url);
+    const isWorkOrganization = (repo: string) => /^(ddoghq|ddoghq-sandbox)\//i.test(repo);
+    const parse = (s: string) => {
+      const match = /^(?:git@(github\.com|ddoghq\.github\.com):|ssh:\/\/git@(github\.com|ddoghq\.github\.com)(?::(22))?\/|ssh:\/\/git@(ssh\.github\.com):(443)\/)([\w.-]+\/[\w.-]+?)(?:\.git)?$/.exec(s);
+      if (!match) return undefined;
+      const [, scpHost, sshHost, sshPort, alternateHost, alternatePort, repo] = match;
+      const host = scpHost ?? sshHost ?? alternateHost;
+      if (host === "ddoghq.github.com" && (profile !== "work" || !isWorkOrganization(repo))) return undefined;
+      return { repo, host, port: sshPort ?? alternatePort };
+    };
+    const push = parse(url);
     const fetch = await git("remote", "get-url", "--all", "origin");
     if (
-      !repo ||
-      (parse(fetch) ?? /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+?)(?:\.git)?$/.exec(fetch)?.[1]) !== repo ||
-      repo.split("/").some((p) => p === "." || p === "..")
+      !push ||
+      (parse(fetch)?.repo ?? /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+?)(?:\.git)?$/.exec(fetch)?.[1]) !== push.repo ||
+      push.repo.split("/").some((p) => p === "." || p === "..")
     )
       throw Error("Expected matching GitHub SSH origin and single push destination");
+    const { repo, host, port } = push;
     const branch = await git("symbolic-ref", "--short", "HEAD");
-    const workOrganization = /^(ddoghq|ddoghq-sandbox)\//i.test(repo);
+    const workOrganization = isWorkOrganization(repo);
     const login =
       profile === "work"
         ? workOrganization
@@ -67,15 +73,14 @@ export function publisher(
             (a: { active: boolean }) => a.active,
           )?.login;
     if (typeof login !== "string" || !/^[\w-]+$/.test(login)) throw Error("Unknown GitHub login");
-    const ssh443 = url.startsWith("ssh://git@ssh.github.com:443/");
     try {
       await exec(
         "ssh",
         [
           ...sshOptions,
           "-T",
-          ...(ssh443 ? ["-p", "443"] : url.startsWith("ssh://git@github.com:22/") ? ["-p", "22"] : []),
-          ssh443 ? "git@ssh.github.com" : "git@github.com",
+          ...(port ? ["-p", port] : []),
+          `git@${host}`,
         ],
         { cwd, env, signal, timeout: 10000, maxBuffer: 8192 },
       );

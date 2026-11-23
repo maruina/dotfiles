@@ -94,6 +94,7 @@ for (const failure of [
   "unknown-login",
   "no-origin",
   "foreign",
+  "alias-foreign",
   "https",
   "decline",
   "stale",
@@ -126,6 +127,7 @@ for (const failure of [
   "verify-dirty",
   "verify-commit",
   "arp-active",
+  "arp-ssh-alias",
   "arp-draft",
   "arp-retry-uncertain",
   "arp-stale",
@@ -173,6 +175,8 @@ for (const failure of [
     const arp = failure.startsWith("arp-");
     const owner = arp ? "ddoghq" : failure === "work-personal-repo" ? "maruina" : "fixture";
     git("remote", "add", "origin", `git@github.com:${owner}/demo.git`);
+    if (failure === "arp-ssh-alias" || failure === "alias-foreign")
+      git("config", `url.git@ddoghq.github.com:${owner}/.insteadOf`, `git@github.com:${owner}/`);
     git("update-ref", "refs/remotes/origin/main", git("rev-parse", "HEAD").toString().trim());
     git("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main");
     if (!failure) {
@@ -210,7 +214,7 @@ for (const failure of [
         { mode: 0o700 },
       );
     const profilePath = path.join(temp, "profile.json");
-    const profile = arp || ["recover-writer", "work-personal-repo"].includes(failure) ? "work" : "personal";
+    const profile = arp || ["recover-writer", "work-personal-repo", "alias-foreign"].includes(failure) ? "work" : "personal";
     fs.writeFileSync(
       profilePath,
       execFileSync(
@@ -275,6 +279,7 @@ for (const failure of [
       confirm: async (target: string) => {
         assert.ok(target.includes(`${owner}/demo.git (feature into main)`));
         if (arp) assert.match(target, /silent review/i);
+        if (failure === "arp-ssh-alias") assert.match(target, /git@ddoghq\.github\.com:ddoghq\/demo\.git/);
         if (failure === "work-personal-repo") assert.doesNotMatch(target, /\b(ARP|review|findings)\b/i);
         if (failure === "stale") git("remote", "set-url", "--push", "origin", "git@github.com:other/demo.git");
         return failure !== "decline";
@@ -385,7 +390,7 @@ for (const failure of [
       const names = calls.map(({ name }) => name.split("agentic_review_").at(-1));
       const statuses = names.filter((name) => name === "get_status");
       assert.equal(statuses.length, failure === "arp-stale" || failure === "arp-incomplete" ? 40 :
-        failure === "arp-cancel" || failure === "arp-findings" ? 1 : failure === "arp-retry-uncertain" ? 3 : 2);
+        ["arp-cancel", "arp-findings", "arp-ssh-alias"].includes(failure) ? 1 : failure === "arp-retry-uncertain" ? 3 : 2);
       assert.equal(names[0], "get_status");
       const expected = failure === "arp-draft" ? "review_anyway" : failure === "arp-retry-uncertain" ? "retry" : undefined;
       const requests = calls.filter(({ name }) => name.endsWith("request_review"));
@@ -402,7 +407,7 @@ for (const failure of [
       assert.equal(fs.existsSync(ledger), Boolean(expected));
       if (expected) assert.equal(fs.statSync(ledger).mode & 0o777, 0o600);
       assert.equal(fs.readFileSync(path.join(dir, "completed"), "utf8") === "VERIFIED; ARP complete",
-        ["arp-active", "arp-draft", "arp-retry-uncertain"].includes(failure));
+        ["arp-active", "arp-ssh-alias", "arp-draft", "arp-retry-uncertain"].includes(failure));
       if (failure === "arp-retry-uncertain") assert.ok(progress.some((message) => /request result uncertain/.test(message)));
       return;
     }
@@ -430,6 +435,10 @@ for (const failure of [
       await assert.rejects(result, reasons[failure] ?? /Drafting stopped: invalid or oversized title or body/);
       assert.equal(fs.existsSync(bare + ".pushes"), false);
       assert.equal(fs.existsSync(bare + ".pr.creates"), false);
+      return;
+    } else if (failure === "alias-foreign") {
+      await assert.rejects(result, /Expected matching GitHub SSH origin and single push destination/);
+      assert.equal(fs.existsSync(log), false);
       return;
     } else if (!published && !recovering) await assert.rejects(result);
     else await result;

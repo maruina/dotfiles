@@ -250,7 +250,9 @@ Approved recovery clarification: After an attempted push, the publisher makes on
 **Traces to:** All requirements and the rollout contract.
 **Files:** `dot_pi/agent/exact_extensions/stage-runner/README.md`, `dot_pi/agent/AGENTS.md`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`.
 
-- [ ] In `README.md`, document:
+Task 4 evidence: The recovery marker initially used the wrong section heading. After matching the existing heading, `npm test` passed (521 passed, 3 skipped). The repository-root `AGENTS.md` pointer still describes the guide, so it did not change.
+
+- [x] In `README.md`, document:
   - the pinned base and the confirmation disclosure;
   - the startup rebase, the `startup-check` stage, and how it differs from feature-wide `/verify`;
   - recovery after a conflict or a blocked check;
@@ -259,10 +261,10 @@ Approved recovery clarification: After an attempted push, the publisher makes on
   - the restore to the original head after a stop that follows the rebase.
 
   Replace "pushes the verified SHA … without force" and "Do not force-push … to recover" with statements that separate the startup push from final publication and from recovery. The recovery section must keep the prohibition on force-push.
-- [ ] In `dot_pi/agent/AGENTS.md`, amend the lifecycle sentence "The runner publishes the independently verified head in both profiles." State that final publication pushes only the independently verified head, and that a startup rebase can force-push the feature branch with a lease after the operator confirms the disclosed rewrite. Check the repository `AGENTS.md` pointer to the README; update it only if its summary no longer matches.
-- [ ] In `lifecycle-prompts.test.mjs`, extend the README marker test with markers for the leased startup push before slice 1, the final non-force publication, and the force-push prohibition in recovery. Update prompt-template assertions only if a prompt template changed.
-- [ ] Run `cd dot_pi/agent && npm test`; expect all tests to pass.
-- [ ] Commit with `docs(pi): document stage runner startup rebase and lease`.
+- [x] In `dot_pi/agent/AGENTS.md`, amend the lifecycle sentence "The runner publishes the independently verified head in both profiles." State that final publication pushes only the independently verified head, and that a startup rebase can force-push the feature branch with a lease after the operator confirms the disclosed rewrite. Check the repository `AGENTS.md` pointer to the README; update it only if its summary no longer matches.
+- [x] In `lifecycle-prompts.test.mjs`, extend the README marker test with markers for the leased startup push before slice 1, the final non-force publication, and the force-push prohibition in recovery. Update prompt-template assertions only if a prompt template changed.
+- [x] Run `cd dot_pi/agent && npm test`; expect all tests to pass.
+- [x] Commit with `docs(pi): document stage runner startup rebase and lease`.
 
 ### Task 5: Final verification
 **Delivers:** Feature-wide evidence for both slices.

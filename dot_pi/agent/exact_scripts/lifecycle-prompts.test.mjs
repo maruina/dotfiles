@@ -1248,6 +1248,9 @@ test("stage runner operator guide separates verified publication from the manual
   requireMarkers(guide, [
     /\*\*Personal:\*\*[^\n]*stops after GitHub confirms[^\n]*does not discover or call ARP/,
     /\*\*Work:\*\*[^\n]*continues to ARP[^\n]*only for `ddoghq\/\*` and `ddoghq-sandbox\/\*`/,
+    /updates only the feature ref with `--force-with-lease` before slice 1/,
+    /For final publication[^\n]*independently verified SHA[^\n]*without force/,
+    /## Recover after a remote action stops\n(?:(?!^## )[^\n]*\n)*[^\n]*Do not force-push or delete a remote branch to recover/m,
     /## Run without publishing[^\n]*\n[^\n]*`\/execute`[^\n]*`\/simplify`[^\n]*`\/verify`[^\n]*publication explicitly excluded/,
   ]);
 });

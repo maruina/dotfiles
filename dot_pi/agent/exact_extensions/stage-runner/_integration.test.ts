@@ -8,7 +8,7 @@ import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { phaseDisplay } from "./index.ts";
 import { run } from "./_runner.ts";
-for (const [failure, error] of Object.entries({ blocker: "needs-human", "blocker-cancel": "abort", "blocker-uncertain": "uncertain recovery", "blocker-session": "identity mismatch", "pane-close": "Cannot confirm recovery exit", corrected: "", "corrected-stale": "Design changed", "corrected-other": "Design changed", "corrected-header": "Draft header", "": "", early: "handoff", header: "Draft header", path: "artifact path", overlap: "author model", stale: "Design changed", invalid: "pi --session", "no-plan": "handoff", reverted: "unrelated path", dirty: "dirty", switch: "Author used reviewer", "pre-check": "Design changed", "approval-race": "expected parent [a-f0-9]+, observed [a-f0-9]+" }))
+for (const [failure, error] of Object.entries({ blocker: "needs-human", "blocker-cancel": "abort", "blocker-uncertain": "uncertain recovery", "blocker-session": "identity mismatch", "pane-close": "Cannot confirm recovery exit", "cancel-after-exit": "abort", "wait-failure-running": "Cannot confirm recovery exit; lock retained: Rex wait returned invalid exit JSON", corrected: "", "corrected-stale": "Design changed", "corrected-other": "Design changed", "corrected-header": "Draft header", "": "", early: "handoff", header: "Draft header", path: "artifact path", overlap: "author model", stale: "Design changed", invalid: "pi --session", "no-plan": "handoff", reverted: "unrelated path", dirty: "dirty", switch: "Author used reviewer", "pre-check": "Design changed", "approval-race": "expected parent [a-f0-9]+, observed [a-f0-9]+" }))
  test((failure.startsWith("blocker") ? "design blocker: " : failure.startsWith("corrected") ? "corrected design: " : "clean design: ") + (failure || "committed plan without publication"), async (t) => {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), "design-test-"));
   t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
@@ -32,10 +32,47 @@ for (const [failure, error] of Object.entries({ blocker: "needs-human", "blocker
   const model = { provider: "p", id: "author", thinking: "off" };
   const { runDesign } = await import("./_runner.ts");
   const controller = new AbortController();
+  const cancelAfterExit = failure === "cancel-after-exit", waitFailureRunning = failure === "wait-failure-running";
+  const kill = cancelAfterExit || waitFailureRunning ? t.mock.method(process, "kill") : undefined;
   const result = runDesign({ cwd, env, root: path.join(temp, "state"), brief: "fixture design", author: model,
     reviewer: { ...model, id: "reviewer" }, signal: controller.signal, progress: () => {},
     executable: process.execPath, prefix: [path.join(import.meta.dirname, "_fixtures/design-pi.mjs")],
     rexCommand: [process.execPath, path.join(import.meta.dirname, "_fixtures/rex.mjs")] });
+  if (cancelAfterExit || waitFailureRunning) {
+    const pidFile = env.ARGV_LOG + ".pid";
+    const exited = () => fs.existsSync(pidFile + ".exit");
+    const waitForExit = async () => {
+      for (let i = 0; i < 500 && !exited(); i++) await delay(10);
+      assert.ok(exited(), "Fixture Pi did not exit");
+    };
+    try {
+      const rejected = assert.rejects(result, new RegExp(error, "i"));
+      if (cancelAfterExit) {
+        await Promise.all([rejected, (async () => {
+          await waitForExit();
+          for (let i = 0; i < 500 && !fs.existsSync(pidFile + ".waiting"); i++) await delay(10);
+          assert.ok(fs.existsSync(pidFile + ".waiting"), "Rex waiter did not start");
+          controller.abort();
+        })()]);
+      } else {
+        await rejected;
+        assert.ok(fs.existsSync(env.ARGV_LOG + ".first-turn"));
+        assert.ok(!exited(), "Fixture Pi exited before waiter failure was handled");
+      }
+      assert.equal(kill?.mock.callCount(), 0);
+      assert.equal(fs.existsSync(pidFile + ".closed"), cancelAfterExit);
+      assert.equal(fs.readdirSync(path.join(temp, "state")).some(s => s.startsWith("lock-")), waitFailureRunning);
+      assert.equal(fs.readFileSync(env.ARGV_LOG, "utf8"), "design-draft\n");
+    } finally {
+      if (waitFailureRunning && fs.existsSync(env.ARGV_LOG + ".first-turn") && !exited()) {
+        fs.writeFileSync(env.ARGV_LOG + ".continue", "");
+        await waitForExit();
+      }
+      controller.abort();
+      await result.catch(() => {});
+    }
+    return;
+  }
   if (error) {
     if (failure === "blocker-cancel") {
       const wait = async () => {

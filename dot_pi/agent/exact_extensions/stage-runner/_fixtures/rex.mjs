@@ -49,7 +49,16 @@ else if (args.includes("split")) {
 } else if (args.includes("wait") && args.includes(block) && args.includes(session) && args.includes("--json")) {
   if (!fs.existsSync(inspected) || fs.existsSync(closed)) process.exit(3);
   fs.writeFileSync(waiting, "");
+  if (failure === "cancel-after-exit" && !args.includes("--for=5s")) {
+    // Keep the waiter pending so only a process inspection can report the exit after abort.
+    await delay(30000);
+    process.exit(3);
+  }
   const deadline = Date.now() + (args.includes("--for=5s") ? 5000 : 30000);
+  if (failure === "wait-failure-running" && !args.includes("--for=5s")) {
+    while (!fs.existsSync(process.env.ARGV_LOG + ".first-turn") && Date.now() < deadline) await delay(10);
+    process.exit(3);
+  }
   while (!fs.existsSync(exitFile) && Date.now() < deadline) await delay(10);
   if (!fs.existsSync(exitFile) || failure === "corrected") process.exit(3);
   if (failure === "pane-close") {

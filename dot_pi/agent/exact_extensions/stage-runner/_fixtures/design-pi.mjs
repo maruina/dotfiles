@@ -24,12 +24,13 @@ if (env.FAIL === 'switch' && stage === 'design-draft') fs.appendFileSync(path.jo
 if (stage !== 'design-review') assert.match(prompt,/Stay in the current worktree and branch/);
 fs.appendFileSync(env.ARGV_LOG, stage+'\n');
 if (stage === 'design-draft') {
-  if (!env.FAIL) {
+  if (!env.FAIL || env.FAIL === 'wait-failure-running') {
     const release = env.ARGV_LOG+'.continue';
     await new Promise(resolve => {
       const watcher = fs.watch(path.dirname(release), () => { if (fs.existsSync(release)) { watcher.close(); resolve(); } });
       fs.writeFileSync(env.ARGV_LOG+'.first-turn','waiting for user');
     });
+    if (env.FAIL === 'wait-failure-running') process.exit(0);
   }
   if (env.FAIL === 'early') process.exit(7);
   fs.mkdirSync('plans/demo',{recursive:true}); fs.writeFileSync(rel,'# Demo\nStatus: '+(env.FAIL === 'header' ? 'Approved' : 'Draft')+'\n');

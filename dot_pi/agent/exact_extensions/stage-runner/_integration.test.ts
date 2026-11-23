@@ -95,6 +95,12 @@ for (const failure of [
   "no-origin",
   "foreign",
   "alias-foreign",
+  "non-branch-rules",
+  "branch-rule",
+  "unknown-rule",
+  "malformed-rule",
+  "malformed-rules-response",
+  "classic-protected",
   "https",
   "decline",
   "stale",
@@ -199,7 +205,8 @@ for (const failure of [
         failure === "foreign" ? "git@github.com:other/demo.git" : "https://github.com/fixture/demo.git",
       );
     if (failure === "reuse" || failure === "conflict") fs.writeFileSync(bare + ".pr", "1");
-    if (failure === "draft-pr-race") git("--git-dir=" + bare, "update-ref", "refs/heads/feature", "main");
+    if (failure === "draft-pr-race" || failure === "classic-protected")
+      git("--git-dir=" + bare, "update-ref", "refs/heads/feature", "main");
     if (failure === "draft-base-unavailable") git("--git-dir=" + bare, "update-ref", "-d", "refs/heads/main");
     if (failure === "non-fast-forward") {
       git("commit", "--allow-empty", "-qm", "other writer");
@@ -416,7 +423,7 @@ for (const failure of [
       !["recover-verify", "recover-writer", "recover-progress", "recover-blocked", "recover-simplify"].includes(
         failure,
       );
-    const published = ["", "reuse", "uncertain-create", "work-personal-repo"].includes(failure);
+    const published = ["", "reuse", "uncertain-create", "work-personal-repo", "non-branch-rules"].includes(failure);
     if (failure === "recover-progress-unfixed") await assert.rejects(result, /No committed task progress/);
     else if (stopped) await assert.rejects(result);
     else if (failure.startsWith("verify-")) await assert.rejects(result, /Verifier Git snapshot changed/);
@@ -435,6 +442,11 @@ for (const failure of [
       await assert.rejects(result, reasons[failure] ?? /Drafting stopped: invalid or oversized title or body/);
       assert.equal(fs.existsSync(bare + ".pushes"), false);
       assert.equal(fs.existsSync(bare + ".pr.creates"), false);
+      return;
+    } else if (["branch-rule", "unknown-rule", "malformed-rule", "malformed-rules-response", "classic-protected"].includes(failure)) {
+      await assert.rejects(result, failure === "classic-protected" ? /Protected branch/ : /Cannot publish to protected branch/);
+      assert.equal(fs.existsSync(log), false);
+      assert.equal(fs.existsSync(bare + ".pushes"), false);
       return;
     } else if (failure === "alias-foreign") {
       await assert.rejects(result, /Expected matching GitHub SSH origin and single push destination/);

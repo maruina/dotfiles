@@ -15,8 +15,18 @@ if (cmd === "auth" && !process.env.GH_TOKEN) {
 } else if (process.env.GH_TOKEN !== "fixture-api-secret") process.exit(1);
 else if (cmd === "api" && op === "user") json({ login });
 else if (cmd === "api" && op === "repos/" + repo) json({ full_name: repo, default_branch: "main", fork: false });
-else if (cmd === "api" && op.endsWith("/rules/branches/feature")) json([]);
-else if (cmd === "api" && op.endsWith("/branches/feature")) json({ protected: false });
+else if (cmd === "api" && op.endsWith("/rules/branches/feature")) {
+  const nonBranchRules = [{ type: "repository_visibility" }, { type: "file_path_restriction" }];
+  switch (process.env.FAIL) {
+    case "non-branch-rules":
+    case "classic-protected": json(nonBranchRules); break;
+    case "branch-rule": json([...nonBranchRules, { type: "pull_request" }]); break;
+    case "unknown-rule": json([...nonBranchRules, { type: "unknown" }]); break;
+    case "malformed-rule": json([...nonBranchRules, null]); break;
+    case "malformed-rules-response": json({}); break;
+    default: json([]);
+  }
+} else if (cmd === "api" && op.endsWith("/branches/feature")) json({ protected: process.env.FAIL === "classic-protected" });
 else if (cmd === "pr" && args.includes(repo) && args.includes("--head") && args.includes("feature")) {
   if (op === "create") {
     fs.appendFileSync(marker + ".creates", "create\n");

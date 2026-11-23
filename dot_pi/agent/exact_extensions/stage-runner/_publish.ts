@@ -106,7 +106,13 @@ export function publisher(
     if (info.full_name !== repo || info.fork !== false || !base || [base, "main", "master"].includes(branch))
       throw Error("Unexpected publication repository or branch");
     const rules = JSON.parse(await gh("api", `repos/${repo}/rules/branches/${encodeURIComponent(branch)}`));
-    if (!Array.isArray(rules) || rules.length) throw Error("Cannot publish to protected branch");
+    // deliberate: Allow only known non-branch rule types. For broader support, check each ruleset's target.
+    // GitHub still enforces push rules when it receives the push.
+    if (
+      !Array.isArray(rules) ||
+      rules.some((rule) => rule?.type !== "repository_visibility" && rule?.type !== "file_path_restriction")
+    )
+      throw Error("Cannot publish to protected branch");
     const remote = async () => {
       const result = await git("ls-remote", "--heads", "origin", "refs/heads/" + branch);
       if (!result) return "absent";

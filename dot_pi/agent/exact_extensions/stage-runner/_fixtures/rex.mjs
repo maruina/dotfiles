@@ -20,6 +20,8 @@ else if (args.includes("split")) {
     console.log("{}");
     process.exit();
   }
+  const flags = args.slice(0, args.indexOf("--"));
+  fs.appendFileSync(process.env.ARGV_LOG + ".splits", JSON.stringify(flags) + "\n");
   const [exe, ...argv] = args.slice(args.indexOf("--") + 1);
   const p = spawn(exe, argv, { cwd: args[args.indexOf("-c") + 1], stdio: "ignore", detached: true });
   p.unref();

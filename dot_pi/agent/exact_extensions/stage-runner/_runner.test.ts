@@ -25,13 +25,14 @@ test("Rex activity writes only bounded child records on transitions", () => {
     activity.permission("confirm");
     activity.phase("execute");
     activity.phase("execute");
-    activity.phase("recovery");
+    const recoveryMessage = "Fix the Verify failure in the Recovery pane, then exit Pi to continue.";
+    activity.recovery(recoveryMessage);
     activity.permission("approve");
     activity.phase("verify");
     for (const state of ["done", "error", "idle", "clear"] as const) activity.end(state);
     const expected = (state: string, message = "", kind = "") => `\x1b]7501;state=${state}:id=stage-runner:app=pi-stage-runner${kind && ":kind=" + kind}${message && ":msg=" + Buffer.from(message).toString("base64")}\x1b\\`;
     assert.deepEqual(writes, [expected("blocked", "confirm", "permission"), expected("working", "execute"),
-      expected("blocked", "recovery", "question"), expected("blocked", "approve", "permission"), expected("working", "verify"),
+      expected("blocked", recoveryMessage, "question"), expected("blocked", "approve", "permission"), expected("working", "verify"),
       ...["done", "error", "idle", "clear"].map(s => expected(s))]);
     activity.permission("a\x1bb" + "é".repeat(2048));
     assert.equal(writes.at(-1), expected("blocked", "a b" + "é".repeat(1022), "permission"));

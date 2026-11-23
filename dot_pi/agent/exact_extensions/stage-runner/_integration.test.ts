@@ -242,6 +242,7 @@ for (const failure of [
     const model = { provider: "p", id: failure ? "a" : "p/a", thinking: "off" };
     const progress: string[] = [];
     const phases: string[] = [];
+    const recoveryMessages: string[] = [];
     let clock = 0;
     const summaries: string[] = [];
     let widget: string[] | undefined;
@@ -278,6 +279,7 @@ for (const failure of [
         if (event.type === "phase") {
           assert.equal(event.at, clock);
           phases.push(event.phase + (event.launch === undefined ? "" : ":" + event.launch));
+          if (event.phase === "recovery") recoveryMessages.push(event.message);
         }
       },
       executable: process.execPath,
@@ -515,6 +517,11 @@ for (const failure of [
         return;
       }
       assert.equal(interactive.length, failure === "recover-verify" ? 2 : 1);
+      const splits = fs.readFileSync(log + ".splits", "utf8").trim().split("\n").map(line => JSON.parse(line) as string[]);
+      const stageName = failure === "recover-simplify" ? "Simplify" : ["recover-verify", "recover-blocked"].includes(failure) ? "Verify" : "Execute";
+      assert.ok(splits.every(flags => flags.includes("--label")));
+      assert.deepEqual(splits.map(flags => flags[flags.indexOf("--label") + 1]), interactive.map(() => `Recovery: ${stageName}`));
+      assert.deepEqual(recoveryMessages, interactive.map(() => `Fix the ${stageName} failure in the Recovery pane, then exit Pi to continue.`));
       for (const a of interactive) {
         assert.equal(a[a.indexOf("--model") + 1], "a");
         if (["recover-writer", "recover-progress", "recover-simplify"].includes(failure))

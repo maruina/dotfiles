@@ -54,10 +54,11 @@ For `plan.md` targets, check that:
 - every requirement maps to a task or explicit follow-up
 - Plan format: `### Task N: <title>` and `### Slice N: <title>`; `**Blocked by:**` lists only `Task N`, `Tasks N-M`, or `None`. Repeat `Task` for discrete references; put notes separately. Put checkboxes inside tasks and feature-wide final verification in a numbered task in the last slice.
 - the smallest user-feedback slice is named and is slice 1
-- every requirement and task maps to a slice, unless it is explicitly deferred as a follow-up
+- every execution task maps to a slice in a grouped plan; requirements assigned to later checks stay in scope
 - scope that re-entered from an alternative design or a prior review is deferred with a revisit trigger
 - the plan carries enough feature-level criteria for the final verification
-- acceptance requirements are expressed as testable scenarios, each mapped to at least one task
+- acceptance requirements are expressed as testable scenarios, each mapped to an implementation task, a post-publication check, or both
+- check the stage order: execution and independent pre-publication verification must not depend on publication, merge, or rollout; later checks preserve the requirements and list an owner, trigger, expected evidence, and gate under `## Post-publication validation` as plain bullets outside execution tasks; each trigger must precede the action the check gates
 - each behavior requirement has a negative scenario, or a reason why none applies
 - planned tests cover distinct contracts without multiplying independent dimensions or repeating expensive integration scenarios
 - a changed shared type, schema, configuration key, or public API has every consumer mapped to a task or to evidence that it needs no change

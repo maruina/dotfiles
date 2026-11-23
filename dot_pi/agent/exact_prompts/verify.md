@@ -27,7 +27,9 @@ Require at least one `--implemented-by` before target resolution; accept repeata
 6. Include commits from the base plus staged, unstaged, and intended untracked changes. Unexplained scope or an empty candidate blocks.
 
 ## Plan scope
-For a plan, require `--simplified-by`. Incomplete execution tasks require `BLOCKED`. Reconstruct the candidate from the feature base and verify every slice, including earlier slices, plus the feature-level criteria. Record how you reconstructed the candidate; return `BLOCKED` if you cannot establish the full scope. For an ungrouped plan, verify all its criteria in the same pass.
+For a plan, require `--simplified-by`. Incomplete execution tasks require `BLOCKED`. Reconstruct the candidate from the feature base and verify every slice, including earlier slices, plus the pre-publication feature-level criteria. Record how you reconstructed the candidate; return `BLOCKED` if you cannot establish the full scope. For an ungrouped plan, verify all its pre-publication criteria in the same pass.
+
+Before running validation commands, check their prerequisites against the stage order. Return `BLOCKED` if a pre-publication check needs the candidate to be published, merged, or rolled out first. Confirm each check in `## Post-publication validation` actually needs its stated later trigger, can run before the action it gates, and does not replace evidence required before publication. A section heading alone does not justify deferral.
 
 ## Risk classification
 
@@ -38,13 +40,13 @@ Classify first. Code, automation, infra/Kubernetes/CI, permissions/security, dep
 Run only read-only, non-fixing checks. Record each as selected, passed, failed, skipped, unavailable, or inapplicable, with a reason and concise output. Prior `/execute` output, historical logs, and plan checkboxes are not fresh evidence.
 
 1. Run `git diff --check` against the complete candidate; whitespace errors or conflict markers block.
-2. Rerun checks required by the plan, repository guidance, package metadata, or implementation contract; missing required tools, credentials, or dependencies block.
+2. Rerun pre-publication checks required by the plan, repository guidance, package metadata, or implementation contract. A missing pre-publication check or prerequisite returns `BLOCKED`. Report explicitly assigned post-publication checks as pending, not passed or waived, with their owners, triggers, expected evidence, and gates. Include them in the stage-runner handoff summary when applicable. Do not reclassify a missing or failed check as post-publication. If a required check's stage is ambiguous, return `BLOCKED` and request plan clarification.
 3. Select change-specific tests, builds, type checks, linters, validators, schema checks, and security checks from affected files and repository conventions using non-fixing modes only.
 4. When supported by the repository and changed language/package, run `maat analyze <supported-pattern> --diff-base <selected-base>`. Record unsupported or inapplicable maat as a skip; if the plan or repository requires it, unavailable maat blocks.
 5. For chezmoi-managed changes, run targeted `chezmoi --source <resolved-worktree> diff <affected-targets>`; never run `chezmoi apply`.
 6. Inspect commands introduced by a suspicious or untrusted candidate before executing them; if safety cannot be established, report the command and return `BLOCKED`.
 
-For plan-backed work, trace every in-scope Given/When/Then acceptance scenario to an implementation path, an observable automated test or supported executable check, and fresh passing output. Confirm the requirement, implementation, and test/check agree on the observable outcome. A test that would still pass with a plausible wrong implementation does not observe its stated result; examples are assertions that check only non-null, non-zero, or that a call occurred instead of the exact observable value. A scenario-shaped test that does not observe its stated result, missing coverage, contradictory implementation, or failed command is `BLOCKED`. Summarize passing requirements concisely; show scenario-level detail for gaps.
+For plan-backed work, exclude only scenarios that the plan explicitly assigns solely to `## Post-publication validation`. Trace every other in-scope Given/When/Then acceptance scenario to an implementation path, an observable automated test or supported executable check, and fresh passing output. Confirm the requirement, implementation, and test/check agree on the observable outcome. A test that would still pass with a plausible wrong implementation does not observe its stated result; examples are assertions that check only non-null, non-zero, or that a call occurred instead of the exact observable value. A scenario-shaped test that does not observe its stated result, missing coverage, contradictory implementation, or failed command is `BLOCKED`. Summarize passing requirements concisely; show scenario-level detail for gaps.
 
 ## Independent semantic review
 
@@ -84,5 +86,5 @@ Report these sections:
 
 End with exactly one top-level verdict:
 
-- `VERIFIED` only when every applicable layer passed in this run, requirements traceability is adequate, semantic review was independent when required, no blocking findings remain, and the final state matches the initial snapshot.
-- `BLOCKED` for every missing prerequisite, ambiguity, failed or unavailable required check, traceability gap, model-separation failure, state mutation, or material finding.
+- `VERIFIED` only when every applicable pre-publication layer passed in this run, requirements traceability is adequate, semantic review was independent when required, no blocking findings remain, and the final state matches the initial snapshot.
+- `BLOCKED` for every missing pre-publication prerequisite, ambiguity, failed or unavailable required check, traceability gap, model-separation failure, state mutation, or material finding.

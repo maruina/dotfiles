@@ -378,7 +378,7 @@ test("plan anchors scope to the smallest user-feedback slice with conditional gr
     /only when the plan needs more than one shippable slice/i,
     /slice 1 is the smallest user-feedback slice/i,
     /task outside the current slice is a follow-up/i,
-    /feature-level acceptance criteria.*`### Task N: Final verification`.*last slice.*blocked by the tasks it gates/is,
+    /pre-publication acceptance criteria.*`### Task N: Final verification`.*last slice.*blocked by the tasks it gates/is,
     /never as a standalone checklist section\. Keep checkboxes inside numbered tasks\./i,
     /slice grouping is used only when the plan needs it/i,
     /scope beyond the smallest.*explicitly deferred/is,
@@ -425,9 +425,9 @@ test("managed design prompts state only their stage exceptions", () => {
 test("lifecycle prompts stay within prompt context budgets", () => {
   const budgets = new Map([
     ["brainstorm.md", 14_000],
-    ["plan.md", 17_525],
-    ["systematic-review.md", 13_000],
-    ["execute.md", 14_500],
+    ["plan.md", 18_225],
+    ["systematic-review.md", 13_225],
+    ["execute.md", 15_125],
     ["verify.md", 13_700],
     ["simplify.md", 9_500],
   ]);
@@ -460,7 +460,7 @@ test("systematic review challenges scope against the smallest user-feedback slic
 
   requireMarkers(text, [
     /smallest user-feedback slice is named and is slice 1/i,
-    /every requirement and task maps to a slice, unless it is explicitly deferred as a follow-up/i,
+    /every execution task maps to a slice in a grouped plan; requirements assigned to later checks stay in scope/i,
     /re-entered from an alternative design or a prior review is deferred with a revisit trigger/i,
     /enough feature-level criteria for the final verification/i,
     /smallest user-feedback slice, not only against the design/i,
@@ -504,7 +504,7 @@ test("verify checks the complete plan and keeps the candidate read-only", () => 
   requireMarkers(prompt("verify.md"), [
     /for a plan, require `--simplified-by`\. Incomplete execution tasks require `BLOCKED`/i,
     /from the feature base.*every slice, including earlier slices/is,
-    /every in-scope Given\/When\/Then acceptance scenario.*failed command is `BLOCKED`/is,
+    /every other in-scope Given\/When\/Then acceptance scenario.*failed command is `BLOCKED`/is,
     /stage-runner.*private JSON handoff outside Git.*Keep repository files read-only/is,
   ]);
 });
@@ -530,6 +530,25 @@ test("verify gates the next execution handoff on plan prerequisites, keeps fixes
     /run fresh checks and a new `\/verify` after execution/i,
     /omit this section only when there are no findings/i,
     /accepted non-blocking style advisories and environment\/toolchain limitations/i,
+  ]);
+});
+
+test("validation gates follow the publication stage boundary", () => {
+  requireMarkers(prompt("plan.md"), [
+    /## Post-publication validation/,
+    /plain bullets, not checkboxes/,
+    /owner, trigger, expected evidence, and what the check gates/,
+    /manual delivery gates; the runner does not enforce them/,
+  ]);
+  assert.match(prompt("systematic-review.md"), /check the stage order.*pre-publication verification/i);
+  requireMarkers(prompt("execute.md"), [
+    /before any repository change, including recovery commits.*requires publication, merge, or rollout.*approved plan correction.*7\. For plan-based execution/is,
+    /confirm each post-publication check needs its stated trigger, can run before the action it gates, and does not replace required pre-publication evidence/i,
+  ]);
+  requireMarkers(prompt("verify.md"), [
+    /post-publication checks as pending, not passed or waived.*stage-runner handoff summary/i,
+    /a missing pre-publication check.*BLOCKED/i,
+    /before running validation commands.*`BLOCKED` if a pre-publication check needs.*confirm each check.*can run before the action it gates.*does not replace evidence required before publication/i,
   ]);
 });
 

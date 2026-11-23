@@ -31,7 +31,7 @@ if (stage === 'design-draft') {
       fs.writeFileSync(env.ARGV_LOG+'.first-turn','waiting for user');
     });
   }
-  if (env.FAIL === 'early') process.exit(0);
+  if (env.FAIL === 'early') process.exit(7);
   fs.mkdirSync('plans/demo',{recursive:true}); fs.writeFileSync(rel,'# Demo\nStatus: '+(env.FAIL === 'header' ? 'Approved' : 'Draft')+'\n');
   git('add',rel);git('commit','-qm','draft'); result = {designPath:env.FAIL === 'path' ? 'plans/demo with space/design.md' : rel,draftCommit:git('rev-parse','HEAD')};
 } else if (stage === 'design-review') {

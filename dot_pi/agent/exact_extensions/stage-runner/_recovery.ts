@@ -47,6 +47,10 @@ export function sessionInfo(dir: string, cwd: string, expected?: string) {
 }
 
 type Ownership = { session: string; anchor: string; block?: string; pid?: number };
+
+function hasExit(value: unknown): boolean {
+  return typeof value === "object" && value !== null && "exit_code" in value && Number.isSafeInteger(value.exit_code);
+}
 export async function recovery(o: {
   cwd: string;
   env: NodeJS.ProcessEnv;
@@ -61,15 +65,11 @@ export async function recovery(o: {
   const socket = fs.lstatSync(decodeURIComponent(new URL(endpoint).pathname));
   if (!socket.isSocket() || socket.uid !== process.getuid?.()) throw Error("Unverified Rex socket");
   const [exe, ...prefix] = o.rex ?? ["rex"];
+  const rexArgs = [...prefix, "--autostart=false", "--server", endpoint];
+  const rexOptions = { cwd: o.cwd, env: o.env, maxBuffer: 128 * 1024, killSignal: "SIGKILL" } as const;
+  const runRex = promisify(execFile);
   const rex = async (...args: string[]) =>
-    (
-      await promisify(execFile)(exe, [...prefix, "--autostart=false", "--server", endpoint, ...args], {
-        cwd: o.cwd,
-        env: o.env,
-        timeout: 5000,
-        maxBuffer: 128 * 1024,
-      })
-    ).stdout;
+    (await runRex(exe, [...rexArgs, ...args], { ...rexOptions, timeout: 5000 })).stdout;
   const command = o.argv.map((s) => "'" + s.replaceAll("'", "'\\''") + "'").join(" ");
   const instructions = "Recovery command in " + o.cwd + " (Rex " + session + " / " + anchor + "):\n" + command;
   o.manual(instructions, false);
@@ -144,24 +144,68 @@ export async function recovery(o: {
   if (!identity(view)) throw Error("Unverified recovery PID; inspect retained lock");
   const pid = (state.pid = view.child.pid);
   o.owner(state);
-  let terminated = 0,
-    killed = false;
-  while (true) {
+  const wait = async (bounded: boolean, signal?: AbortSignal) => {
+    const args = [...rexArgs, "--timeout=5s", "wait", "-s", session, "--json", block];
+    if (bounded) args.push("--for=5s");
+    const task = runRex(exe, args, { ...rexOptions, encoding: "buffer", signal, timeout: bounded ? 7000 : 0 });
+    const closed = new Promise<void>((resolve) => task.child.once("close", () => resolve()));
+    let stdout: Buffer;
     try {
-      process.kill(pid, 0);
+      ({ stdout } = await task);
     } catch (e) {
-      if ((e as NodeJS.ErrnoException).code === "ESRCH") break;
-      throw e;
+      // Rex can return Pi's nonzero status and still provide a valid exit record.
+      if (typeof (e as { code?: unknown }).code !== "number") throw e;
+      stdout = (e as { stdout: Buffer }).stdout;
+    } finally {
+      // execFile can reject on abort before the waiter closes. Do not inspect or signal Pi yet.
+      await closed;
     }
-    if (o.signal.aborted && (!terminated || Date.now() - terminated >= 5000)) {
-      const current = await inspect();
-      if (current.child?.pid !== pid || !identity(current) || killed)
-        throw Error("Cannot confirm recovery exit; lock retained");
-      process.kill(pid, terminated ? "SIGKILL" : "SIGTERM");
-      if (terminated) killed = true;
-      terminated = Date.now();
+    if (!hasExit(JSON.parse(new TextDecoder("utf8", { fatal: true }).decode(stdout))))
+      throw Error("Rex wait did not report a terminal exit code");
+  };
+  const retained = (reason: string) => Error("Cannot confirm recovery exit; lock retained: " + reason);
+  const reconcile = async (reason: string) => {
+    try {
+      return await inspect();
+    } catch {
+      throw retained(reason + "; could not inspect the original Rex block");
     }
-    await delay(150);
+  };
+  const observationFailure = async (bounded: boolean, signal?: AbortSignal) => {
+    try {
+      await wait(bounded, signal);
+    } catch (e) {
+      if (signal?.aborted) return "Rex wait canceled";
+      if (e instanceof SyntaxError || e instanceof TypeError) return "Rex wait returned invalid exit JSON";
+      return (e as NodeJS.ErrnoException).code ?? (e as Error).message;
+    }
+  };
+  const failure = o.signal.aborted ? "Run canceled" : await observationFailure(false, o.signal);
+  if (failure || o.signal.aborted) {
+    let current = await reconcile(failure ?? "Run canceled");
+    if (!hasExit(current?.last_exit)) {
+      if (!o.signal.aborted) throw retained(failure ?? "Rex did not confirm exit");
+      const send = (signal: NodeJS.Signals) => {
+        if (current?.child?.pid !== pid || !identity(current)) throw retained("Pi identity changed");
+        try {
+          process.kill(pid, signal);
+        } catch (e) {
+          // Pi can exit between inspection and signal delivery. Still require Rex exit evidence.
+          if ((e as NodeJS.ErrnoException).code !== "ESRCH") throw e;
+        }
+      };
+      send("SIGTERM");
+      const termFailure = await observationFailure(true);
+      if (termFailure) {
+        current = await reconcile(termFailure);
+        if (!hasExit(current?.last_exit)) {
+          send("SIGKILL");
+          const killFailure = await observationFailure(true);
+          if (killFailure && !hasExit((await reconcile(killFailure))?.last_exit))
+            throw retained("Rex did not confirm exit after SIGKILL: " + killFailure);
+        }
+      }
+    }
   }
   const listing = JSON.parse(await rex("block", "list", "-s", session, "--json"));
   if (listing.blocks.some((entry: { block_id: string }) => entry.block_id === block))

@@ -135,7 +135,7 @@ if (!args.includes("--mode")) {
     JSON.stringify({ type: "model_change", provider: "p", modelId: fail === "recover-dependent" ? "b" : "c" }) + "\n",
   );
   if (fail === "recover-dirty") fs.writeFileSync("dirty", "preserve");
-  if (fail === "recover-cancel") {
+  if (fail.startsWith("recover-cancel")) {
     process.on("SIGTERM", () => fs.writeFileSync(process.env.ARGV_LOG + ".term", String(process.pid)));
     fs.writeFileSync(process.env.ARGV_LOG + ".ready", String(process.pid));
     await new Promise((r) => setTimeout(r, 20000));

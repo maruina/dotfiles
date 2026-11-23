@@ -20,6 +20,22 @@
 | `learning-lookup` | prompt-required | Check relevant prior decisions. | Found no matching sections for `rex wait`, `last_exit`, retained locks, or Rex server behavior. |
 | `write` | skill-loader | Make the plan actionable. | Separated exit evidence, cleanup, and stage acceptance. |
 
+### Execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `skill-loader` | prompt-required | Select execution guidance. | Routed worktree, Rex, code research, and documentation work. |
+| `resolve-worktree` | prompt-required | Resolve the supplied plan. | Confirmed the unique path and owning branch. |
+| `feature-worktree` | prompt-required | Keep code changes off `main`. | Used the clean feature worktree at the pinned candidate. |
+| `chezmoi` | skill-loader | Modify managed source files. | Edited source only and did not apply it. |
+| `codebase-research` | skill-loader | Trace the interactive pane lifecycle. | Checked both `recovery` callers, existing fixtures, and the runner's stage acceptance checks. |
+| `rex` | agent-selected | Check the installed CLI contract. | Confirmed the Rex version, reviewed `rex wait --help`, and ran the isolated smoke test. |
+| `diataxis` | skill-loader | Update operator guidance. | Put the minimum version and retained-lock behavior in the existing guide. |
+| `write` | skill-loader | Edit the guide and ledger. | Named the exit checks and their effect on the lock. |
+
+Implementation attempt: `openai/gpt-6.2-sol`. The pane-close regression failed before the fix because `runDesign` resolved instead of rejecting. It passed after the fix. The focused suite passed all seven cases, including nonzero exit followed by handoff rejection, `last_exit` reconciliation, and cancellation with a changed foreground identity. The fixture uses a detached supervisor to record real exit status; it supplies simulated Rex identity and pane responses. The two existing Pi fixtures changed only to exercise a real nonzero exit and a running child for the identity-recheck case. No `AGENTS.md` update is needed.
+
+The first full run reported a `draft-cancel` failure before the 240-second command timeout. An isolated run also missed the existing `.draft-ready` deadline, before cancellation. In Rex recovery, the isolated case and the full `npm run test:all` passed without changes to the case or its readiness window. The full run passed 94 stage-runner and five Worktrunk integration cases, TypeScript checks, and Pi smoke. The opt-in Rex smoke test and `git diff --check` also passed after the full run.
+
 ## Scope
 - Use `rex wait --json` on the exact verified block with the same pinned local server and session as the split. Prefer this built-in command to copying the adapter's reconnecting session-wide event stream. The helper waits for one block at a time and does not restore jobs across parent reloads.
 - Preserve the local peer, split response, and foreground Pi identity checks. An exit payload does not establish startup identity. Do not move or weaken the checks before sending `SIGTERM` or `SIGKILL` on cancellation.
@@ -42,8 +58,8 @@ The opt-in live smoke test in `dot_pi/agent/exact_extensions/stage-runner/_rex-w
 **Traces to:** The exit, pane-closure, and cancellation contracts in Validation.
 **Files:** `dot_pi/agent/exact_extensions/stage-runner/_recovery.ts`, `dot_pi/agent/exact_extensions/stage-runner/_integration.test.ts`, `dot_pi/agent/exact_extensions/stage-runner/_fixtures/rex.mjs`, and `dot_pi/agent/exact_extensions/stage-runner/README.md`.
 
-- [ ] Run `PI_STAGE_RUNNER_REX_SMOKE=1 node --test dot_pi/agent/exact_extensions/stage-runner/_rex-wait.test.mjs` from the repository root to reconfirm the local Rex `0.1.0-preview.21` contract before editing.
-- [ ] Update `dot_pi/agent/exact_extensions/stage-runner/_fixtures/rex.mjs` to track spawned child exit status independently of the fixture Pi scripts (supporting `wait`, `last_exit`, and `SIGKILL` for both `run` and `runDesign`), and add a focused failing regression: after child identity is verified, the pane disappears without an exit record; assert that the lock remains and the next stage is not launched. Cover normal exit, nonzero exit (lock released and pane closed while handoff/progress validation still gates advancement), recovery of `last_exit` after a waiter failure, and cancellation with a failed identity recheck without duplicating every scenario across both caller paths.
-- [ ] Replace the normal PID liveness loop with a bounded-output Rex wait, one `last_exit` reconciliation check, and the bounded cancellation cleanup path. Preserve the existing child identity checks, evidence, and stage acceptance. Document the Rex `0.1.0-preview.21` (API revision 18) prerequisite and retained-lock failure behavior in `dot_pi/agent/exact_extensions/stage-runner/README.md`.
-- [ ] From `dot_pi/agent`, run `npm ci --ignore-scripts` and `npm run test:all`. Repeat the opt-in live smoke test. Verify that successful recovery advances only after the existing handoff checks and that uncertain exit retains the lock. Leave the gitignored `dot_pi/agent/node_modules` directory ready for `/verify` (or remove it after `/verify` completes per `AGENTS.md`).
-- [ ] Commit with `fix(pi): require Rex exit evidence for stage runner panes`.
+- [x] Run `PI_STAGE_RUNNER_REX_SMOKE=1 node --test dot_pi/agent/exact_extensions/stage-runner/_rex-wait.test.mjs` from the repository root to reconfirm the local Rex `0.1.0-preview.21` contract before editing.
+- [x] Update `dot_pi/agent/exact_extensions/stage-runner/_fixtures/rex.mjs` to track spawned child exit status independently of the fixture Pi scripts (supporting `wait`, `last_exit`, and `SIGKILL` for both `run` and `runDesign`), and add a focused failing regression: after child identity is verified, the pane disappears without an exit record; assert that the lock remains and the next stage is not launched. Cover normal exit, nonzero exit (lock released and pane closed while handoff/progress validation still gates advancement), recovery of `last_exit` after a waiter failure, and cancellation with a failed identity recheck without duplicating every scenario across both caller paths.
+- [x] Replace the normal PID liveness loop with a bounded-output Rex wait, one `last_exit` reconciliation check, and the bounded cancellation cleanup path. Preserve the existing child identity checks, evidence, and stage acceptance. Document the Rex `0.1.0-preview.21` (API revision 18) prerequisite and retained-lock failure behavior in `dot_pi/agent/exact_extensions/stage-runner/README.md`.
+- [x] From `dot_pi/agent`, run `npm ci --ignore-scripts` and `npm run test:all`. Repeat the opt-in live smoke test. Verify that successful recovery advances only after the existing handoff checks and that uncertain exit retains the lock. Leave the gitignored `dot_pi/agent/node_modules` directory ready for `/verify` (or remove it after `/verify` completes per `AGENTS.md`).
+- [x] Commit with `fix(pi): require Rex exit evidence for stage runner panes`.

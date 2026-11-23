@@ -1,6 +1,8 @@
 # Run a plan and publish the independently verified commit
 Use `/stage-runner` for a reviewed, committed plan that nobody has started. The runner executes one slice at a time and simplifies the full feature once. After it accepts an independent `VERIFIED` verdict, the runner pushes the exact verified commit. It creates a draft pull request (PR) or reuses the matching open PR without changing its title, body, or readiness.
 
+Both runner commands require local Rex `0.1.0-preview.21` (API revision 18) or newer.
+
 - **Personal:** The runner reports the PR URL and verified SHA and stops after GitHub confirms the PR head. It does not discover or call ARP, even if the tools are installed.
 - **Work:** The runner performs the same publication and continues to ARP (Agentic Review Platform) only for `ddoghq/*` and `ddoghq-sandbox/*`. For these repositories, it ends successfully when ARP reports a complete review of the published head with no open findings. For all other repositories, it stops after GitHub confirms the PR head without discovering or calling ARP.
 
@@ -54,6 +56,8 @@ Use `/execute` for each remaining slice, then follow the full-feature `/simplify
 - **Verify failed or returned `BLOCKED`:** If the verifier left Git unchanged and an attempt remains, the split starts a fresh execute-model session with the failure details, not the verifier's transcript. Inspect the findings, repair the candidate, and exit with a clean worktree. Do not select the verifier model for repairs. A fresh verifier must check the full feature even if recovery changed nothing. The limit is three verifier launches, including startup failures. If the verifier changed Git state, inspect the worktree; the runner stops rather than asking a writer to adopt those edits.
 
 ## Investigate a retained lock
+Closing an interactive Pi pane does not prove that Pi exited. If neither `rex wait` nor the original block's `last_exit` supplies an exit code, the runner stops, retains the worktree lock, and does not start the next stage.
+
 Run evidence lives under `~/.pi/agent/lifecycle-runs/`. Run directories use mode `0700`; private files use `0600`. The runner retains the newest 100 completed bundles, including stopped runs marked complete. It does not prune active or uncertain runs. Keep transcripts and failure details private; local permissions do not prevent Pi from sending context to its provider.
 
 Read the reported `lock-…` file for the canonical worktree (`cwd`), runner PID (`pid`), bundle (`dir`), and recorded recovery state. Inspect `run.json` for the starting commit and plan blob. In the attempt directory, compare `handoff.json`, `failure.txt`, saved sessions, and `accepted.json` when present. A handoff alone does not prove advancement.

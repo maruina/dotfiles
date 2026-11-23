@@ -1,15 +1,25 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { execFile, execFileSync } from "node:child_process";
+import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
+import { parseGitHubOwnerRepo, selectGitHubLogin } from "./_shared/github.ts";
+
+export { parseGitHubOwnerRepo, selectGitHubLogin };
 
 const execFileAsync = promisify(execFile);
 const JIRA_KEY_RE = /\b[A-Z][A-Z0-9]+-[0-9]+\b/g;
 const DATA_DOG_ROOT = path.join(process.env.HOME ?? "", "dd");
 const DATA_DOG_WORKTREES = path.join(DATA_DOG_ROOT, ".worktrees");
-const WORK_GH_ORGS = new Set(["ddoghq", "ddoghq-sandbox"]);
 const TASK_LABEL_RE = /^π-[a-z]+(-[a-z]+){1,3}$/;
+const TASK_STOPWORDS = new Set([
+  "a", "about", "all", "also", "an", "and", "any", "are", "as", "at", "be", "but", "by",
+  "can", "could", "did", "do", "does", "for", "from", "has", "have", "help", "here", "how",
+  "i", "if", "in", "into", "is", "it", "its", "just", "me", "my", "not", "of", "on", "or",
+  "our", "please", "should", "so", "some", "than", "that", "the", "their", "then", "there",
+  "these", "this", "those", "to", "us", "we", "what", "when", "where", "which", "who", "why",
+  "will", "with", "would", "you", "your",
+]);
 
 export function deriveSlashTaskLabel(prompt: string): string | null {
   const match = /^\s*\/([a-z][a-z0-9-]*)(?:\s+(.*))?$/is.exec(prompt);
@@ -34,6 +44,26 @@ export function deriveSlashTaskLabel(prompt: string): string | null {
   return TASK_LABEL_RE.test(label) ? label : null;
 }
 
+export function derivePromptTaskLabel(prompt: string): string | null {
+  const slash = deriveSlashTaskLabel(prompt);
+  if (slash) return slash;
+  const cleaned = prompt
+    .replace(/https?:\/\/\S+/g, " ")
+    .replace(/`[^`]*`/g, " ")
+    .toLowerCase();
+  const words: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of cleaned.split(/[^a-z]+/)) {
+    if (raw.length < 2 || TASK_STOPWORDS.has(raw) || seen.has(raw)) continue;
+    seen.add(raw);
+    words.push(raw.slice(0, 16));
+    if (words.length === 3) break;
+  }
+  if (words.length < 2) return null;
+  const label = `π-${words.join("-")}`;
+  return TASK_LABEL_RE.test(label) ? label : null;
+}
+
 type CurrentPullRequest = {
   number: number;
   title: string;
@@ -52,14 +82,6 @@ type RecentPullRequest = {
   headRefName?: string;
 };
 
-function runSync(command: string, args: string[] = [], cwd?: string, timeout = 2000): string | null {
-  try {
-    return execFileSync(command, args, { encoding: "utf8", timeout, cwd, stdio: ["ignore", "pipe", "ignore"] }).trim() || null;
-  } catch {
-    return null;
-  }
-}
-
 async function runAsync(command: string, args: string[] = [], cwd?: string, timeout = 10000, env?: NodeJS.ProcessEnv): Promise<string | null> {
   try {
     const { stdout } = await execFileAsync(command, args, { encoding: "utf8", timeout, cwd, ...(env ? { env } : {}) });
@@ -69,60 +91,38 @@ async function runAsync(command: string, args: string[] = [], cwd?: string, time
   }
 }
 
-function git(cwd: string, args: string[], timeout?: number): string | null {
-  return runSync("git", args, cwd, timeout);
+function gitAsync(cwd: string, args: string[], timeout = 2000): Promise<string | null> {
+  return runAsync("git", args, cwd, timeout);
 }
 
-function isGitRepo(cwd: string): boolean {
-  return git(cwd, ["rev-parse", "--is-inside-work-tree"]) === "true";
+const gitIdentityCache = new Map<string, { name: string | null; email: string | null }>();
+
+async function getGitIdentity(cwd: string): Promise<{ name: string | null; email: string | null }> {
+  const cached = gitIdentityCache.get(cwd);
+  if (cached) return cached;
+  const [name, email] = await Promise.all([
+    gitAsync(cwd, ["config", "user.name"]),
+    gitAsync(cwd, ["config", "user.email"]),
+  ]);
+  const identity = { name, email };
+  gitIdentityCache.set(cwd, identity);
+  return identity;
 }
 
-function getGitIdentity(cwd: string): { name: string | null; email: string | null } {
-  return {
-    name: git(cwd, ["config", "user.name"]),
-    email: git(cwd, ["config", "user.email"]),
-  };
-}
-
-function getGitBranch(cwd: string): string | null {
-  return git(cwd, ["branch", "--show-current"]);
-}
-
-function getLocalDefaultBranch(cwd: string): string | null {
-  const originHead = git(cwd, ["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"]);
+async function getLocalDefaultBranch(cwd: string): Promise<string | null> {
+  const originHead = await gitAsync(cwd, ["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"]);
   if (originHead?.startsWith("origin/")) return originHead.slice("origin/".length);
   return null;
 }
 
 async function getDefaultBranch(cwd: string): Promise<string | null> {
-  const localDefault = getLocalDefaultBranch(cwd);
+  const localDefault = await getLocalDefaultBranch(cwd);
   if (localDefault) return localDefault;
   return (await runAsync("git", ["remote", "show", "origin"], cwd, 5000))?.match(/HEAD branch: (.+)/)?.[1]?.trim() ?? null;
 }
 
-function getRepoRoot(cwd: string): string | null {
-  return git(cwd, ["rev-parse", "--show-toplevel"]);
-}
-
-function getLocalRepoName(cwd: string): string | null {
-  const root = getRepoRoot(cwd);
-  return root ? path.basename(root) : null;
-}
-
-export function parseGitHubOwnerRepo(remoteUrl: string): { owner: string; repo: string } | null {
-  const match = /^(?:https?:\/\/github\.com\/|git@(?:github\.com|ddoghq\.github\.com):|ssh:\/\/git@(?:github\.com|ddoghq\.github\.com|ssh\.github\.com)(?::\d+)?\/)([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?$/.exec(remoteUrl.trim());
-  if (!match) return null;
-  const [, owner, repo] = match;
-  if (owner === "." || owner === ".." || repo === "." || repo === "..") return null;
-  return { owner, repo };
-}
-
-export function selectGitHubLogin(owner: string): string {
-  return WORK_GH_ORGS.has(owner.toLowerCase()) ? "matteo-ruina_ddog" : "maruina";
-}
-
 async function getGitHubEnv(cwd: string): Promise<NodeJS.ProcessEnv | undefined> {
-  const remoteUrl = await runAsync("git", ["remote", "get-url", "origin"], cwd, 2000);
+  const remoteUrl = await gitAsync(cwd, ["remote", "get-url", "origin"]);
   if (!remoteUrl) return undefined;
   const parsed = parseGitHubOwnerRepo(remoteUrl);
   if (!parsed) return undefined;
@@ -135,9 +135,9 @@ async function getGitHubEnv(cwd: string): Promise<NodeJS.ProcessEnv | undefined>
   return { ...cleanEnv, GH_TOKEN: token, GH_HOST: "github.com" };
 }
 
-async function getRepoName(cwd: string, ghEnv?: NodeJS.ProcessEnv): Promise<string | null> {
+async function getRepoName(cwd: string, localRepoName: string, ghEnv?: NodeJS.ProcessEnv): Promise<string | null> {
   const nameWithOwner = await runAsync("gh", ["repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"], cwd, 3000, ghEnv);
-  return nameWithOwner ?? getLocalRepoName(cwd);
+  return nameWithOwner ?? localRepoName;
 }
 
 export function uniqueMatches(text: string): string[] {
@@ -248,12 +248,7 @@ export function formatCurrentModel(model?: { provider?: string; id?: string; nam
 }
 
 export function formatRexContext(output: string): string[] {
-  return ["## Rex", "", ...output.split("\n"), "", ...[
-    "### Session and tab names",
-    "Before task work on the first request that identifies the task, choose π- followed by two to four lowercase task words joined by hyphens, such as π-compare-rex-extensions. Keep the existing task label if it still describes the work.",
-    'Apply the task label with `fish -c \'rex-name-task π-compare-rex-extensions\'`. The function targets this pane\'s containing tab, not the focused tab; for split tabs it labels only this pane.',
-    "The function verifies changes. If the command fails, report the failure before continuing; do not bypass its safety checks.",
-  ]];
+  return ["## Rex", "", ...output.split("\n")];
 }
 
 type AsyncRunner = typeof runAsync;
@@ -267,8 +262,14 @@ export async function loadRexLines(env: NodeJS.ProcessEnv, run: AsyncRunner): Pr
 }
 
 const rexNamingKey = Symbol.for("user-context.rex-naming");
-const processState = globalThis as typeof globalThis & { [rexNamingKey]?: { startupCwd: string; attempted: boolean } };
-const rexNamingState = processState[rexNamingKey] ??= { startupCwd: process.cwd(), attempted: false };
+const processState = globalThis as typeof globalThis & {
+  [rexNamingKey]?: { startupCwd: string; attempted: boolean; taskNamed: boolean };
+};
+const rexNamingState = processState[rexNamingKey] ??= {
+  startupCwd: process.cwd(),
+  attempted: false,
+  taskNamed: false,
+};
 
 let cachedRexLines: string[] | null | undefined;
 
@@ -292,14 +293,17 @@ type CachedRepoContext = {
 export default function (pi: ExtensionAPI) {
   let cachedRepoContext: CachedRepoContext | null = null;
   let repoContextFetchKey: string | null = null;
-  let lastInjectedContent: string | null = null;
+  let lastInjectedFastContent: string | null = null;
+  let lastInjectedSlowContent: string | null = null;
 
   pi.on("session_start", () => {
-    lastInjectedContent = null;
+    lastInjectedFastContent = null;
+    lastInjectedSlowContent = null;
   });
 
   pi.on("session_compact", () => {
-    lastInjectedContent = null;
+    lastInjectedFastContent = null;
+    lastInjectedSlowContent = null;
   });
 
   pi.on("before_agent_start", async (event, ctx) => {
@@ -310,84 +314,101 @@ export default function (pi: ExtensionAPI) {
       void runAsync("fish", ["-c", "rex-name-session"], rexNamingState.startupCwd, 3000);
     }
     if (inInteractiveRex && event.messageType === "user" && typeof event.prompt === "string") {
-      const taskLabel = deriveSlashTaskLabel(event.prompt);
+      const slashLabel = deriveSlashTaskLabel(event.prompt);
+      const taskLabel = slashLabel ?? (!rexNamingState.taskNamed ? derivePromptTaskLabel(event.prompt) : null);
       if (taskLabel) {
+        rexNamingState.taskNamed = true;
         void runAsync("fish", ["-c", `rex-name-task ${taskLabel}`], ctx.cwd, 3000);
       }
     }
     const { cwd } = ctx;
-    const lines: string[] = [];
-    const { name, email } = getGitIdentity(cwd);
+    const [{ name, email }, rexLines, repoRoot, branch, localDefaultBranch] = await Promise.all([
+      getGitIdentity(cwd),
+      stageRunnerChild ? Promise.resolve(null) : getRexLines(),
+      gitAsync(cwd, ["rev-parse", "--show-toplevel"]),
+      gitAsync(cwd, ["branch", "--show-current"]),
+      getLocalDefaultBranch(cwd),
+    ]);
 
+    const fastLines: string[] = [];
     if (name || email) {
-      lines.push("## User Identity");
-      if (name) lines.push(`- Name: ${name}`);
-      if (email) lines.push(`- Email: ${email}`);
+      fastLines.push("## User Identity");
+      if (name) fastLines.push(`- Name: ${name}`);
+      if (email) fastLines.push(`- Email: ${email}`);
     }
 
-    const rexLines = stageRunnerChild ? null : await getRexLines();
     if (rexLines) {
-      if (lines.length > 0) lines.push("");
-      lines.push(...rexLines);
+      if (fastLines.length > 0) fastLines.push("");
+      fastLines.push(...rexLines);
     }
 
     const currentModelLines = formatCurrentModel(ctx.model);
     if (currentModelLines.length > 0) {
-      if (lines.length > 0) lines.push("");
-      lines.push(...currentModelLines);
+      if (fastLines.length > 0) fastLines.push("");
+      fastLines.push(...currentModelLines);
     }
 
-    const repoRoot = getRepoRoot(cwd);
+    const slowLinesToEmit: string[] = [];
     if (repoRoot) {
       const localRepoName = path.basename(repoRoot);
-      const branch = getGitBranch(cwd);
       const repoContextKey = buildRepoContextKey(cwd, branch, email);
       const cached = cachedRepoContext?.key === repoContextKey ? cachedRepoContext : null;
-      const repoName = cached?.repoName ?? localRepoName;
-      const defaultBranch = cached?.defaultBranch ?? getLocalDefaultBranch(cwd);
+      const repoName = localRepoName;
+      const defaultBranch = localDefaultBranch;
       const jiraKeys = uniqueMatches([branch, repoName].filter(Boolean).join(" "));
 
       if (repoName) {
-        if (lines.length > 0) lines.push("");
-        lines.push("## Current Repository");
-        lines.push(repoName);
+        if (fastLines.length > 0) fastLines.push("");
+        fastLines.push("## Current Repository");
+        fastLines.push(repoName);
       }
 
       if (branch) {
-        lines.push("");
-        lines.push("## Current Git Branch");
-        lines.push(branch);
+        fastLines.push("");
+        fastLines.push("## Current Git Branch");
+        fastLines.push(branch);
       }
 
       if (defaultBranch) {
-        lines.push("");
-        lines.push("## Default Branch");
-        lines.push(defaultBranch);
+        fastLines.push("");
+        fastLines.push("## Default Branch");
+        fastLines.push(defaultBranch);
       }
 
       if (jiraKeys.length > 0) {
-        lines.push("");
-        lines.push("## Possible Jira Ticket(s)");
-        for (const key of jiraKeys) lines.push(`- ${key}: https://datadoghq.atlassian.net/browse/${key}`);
+        fastLines.push("");
+        fastLines.push("## Possible Jira Ticket(s)");
+        for (const key of jiraKeys) fastLines.push(`- ${key}: https://datadoghq.atlassian.net/browse/${key}`);
       }
 
       const worktreeLines = getWorktreeInfo(repoRoot);
       if (worktreeLines.length > 0) {
-        lines.push("");
-        lines.push("## Worktree Context");
-        lines.push(...worktreeLines);
+        fastLines.push("");
+        fastLines.push("## Worktree Context");
+        fastLines.push(...worktreeLines);
       }
 
       const hintLines = repoHints(repoRoot, repoName);
       if (hintLines.length > 0) {
-        lines.push("");
-        lines.push("## Repo-Specific Hints");
-        lines.push(...hintLines);
+        fastLines.push("");
+        fastLines.push("## Repo-Specific Hints");
+        fastLines.push(...hintLines);
       }
 
-      if (cached?.lines.length) {
-        lines.push("");
-        lines.push(...cached.lines);
+      if (cached) {
+        if (cached.repoName && cached.repoName !== localRepoName) {
+          slowLinesToEmit.push("## Remote Repository");
+          slowLinesToEmit.push(cached.repoName);
+        }
+        if (cached.defaultBranch && cached.defaultBranch !== localDefaultBranch) {
+          if (slowLinesToEmit.length > 0) slowLinesToEmit.push("");
+          slowLinesToEmit.push("## Default Branch");
+          slowLinesToEmit.push(cached.defaultBranch);
+        }
+        if (cached.lines.length > 0) {
+          if (slowLinesToEmit.length > 0) slowLinesToEmit.push("");
+          slowLinesToEmit.push(...cached.lines);
+        }
       }
 
       if (!stageRunnerChild && repoContextFetchKey !== repoContextKey) {
@@ -396,7 +417,7 @@ export default function (pi: ExtensionAPI) {
           const slowLines: string[] = [];
           const ghEnv = await getGitHubEnv(cwd);
           const [remoteRepoName, remoteDefaultBranch, gitHubUser, currentPR, prs, files] = await Promise.all([
-            getRepoName(cwd, ghEnv),
+            getRepoName(cwd, localRepoName, ghEnv),
             getDefaultBranch(cwd),
             getGitHubUsername(ghEnv),
             getCurrentPR(cwd, ghEnv),
@@ -440,15 +461,25 @@ export default function (pi: ExtensionAPI) {
       }
     }
 
-    if (lines.length === 0) return;
-    const content = lines.join("\n");
-    if (content === lastInjectedContent) return;
-    lastInjectedContent = content;
+    const fastContent = fastLines.join("\n");
+    const slowContent = slowLinesToEmit.join("\n");
+    const chunks: string[] = [];
+
+    if (fastContent && fastContent !== lastInjectedFastContent) {
+      lastInjectedFastContent = fastContent;
+      chunks.push(fastContent);
+    }
+    if (slowContent && slowContent !== lastInjectedSlowContent) {
+      lastInjectedSlowContent = slowContent;
+      chunks.push(slowContent);
+    }
+
+    if (chunks.length === 0) return;
 
     return {
       message: {
         customType: "user-context",
-        content,
+        content: chunks.join("\n\n"),
         display: false,
       },
     };

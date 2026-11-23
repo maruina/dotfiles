@@ -7,13 +7,12 @@ import test from "node:test";
 
 import {
   buildRepoContextKey,
+  derivePromptTaskLabel,
   deriveSlashTaskLabel,
   formatCurrentModel,
   formatPR,
   loadRexLines,
-  parseGitHubOwnerRepo,
   pathInside,
-  selectGitHubLogin,
   uniqueMatches,
 } from "./user-context.ts";
 
@@ -33,17 +32,6 @@ test("pathInside accepts descendants and rejects sibling prefix lookalikes", () 
   assert.equal(pathInside(path.join(parent, "sub", "file.ts"), parent), true);
   assert.equal(pathInside(parent, parent), true);
   assert.equal(pathInside(path.join(path.sep, "tmp", "repo-other", "file.ts"), parent), false);
-});
-
-test("parseGitHubOwnerRepo and selectGitHubLogin route work orgs to matteo-ruina_ddog and others to maruina", () => {
-  assert.deepEqual(parseGitHubOwnerRepo("git@github.com:maruina/dotfiles.git"), { owner: "maruina", repo: "dotfiles" });
-  assert.deepEqual(parseGitHubOwnerRepo("git@ddoghq.github.com:ddoghq/compute.git"), { owner: "ddoghq", repo: "compute" });
-  assert.deepEqual(parseGitHubOwnerRepo("https://github.com/DataDog/dd-source.git"), { owner: "DataDog", repo: "dd-source" });
-  assert.equal(parseGitHubOwnerRepo("not-a-github-url"), null);
-  assert.equal(selectGitHubLogin("ddoghq"), "matteo-ruina_ddog");
-  assert.equal(selectGitHubLogin("ddoghq-sandbox"), "matteo-ruina_ddog");
-  assert.equal(selectGitHubLogin("DataDog"), "maruina");
-  assert.equal(selectGitHubLogin("maruina"), "maruina");
 });
 
 test("buildRepoContextKey changes when branch or email changes", () => {
@@ -84,7 +72,7 @@ test("loadRexLines returns nothing when rex is missing or unusable", async () =>
   assert.equal(await loadRexLines({ REX_SESSION: "session:x" }, run), null);
 });
 
-test("loadRexLines disables Rex's built-in naming and adds repository session and task tab guidance", async () => {
+test("loadRexLines disables Rex's built-in naming and omits LLM tab-naming instructions", async () => {
   const calls = [];
   const run = async (...args) => {
     calls.push(args);
@@ -92,23 +80,13 @@ test("loadRexLines disables Rex's built-in naming and adds repository session an
   };
   const lines = await loadRexLines({ REX_SESSION: "session:x" }, run);
   assert.deepEqual(calls, [["rex", ["__internal", "session-start", "--agent", "pi", "--feature-session-naming=false"], undefined, 3000]]);
-  assert.deepEqual(lines.slice(0, 5), [
+  assert.deepEqual(lines, [
     "## Rex",
     "",
     "You're running in a Rex terminal.",
     "",
     "REX_SESSION=session:x",
   ]);
-  const guidance = lines.slice(5).join("\n");
-  assert.doesNotMatch(guidance, /the shared Rex session/);
-  assert.match(guidance, /Before task work.*first request that identifies the task/);
-  assert.doesNotMatch(guidance, /rex-name-session/);
-  assert.match(guidance, /π-.*two to four lowercase task words/);
-  assert.match(guidance, /rex-name-task π-compare-rex-extensions/);
-  assert.match(guidance, /not the focused tab/);
-  assert.match(guidance, /split tabs.*only this pane/);
-  assert.match(guidance, /verifies changes/);
-  assert.doesNotMatch(guidance, /rex (session rename|window rename|block inspect)/);
 });
 
 function runHookScenario({ mode = "tui", session = "session:x", block = "block:x", fail = false, reload = false } = {}) {
@@ -173,7 +151,7 @@ test("registered hook names once in the startup directory without waiting, inclu
   assert.equal(alive, true, "the hook returned before Fish exited");
   assert.equal(recorded.length, 1);
   assert.deepEqual({ cwd: recorded[0].cwd, args: recorded[0].args }, { cwd: startup, args: ["-c", "rex-name-session"] });
-  assert.match(output.message.content, /rex-name-task/);
+  assert.doesNotMatch(output.message.content, /rex-name-task/);
   assert.doesNotMatch(output.message.content, /rex-name-session/);
   assert.equal(output.systemPrompt, undefined);
   assert.equal(secondResult, undefined, "unchanged user-context must not be re-injected on every turn");
@@ -185,19 +163,22 @@ test("registered hook excludes RPC and missing Rex identifiers", () => {
   }
 });
 
-test("deriveSlashTaskLabel builds valid task labels for slash commands and skips free-form prompts", () => {
+test("deriveSlashTaskLabel and derivePromptTaskLabel build deterministic Rex task labels", () => {
   assert.equal(deriveSlashTaskLabel("/execute plans/fix-rex-fork/plan.md"), "π-execute-fix-rex-fork");
   assert.equal(deriveSlashTaskLabel("/verify plans/foo/plan.md"), "π-verify-foo");
   assert.equal(deriveSlashTaskLabel("/pr-validate https://github.com/DataDog/dd-source/pull/42"), "π-pr-validate-dd-source");
   assert.equal(deriveSlashTaskLabel("/disk-cleanup"), "π-disk-cleanup");
   assert.equal(deriveSlashTaskLabel("/learn"), "π-learn-task");
   assert.equal(deriveSlashTaskLabel("fix the tests"), null);
+  assert.equal(derivePromptTaskLabel("Analyze my pi extensions for duplication"), "π-analyze-pi-extensions");
+  assert.equal(derivePromptTaskLabel("please fix the flaky `rex-fork` tests"), "π-fix-flaky-tests");
+  assert.equal(derivePromptTaskLabel("hello"), null);
 });
 
 test("registered hook ignores failed naming and does not retry", () => {
   const { recorded, output } = runHookScenario({ fail: true, reload: true });
   assert.equal(recorded.length, 1);
-  assert.match(output.message.content, /rex-name-task/);
+  assert.doesNotMatch(output.message.content, /rex-name-task/);
 });
 
 test("registered hook suppresses Rex naming, background fetches, and skill-loader injection in stage-runner children while keeping Current Model", () => {

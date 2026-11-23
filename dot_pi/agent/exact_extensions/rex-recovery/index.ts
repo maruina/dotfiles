@@ -7,7 +7,7 @@ export default function rexRecovery(pi: ExtensionAPI) {
   let saving = false;
   let lastSavedKey: string | null = null;
   async function save(force: boolean, ctx: ExtensionContext) {
-    if (ctx.mode !== "tui" || !process.env.REX_SESSION || !process.env.REX_BLOCK || saving) return;
+    if (process.env.PI_STAGE_RUNNER_CHILD === "1" || ctx.mode !== "tui" || !process.env.REX_SESSION || !process.env.REX_BLOCK || saving) return;
     const file = ctx.sessionManager.getSessionFile();
     if (!file) return;
     const key = `${file}\0${ctx.cwd}`;

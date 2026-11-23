@@ -73,7 +73,6 @@ printf '%s\n' "$input" | jq '
   .defaultTools = ["+codemode"] |
   del(.extensions.files) |
   .extensionSettings.files.diffEditor = "zed" |
-  .extensionSettings.files.externalEditor = "zed" |
   .theme = "catppuccin-frappe" |
   .markdown.codeBlockIndent = ""
 '

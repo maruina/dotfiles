@@ -96,35 +96,61 @@ export default function (pi: ExtensionAPI) {
 				tui.requestRender();
 			});
 
+			let cachedUsageKey: string | null = null;
+			let cachedInput = 0;
+			let cachedOutput = 0;
+			let cachedEstKey: string | null = null;
+			let cachedEstTokens = 0;
+
 			return {
 				dispose() {
 					unsubBranch();
 					if (typeof unsubThinking === "function") unsubThinking();
 				},
-				invalidate() {},
+				invalidate() {
+					cachedUsageKey = null;
+					cachedEstKey = null;
+				},
 				render(width: number): string[] {
-					let input = 0;
-					let output = 0;
-
-					for (const entry of ctx.sessionManager.getBranch()) {
-						if (entry.type !== "message" || entry.message.role !== "assistant") continue;
-						const message = entry.message as AssistantMessage;
-						input += message.usage?.input ?? 0;
-						output += message.usage?.output ?? 0;
+					const branchEntries = ctx.sessionManager.getBranch();
+					const leafId = ctx.sessionManager.getLeafId?.() ?? "";
+					const usageKey = `${leafId}:${branchEntries.length}`;
+					if (usageKey !== cachedUsageKey) {
+						let input = 0;
+						let output = 0;
+						for (const entry of branchEntries) {
+							if (entry.type !== "message" || entry.message.role !== "assistant") continue;
+							const message = entry.message as AssistantMessage;
+							input += message.usage?.input ?? 0;
+							output += message.usage?.output ?? 0;
+						}
+						cachedInput = input;
+						cachedOutput = output;
+						cachedUsageKey = usageKey;
 					}
+					const input = cachedInput;
+					const output = cachedOutput;
 
 					const contextUsage = ctx.getContextUsage();
-					const context =
-						contextUsage && contextUsage.tokens === null
-							? formatContext(
-								{
-									tokens: estimateContextTokens(ctx.sessionManager.getBranch(), ctx.getSystemPrompt()),
-									contextWindow: contextUsage.contextWindow,
-									percent: null,
-								},
-								true,
-							)
-							: formatContext(contextUsage);
+					let context: string;
+					if (contextUsage && contextUsage.tokens === null) {
+						const systemPrompt = ctx.getSystemPrompt();
+						const estKey = `${usageKey}:${systemPrompt.length}`;
+						if (estKey !== cachedEstKey) {
+							cachedEstTokens = estimateContextTokens(branchEntries, systemPrompt);
+							cachedEstKey = estKey;
+						}
+						context = formatContext(
+							{
+								tokens: cachedEstTokens,
+								contextWindow: contextUsage.contextWindow,
+								percent: null,
+							},
+							true,
+						);
+					} else {
+						context = formatContext(contextUsage);
+					}
 					const branch = footerData.getGitBranch();
 					const dir = process.cwd().split("/").pop() || "";
 					const sandbox = sandboxStatus();

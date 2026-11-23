@@ -8,11 +8,31 @@ const execFileAsync = promisify(execFile);
 const JIRA_KEY_RE = /\b[A-Z][A-Z0-9]+-[0-9]+\b/g;
 const DATA_DOG_ROOT = path.join(process.env.HOME ?? "", "dd");
 const DATA_DOG_WORKTREES = path.join(DATA_DOG_ROOT, ".worktrees");
-const SKILL_LOADER_GUIDANCE = `## Skill Loading
+const WORK_GH_ORGS = new Set(["ddoghq", "ddoghq-sandbox"]);
+const TASK_LABEL_RE = /^π-[a-z]+(-[a-z]+){1,3}$/;
 
-For requests that involve planning, reviewing, implementing, modifying, debugging, or testing code, first read the \`skill-loader\` skill and follow its checklist before editing files. Use it to determine which language and domain skills to load. Skip this for purely informational, operational, or non-code tasks.`;
-const CODE_TASK_RE = /\b(plan|implement|edit|modify|change|fix|refactor|review|write|add|create|update|debug|test|tests|testing)\b/i;
-const CODE_CONTEXT_RE = /\b(code|file|files|function|class|method|module|package|script|terraform|helm|yaml|go|typescript|javascript|shell|bash|cli|controller|crd|extension|test|tests|testing|ci)\b|\.(go|ts|tsx|js|jsx|sh|bash|tf|tfvars|hcl|ya?ml)\b/i;
+export function deriveSlashTaskLabel(prompt: string): string | null {
+  const match = /^\s*\/([a-z][a-z0-9-]*)(?:\s+(.*))?$/is.exec(prompt);
+  if (!match) return null;
+  const cmdWords = match[1].toLowerCase().split("-").map((w) => w.replace(/[^a-z]/g, "")).filter(Boolean);
+  if (cmdWords.length === 0) return null;
+
+  const arg = (match[2] ?? "").trim();
+  const argWords: string[] = [];
+  const planMatch = /(?:^|\/)plans\/([^/\s]+)(?:\/|$)/.exec(arg);
+  const prMatch = /github\.com\/[^/\s]+\/([^/\s]+)\/pull\/\d+/.exec(arg);
+  const source = planMatch?.[1] ?? prMatch?.[1] ?? "";
+  if (source) {
+    for (const part of source.toLowerCase().split(/[^a-z]+/)) {
+      if (part) argWords.push(part);
+    }
+  }
+
+  const words = [...cmdWords, ...argWords].slice(0, 4);
+  if (words.length === 1) words.push("task");
+  const label = `π-${words.join("-")}`;
+  return TASK_LABEL_RE.test(label) ? label : null;
+}
 
 type CurrentPullRequest = {
   number: number;
@@ -40,9 +60,9 @@ function runSync(command: string, args: string[] = [], cwd?: string, timeout = 2
   }
 }
 
-async function runAsync(command: string, args: string[] = [], cwd?: string, timeout = 10000): Promise<string | null> {
+async function runAsync(command: string, args: string[] = [], cwd?: string, timeout = 10000, env?: NodeJS.ProcessEnv): Promise<string | null> {
   try {
-    const { stdout } = await execFileAsync(command, args, { encoding: "utf8", timeout, cwd });
+    const { stdout } = await execFileAsync(command, args, { encoding: "utf8", timeout, cwd, ...(env ? { env } : {}) });
     return stdout.trim() || null;
   } catch {
     return null;
@@ -89,8 +109,34 @@ function getLocalRepoName(cwd: string): string | null {
   return root ? path.basename(root) : null;
 }
 
-async function getRepoName(cwd: string): Promise<string | null> {
-  const nameWithOwner = await runAsync("gh", ["repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"], cwd, 3000);
+export function parseGitHubOwnerRepo(remoteUrl: string): { owner: string; repo: string } | null {
+  const match = /^(?:https?:\/\/github\.com\/|git@(?:github\.com|ddoghq\.github\.com):|ssh:\/\/git@(?:github\.com|ddoghq\.github\.com|ssh\.github\.com)(?::\d+)?\/)([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?$/.exec(remoteUrl.trim());
+  if (!match) return null;
+  const [, owner, repo] = match;
+  if (owner === "." || owner === ".." || repo === "." || repo === "..") return null;
+  return { owner, repo };
+}
+
+export function selectGitHubLogin(owner: string): string {
+  return WORK_GH_ORGS.has(owner.toLowerCase()) ? "matteo-ruina_ddog" : "maruina";
+}
+
+async function getGitHubEnv(cwd: string): Promise<NodeJS.ProcessEnv | undefined> {
+  const remoteUrl = await runAsync("git", ["remote", "get-url", "origin"], cwd, 2000);
+  if (!remoteUrl) return undefined;
+  const parsed = parseGitHubOwnerRepo(remoteUrl);
+  if (!parsed) return undefined;
+  const login = selectGitHubLogin(parsed.owner);
+  const cleanEnv = { ...process.env };
+  delete cleanEnv.GH_TOKEN;
+  delete cleanEnv.GITHUB_TOKEN;
+  const token = await runAsync("gh", ["auth", "token", "--hostname", "github.com", "--user", login], cwd, 3000, cleanEnv);
+  if (!token) return undefined;
+  return { ...cleanEnv, GH_TOKEN: token, GH_HOST: "github.com" };
+}
+
+async function getRepoName(cwd: string, ghEnv?: NodeJS.ProcessEnv): Promise<string | null> {
+  const nameWithOwner = await runAsync("gh", ["repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"], cwd, 3000, ghEnv);
   return nameWithOwner ?? getLocalRepoName(cwd);
 }
 
@@ -103,10 +149,7 @@ export function pathInside(child: string, parent: string): boolean {
   return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
 }
 
-function getWorktreeInfo(cwd: string): string[] {
-  const root = getRepoRoot(cwd);
-  if (!root) return [];
-
+function getWorktreeInfo(root: string): string[] {
   const lines: string[] = [];
   if (DATA_DOG_WORKTREES && pathInside(root, DATA_DOG_WORKTREES)) {
     lines.push("- This checkout is in the standard DataDog worktree directory.");
@@ -119,8 +162,7 @@ function getWorktreeInfo(cwd: string): string[] {
   return lines;
 }
 
-function repoHints(cwd: string, repoName: string | null): string[] {
-  const root = getRepoRoot(cwd) ?? cwd;
+function repoHints(root: string, repoName: string | null): string[] {
   const repo = repoName ?? path.basename(root);
   const lowerRepo = repo.toLowerCase();
   const lines: string[] = [];
@@ -128,10 +170,6 @@ function repoHints(cwd: string, repoName: string | null): string[] {
   if (lowerRepo.includes("dd-source")) {
     lines.push("- In dd-source, use `bzl` rather than `bazel` for builds/tests.");
     lines.push("- Prefer `:all` targets when practical (for example, `bzl test //path/to/package:all`).");
-  }
-
-  if (existsSync(path.join(root, ".terraform")) || existsSync(path.join(root, ".terraform-version")) || existsSync(path.join(root, "terraform"))) {
-    lines.push("- For Terraform formatting, run with tracing disabled: `OTEL_TRACES_EXPORTER= terraform fmt`.");
   }
 
   if (
@@ -144,19 +182,15 @@ function repoHints(cwd: string, repoName: string | null): string[] {
     lines.push("- For Kubernetes API/controller work, consider the k8s API/controller skills before changing CRDs, status, watches, finalizers, or reconciliation logic.");
   }
 
-  if (lowerRepo.includes("datadog")) {
-    lines.push("- Prefer `gh` for GitHub operations and Datadog MCP for internal Datadog data and docs.");
-  }
-
   return [...new Set(lines)];
 }
 
-async function getGitHubUsername(): Promise<string | null> {
-  return runAsync("gh", ["api", "graphql", "-f", "query=query { viewer { login } }", "--jq", ".data.viewer.login"]);
+async function getGitHubUsername(ghEnv?: NodeJS.ProcessEnv): Promise<string | null> {
+  return runAsync("gh", ["api", "graphql", "-f", "query=query { viewer { login } }", "--jq", ".data.viewer.login"], undefined, 10000, ghEnv);
 }
 
-async function getCurrentPR(cwd: string): Promise<CurrentPullRequest | null> {
-  const raw = await runAsync("gh", ["pr", "view", "--json", "number,title,state,url,baseRefName,headRefName"], cwd, 8000);
+async function getCurrentPR(cwd: string, ghEnv?: NodeJS.ProcessEnv): Promise<CurrentPullRequest | null> {
+  const raw = await runAsync("gh", ["pr", "view", "--json", "number,title,state,url,baseRefName,headRefName"], cwd, 8000, ghEnv);
   if (!raw) return null;
   try {
     return JSON.parse(raw) as CurrentPullRequest;
@@ -165,11 +199,13 @@ async function getCurrentPR(cwd: string): Promise<CurrentPullRequest | null> {
   }
 }
 
-async function getRecentPRs(cwd: string, limit = 3): Promise<RecentPullRequest[]> {
+async function getRecentPRs(cwd: string, limit = 3, ghEnv?: NodeJS.ProcessEnv): Promise<RecentPullRequest[]> {
   const raw = await runAsync(
     "gh",
     ["pr", "list", "--author", "@me", "--limit", String(limit * 3), "--state", "all", "--json", "number,title,state,url,baseRefName,headRefName"],
     cwd,
+    10000,
+    ghEnv,
   );
   if (!raw) return [];
   try {
@@ -209,10 +245,6 @@ export function formatCurrentModel(model?: { provider?: string; id?: string; nam
     ? `${model.provider}/${model.id}`
     : model.id;
   return ["## Current Model", `- ${model.name ?? model.id} (${qualifiedId})`];
-}
-
-export function shouldAddSkillLoaderGuidance(prompt: string): boolean {
-  return CODE_TASK_RE.test(prompt) && CODE_CONTEXT_RE.test(prompt);
 }
 
 export function formatRexContext(output: string): string[] {
@@ -260,12 +292,28 @@ type CachedRepoContext = {
 export default function (pi: ExtensionAPI) {
   let cachedRepoContext: CachedRepoContext | null = null;
   let repoContextFetchKey: string | null = null;
+  let lastInjectedContent: string | null = null;
+
+  pi.on("session_start", () => {
+    lastInjectedContent = null;
+  });
+
+  pi.on("session_compact", () => {
+    lastInjectedContent = null;
+  });
 
   pi.on("before_agent_start", async (event, ctx) => {
     const stageRunnerChild = process.env.PI_STAGE_RUNNER_CHILD === "1";
-    if (!stageRunnerChild && !rexNamingState.attempted && ctx.mode === "tui" && process.env.REX_SESSION && process.env.REX_BLOCK) {
+    const inInteractiveRex = !stageRunnerChild && ctx.mode === "tui" && Boolean(process.env.REX_SESSION) && Boolean(process.env.REX_BLOCK);
+    if (inInteractiveRex && !rexNamingState.attempted) {
       rexNamingState.attempted = true;
       void runAsync("fish", ["-c", "rex-name-session"], rexNamingState.startupCwd, 3000);
+    }
+    if (inInteractiveRex && event.messageType === "user" && typeof event.prompt === "string") {
+      const taskLabel = deriveSlashTaskLabel(event.prompt);
+      if (taskLabel) {
+        void runAsync("fish", ["-c", `rex-name-task ${taskLabel}`], ctx.cwd, 3000);
+      }
     }
     const { cwd } = ctx;
     const lines: string[] = [];
@@ -289,8 +337,9 @@ export default function (pi: ExtensionAPI) {
       lines.push(...currentModelLines);
     }
 
-    if (isGitRepo(cwd)) {
-      const localRepoName = getLocalRepoName(cwd);
+    const repoRoot = getRepoRoot(cwd);
+    if (repoRoot) {
+      const localRepoName = path.basename(repoRoot);
       const branch = getGitBranch(cwd);
       const repoContextKey = buildRepoContextKey(cwd, branch, email);
       const cached = cachedRepoContext?.key === repoContextKey ? cachedRepoContext : null;
@@ -322,14 +371,14 @@ export default function (pi: ExtensionAPI) {
         for (const key of jiraKeys) lines.push(`- ${key}: https://datadoghq.atlassian.net/browse/${key}`);
       }
 
-      const worktreeLines = getWorktreeInfo(cwd);
+      const worktreeLines = getWorktreeInfo(repoRoot);
       if (worktreeLines.length > 0) {
         lines.push("");
         lines.push("## Worktree Context");
         lines.push(...worktreeLines);
       }
 
-      const hintLines = repoHints(cwd, repoName);
+      const hintLines = repoHints(repoRoot, repoName);
       if (hintLines.length > 0) {
         lines.push("");
         lines.push("## Repo-Specific Hints");
@@ -345,12 +394,13 @@ export default function (pi: ExtensionAPI) {
         repoContextFetchKey = repoContextKey;
         void (async () => {
           const slowLines: string[] = [];
+          const ghEnv = await getGitHubEnv(cwd);
           const [remoteRepoName, remoteDefaultBranch, gitHubUser, currentPR, prs, files] = await Promise.all([
-            getRepoName(cwd),
+            getRepoName(cwd, ghEnv),
             getDefaultBranch(cwd),
-            getGitHubUsername(),
-            getCurrentPR(cwd),
-            getRecentPRs(cwd, 3),
+            getGitHubUsername(ghEnv),
+            getCurrentPR(cwd, ghEnv),
+            getRecentPRs(cwd, 3, ghEnv),
             email ? getRecentFiles(email, cwd) : Promise.resolve([] as string[]),
           ]);
 
@@ -390,26 +440,17 @@ export default function (pi: ExtensionAPI) {
       }
     }
 
-    const response: {
-      message?: { customType: string; content: string; display: boolean };
-      systemPrompt?: string;
-    } = {};
+    if (lines.length === 0) return;
+    const content = lines.join("\n");
+    if (content === lastInjectedContent) return;
+    lastInjectedContent = content;
 
-    if (lines.length > 0) {
-      response.message = {
+    return {
+      message: {
         customType: "user-context",
-        content: lines.join("\n"),
+        content,
         display: false,
-      };
-    }
-
-    // Only user-message runs carry a prompt; custom runs started by
-    // pi.sendMessage while idle have no prompt to inspect.
-    if (!stageRunnerChild && event.messageType === "user" && shouldAddSkillLoaderGuidance(event.prompt)) {
-      response.systemPrompt = `${event.systemPrompt}\n\n${SKILL_LOADER_GUIDANCE}`;
-    }
-
-    if (!response.message && !response.systemPrompt) return;
-    return response;
+      },
+    };
   });
 }

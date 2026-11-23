@@ -563,3 +563,21 @@ test("usage record survives restore and adds later injections", async () => {
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("skips nested AGENTS.md when its content matches a Pi-loaded context file", async () => {
+  const root = mkdtempSync(join(tmpdir(), "context-kit-dedup-"));
+  try {
+    const globalAgents = join(root, "global-AGENTS.md");
+    const sub = join(root, "sub");
+    mkdirSync(sub);
+    writeFileSync(globalAgents, "# Shared instructions\nDo X.\n");
+    writeFileSync(join(sub, "AGENTS.md"), "# Shared instructions\nDo X.\n");
+
+    const h = createHarness(root);
+    await start(h, [globalAgents]);
+    assert.equal(await toolCall(h, "edit", "sub/file.ts"), undefined);
+    assert.equal(h.sent.length, 0);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

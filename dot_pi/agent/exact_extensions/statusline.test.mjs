@@ -3,7 +3,7 @@ import test from "node:test";
 
 import statusline, { estimateContextTokens } from "./statusline.ts";
 
-async function contextFooter(usage) {
+async function contextFooter(usage, statuses = new Map()) {
 	let footer;
 	const pi = {
 		on(event, handler) {
@@ -20,27 +20,50 @@ async function contextFooter(usage) {
 				footer = factory(
 					{ requestRender() {} },
 					{ fg: (_color, text) => text },
-					{ onBranchChange: () => () => {}, getGitBranch: () => "main", getExtensionStatuses: () => new Map() },
+					{ onBranchChange: () => () => {}, getGitBranch: () => "main", getExtensionStatuses: () => statuses },
 				);
 			},
 		},
 	};
 	statusline(pi);
 	await pi.start({}, ctx);
-	return footer.render(160)[0].trimEnd();
+	return footer.render(160);
 }
 
 test("context footer shows the configured context window", async () => {
-	assert.match(await contextFooter({ tokens: 48_960, percent: 18, contextWindow: 272_000 }), /18% ctx · 82% left · 272\.0k total$/);
-	assert.match(await contextFooter({ tokens: 180_000, percent: 18, contextWindow: 1_000_000 }), /18% ctx · 82% left · 1\.0m total$/);
+	assert.match((await contextFooter({ tokens: 48_960, percent: 18, contextWindow: 272_000 }))[0].trimEnd(), /18% ctx · 82% left · 272\.0k total$/);
+	assert.match((await contextFooter({ tokens: 180_000, percent: 18, contextWindow: 1_000_000 }))[0].trimEnd(), /18% ctx · 82% left · 1\.0m total$/);
 });
 
 test("context footer shows the context window with estimated post-compaction usage", async () => {
-	assert.match(await contextFooter({ tokens: null, percent: null, contextWindow: 100 }), /~18% ctx · 82% left · 100 total$/);
+	assert.match((await contextFooter({ tokens: null, percent: null, contextWindow: 100 }))[0].trimEnd(), /~18% ctx · 82% left · 100 total$/);
 });
 
 test("context footer preserves unavailable context usage", async () => {
-	assert.match(await contextFooter(undefined), /ctx n\/a$/);
+	assert.match((await contextFooter(undefined))[0].trimEnd(), /ctx n\/a$/);
+});
+
+test("footer renders other extension statuses alongside session-cost", async () => {
+	const statuses = new Map([
+		["session-cost", "$0.42"],
+		["compute-guardrails", "🛡 guardrails"],
+	]);
+	const lines = await contextFooter(undefined, statuses);
+	assert.match(lines[1], /\$0\.42/);
+	assert.match(lines[1], /🛡 guardrails/);
+});
+
+test("statusline skips footer registration in non-TUI or headless sessions", async () => {
+	let footerSet = false;
+	let start;
+	statusline({
+		on(event, handler) {
+			if (event === "session_start") start = handler;
+		},
+		getThinkingLevel: () => "off",
+	});
+	await start({}, { hasUI: false, mode: "json", ui: { setFooter: () => { footerSet = true; } } });
+	assert.equal(footerSet, false);
 });
 
 function messageEntry(role, content) {

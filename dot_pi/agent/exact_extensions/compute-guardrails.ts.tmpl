@@ -26,6 +26,7 @@ export default function (pi: ExtensionAPI) {
     description: "Disable compute-guardrails for this session (re-enable with /reload)",
     handler: async (_args, ctx) => {
       enabled = false;
+      ctx.ui.setStatus("compute-guardrails", undefined);
       ctx.ui.notify("compute-guardrails disabled for this session. Run /reload to re-enable.", "warning");
     },
   });

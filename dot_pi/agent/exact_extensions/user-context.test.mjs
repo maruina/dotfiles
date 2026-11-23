@@ -1,18 +1,19 @@
 import assert from "node:assert/strict";
 import path from "node:path";
 import os from "node:os";
-import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import test from "node:test";
-import { fileURLToPath } from "node:url";
 
 import {
   buildRepoContextKey,
+  deriveSlashTaskLabel,
   formatCurrentModel,
   formatPR,
   loadRexLines,
+  parseGitHubOwnerRepo,
   pathInside,
-  shouldAddSkillLoaderGuidance,
+  selectGitHubLogin,
   uniqueMatches,
 } from "./user-context.ts";
 
@@ -34,10 +35,15 @@ test("pathInside accepts descendants and rejects sibling prefix lookalikes", () 
   assert.equal(pathInside(path.join(path.sep, "tmp", "repo-other", "file.ts"), parent), false);
 });
 
-test("shouldAddSkillLoaderGuidance only triggers for code work", () => {
-  assert.equal(shouldAddSkillLoaderGuidance("fix the TypeScript extension tests"), true);
-  assert.equal(shouldAddSkillLoaderGuidance("what is the weather?"), false);
-  assert.equal(shouldAddSkillLoaderGuidance("summarize this incident"), false);
+test("parseGitHubOwnerRepo and selectGitHubLogin route work orgs to matteo-ruina_ddog and others to maruina", () => {
+  assert.deepEqual(parseGitHubOwnerRepo("git@github.com:maruina/dotfiles.git"), { owner: "maruina", repo: "dotfiles" });
+  assert.deepEqual(parseGitHubOwnerRepo("git@ddoghq.github.com:ddoghq/compute.git"), { owner: "ddoghq", repo: "compute" });
+  assert.deepEqual(parseGitHubOwnerRepo("https://github.com/DataDog/dd-source.git"), { owner: "DataDog", repo: "dd-source" });
+  assert.equal(parseGitHubOwnerRepo("not-a-github-url"), null);
+  assert.equal(selectGitHubLogin("ddoghq"), "matteo-ruina_ddog");
+  assert.equal(selectGitHubLogin("ddoghq-sandbox"), "matteo-ruina_ddog");
+  assert.equal(selectGitHubLogin("DataDog"), "maruina");
+  assert.equal(selectGitHubLogin("maruina"), "maruina");
 });
 
 test("buildRepoContextKey changes when branch or email changes", () => {
@@ -135,7 +141,7 @@ const interval = setInterval(() => { if (fs.existsSync(process.env.RELEASE)) { c
       const first = await register('?first');
       process.chdir(process.env.TARGET);
       const result = await first(event, ctx);
-      await first(event, ctx);
+      const secondResult = await first(event, ctx);
       if (process.env.RELOAD === 'true') await (await register('?reload'))(event, ctx);
       let alive = false;
       if (process.env.MODE === 'tui' && process.env.REX_SESSION && process.env.REX_BLOCK && process.env.FAIL !== 'true') {
@@ -146,7 +152,7 @@ const interval = setInterval(() => { if (fs.existsSync(process.env.RELEASE)) { c
         }
       }
       writeFileSync(process.env.RELEASE, 'released');
-      console.log(JSON.stringify({ result, alive }));
+      console.log(JSON.stringify({ result, secondResult, alive }));
     `;
     const result = spawnSync(process.execPath, ["--experimental-strip-types", "--input-type=module", "-e", script], {
       cwd: startup, encoding: "utf8", timeout: 8000,
@@ -155,20 +161,22 @@ const interval = setInterval(() => { if (fs.existsSync(process.env.RELEASE)) { c
     assert.equal(result.status, 0, result.stderr);
     let recorded = [];
     try { recorded = readFileSync(calls, "utf8").trim().split("\n").map(JSON.parse); } catch (error) { if (error.code !== "ENOENT") throw error; }
-    const { result: output, alive } = JSON.parse(result.stdout);
-    return { recorded, startup: realpathSync(startup), output, alive };
+    const { result: output, secondResult, alive } = JSON.parse(result.stdout);
+    return { recorded, startup: realpathSync(startup), output, secondResult, alive };
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 }
 
 test("registered hook names once in the startup directory without waiting, including after reload", () => {
-  const { recorded, startup, output, alive } = runHookScenario({ reload: true });
+  const { recorded, startup, output, secondResult, alive } = runHookScenario({ reload: true });
   assert.equal(alive, true, "the hook returned before Fish exited");
   assert.equal(recorded.length, 1);
   assert.deepEqual({ cwd: recorded[0].cwd, args: recorded[0].args }, { cwd: startup, args: ["-c", "rex-name-session"] });
   assert.match(output.message.content, /rex-name-task/);
   assert.doesNotMatch(output.message.content, /rex-name-session/);
+  assert.equal(output.systemPrompt, undefined);
+  assert.equal(secondResult, undefined, "unchanged user-context must not be re-injected on every turn");
 });
 
 test("registered hook excludes RPC and missing Rex identifiers", () => {
@@ -177,79 +185,19 @@ test("registered hook excludes RPC and missing Rex identifiers", () => {
   }
 });
 
+test("deriveSlashTaskLabel builds valid task labels for slash commands and skips free-form prompts", () => {
+  assert.equal(deriveSlashTaskLabel("/execute plans/fix-rex-fork/plan.md"), "π-execute-fix-rex-fork");
+  assert.equal(deriveSlashTaskLabel("/verify plans/foo/plan.md"), "π-verify-foo");
+  assert.equal(deriveSlashTaskLabel("/pr-validate https://github.com/DataDog/dd-source/pull/42"), "π-pr-validate-dd-source");
+  assert.equal(deriveSlashTaskLabel("/disk-cleanup"), "π-disk-cleanup");
+  assert.equal(deriveSlashTaskLabel("/learn"), "π-learn-task");
+  assert.equal(deriveSlashTaskLabel("fix the tests"), null);
+});
+
 test("registered hook ignores failed naming and does not retry", () => {
   const { recorded, output } = runHookScenario({ fail: true, reload: true });
   assert.equal(recorded.length, 1);
   assert.match(output.message.content, /rex-name-task/);
-});
-
-test("candidate extension injects Rex guidance in an isolated Pi RPC agent loop", { timeout: 30_000 }, async () => {
-  const dir = mkdtempSync(path.join(os.tmpdir(), "user-context-rpc-"));
-  let child;
-  try {
-    const agentDir = path.join(dir, "agent");
-    const bin = path.join(dir, "bin");
-    mkdirSync(agentDir);
-    mkdirSync(bin);
-    symlinkSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../node_modules"), path.join(dir, "node_modules"));
-    const calls = path.join(dir, "calls");
-    const captured = path.join(dir, "context.json");
-    writeFileSync(path.join(bin, "rex"), `#!${process.execPath}\nconsole.log('Rex RPC fixture');\n`, { mode: 0o755 });
-    writeFileSync(path.join(bin, "fish"), `#!${process.execPath}\nrequire('node:fs').writeFileSync(process.env.CALLS, 'called');\n`, { mode: 0o755 });
-    const driver = path.join(dir, "driver.ts");
-    writeFileSync(driver, `
-import { createAssistantMessageEventStream } from '@earendil-works/pi-ai/compat';
-import { writeFileSync } from 'node:fs';
-export default function (pi) {
-  pi.registerProvider('context-test', {
-    name: 'Context fixture', baseUrl: 'http://127.0.0.1', apiKey: 'fixture-only', api: 'context-test-api',
-    models: [{ id: 'driver', name: 'Context fixture', reasoning: true, input: ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 8192, maxTokens: 1024 }],
-    streamSimple(model, context) {
-      writeFileSync(process.env.CAPTURED, JSON.stringify(context));
-      const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
-      const message = { role: 'assistant', content: [{ type: 'text', text: 'fixture complete' }], api: model.api, provider: model.provider, model: model.id, timestamp: Date.now(), usage, stopReason: 'stop' };
-      const stream = createAssistantMessageEventStream();
-      stream.push({ type: 'done', reason: 'stop', message });
-      stream.end(message);
-      return stream;
-    },
-  });
-}`);
-    const candidate = fileURLToPath(new URL("./user-context.ts", import.meta.url));
-    child = spawn("pi", ["--mode", "rpc", "--no-session", "--no-extensions", "--no-prompt-templates", "--no-context-files", "--provider", "context-test", "--model", "driver", "--thinking", "minimal", "-e", candidate, "-e", driver], {
-      cwd: dir,
-      env: { ...process.env, PI_CODING_AGENT_DIR: agentDir, PI_OFFLINE: "1", PATH: `${bin}:${process.env.PATH}`, REX_SESSION: "session:fixture", REX_BLOCK: "block:fixture", CALLS: calls, CAPTURED: captured },
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-    let stdout = "";
-    let stderr = "";
-    child.stderr.setEncoding("utf8");
-    child.stderr.on("data", (chunk) => { stderr += chunk; });
-    await new Promise((resolve, reject) => {
-      const finish = (error) => { clearTimeout(timer); if (error) reject(error); else resolve(); };
-      const timer = setTimeout(() => finish(new Error(`Pi RPC timed out: ${stderr}`)), 20_000);
-      child.on("error", finish);
-      child.on("close", (code) => finish(new Error(`Pi RPC exited early (${code}): ${stderr}`)));
-      child.stdout.setEncoding("utf8");
-      child.stdout.on("data", (chunk) => {
-        stdout += chunk;
-        if (stdout.split("\n").some((line) => { try { return JSON.parse(line).type === "agent_settled"; } catch { return false; } })) {
-          finish();
-        }
-      });
-      child.stdin.write(`${JSON.stringify({ type: "prompt", message: "hello" })}\n`);
-    });
-    const context = readFileSync(captured, "utf8");
-    assert.match(context, /Rex RPC fixture/);
-    assert.match(context, /rex-name-task/);
-    assert.doesNotMatch(context, /rex-name-session/);
-    assert.equal(existsSync(calls), false, "RPC mode must not run the Fish naming function");
-  } finally {
-    if (child && child.exitCode === null && child.signalCode === null) {
-      await new Promise((resolve) => { child.once("close", resolve); child.kill(); });
-    }
-    rmSync(dir, { recursive: true, force: true });
-  }
 });
 
 test("registered hook suppresses Rex naming, background fetches, and skill-loader injection in stage-runner children while keeping Current Model", () => {

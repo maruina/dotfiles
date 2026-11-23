@@ -3,7 +3,7 @@
  *
  * A stopwatch starts when the user submits a prompt (`before_agent_start`, which
  * fires right after submit and before the agent loop spins up) and stops when the
- * agent loop finishes and control returns to the prompt (`agent_end`). The elapsed
+ * run settles and control returns to the prompt (`agent_settled`). The elapsed
  * span is emitted as a tertiary-styled message at the tail of the transcript.
  *
  * Steering messages delivered mid-stream do NOT fire `before_agent_start`, so they
@@ -68,45 +68,23 @@ export default function (pi: ExtensionAPI) {
 		turnStartMs = Date.now();
 	});
 
-	pi.on("agent_end", (_event, ctx) => {
-			const startedAt = turnStartMs;
-			turnStartMs = null;
-			if (startedAt === null) return;
-			if (!ctx.hasUI) return;
+	pi.on("agent_settled", (_event, ctx) => {
+		const startedAt = turnStartMs;
+		turnStartMs = null;
+		if (startedAt === null || !ctx.hasUI) return;
 
-			const elapsedMs = Date.now() - startedAt;
-			const content = `⏱ ${formatDuration(elapsedMs)}`;
+		const elapsedMs = Date.now() - startedAt;
+		const content = `⏱ ${formatDuration(elapsedMs)}`;
 
-			// agent_end fires while the agent is *still streaming* — the run loop drains
-			// its queues only after emitting agent_end. Calling sendMessage now would be
-			// treated as a steer (sendCustomMessage routes to agent.steer() while
-			// streaming), triggering a spurious extra LLM round AND, once the context
-			// filter strips the steered message, leaving the conversation ending on an
-			// assistant message (a hard 400 from Anthropic). Defer until the loop has
-			// fully unwound and the agent is idle, where sendMessage cleanly appends a
-			// display-only entry with no turn. A setTimeout(0) macrotask runs after the
-			// loop's promise continuations settle, so the first attempt is normally idle;
-			// the bounded poll only matters if a follow-up continuation is still draining.
-			const emitWhenIdle = (attemptsLeft: number): void => {
-				// A deferred emit can fire after `ctx.newSession()`, `fork()`, or `switchSession`
-				// marked the old extension runtime stale; touching ctx (and the captured pi)
-				// then throws. The timing line belongs to the replaced session, so abandon it.
-				// deliberate: we swallow all errors here, not just staleness — this message is a
-				// display-only ornament and any failure to render it must not crash the process.
-				try {
-					if (ctx.isIdle()) {
-						pi.sendMessage(
-							{ customType: CUSTOM_TYPE, content, display: true, details: { ms: elapsedMs } },
-							{ triggerTurn: false },
-						);
-					}
-					return;
-				} catch {
-					return;
-				}
-				if (attemptsLeft <= 0) return;
-				setTimeout(() => emitWhenIdle(attemptsLeft - 1), 25);
-			};
-			setTimeout(() => emitWhenIdle(20), 0);
+		// deliberate: swallow staleness and UI errors — this message is a display-only
+		// ornament and any failure to render it must not interrupt the session.
+		try {
+			pi.sendMessage(
+				{ customType: CUSTOM_TYPE, content, display: true, details: { ms: elapsedMs } },
+				{ triggerTurn: false },
+			);
+		} catch {
+			return;
+		}
 	});
 }

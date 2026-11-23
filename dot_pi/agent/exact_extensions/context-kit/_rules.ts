@@ -189,6 +189,7 @@ export function findMatchingRules(opts: {
   filePath: string; // absolute
   cwd: string;
   sources: RuleSource[];
+  fileListCache?: Map<string, string[]>;
 }): RuleMatch[] {
   const rel = relative(opts.cwd, opts.filePath);
   // Files outside cwd can't be matched against project-relative rule globs.
@@ -196,7 +197,13 @@ export function findMatchingRules(opts: {
 
   const matches: RuleMatch[] = [];
   for (const source of opts.sources) {
-    for (const ruleFile of listRuleFiles(source.dir, source.kind)) {
+    const cacheKey = `${source.kind}\0${source.dir}`;
+    let ruleFiles = opts.fileListCache?.get(cacheKey);
+    if (!ruleFiles) {
+      ruleFiles = listRuleFiles(source.dir, source.kind);
+      opts.fileListCache?.set(cacheKey, ruleFiles);
+    }
+    for (const ruleFile of ruleFiles) {
       const fm = readRuleFrontmatter(ruleFile);
       if (!fm) continue;
       const patterns = source.kind === "claude" ? fm.paths : fm.globs;

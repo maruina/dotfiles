@@ -1,9 +1,9 @@
-import { lstatSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { getSupportedThinkingLevels } from "@earendil-works/pi-ai";
 import { VERSION, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { formatProgramStatus, Text, type ProgramStatus, type Terminal } from "@earendil-works/pi-tui";
+import { verifyLocalRexEndpoint, verifyLocalRexPeer } from "../_shared/rex.ts";
 import { qualifiedId } from "./_model.ts";
 import { handoff, run, runDesign, type Choice, type Phase, type RunnerEvent } from "./_runner.ts";
 
@@ -14,29 +14,15 @@ function deadline(name: string, fallback: number) {
 }
 
 async function checkRex(pi: ExtensionAPI) {
-  const endpoint = process.env.REX_SERVER ?? "";
-  if (!endpoint.startsWith("unix:///")) throw Error("Run inside a local Rex pane");
-  const url = new URL(endpoint),
-    uid = process.getuid?.();
-  const socket = lstatSync(decodeURIComponent(url.pathname));
-  if (url.hostname || url.search || url.hash || !socket.isSocket() || socket.uid !== uid)
-    throw Error("Unverified Rex socket");
+  const endpoint = verifyLocalRexEndpoint(process.env.REX_SERVER);
   const result = await pi.exec("rex", ["--autostart=false", "--server", endpoint, "whoami", "--json"], {
     timeout: 5000,
   });
   if (result.code !== 0 || result.killed) throw Error("Cannot verify Rex identity");
-  const peer = JSON.parse(result.stdout);
-  if (
-    peer.endpoint !== endpoint ||
-    peer.principal?.kind !== "peer" ||
-    peer.principal.transport !== "unix" ||
-    peer.principal.uid !== uid ||
-    !peer.session_id ||
-    !peer.block_id ||
-    peer.session_id !== process.env.REX_SESSION ||
-    peer.block_id !== process.env.REX_BLOCK
-  )
-    throw Error("Rex identity does not match the invoking pane");
+  verifyLocalRexPeer(JSON.parse(result.stdout), endpoint, {
+    session: process.env.REX_SESSION,
+    block: process.env.REX_BLOCK,
+  });
 }
 
 function duration(ms: number) {

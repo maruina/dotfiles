@@ -89,6 +89,7 @@ function renderLine(left: string, right: string, width: number): string {
 
 export default function (pi: ExtensionAPI) {
 	pi.on("session_start", async (_event, ctx) => {
+		if (ctx.hasUI === false || (ctx.mode !== undefined && ctx.mode !== "tui")) return;
 		ctx.ui.setFooter((tui, theme, footerData) => {
 			const unsubBranch = footerData.onBranchChange(() => tui.requestRender());
 			const unsubThinking = pi.on("thinking_level_select", async () => {
@@ -136,13 +137,18 @@ export default function (pi: ExtensionAPI) {
 
 					// Cost comes from the session-cost extension's AI Gateway estimate (via setStatus),
 					// not client-side usage.cost, which is $0 for AI-Gateway-routed models with no per-token price.
-					const costStatus = footerData.getExtensionStatuses().get("session-cost");
+					const statuses = footerData.getExtensionStatuses();
+					const costStatus = statuses.get("session-cost");
 					const costText = costStatus ?? theme.fg("dim", "$—");
+					const otherStatuses = [...statuses.entries()]
+						.filter(([key, value]) => key !== "session-cost" && Boolean(value))
+						.map(([, value]) => theme.fg("dim", value));
 
 					const usageParts = [
 						theme.fg("dim", `↑${formatTokens(input)}`),
 						theme.fg("dim", `↓${formatTokens(output)}`),
 						costText,
+						...otherStatuses,
 						sandbox ? theme.fg("dim", sandbox) : undefined,
 					].filter(Boolean);
 

@@ -1,5 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { getAgentDir, isToolCallEventType } from "@earendil-works/pi-coding-agent";
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
@@ -85,6 +86,7 @@ export default function (pi: ExtensionAPI) {
 
   let state = createState();
   let piContextPaths = new Set<string>();
+  let piContextHashes = new Set<string>();
   const startupSiblingPaths = new Set<string>();
   let injectedFiles: InjectedContextFile[] = [];
   let injectionMessages = 0;
@@ -187,12 +189,14 @@ export default function (pi: ExtensionAPI) {
       const addApplicable = (path: string, source: ContextKitDiscovery) => {
         if ((path === abs && isContextKitFile(path)) || piContextPaths.has(path) || seen.has(path)) return;
         seen.add(path);
-        discoveredPaths.push(path);
         const content = readContent(path);
         if (content === null) {
+          discoveredPaths.push(path);
           unreadablePaths.push(path);
           return;
         }
+        if (piContextHashes.has(contentHash(content))) return;
+        discoveredPaths.push(path);
         applicable.push({
           path,
           content,
@@ -303,6 +307,11 @@ export default function (pi: ExtensionAPI) {
 
     const piContextFiles = event.systemPromptOptions.contextFiles ?? [];
     piContextPaths = new Set(piContextFiles.map((f) => f.path));
+    piContextHashes = new Set<string>();
+    for (const cf of piContextFiles) {
+      const content = typeof cf.content === "string" ? cf.content : readContent(cf.path);
+      if (content !== null) piContextHashes.add(contentHash(content));
+    }
 
     // ── Message injections ────────────────────────────────────────────────────
     let startupStateChanged = false;
@@ -436,6 +445,10 @@ function buildDiscoveryMessage(blocks: readonly DiscoveryBlock[], omitted: reado
     : "";
   const body = blocks.map((block) => `\n## ${block.heading}\n\n${block.content.trimEnd()}\n`).join("\n");
   return header + omittedText + body;
+}
+
+function contentHash(content: string): string {
+  return createHash("sha256").update(content.trimEnd()).digest("hex");
 }
 
 function readContent(path: string): string | null {

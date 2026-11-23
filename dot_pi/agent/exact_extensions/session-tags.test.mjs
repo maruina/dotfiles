@@ -355,14 +355,31 @@ test("the tool rejects an empty tags parameter", async () => {
   );
 });
 
-test("before_agent_start tells the agent about tags and the search tool", async () => {
+test("before_agent_start tells the agent about tags once per session and resets after compaction", async () => {
   const { handlers } = await loadExtension();
-  const result = handlers.get("before_agent_start")({ type: "before_agent_start", prompt: "what did we decide in sessions tagged cla?" }, { cwd: "/workspace" });
-  assert.equal(result.message.customType, "session-tags");
-  assert.equal(result.message.display, false);
-  assert.match(result.message.content, /search_sessions_by_tags/);
-  assert.match(result.message.content, /tool_search/);
-  assert.match(result.message.content, /\/tag/);
+  const first = handlers.get("before_agent_start")({ type: "before_agent_start", prompt: "what did we decide in sessions tagged cla?" }, { cwd: "/workspace" });
+  assert.equal(first.message.customType, "session-tags");
+  assert.equal(first.message.display, false);
+  assert.match(first.message.content, /search_sessions_by_tags/);
+  assert.match(first.message.content, /tool_search/);
+  assert.match(first.message.content, /\/tag/);
+
+  const second = handlers.get("before_agent_start")({ type: "before_agent_start", prompt: "follow up" }, { cwd: "/workspace" });
+  assert.equal(second, undefined);
+
+  handlers.get("session_compact")({}, { cwd: "/workspace" });
+  const afterCompact = handlers.get("before_agent_start")({ type: "before_agent_start", prompt: "after compact" }, { cwd: "/workspace" });
+  assert.equal(afterCompact.message.customType, "session-tags");
+
+  const prev = process.env.PI_STAGE_RUNNER_CHILD;
+  process.env.PI_STAGE_RUNNER_CHILD = "1";
+  try {
+    handlers.get("session_compact")({}, { cwd: "/workspace" });
+    assert.equal(handlers.get("before_agent_start")({ type: "before_agent_start", prompt: "child" }, { cwd: "/workspace" }), undefined);
+  } finally {
+    if (prev === undefined) delete process.env.PI_STAGE_RUNNER_CHILD;
+    else process.env.PI_STAGE_RUNNER_CHILD = prev;
+  }
 });
 
 test("session_start reconstructs tags from the branch and /tag prefills the dialog", async () => {

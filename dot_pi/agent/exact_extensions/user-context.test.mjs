@@ -11,8 +11,9 @@ import {
   formatCurrentModel,
   formatPR,
   loadRexLines,
+  parseGitHubOwnerRepo,
   pathInside,
-  shouldAddSkillLoaderGuidance,
+  selectGitHubLogin,
   uniqueMatches,
 } from "./user-context.ts";
 
@@ -34,10 +35,15 @@ test("pathInside accepts descendants and rejects sibling prefix lookalikes", () 
   assert.equal(pathInside(path.join(path.sep, "tmp", "repo-other", "file.ts"), parent), false);
 });
 
-test("shouldAddSkillLoaderGuidance only triggers for code work", () => {
-  assert.equal(shouldAddSkillLoaderGuidance("fix the TypeScript extension tests"), true);
-  assert.equal(shouldAddSkillLoaderGuidance("what is the weather?"), false);
-  assert.equal(shouldAddSkillLoaderGuidance("summarize this incident"), false);
+test("parseGitHubOwnerRepo and selectGitHubLogin route work orgs to matteo-ruina_ddog and others to maruina", () => {
+  assert.deepEqual(parseGitHubOwnerRepo("git@github.com:maruina/dotfiles.git"), { owner: "maruina", repo: "dotfiles" });
+  assert.deepEqual(parseGitHubOwnerRepo("git@ddoghq.github.com:ddoghq/compute.git"), { owner: "ddoghq", repo: "compute" });
+  assert.deepEqual(parseGitHubOwnerRepo("https://github.com/DataDog/dd-source.git"), { owner: "DataDog", repo: "dd-source" });
+  assert.equal(parseGitHubOwnerRepo("not-a-github-url"), null);
+  assert.equal(selectGitHubLogin("ddoghq"), "matteo-ruina_ddog");
+  assert.equal(selectGitHubLogin("ddoghq-sandbox"), "matteo-ruina_ddog");
+  assert.equal(selectGitHubLogin("DataDog"), "maruina");
+  assert.equal(selectGitHubLogin("maruina"), "maruina");
 });
 
 test("buildRepoContextKey changes when branch or email changes", () => {
@@ -135,7 +141,7 @@ const interval = setInterval(() => { if (fs.existsSync(process.env.RELEASE)) { c
       const first = await register('?first');
       process.chdir(process.env.TARGET);
       const result = await first(event, ctx);
-      await first(event, ctx);
+      const secondResult = await first(event, ctx);
       if (process.env.RELOAD === 'true') await (await register('?reload'))(event, ctx);
       let alive = false;
       if (process.env.MODE === 'tui' && process.env.REX_SESSION && process.env.REX_BLOCK && process.env.FAIL !== 'true') {
@@ -146,7 +152,7 @@ const interval = setInterval(() => { if (fs.existsSync(process.env.RELEASE)) { c
         }
       }
       writeFileSync(process.env.RELEASE, 'released');
-      console.log(JSON.stringify({ result, alive }));
+      console.log(JSON.stringify({ result, secondResult, alive }));
     `;
     const result = spawnSync(process.execPath, ["--experimental-strip-types", "--input-type=module", "-e", script], {
       cwd: startup, encoding: "utf8", timeout: 8000,
@@ -155,20 +161,22 @@ const interval = setInterval(() => { if (fs.existsSync(process.env.RELEASE)) { c
     assert.equal(result.status, 0, result.stderr);
     let recorded = [];
     try { recorded = readFileSync(calls, "utf8").trim().split("\n").map(JSON.parse); } catch (error) { if (error.code !== "ENOENT") throw error; }
-    const { result: output, alive } = JSON.parse(result.stdout);
-    return { recorded, startup: realpathSync(startup), output, alive };
+    const { result: output, secondResult, alive } = JSON.parse(result.stdout);
+    return { recorded, startup: realpathSync(startup), output, secondResult, alive };
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 }
 
 test("registered hook names once in the startup directory without waiting, including after reload", () => {
-  const { recorded, startup, output, alive } = runHookScenario({ reload: true });
+  const { recorded, startup, output, secondResult, alive } = runHookScenario({ reload: true });
   assert.equal(alive, true, "the hook returned before Fish exited");
   assert.equal(recorded.length, 1);
   assert.deepEqual({ cwd: recorded[0].cwd, args: recorded[0].args }, { cwd: startup, args: ["-c", "rex-name-session"] });
   assert.match(output.message.content, /rex-name-task/);
   assert.doesNotMatch(output.message.content, /rex-name-session/);
+  assert.equal(output.systemPrompt, undefined);
+  assert.equal(secondResult, undefined, "unchanged user-context must not be re-injected on every turn");
 });
 
 test("registered hook excludes RPC and missing Rex identifiers", () => {

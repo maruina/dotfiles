@@ -227,7 +227,13 @@ export async function scanSessions(root: string): Promise<ScanResult> {
   const parsed: Array<{ session: ScannedSession; time: number }> = [];
   let skipped = 0;
   for (const file of files) {
-    const result = await parseSessionFile(file);
+    const text = await readSessionFile(file);
+    if (text === undefined) {
+      skipped++;
+      continue;
+    }
+    if (!text.includes(`"${TAG_ENTRY_TYPE}"`)) continue;
+    const result = parseSessionText(file, text);
     if (!result) {
       skipped++;
       continue;
@@ -287,6 +293,7 @@ export default function (pi: ExtensionAPI): void {
   let currentTags: string[] = [];
   let tagVocabulary: Map<string, number> | undefined;
   let tagVocabularyPromise: Promise<void> | undefined;
+  let guidanceInjected = false;
   const currentProcessTags = new Set<string>();
 
   // deliberate: Tags written by another Pi process stay invisible until restart.
@@ -312,8 +319,10 @@ export default function (pi: ExtensionAPI): void {
   // active branch once the conversation continues. Reconstruct from all entries
   // in file order (getBranch() would miss them), matching the scan's rule.
   pi.on("session_start", (_event, ctx) => {
+    guidanceInjected = false;
     currentTags = tagsFromBranch(ctx.sessionManager.getEntries());
     rememberTags(currentTags);
+    if (process.env.PI_STAGE_RUNNER_CHILD === "1" || (ctx.mode !== undefined && ctx.mode !== "tui")) return;
     if (tagVocabularyPromise) return;
 
     const manager = ctx.sessionManager as ReadSessionManager;
@@ -323,16 +332,24 @@ export default function (pi: ExtensionAPI): void {
       .catch(() => setTagVocabulary(new Map()));
   });
 
+  pi.on("session_compact", () => {
+    guidanceInjected = false;
+  });
+
   // The deferred tool is invisible to the model, so the agent must be told the
-  // tag concept exists and how to reach the tool (user-context.ts pattern:
-  // before_agent_start returns a context message that hides from the TUI).
-  pi.on("before_agent_start", () => ({
-    message: {
-      customType: "session-tags",
-      content: TAGS_GUIDANCE,
-      display: false,
-    },
-  }));
+  // tag concept exists and how to reach the tool. Emit once per session (and
+  // again after compaction) so repeated turns do not accumulate copies.
+  pi.on("before_agent_start", () => {
+    if (process.env.PI_STAGE_RUNNER_CHILD === "1" || guidanceInjected) return;
+    guidanceInjected = true;
+    return {
+      message: {
+        customType: "session-tags",
+        content: TAGS_GUIDANCE,
+        display: false,
+      },
+    };
+  });
 
   // deliberate: pi-tui does not request slash-argument completions on a comma
   // typed after a selected item. Typing and deleting a character reopens them.

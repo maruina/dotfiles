@@ -191,7 +191,7 @@ for (const failure of [
       git("commit", "-qm", "advance main");
       git("--git-dir=" + bare, "fetch", repo, "refs/heads/main:refs/heads/main");
       git("-C", cwd, "merge", "--ff-only", "main");
-      fs.writeFileSync(path.join(cwd, "before-startup"), "existing feature change\n");
+      fs.writeFileSync(path.join(cwd, "before-startup"), "existing feature change\n" + ("x".repeat(99) + "\n").repeat(1000) + "end of large patch\n");
       git("-C", cwd, "add", "before-startup");
       git("-C", cwd, "commit", "-qm", "start feature");
     }
@@ -593,6 +593,7 @@ for (const failure of [
       assert.ok(argv!.includes("--no-extensions"));
       const prompt = argv!.at(-1)!;
       assert.match(prompt, /diff --git a\/before-startup b\/before-startup/);
+      assert.match(prompt, /\+end of large patch/);
       assert.doesNotMatch(prompt, /diff --git a\/base-only b\/base-only/);
       assert.ok(prompt.includes(git("rev-parse", "main").toString().trim()));
       const create = JSON.parse(fs.readFileSync(bare + ".pr.argv", "utf8"));

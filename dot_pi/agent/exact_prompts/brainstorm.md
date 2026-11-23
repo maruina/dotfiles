@@ -175,7 +175,7 @@ Keep an open question only if it states why it does not block approval, which st
 When creating or updating `design.md`:
 
 1. Use the `feature-worktree` skill to continue in the correct existing worktree or create one from the latest default branch.
-2. Write `plans/<ticket-or-feature>/design.md`, preferably under the relevant package in a monorepo.
+2. Write `plans/<ticket-or-feature>/design.md`, preferably under the relevant package in a monorepo. Start with `# <Title>` and `Status: Draft` on line 2 (no blank line between them).
 3. Include the confirmed alignment brief plus context reviewed, goals and non-goals, assumptions, the smallest user-feedback slice and the deferred alternatives, design overview, risks and mitigations, operability, rollout/rollback, security and data handling, testing strategy, validation limits (including untested claims and accepted gaps), and open questions. Preserve skill provenance and add skills used while writing or reviewing the spec. Write for a reader outside the conversation: explain context, domain terms, and current behavior where relevant. The design is a synthesis, not a transcript; omit coaching exchanges and question history.
 4. Apply the review in `## Alignment and durable output`, fix blocking issues inline, and record material rejected findings with rationale.
 5. Commit only the design with `docs: add <ticket-or-feature> design`. Stop rather than commit on `main` or `master` or with unrelated changes.

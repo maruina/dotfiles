@@ -507,7 +507,18 @@ for (const failure of [
       const key = failure.slice("arp-fix-".length);
       if (failures[key]) await assert.rejects(result, failures[key]);
       else await result;
-      if (key === "two-heads") assert.deepEqual(phases.slice(-5), ["review", "fix", "verify", "publish", "review"]);
+      if (key === "two-heads") {
+        assert.deepEqual(phases.slice(-5), ["review", "fix", "verify", "publish", "review"]);
+        const argvCalls = fs.readFileSync(log, "utf8").trim().split("\n").map((line) => JSON.parse(line) as string[]);
+        const reviewCall = argvCalls.find((args) => args.some((a) => a.includes("_arp.ts")));
+        const fixCall = argvCalls.find((args) => args.at(-1)?.startsWith("ARP fix."));
+        assert.ok(reviewCall?.some((a) => a.endsWith("dd-ai-gateway/extensions/dd-ai-gateway/index.ts")));
+        assert.ok(reviewCall?.some((a) => a.endsWith("pi-client-session-id/index.ts")));
+        assert.ok(fixCall?.some((a) => a.endsWith("dd-ai-gateway/extensions/dd-ai-gateway/index.ts")));
+        assert.ok(fixCall?.some((a) => a.endsWith("pi-client-session-id/index.ts")));
+        assert.ok(fixCall?.some((a) => a.endsWith("compute-guardrails.ts")));
+        assert.ok(fixCall?.some((a) => a.endsWith("context-kit/index.ts")));
+      }
       const trace = fs.readFileSync(log + ".timeline", "utf8").trim().split("\n").map((line) => JSON.parse(line));
       const fixes = trace.filter(({ event }) => event === "fix");
       const settlements = trace.filter(({ event }) => event === "resolve_finding");

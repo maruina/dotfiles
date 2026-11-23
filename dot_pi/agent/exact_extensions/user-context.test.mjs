@@ -252,6 +252,39 @@ export default function (pi) {
   }
 });
 
+test("registered hook suppresses Rex naming, background fetches, and skill-loader injection in stage-runner children while keeping Current Model", () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "user-context-child-"));
+  try {
+    const bin = path.join(dir, "bin");
+    mkdirSync(bin);
+    const rexMarker = path.join(dir, "rex-called");
+    writeFileSync(path.join(bin, "rex"), `#!${process.execPath}\nrequire('node:fs').writeFileSync(${JSON.stringify(rexMarker)}, '1');\nconsole.log('Rex child');\n`, { mode: 0o755 });
+    const moduleUrl = new URL("./user-context.ts", import.meta.url).href;
+    const script = `
+      const { default: extension } = await import(${JSON.stringify(moduleUrl)});
+      let hook;
+      extension({ on(name, fn) { if (name === 'before_agent_start') hook = fn; }, events: { emit() {} } });
+      const result = await hook(
+        { messageType: 'user', prompt: 'fix the TypeScript extension tests', systemPrompt: 'base' },
+        { cwd: ${JSON.stringify(dir)}, mode: 'json', model: { provider: 'google', id: 'gemini-4-neon', name: 'Gemini 4 Neon' }, sessionManager: { getSessionId: () => 'child' } },
+      );
+      console.log(JSON.stringify(result));
+    `;
+    const run = spawnSync(process.execPath, ["--experimental-strip-types", "--input-type=module", "-e", script], {
+      cwd: dir, encoding: "utf8", timeout: 8000,
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, REX_SESSION: "session:x", REX_BLOCK: "block:x", PI_STAGE_RUNNER_CHILD: "1" },
+    });
+    assert.equal(run.status, 0, run.stderr);
+    const output = JSON.parse(run.stdout);
+    assert.equal(existsSync(rexMarker), false, "stage-runner child must not invoke rex");
+    assert.doesNotMatch(output.message.content, /rex-name-task|## Rex/);
+    assert.match(output.message.content, /## Current Model\n- Gemini 4 Neon \(google\/gemini-4-neon\)/);
+    assert.equal(output.systemPrompt, undefined);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("formatPR includes state, number, base, title, head, and link", () => {
   assert.equal(
     formatPR({

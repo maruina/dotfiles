@@ -60,7 +60,7 @@ Skip cosmetic changes. If no change is needed, continue to Handoff.
 Snapshot `git status --porcelain=v1 --untracked-files=all`. Commit changed simplifications only if the worktree started clean:
 - After tests pass, stage only files changed here and commit with a descriptive `refactor:` message.
 - If code changed with a plan, add a short ledger note in that commit so `/verify` can account for it. Record a learning candidate with the `learning-candidates` skill if a materially simpler path was initially missed.
-- Push only when the branch has an open PR or configured upstream; never force-push. Otherwise report that the commit is local.
+- Keep the commit local; do not push during `/simplify`. Push only after independent `/verify` through `/pr-create`, `/pr-update`, or `/stage-runner`.
 - When no code change was made, do not write a ledger-only note or create an empty commit. Report unchanged.
 
 If the worktree started dirty, do not commit; report changes as uncommitted with the pre-existing changes.

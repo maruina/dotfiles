@@ -67,6 +67,19 @@ test("events set and clear the branch marker; sessions share it", async () => {
   }
 });
 
+test("stage-runner children do not overwrite the parent branch marker", async () => {
+  const prior = process.env.PI_STAGE_RUNNER_CHILD;
+  process.env.PI_STAGE_RUNNER_CHILD = "1";
+  try {
+    const current = session();
+    for (const event of ["agent_start", "agent_settled", "session_shutdown"]) await current.emit(event, tmpdir());
+    assert.equal(current.calls.length, 0);
+  } finally {
+    if (prior === undefined) delete process.env.PI_STAGE_RUNNER_CHILD;
+    else process.env.PI_STAGE_RUNNER_CHILD = prior;
+  }
+});
+
 test("missing Worktrunk binary does not reject event handlers", async () => {
   const prior = process.env.WORKTRUNK_BIN;
   process.env.WORKTRUNK_BIN = join(tmpdir(), "nonexistent-worktrunk-activity-binary");

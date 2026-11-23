@@ -262,7 +262,8 @@ export default function (pi: ExtensionAPI) {
   let repoContextFetchKey: string | null = null;
 
   pi.on("before_agent_start", async (event, ctx) => {
-    if (!rexNamingState.attempted && ctx.mode === "tui" && process.env.REX_SESSION && process.env.REX_BLOCK) {
+    const stageRunnerChild = process.env.PI_STAGE_RUNNER_CHILD === "1";
+    if (!stageRunnerChild && !rexNamingState.attempted && ctx.mode === "tui" && process.env.REX_SESSION && process.env.REX_BLOCK) {
       rexNamingState.attempted = true;
       void runAsync("fish", ["-c", "rex-name-session"], rexNamingState.startupCwd, 3000);
     }
@@ -276,7 +277,7 @@ export default function (pi: ExtensionAPI) {
       if (email) lines.push(`- Email: ${email}`);
     }
 
-    const rexLines = await getRexLines();
+    const rexLines = stageRunnerChild ? null : await getRexLines();
     if (rexLines) {
       if (lines.length > 0) lines.push("");
       lines.push(...rexLines);
@@ -340,7 +341,7 @@ export default function (pi: ExtensionAPI) {
         lines.push(...cached.lines);
       }
 
-      if (repoContextFetchKey !== repoContextKey) {
+      if (!stageRunnerChild && repoContextFetchKey !== repoContextKey) {
         repoContextFetchKey = repoContextKey;
         void (async () => {
           const slowLines: string[] = [];
@@ -404,7 +405,7 @@ export default function (pi: ExtensionAPI) {
 
     // Only user-message runs carry a prompt; custom runs started by
     // pi.sendMessage while idle have no prompt to inspect.
-    if (event.messageType === "user" && shouldAddSkillLoaderGuidance(event.prompt)) {
+    if (!stageRunnerChild && event.messageType === "user" && shouldAddSkillLoaderGuidance(event.prompt)) {
       response.systemPrompt = `${event.systemPrompt}\n\n${SKILL_LOADER_GUIDANCE}`;
     }
 

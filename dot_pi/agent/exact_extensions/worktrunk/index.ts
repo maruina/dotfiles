@@ -48,6 +48,7 @@ export default function worktrunkActivity(pi: ExtensionAPI): void {
     cwd: string,
     args: ["set", string] | ["clear"],
   ): Promise<void> => {
+    if (process.env.PI_STAGE_RUNNER_CHILD === "1") return;
     const bin = worktrunkBin();
     if (!bin) return;
     try {

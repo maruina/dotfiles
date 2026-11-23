@@ -1240,6 +1240,13 @@ test("stage runner owns lifecycle automation without legacy resources", () => {
     assert.match(attempt, /private JSON handoff outside Git/, file);
     assert.match(attempt, /Do not push, publish, apply, or create a PR\./, file);
   }
+  assert.doesNotMatch(prompt("simplify.md"), /Push only when the branch has an open PR/i);
+  assert.match(prompt("simplify.md"), /Keep the commit local; do not push during `\/simplify`/);
+  assert.match(prompt("execute.md"), /Treat every stop-and-ask rule below as a `blocked` handoff/);
+  assert.match(prompt("execute.md"), /Commit each completed slice with a Conventional Commit/);
+  assert.match(prompt("brainstorm.md"), /`Status: Draft` on line 2/);
+  assert.match(prompt("systematic-review.md"), /fresh `\/new` session \(or a newly created stage-runner child session\)/);
+  assert.match(prompt("verify.md"), /Use the supplied feature baseline as `--base`.*not a base conflict/);
 });
 
 test("stage runner operator guide separates verified publication from the manual route", () => {

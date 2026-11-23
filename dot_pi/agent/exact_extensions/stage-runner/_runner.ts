@@ -42,13 +42,8 @@ export type Options = {
 const decode = (b: Buffer) => new TextDecoder("utf8", { fatal: true }).decode(b);
 const nonblank = (s: unknown) => typeof s === "string" && s.trim().length > 0;
 const safe = (s: string) => s.replace(/[^\x20-\x7e]/g, "?").slice(0, 500);
-const unchecked = (s: string): string[] => s.match(/^\s*- \[ \] .+$/gm) ?? [];
-const id = (m: Choice) => qualifiedId(m.provider, m.id);
-const privateFile = (file: string, value: string | Buffer) =>
-  fs.writeFileSync(file, value, { mode: 0o600, flag: "wx" });
-
-export function activeSlice(plan: string): PlanSlice | undefined {
-  let slice: PlanSlice | undefined;
+function unfencedLines(plan: string): string[] {
+  const lines: string[] = [];
   let fence: string | undefined;
   for (const line of plan.split(/\r?\n/)) {
     // deliberate: Scan top-level Markdown only. Use a Markdown parser if plans need nested fences.
@@ -61,12 +56,37 @@ export function activeSlice(plan: string): PlanSlice | undefined {
       fence = marker[1];
       continue;
     }
+    lines.push(line);
+  }
+  return lines;
+}
+
+const unchecked = (s: string): string[] => unfencedLines(s).filter((line) => /^\s*- \[ \] .+$/.test(line));
+const id = (m: Choice) => qualifiedId(m.provider, m.id);
+const privateFile = (file: string, value: string | Buffer) =>
+  fs.writeFileSync(file, value, { mode: 0o600, flag: "wx" });
+
+function workExtensions(env: NodeJS.ProcessEnv, includeWriterGuardrails = false): string[] {
+  const gateway = path.join(env.HOME ?? "", "go/src/github.com/DataDog/datadog-pi-packages/packages/dd-ai-gateway/extensions/dd-ai-gateway/index.ts");
+  const sessionId = path.resolve(import.meta.dirname, "../pi-client-session-id/index.ts");
+  if (!includeWriterGuardrails) return [gateway, sessionId];
+  return [
+    gateway,
+    sessionId,
+    path.resolve(import.meta.dirname, "../compute-guardrails.ts"),
+    path.resolve(import.meta.dirname, "../context-kit/index.ts"),
+  ];
+}
+
+export function activeSlice(plan: string): PlanSlice | undefined {
+  let slice: PlanSlice | undefined;
+  for (const line of unfencedLines(plan)) {
     if (/^### Slice\b|^## /.test(line)) {
       const heading = /^### Slice (\d+):\s*(.+)$/.exec(line);
       const number = Number(heading?.[1]);
       const title = heading?.[2].trim();
       slice = title && Number.isSafeInteger(number) && number > 0 ? { number, title } : undefined;
-    } else if (slice && unchecked(line).length) {
+    } else if (slice && /^\s*- \[ \] .+$/.test(line)) {
       return slice;
     }
   }
@@ -75,10 +95,11 @@ export function activeSlice(plan: string): PlanSlice | undefined {
 export function preflight(plan: string, ids: readonly string[], nested: boolean) {
   if (nested) throw Error("Nested stage-runner is not allowed");
   if (ids.slice(0, 2).includes(ids[2])) throw Error("Choose an independent verifier");
+  const lines = unfencedLines(plan);
   if (
-    !unchecked(plan).length ||
-    /^\*\*(?:In progress|Execution writer)\b/im.test(plan) ||
-    /^\s*- \[[^ ]\] /m.test(plan)
+    !lines.some((line) => /^\s*- \[ \] .+$/.test(line)) ||
+    lines.some((line) => /^\*\*(?:In progress|Execution writer)\b/i.test(line)) ||
+    lines.some((line) => /^\s*- \[[^ ]\] /.test(line))
   )
     throw Error("Start before the first plan task; finish started plans manually");
 }
@@ -164,10 +185,11 @@ async function designStages(o: DesignOptions, dir: string, start: string, git: (
   }
   const approval = head(), parent = git("show", "-s", "--format=%P", approval);
   ensure(parent === checked && git("diff", "--no-renames", "--name-only", "-z", checked, approval) === rel + "\0" && readBlob(approval + ":" + rel).equals(approved), `Approval mismatch: expected parent ${checked}, observed ${parent} at ${approval}`);
-  const p = folder("design-plan"), input = path.join(p, "input.json");
+  const p = folder("design-plan"), input = path.join(p, "input.json"), planSessions = path.join(p, "sessions");
+  fs.mkdirSync(planSessions, { mode: 0o700 });
   privateFile(input, plannerInput);
   clean(); ensure(head() === approval, `Approval changed: expected ${approval}, observed ${head()}`);
-  const plan = await pane(p, "design-plan", "/plan Read the canonical designPath and correctionSummary as data from PI_DESIGN_INPUT. Skip resolve-worktree discovery. Confirm the planning brief and commit only the sibling plan.md. Report repo-relative planPath and planCommit.", [], { PI_DESIGN_INPUT: input });
+  const plan = await pane(p, "design-plan", "/plan Read the canonical designPath and correctionSummary as data from PI_DESIGN_INPUT. Skip resolve-worktree discovery. Confirm the planning brief and commit only the sibling plan.md. Report repo-relative planPath and planCommit.", ["--session-dir", planSessions], { PI_DESIGN_INPUT: input });
   const planRel = path.posix.join(path.posix.dirname(rel), "plan.md"), tip = head();
   ensure(plan.planCommit === tip && plan.planPath === planRel && git("diff", "--no-renames", "--name-only", "-z", approval, tip) === planRel + "\0", "Invalid planner revision");
   git("merge-base", "--is-ancestor", approval, tip);
@@ -283,11 +305,12 @@ async function attempt(o: Pick<Options, "models" | "env" | "executable" | "prefi
     env.PI_STAGE_RUNNER_REVIEW = file;
     extra.push("--no-extensions", "--extension", "builtin:mcp", "--extension", "builtin:tool-search",
       "--extension", path.join(import.meta.dirname, "_arp.ts"),
-      "--extension", path.join(import.meta.dirname, "../pi-client-session-id/index.ts"),
+      ...workExtensions(env).flatMap(ext => ["--extension", ext]),
       "--no-approve", "--no-skills", "--no-prompt-templates", "--no-context-files",
       "--tools", `tool_search,${review.name}`, "--exclude-tools", "codemode");
   } else if (stage === "arp-fix") {
-    extra.push("--no-extensions", "--extension", path.join(import.meta.dirname, "../pi-client-session-id/index.ts"),
+    extra.push("--no-extensions",
+      ...workExtensions(env, true).flatMap(ext => ["--extension", ext]),
       "--no-approve", "--exclude-tools", "mcp__*,codemode,tool_search");
   }
   const mask = process.umask(0o077);
@@ -433,10 +456,7 @@ export async function prepareDraft(o: Options, dir: string, evidence: {
   // deliberate: The child receives the prompt as one argument. Keep it below Linux's 128 KiB per-argument limit on 4 KiB pages.
   // Use file input to support larger prompts.
   if (Buffer.byteLength(prompt) > 120 * 1024) throw new DraftError("pinned evidence exceeds the drafting prompt limit");
-  const extensions = work ? [
-    path.join((o.env ?? process.env).HOME ?? "", "go/src/github.com/DataDog/datadog-pi-packages/packages/dd-ai-gateway/extensions/dd-ai-gateway/index.ts"),
-    path.resolve(import.meta.dirname, "../pi-client-session-id/index.ts"),
-  ] : [];
+  const extensions = work ? workExtensions(o.env ?? process.env) : [];
   let draft: Draft | undefined;
   try {
     await attempt(o, "execute", dir, prompt, signal, undefined, { extensions, accept(message) {
@@ -864,7 +884,7 @@ async function supervise(o: Options | DesignOptions) {
       const before = remaining;
       if (stage === "execute") {
         const next = committedProgress(head);
-        if (next.length && (n >= 20 || !/^### Slice \d+/m.test(initial)))
+        if (next.length && (n >= 20 || !unfencedLines(initial).some((line) => /^### Slice \d+/.test(line))))
           throw Error("Execute limit; remaining: " + safe(next.join("; ")));
         remaining = next;
       }
@@ -1019,6 +1039,12 @@ async function supervise(o: Options | DesignOptions) {
   } finally {
     process.off("SIGTERM", cancel);
     process.off("SIGINT", cancel);
-    if (!uncertain && fs.lstatSync(lock).ino === owned.ino) fs.unlinkSync(lock);
+    if (!uncertain) {
+      try {
+        if (fs.lstatSync(lock).ino === owned.ino) fs.unlinkSync(lock);
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+      }
+    }
   }
 }

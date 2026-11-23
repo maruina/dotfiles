@@ -13,7 +13,7 @@ Perform a fresh read-only closeout. Return one verdict: `VERIFIED` or `BLOCKED`.
 Do not edit, format, generate, apply chezmoi state, stage, commit, switch branches, detach HEAD, or repair anything. Do not run formatter or linter fix modes. Do not push or open or update a PR before the final state comparison passes and the verdict is `VERIFIED`. If a check would mutate the selected worktree, do not run it; return `BLOCKED` instead. A repair invalidates all prior evidence: hand control back to `/execute` or the user, then require a completely fresh `/verify` run.
 </HARD-GATE>
 
-For a `/stage-runner` attempt, write only the requested private JSON handoff outside Git, at the supplied path and in the supplied schema. Do not push, publish, apply, or create a PR. Check the supplied feature baseline, requirements plan blob, and current candidate before work. Use the pinned plan for requirements and the current plan as the progress ledger. Stop on a mismatch. Keep repository files read-only.
+For a `/stage-runner` attempt, write only the requested private JSON handoff outside Git, at the supplied path and in the supplied schema. Do not push, publish, apply, or create a PR. Check the supplied feature baseline, requirements plan blob, and current candidate before work. Use the supplied feature baseline as `--base` for snapshots and candidate reconstruction; it takes precedence over the PR target branch and is not a base conflict. Use the pinned plan for requirements and the current plan as the progress ledger. Stop on a mismatch. Keep repository files read-only.
 
 ## Target resolution
 

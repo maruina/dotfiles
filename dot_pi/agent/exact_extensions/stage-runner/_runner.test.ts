@@ -292,3 +292,17 @@ test("reject nested runs, dependent verifier, and already-started plans", () => 
     assert.throws(() => preflight(plan, ids, nested));
   }
 });
+
+test("preflight ignores checkboxes and ledger markers inside fenced code blocks", () => {
+  const plan = [
+    "### Slice 1: Example",
+    "```md",
+    "- [x] example completed",
+    "- [ ] example pending",
+    "**Execution writer:** p/a",
+    "```",
+    "- [ ] real task",
+  ].join("\n");
+  assert.doesNotThrow(() => preflight(plan, ["a", "a", "b"], false));
+  assert.throws(() => preflight("```md\n- [ ] only fenced\n```", ["a", "a", "b"], false));
+});

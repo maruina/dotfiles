@@ -26,6 +26,9 @@ if (stage === "startup-check") {
   if (option("--model") !== "b") throw Error("Expected the verifier model");
   const head = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
   const planBlob = execFileSync("git", ["rev-parse", "HEAD:plans/demo/plan.md"], { encoding: "utf8" }).trim();
+  if (fail === "startup-commit") {
+    execFileSync("git", ["commit", "--allow-empty", "-qm", "startup checker changed HEAD"]);
+  }
   if (["startup-branch", "startup-detached"].includes(fail)) {
     fs.writeFileSync(process.env.ARGV_LOG + ".rebased", head);
     execFileSync("git", ["switch", ...(fail === "startup-branch" ? ["-c", "other"] : ["--detach"]), "main"]);

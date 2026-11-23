@@ -88,7 +88,7 @@ for (const failure of [
   "draft-cancel",
   "draft-base-unavailable",
   "startup-rewrite", "startup-reuse", "startup-remote-only", "startup-lease-race", "startup-ancestor", "startup-push-unknown",
-  "startup-fits", "startup-blocked", "startup-invalid", "startup-branch", "startup-detached", "startup-conflict", "startup-blob", "startup-pin", "startup-decline",
+  "startup-fits", "startup-blocked", "startup-invalid", "startup-commit", "startup-branch", "startup-detached", "startup-conflict", "startup-blob", "startup-pin", "startup-decline",
   "work-personal-repo",
   "uncertain-create",
   "partial",
@@ -375,6 +375,7 @@ for (const failure of [
       const caseName = failure.slice(8);
       const reason: Record<string, RegExp> = {
         blocked: /Startup check.*blocked/i, invalid: /Startup check.*Invalid/i,
+        commit: /Startup check stopped: Error: Startup checker changed HEAD/,
         branch: /Startup check.*refs\/heads\/other.*no reset attempted.*keep the lock/i,
         detached: /Startup check.*detached/i, conflict: /Startup rebase/i,
         blob: /Startup check.*plan blob/i, pin: /Startup pin/i, decline: /declined/i,
@@ -413,7 +414,7 @@ for (const failure of [
         assert.equal(approvals, 0);
         assert.equal(fs.existsSync(bare + ".pushes"), false);
         const calls = fs.existsSync(log) ? fs.readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line).at(-1)) : [];
-        assert.equal(calls.length, caseName === "blocked" ? 2 : ["branch", "detached", "invalid"].includes(caseName) ? 1 : 0);
+        assert.equal(calls.length, caseName === "blocked" ? 2 : ["branch", "detached", "invalid", "commit"].includes(caseName) ? 1 : 0);
         assert.ok(calls.every(prompt => prompt.startsWith("/startup-check ")));
         const drift = ["branch", "detached"].includes(caseName);
         assert.equal(fs.readdirSync(options.root).some(name => name.startsWith("lock-")), drift);

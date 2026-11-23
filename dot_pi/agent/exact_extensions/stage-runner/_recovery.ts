@@ -51,6 +51,7 @@ export async function recovery(o: {
   cwd: string;
   env: NodeJS.ProcessEnv;
   rex?: string[];
+  label?: string;
   argv: string[];
   signal: AbortSignal;
   owner: (state: Ownership | null) => void;
@@ -89,6 +90,7 @@ export async function recovery(o: {
     "split",
     "--shell=none",
     "--keep-open",
+    ...(o.label ? ["--label", o.label] : []),
     "-s",
     session,
     "-b",

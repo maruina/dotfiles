@@ -13,7 +13,9 @@ type Stage = "execute" | "simplify" | "verify";
 export type Choice = { provider: string; id: string; thinking: string };
 export type Phase = Stage | "recovery" | "publish" | "review" | "fix";
 export type RunnerEvent =
-  | { type: "phase"; phase: Phase; at: number; launch?: number }
+  | ({ type: "phase"; at: number; launch?: number } & (
+      { phase: Exclude<Phase, "recovery"> } | { phase: "recovery"; message: string }
+    ))
   | { type: "skills"; labels: string[] }
   | { type: "message"; message: string };
 export type Options = {
@@ -521,7 +523,7 @@ async function supervise(o: Options | DesignOptions) {
     const writers = new Set([id(o.models.execute)]);
     let verifies = 0, slices = 0;
     const now = o.now ?? (() => performance.now());
-    const phase = (phase: Phase, launch?: number) =>
+    const phase = (phase: Exclude<Phase, "recovery">, launch?: number) =>
       o.onEvent({ type: "phase", phase, launch, at: now() });
     const message = (message: string) => o.onEvent({ type: "message", message });
     const publication = publisher(cwd, o.profilePath, env, signal);
@@ -644,9 +646,12 @@ async function supervise(o: Options | DesignOptions) {
         }
         const argv = paneArgv(o, model, ["--session-dir", sessions, ...recoveryArgs]);
         privateFile(failureFile, String(error).slice(0, 65536));
-        phase("recovery");
+        const stageName = stage[0].toUpperCase() + stage.slice(1);
+        o.onEvent({ type: "phase", phase: "recovery", at: now(),
+          message: `Fix the ${stageName} failure in the Recovery pane, then exit Pi to continue.` });
         await recovery({
           cwd,
+          label: `Recovery: ${stageName}`,
           env: o.env ?? process.env,
           rex: o.rexCommand,
           argv,

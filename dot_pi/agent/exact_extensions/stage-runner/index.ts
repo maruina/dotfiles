@@ -117,7 +117,8 @@ export function rexActivity(write: (sequence: string) => void) {
     }
   }
   return {
-    phase: (phase: Phase) => report(phase === "recovery" ? { state: "blocked", kind: "question", message: phase } : { state: "working", message: phase }),
+    phase: (phase: Exclude<Phase, "recovery">) => report({ state: "working", message: phase }),
+    recovery: (message: string) => report({ state: "blocked", kind: "question", message }),
     permission: (message: string) => report({ state: "blocked", kind: "permission", message }),
     end: (state: "done" | "error" | "idle" | "clear") => report({ state }),
   };
@@ -238,7 +239,10 @@ export default function stageRunner(pi: ExtensionAPI) {
             return ctx.ui.confirm("Accept recovered writer?", changes, { signal });
           },
           onEvent: event => {
-            if (event.type === "phase") activity.phase(event.phase);
+            if (event.type === "phase") {
+              if (event.phase === "recovery") activity.recovery(event.message);
+              else activity.phase(event.phase);
+            }
             display.onEvent(event);
           },
         });

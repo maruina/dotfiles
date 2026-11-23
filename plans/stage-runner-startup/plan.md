@@ -36,6 +36,8 @@
 | `write` | skill-loader | Update the progress ledger | Recorded checks and limits without changing the requirements. |
 | `codebase-research` | skill-loader | Trace startup and recovery | Checked `supervise()`, `attempt()`, the publisher's Git environment, and the bare-remote fixture. |
 | `cli-best-practices` | skill-loader | Report uncertain recovery | Kept the lock and reported expected and observed Git state when a reset was unsafe. |
+| `reviewable-pr-workflow` | skill-loader | Implement a startup branch rewrite | Required an explicit lease and disclosed the effect of rewritten commit SHAs on review comments. |
+| `diataxis` | skill-loader | Update the operator guide | Kept startup behavior separate from the procedure for remote recovery. |
 
 **Execution writer (slice 1):** `openai/gpt-6.2-sol`.
 
@@ -272,8 +274,14 @@ Task 4 evidence: The recovery marker initially used the wrong section heading. A
 **Traces to:** All requirements and the rollout contract.
 **Files:** None; this task runs checks only.
 
-- [ ] Run `git diff --check origin/main...HEAD`. From `dot_pi/agent`, run `npm ci --ignore-scripts` and then `npm run test:all`; expect all to pass. Record the results, then remove `node_modules`.
-- [ ] Confirm that every acceptance scenario maps to a passing test named in Tasks 1–3. The lifecycle then requires `/simplify`, independent feature-wide `/verify`, and the approved live trial before `chezmoi apply`.
+- [x] Run `git diff --check origin/main...HEAD`. From `dot_pi/agent`, run `npm ci --ignore-scripts` and then `npm run test:all`; expect all to pass. Record the results, then remove `node_modules`.
+- [x] Confirm that every acceptance scenario maps to a passing test named in Tasks 1–3. The lifecycle then requires `/simplify`, independent feature-wide `/verify`, and the approved live trial before `chezmoi apply`.
+
+**Execution writer (slice 2, Tasks 3–5):** `openai/gpt-6.2-sol`.
+
+Task 5 evidence: `git diff --check origin/main...HEAD`, `npm ci --ignore-scripts`, and `npm run test:all` passed (521 fast tests passed, 3 skipped; 107 stage-runner and 5 Worktrunk integration tests passed; typecheck and Pi smoke check passed). Removed the source worktree's `dot_pi/agent/node_modules` after the checks.
+
+Acceptance mapping: The `active slice` unit tests and the complete integration fixture cover grouped progress, partial progress, and ungrouped or fenced input. The `execute widget` unit test covers sanitization and truncation. The complete integration fixture covers skipping startup for an up-to-date branch. The `startup-fits`, `startup-decline`, `startup-conflict`, `startup-blob`, `startup-blocked` (including its rerun), `startup-invalid`, `startup-branch`, `startup-detached`, and `startup-pin` cases cover the rebase and check outcomes. The `startup-rewrite`, `startup-reuse`, `startup-remote-only`, and `startup-lease-race` cases cover the lease acceptance scenarios. `startup-ancestor` covers the no-rewrite path, and `startup-push-unknown` covers the approved uncertain-push recovery rule. No live trial ran.
 
 ## Learning candidates
 - 2026-11-23: In stage-runner startup, keeping a local rebase after a stop makes the next run's "HEAD already descends from the pinned tip" skip bypass `startup-check`, and the final non-force push then fails because the old remote ref is not an ancestor; restore the original head after any stop before a confirmed startup push — evidence: `plans/stage-runner-startup/plan.md` Key Decisions (D2) and `dot_pi/agent/exact_extensions/stage-runner/_runner.ts` `preflight()`.

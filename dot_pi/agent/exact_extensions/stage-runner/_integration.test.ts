@@ -8,7 +8,7 @@ import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { phaseDisplay } from "./index.ts";
 import { run } from "./_runner.ts";
-for (const [failure, error] of Object.entries({ blocker: "needs-human", "blocker-cancel": "abort", "blocker-uncertain": "uncertain recovery", "blocker-session": "identity mismatch", corrected: "", "corrected-stale": "Design changed", "corrected-other": "Design changed", "corrected-header": "Draft header", "": "", early: "handoff", header: "Draft header", path: "artifact path", overlap: "author model", stale: "Design changed", invalid: "pi --session", "no-plan": "handoff", reverted: "unrelated path", dirty: "dirty", switch: "Author used reviewer", "pre-check": "Design changed", "approval-race": "expected parent [a-f0-9]+, observed [a-f0-9]+" }))
+for (const [failure, error] of Object.entries({ blocker: "needs-human", "blocker-cancel": "abort", "blocker-uncertain": "uncertain recovery", "blocker-session": "identity mismatch", "pane-close": "Cannot confirm recovery exit", "cancel-after-exit": "abort", "wait-failure-running": "Cannot confirm recovery exit; lock retained: Rex wait returned invalid exit JSON", corrected: "", "corrected-stale": "Design changed", "corrected-other": "Design changed", "corrected-header": "Draft header", "": "", early: "handoff", header: "Draft header", path: "artifact path", overlap: "author model", stale: "Design changed", invalid: "pi --session", "no-plan": "handoff", reverted: "unrelated path", dirty: "dirty", switch: "Author used reviewer", "pre-check": "Design changed", "approval-race": "expected parent [a-f0-9]+, observed [a-f0-9]+" }))
  test((failure.startsWith("blocker") ? "design blocker: " : failure.startsWith("corrected") ? "corrected design: " : "clean design: ") + (failure || "committed plan without publication"), async (t) => {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), "design-test-"));
   t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
@@ -32,10 +32,47 @@ for (const [failure, error] of Object.entries({ blocker: "needs-human", "blocker
   const model = { provider: "p", id: "author", thinking: "off" };
   const { runDesign } = await import("./_runner.ts");
   const controller = new AbortController();
+  const cancelAfterExit = failure === "cancel-after-exit", waitFailureRunning = failure === "wait-failure-running";
+  const kill = cancelAfterExit || waitFailureRunning ? t.mock.method(process, "kill") : undefined;
   const result = runDesign({ cwd, env, root: path.join(temp, "state"), brief: "fixture design", author: model,
     reviewer: { ...model, id: "reviewer" }, signal: controller.signal, progress: () => {},
     executable: process.execPath, prefix: [path.join(import.meta.dirname, "_fixtures/design-pi.mjs")],
     rexCommand: [process.execPath, path.join(import.meta.dirname, "_fixtures/rex.mjs")] });
+  if (cancelAfterExit || waitFailureRunning) {
+    const pidFile = env.ARGV_LOG + ".pid";
+    const exited = () => fs.existsSync(pidFile + ".exit");
+    const waitForExit = async () => {
+      for (let i = 0; i < 500 && !exited(); i++) await delay(10);
+      assert.ok(exited(), "Fixture Pi did not exit");
+    };
+    try {
+      const rejected = assert.rejects(result, new RegExp(error, "i"));
+      if (cancelAfterExit) {
+        await Promise.all([rejected, (async () => {
+          await waitForExit();
+          for (let i = 0; i < 500 && !fs.existsSync(pidFile + ".waiting"); i++) await delay(10);
+          assert.ok(fs.existsSync(pidFile + ".waiting"), "Rex waiter did not start");
+          controller.abort();
+        })()]);
+      } else {
+        await rejected;
+        assert.ok(fs.existsSync(env.ARGV_LOG + ".first-turn"));
+        assert.ok(!exited(), "Fixture Pi exited before waiter failure was handled");
+      }
+      assert.equal(kill?.mock.callCount(), 0);
+      assert.equal(fs.existsSync(pidFile + ".closed"), cancelAfterExit);
+      assert.equal(fs.readdirSync(path.join(temp, "state")).some(s => s.startsWith("lock-")), waitFailureRunning);
+      assert.equal(fs.readFileSync(env.ARGV_LOG, "utf8"), "design-draft\n");
+    } finally {
+      if (waitFailureRunning && fs.existsSync(env.ARGV_LOG + ".first-turn") && !exited()) {
+        fs.writeFileSync(env.ARGV_LOG + ".continue", "");
+        await waitForExit();
+      }
+      controller.abort();
+      await result.catch(() => {});
+    }
+    return;
+  }
   if (error) {
     if (failure === "blocker-cancel") {
       const wait = async () => {
@@ -57,6 +94,13 @@ for (const [failure, error] of Object.entries({ blocker: "needs-human", "blocker
       const competing = fs.readFileSync(env.ARGV_LOG + ".competing", "utf8").trim();
       git("merge-base", "--is-ancestor", competing, "HEAD");
       assert.equal(git("show", competing + ":plans/demo/design.md"), "# Competing edit\nStatus: Draft");
+    }
+    if (failure === "pane-close" || failure === "early") {
+      assert.equal(fs.readdirSync(path.join(temp, "state")).some(s => s.startsWith("lock-")), failure === "pane-close");
+      assert.equal(fs.readFileSync(env.ARGV_LOG, "utf8"), "design-draft\n");
+      assert.ok(fs.existsSync(env.ARGV_LOG + ".pid.closed"));
+      assert.deepEqual(JSON.parse(fs.readFileSync(env.ARGV_LOG + ".pid.exit", "utf8")),
+        { exit_code: failure === "early" ? 7 : 0 });
     }
     if (!["no-plan", "reverted"].includes(failure)) assert.ok(!fs.readFileSync(env.ARGV_LOG, "utf8").includes("design-plan"));
     return;
@@ -128,6 +172,7 @@ for (const failure of [
   "recover-refuse",
   "recover-dirty",
   "recover-cancel",
+  "recover-cancel-identity",
   "recover-definite",
   "recover-uncertain",
   "recover-dependent",
@@ -435,10 +480,23 @@ for (const failure of [
       await assert.rejects(run(options), /lock/i);
       controller.abort();
     }
-    if (failure === "recover-cancel") {
-      for (let i = 0; i < 300 && !fs.existsSync(log + ".ready"); i++) await delay(10);
-      assert.ok(fs.existsSync(log + ".ready"));
+    if (failure.startsWith("recover-cancel")) {
+      const ready = () => fs.existsSync(log + ".ready") && fs.existsSync(log + ".pid.waiting");
+      for (let i = 0; i < 300 && !ready(); i++) await delay(10);
+      assert.ok(ready());
       controller.abort();
+      if (failure === "recover-cancel-identity") {
+        const pid = Number(fs.readFileSync(log + ".ready", "utf8"));
+        try {
+          await assert.rejects(result, /Cannot confirm recovery exit/);
+          assert.equal(fs.existsSync(log + ".term"), false);
+          assert.equal(fs.existsSync(log + ".pid.closed"), false);
+        } finally {
+          process.kill(pid, "SIGKILL");
+          for (let i = 0; i < 200 && !fs.existsSync(log + ".pid.exit"); i++) await delay(10);
+          assert.ok(fs.existsSync(log + ".pid.exit"));
+        }
+      }
     }
     if (failure.startsWith("arp-fix-")) {
       const failures: Record<string, RegExp> = {
@@ -590,17 +648,18 @@ for (const failure of [
       }
       const interactive = calls.filter((a) => !a.includes("--mode"));
       const entries = fs.readdirSync(options.root);
-      assert.equal(
-        entries.some((n) => n.startsWith("lock-")),
-        failure === "recover-uncertain",
-      );
+      const retained = ["recover-uncertain", "recover-cancel-identity"].includes(failure);
+      assert.equal(entries.some((n) => n.startsWith("lock-")), retained);
       const bundle = path.join(
         options.root,
         entries.find((n) => n.startsWith("run-"))!,
       );
-      assert.equal(fs.existsSync(path.join(bundle, "completed")), failure !== "recover-uncertain");
-      if (failure === "recover-cancel")
+      assert.equal(fs.existsSync(path.join(bundle, "completed")), !retained);
+      if (failure === "recover-cancel") {
         assert.equal(fs.readFileSync(log + ".term", "utf8"), fs.readFileSync(log + ".ready", "utf8"));
+        assert.deepEqual(JSON.parse(fs.readFileSync(log + ".pid.exit", "utf8")), { exit_code: -1 });
+        assert.ok(fs.existsSync(log + ".pid.closed"));
+      }
       if (failure.startsWith("recover-progress")) assert.equal(approvals, failure === "recover-progress" ? 1 : 0);
       if (stopped) {
         assert.equal(

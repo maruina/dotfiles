@@ -396,7 +396,9 @@ export async function prepareDraft(o: Options, dir: string, evidence: {
     instructions,
     "Comparison and verification evidence (JSON): " + JSON.stringify(evidence),
   ].join("\n\n");
-  if (Buffer.byteLength(prompt) > 96 * 1024) throw new DraftError("pinned evidence exceeds the drafting prompt limit");
+  // deliberate: The child receives the prompt as one argument. Keep it below Linux's 128 KiB per-argument limit on 4 KiB pages.
+  // Use file input to support larger prompts.
+  if (Buffer.byteLength(prompt) > 120 * 1024) throw new DraftError("pinned evidence exceeds the drafting prompt limit");
   const extensions = work ? [
     path.join((o.env ?? process.env).HOME ?? "", "go/src/github.com/DataDog/datadog-pi-packages/packages/dd-ai-gateway/extensions/dd-ai-gateway/index.ts"),
     path.resolve(import.meta.dirname, "../pi-client-session-id/index.ts"),

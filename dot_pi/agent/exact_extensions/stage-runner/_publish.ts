@@ -179,7 +179,7 @@ export function publisher(
             await git("fetch", "--no-tags", "--no-recurse-submodules", "--no-write-fetch-head", "--no-auto-maintenance", "origin", base);
             const mergeBase = await git("merge-base", base, sha);
             const { stdout } = await exec("git", ["diff", "--no-ext-diff", "--no-textconv", "--binary", mergeBase, sha], {
-              cwd, env: gitEnv, timeout: 10000, maxBuffer: 64 * 1024, signal, encoding: "buffer",
+              cwd, env: gitEnv, timeout: 10000, maxBuffer: 1024 * 1024, signal, encoding: "buffer",
             });
             const diff = new TextDecoder("utf8", { fatal: true }).decode(stdout);
             step = "verified candidate changed";

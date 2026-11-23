@@ -19,6 +19,29 @@ function completeTask() {
   fs.writeFileSync(file, fs.readFileSync(file, "utf8").replace("- [ ]", "- [x]"));
   execFileSync("git", ["commit", "-qam", "complete task"]);
 }
+if (stage === "execute" && fail === "draft-base-unavailable") {
+  execFileSync("git", ["--git-dir=" + process.env.BARE, "update-ref", "-d", "refs/heads/main"]);
+}
+if (stage === "startup-check") {
+  if (option("--model") !== "b") throw Error("Expected the verifier model");
+  const head = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+  const planBlob = execFileSync("git", ["rev-parse", "HEAD:plans/demo/plan.md"], { encoding: "utf8" }).trim();
+  if (fail === "startup-commit") {
+    execFileSync("git", ["commit", "--allow-empty", "-qm", "startup checker changed HEAD"]);
+  }
+  if (["startup-branch", "startup-detached"].includes(fail)) {
+    fs.writeFileSync(process.env.ARGV_LOG + ".rebased", head);
+    execFileSync("git", ["switch", ...(fail === "startup-branch" ? ["-c", "other"] : ["--detach"]), "main"]);
+  }
+  fs.writeFileSync(prompt.match(/^Handoff path: (.+)$/m)[1], JSON.stringify({
+    schemaVersion: 1, stage, summary: "Checked plan", head,
+    planBlob: fail === "startup-invalid" ? null : planBlob,
+    status: fail === "startup-blocked" ? "blocked" : "fits", reason: "Fixture blocker",
+  }), { mode: 0o600 });
+  console.log(JSON.stringify({ type: "session", id: "fixture-startup" }));
+  await new Promise(resolve => process.stdout.write(JSON.stringify({ type: "agent_settled", aborted: false }) + "\n", resolve));
+  process.exit();
+}
 if (drafting) {
   if (fail === "draft-dirty") fs.writeFileSync("untracked", "changed candidate");
   if (fail === "draft-pr-race") fs.writeFileSync(process.env.BARE + ".pr", "1");

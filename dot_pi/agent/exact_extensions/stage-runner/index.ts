@@ -62,6 +62,7 @@ export function phaseDisplay(
   }
   const totals = new Map<Phase, number>();
   let active: Extract<RunnerEvent, { type: "phase" }> | undefined;
+  let label = "";
   let interval: ReturnType<typeof setInterval> | undefined;
   function freeze(at: number) {
     if (active) totals.set(active.phase, (totals.get(active.phase) ?? 0) + at - active.at);
@@ -70,8 +71,7 @@ export function phaseDisplay(
   const history = () => [...totals].map(([phase, ms]) => phase + " " + duration(ms)).join(" · ");
   function tick() {
     if (!active) return;
-    const { phase, launch, at } = active;
-    const label = launch === undefined ? phase : phase === "execute" ? `execute slice ${launch}` : `verify ${launch} of 3`;
+    const { at } = active;
     present(() => widget([[`${label} · ${duration(now() - at)}`, history(), skills].filter(Boolean).join(" | ")]));
   }
   return {
@@ -87,6 +87,13 @@ export function phaseDisplay(
       }
       freeze(event.at);
       active = event;
+      const { phase, launch, slice } = event;
+      if (phase === "execute" && slice) {
+        const title = Array.from(slice.title.replace(/[\p{Cc}\p{Zl}\p{Zp}]/gu, "?"));
+        label = `execute slice ${slice.number}: ${title.length > 60 ? title.slice(0, 59).join("") + "…" : title.join("")}`;
+      } else {
+        label = launch === undefined ? phase : phase === "execute" ? `execute slice ${launch}` : `verify ${launch} of 3`;
+      }
       tick();
       interval ??= setInterval(tick, 1000);
     },

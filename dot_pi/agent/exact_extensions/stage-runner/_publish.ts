@@ -23,20 +23,19 @@ export function publisher(
   for (const key of ["GH_TOKEN", "GITHUB_TOKEN", "GH_DEBUG", "GIT_SSH", "GIT_SSH_COMMAND"]) delete env[key];
   const sshOptions = ["-oBatchMode=yes", "-oStrictHostKeyChecking=yes"];
   const gitEnv = { ...env, GIT_SSH_COMMAND: ["ssh", ...sshOptions].join(" "), GIT_SSH_VARIANT: "ssh" };
+  async function bounded(bin: string, args: string[], vars: NodeJS.ProcessEnv, readSignal?: AbortSignal) {
+    const { stdout } = await exec(bin, args, {
+      cwd, env: vars, timeout: 30000, signal: readSignal, killSignal: "SIGKILL", maxBuffer: 1024 * 1024,
+    });
+    return stdout.trim();
+  }
   async function command(bin: string, args: string[], vars = env, readSignal?: AbortSignal) {
     signal.throwIfAborted();
     try {
       // Keep the lock until an in-flight mutation exits, even when the operator cancels.
-      const { stdout } = await exec(bin, args, {
-        cwd,
-        env: vars,
-        timeout: 30000,
-        signal: readSignal,
-        killSignal: "SIGKILL",
-        maxBuffer: 1024 * 1024,
-      });
+      const stdout = await bounded(bin, args, vars, readSignal);
       signal.throwIfAborted();
-      return stdout.trim();
+      return stdout;
     } catch {
       throw Error(`${bin} ${args[0]} failed`);
     }
@@ -113,15 +112,17 @@ export function publisher(
       rules.some((rule) => rule?.type !== "repository_visibility" && rule?.type !== "file_path_restriction")
     )
       throw Error("Cannot publish to protected branch");
-    const remote = async () => {
-      const result = await git("ls-remote", "--heads", "origin", "refs/heads/" + branch);
+    const remote = async (reconcile = false) => {
+      const args = ["ls-remote", "--heads", "origin", "refs/heads/" + branch];
+      const result = reconcile ? await bounded("git", args, gitEnv) : await git(...args);
       if (!result) return "absent";
       const [sha, ref] = result.split("\t");
       if (!/^[0-9a-f]{40}$/.test(sha) || ref !== "refs/heads/" + branch) throw Error("Unknown remote head");
       return sha;
     };
+    const remoteHead = await remote();
     if (
-      (await remote()) !== "absent" &&
+      remoteHead !== "absent" &&
       JSON.parse(await gh("api", `repos/${repo}/branches/${encodeURIComponent(branch)}`)).protected !== false
     )
       throw Error("Protected branch");
@@ -148,11 +149,50 @@ export function publisher(
     const pr = await lookup();
     return {
       target: { profile, repo, url, branch, base, login, pr: pr?.url ?? null, review: profile === "work" && workOrganization },
-      gh, lookup, remote,
+      gh, lookup, remote, remoteHead,
     };
   }
+  async function pinBase(branch: string) {
+    const ref = `refs/heads/${branch}`;
+    const [base, name] = (await git("ls-remote", "--heads", "origin", ref)).split("\t");
+    if (!/^[0-9a-f]{40}$/.test(base) || name !== ref) throw Error("Cannot pin remote base " + ref);
+    await git("fetch", "--no-tags", "--no-recurse-submodules", "--no-write-fetch-head", "--no-auto-maintenance", "origin", base);
+    return base;
+  }
   return {
-    inspect,
+    inspect, pinBase,
+    async pushStartup(approved: Awaited<ReturnType<typeof inspect>>["target"], captured: string, sha: string, check: () => void) {
+      const { target, remote, lookup } = await inspect();
+      if (JSON.stringify(target) !== JSON.stringify(approved)) throw Error("Publication target changed since confirmation");
+      const before = await remote();
+      if (before !== captured) throw Error(`Remote changed before push; observed ${before}`);
+      if ((await git("remote", "get-url", "--push", "--all", "origin")) !== target.url)
+        throw Error("Push destination changed");
+      check();
+      signal.throwIfAborted();
+      const ref = `refs/heads/${target.branch}`;
+      let rejected = false;
+      try {
+        await bounded("git", ["-c", "core.hooksPath=/dev/null", "-c", "remote.origin.mirror=false",
+          "-c", "remote.origin.receivepack=git-receive-pack", "push", "--porcelain", "--no-follow-tags", "--recurse-submodules=no",
+          `--force-with-lease=${ref}:${captured}`, "origin", `${sha}:${ref}`], gitEnv);
+      } catch (error) {
+        const stdout = (error as { stdout?: string }).stdout;
+        rejected = stdout?.split("\n").some(line => line.startsWith(`!\t${sha}:${ref}\t[rejected] (stale info)`)) ?? false;
+      }
+      let observed: string;
+      try { observed = await remote(true); }
+      catch { return { state: "unknown", observed: "unknown" } as const; }
+      if (observed !== sha) return { state: rejected ? "rejected" : "unknown", observed } as const;
+      if (signal.aborted) return { state: "changed", observed, reason: "Canceled after the push" } as const;
+      if (target.pr) {
+        try {
+          const pr = await lookup();
+          if (pr?.url !== target.pr || pr.headRefOid !== sha) throw Error("PR head differs");
+        } catch { return { state: "changed", observed, reason: "PR head not confirmed" } as const; }
+      }
+      return { state: "confirmed", observed } as const;
+    },
     async publish(approved: Awaited<ReturnType<typeof inspect>>["target"], sha: string, check: () => void,
       draft: (base: string, mergeBase: string, diff: string) => Promise<Draft>,
       onDraftError: (step: string, error: unknown) => never,
@@ -173,10 +213,7 @@ export function publisher(
           try {
             check();
             step = "could not supply the full pinned comparison";
-            const ref = `refs/heads/${approved.base}`;
-            const [base, name] = (await git("ls-remote", "--heads", "origin", ref)).split("\t");
-            if (!/^[0-9a-f]{40}$/.test(base) || name !== ref) throw Error("Cannot pin remote base");
-            await git("fetch", "--no-tags", "--no-recurse-submodules", "--no-write-fetch-head", "--no-auto-maintenance", "origin", base);
+            const base = await pinBase(approved.base);
             const mergeBase = await git("merge-base", base, sha);
             const { stdout } = await exec("git", ["diff", "--no-ext-diff", "--no-textconv", "--binary", mergeBase, sha], {
               cwd, env: gitEnv, timeout: 10000, maxBuffer: 1024 * 1024, signal, encoding: "buffer",

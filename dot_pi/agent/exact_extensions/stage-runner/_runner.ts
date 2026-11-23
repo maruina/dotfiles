@@ -11,9 +11,10 @@ import { recovery, sessionInfo } from "./_recovery.ts";
 
 type Stage = "execute" | "simplify" | "verify";
 export type Choice = { provider: string; id: string; thinking: string };
-export type Phase = Stage | "recovery" | "publish" | "review" | "fix";
+export type Phase = Stage | "startup" | "recovery" | "publish" | "review" | "fix";
+type PlanSlice = { number: number; title: string };
 export type RunnerEvent =
-  | ({ type: "phase"; at: number; launch?: number } & (
+  | ({ type: "phase"; at: number; launch?: number; slice?: PlanSlice } & (
       { phase: Exclude<Phase, "recovery"> } | { phase: "recovery"; message: string }
     ))
   | { type: "skills"; labels: string[] }
@@ -45,6 +46,31 @@ const unchecked = (s: string): string[] => s.match(/^\s*- \[ \] .+$/gm) ?? [];
 const id = (m: Choice) => qualifiedId(m.provider, m.id);
 const privateFile = (file: string, value: string | Buffer) =>
   fs.writeFileSync(file, value, { mode: 0o600, flag: "wx" });
+
+export function activeSlice(plan: string): PlanSlice | undefined {
+  let slice: PlanSlice | undefined;
+  let fence: string | undefined;
+  for (const line of plan.split(/\r?\n/)) {
+    // deliberate: Scan top-level Markdown only. Use a Markdown parser if plans need nested fences.
+    const marker = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+    if (fence) {
+      if (marker && marker[1].startsWith(fence) && !marker[2].trim()) fence = undefined;
+      continue;
+    }
+    if (marker && (marker[1][0] === "~" || !marker[2].includes("`"))) {
+      fence = marker[1];
+      continue;
+    }
+    if (/^### Slice\b|^## /.test(line)) {
+      const heading = /^### Slice (\d+):\s*(.+)$/.exec(line);
+      const number = Number(heading?.[1]);
+      const title = heading?.[2].trim();
+      slice = title && Number.isSafeInteger(number) && number > 0 ? { number, title } : undefined;
+    } else if (slice && unchecked(line).length) {
+      return slice;
+    }
+  }
+}
 
 export function preflight(plan: string, ids: readonly string[], nested: boolean) {
   if (nested) throw Error("Nested stage-runner is not allowed");
@@ -180,7 +206,8 @@ type DesignOptions = Pick<Options, "cwd" | "root" | "env" | "signal" | "notify" 
   brief: string; author: Choice; reviewer: Choice;
   progress: (message: string) => void;
 };
-export function validate(bytes: Buffer, stage: Stage | "arp-fix" | DesignStage) {
+type HandoffStage = Stage | "startup-check" | "arp-fix" | DesignStage;
+export function validate(bytes: Buffer, stage: HandoffStage) {
   if (bytes.length > 65536) throw Error("Oversized handoff");
   const h = JSON.parse(decode(bytes));
   if (h?.schemaVersion !== 1 || h.stage !== stage || !nonblank(h.summary)) throw Error("Invalid handoff header");
@@ -192,6 +219,11 @@ export function validate(bytes: Buffer, stage: Stage | "arp-fix" | DesignStage) 
   }
   if (stage === "design-review") {
     if (!oid(h.reviewedBlob) || !(h.status === "clean" || (h.status === "needs-human" && Array.isArray(h.questions) && h.questions.length && h.questions.every(nonblank)))) throw Error("Invalid design review");
+    return h;
+  }
+  if (stage === "startup-check") {
+    if (!oid(h.head) || !oid(h.planBlob) || !(h.status === "fits" || (h.status === "blocked" && nonblank(h.reason))))
+      throw Error("Invalid startup-check verdict");
     return h;
   }
   if (stage === "arp-fix") return h;
@@ -211,11 +243,11 @@ export function validate(bytes: Buffer, stage: Stage | "arp-fix" | DesignStage) 
   return h;
 }
 
-export function handoff(file: string, stage: Stage | "arp-fix" | DesignStage) {
+export function handoff(file: string, stage: HandoffStage) {
   const fd = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
   try {
     const st = fs.fstatSync(fd);
-    if (stage.startsWith("design-") && (st.mode & 0o777) !== 0o600) throw Error("Expected 0600 handoff");
+    if ((stage.startsWith("design-") || stage === "startup-check") && (st.mode & 0o777) !== 0o600) throw Error("Expected 0600 handoff");
     if (st.size > 65536) throw Error("Oversized handoff");
     if (!st.isFile() || st.nlink !== 1 || st.uid !== process.getuid?.() || st.mode & 0o077)
       throw Error("Handoff must be a private regular file");
@@ -226,13 +258,13 @@ export function handoff(file: string, stage: Stage | "arp-fix" | DesignStage) {
   }
 }
 
-async function attempt(o: Pick<Options, "models" | "env" | "executable" | "prefix" | "cwd" | "idleMs" | "wallMs"> & Partial<Pick<Options, "onEvent">>, stage: Stage | "arp-review" | "arp-fix" | "design-review", dir: string, prompt: string, signal: AbortSignal,
+async function attempt(o: Pick<Options, "models" | "env" | "executable" | "prefix" | "cwd" | "idleMs" | "wallMs"> & Partial<Pick<Options, "onEvent">>, stage: Stage | "startup-check" | "arp-review" | "arp-fix" | "design-review", dir: string, prompt: string, signal: AbortSignal,
   review?: ReviewCall, drafting?: { extensions: string[]; accept: (message: unknown) => void }) {
   signal.throwIfAborted();
   const extra: string[] = [];
   const sessions = path.join(dir, "sessions");
   fs.mkdirSync(sessions, { mode: 0o700 });
-  const m = o.models[stage === "arp-review" || stage === "design-review" ? "verify" : stage === "arp-fix" ? "execute" : stage],
+  const m = o.models[stage === "arp-review" || stage === "design-review" || stage === "startup-check" ? "verify" : stage === "arp-fix" ? "execute" : stage],
     started = Date.now();
   // Inherit a private umask for session files that Pi creates without an explicit mode.
   const env: NodeJS.ProcessEnv = { ...(o.env ?? process.env), PI_STAGE_RUNNER_CHILD: "1" };
@@ -479,9 +511,10 @@ async function supervise(o: Options | DesignOptions) {
       throw Error("Worktree is dirty or branch changed");
   }
   clean();
-  const base = git("rev-parse", "HEAD"),
-    blob = "plan" in o ? git("rev-parse", base + ":" + rel) : "",
+  const originalHead = git("rev-parse", "HEAD"),
+    blob = "plan" in o ? git("rev-parse", originalHead + ":" + rel) : "",
     initial = blob ? git("show", blob) : "";
+  let base = originalHead;
   if ("brief" in o) {
     if (env.PI_STAGE_RUNNER_CHILD === "1" || !o.brief.trim() || id(o.author) === id(o.reviewer)) throw Error("Expected an independent reviewer in an interactive parent");
   } else preflight(
@@ -525,25 +558,165 @@ async function supervise(o: Options | DesignOptions) {
     const writers = new Set([id(o.models.execute)]);
     let verifies = 0, slices = 0;
     const now = o.now ?? (() => performance.now());
-    const phase = (phase: Exclude<Phase, "recovery">, launch?: number) =>
-      o.onEvent({ type: "phase", phase, launch, at: now() });
+    const phase = (phase: Exclude<Phase, "recovery">, launch?: number, slice?: PlanSlice) =>
+      o.onEvent({ type: "phase", phase, launch, at: now(), ...(slice && { slice }) });
     const message = (message: string) => o.onEvent({ type: "message", message });
     const publication = publisher(cwd, o.profilePath, env, signal);
-    const { target } = await publication.inspect();
+    const { target, remoteHead } = await publication.inspect();
     if (target.branch !== branch || target.base !== defaultBranch)
       throw Error("GitHub target differs from local branch or base");
     let approved = target;
     let reviewedHeads = 0;
     let reviewAttempts = 0;
     let priorPublication: Awaited<ReturnType<typeof publication.publish>> | undefined;
-    const decision = `${plan}: verify independently, then push the verified commit to ${target.url} ` +
+    let pinnedBase: string;
+    try {
+      pinnedBase = await publication.pinBase(target.base);
+    } catch (error) {
+      throw Error(`Startup pin failed for ${target.base}; original ${originalHead}; no remote write: ${error}`);
+    }
+    const needsRebase = git("merge-base", pinnedBase, originalHead) !== pinnedBase;
+    const ancestor = (older: string, newer: string) => {
+      try { return git("merge-base", older, newer) === older; }
+      catch { return false; }
+    };
+    if (needsRebase && remoteHead !== "absent" && !ancestor(remoteHead, originalHead))
+      throw Error(`Startup rebase stopped: possible remote-only commits at ${remoteHead}, original ${originalHead}, pinned ${pinnedBase}; no remote write`);
+    const decision = `${plan}: pinned ${target.base} at ${pinnedBase}. ` +
+      (needsRebase ? "Rebase and check the plan before slice 1. " : "") +
+      (needsRebase && remoteHead !== "absent" ? `If the rebase rewrites the remote head, force-push ${branch} with a lease on ${remoteHead} before slice 1. This changes commit SHAs and can make PR review comments outdated. Cancellation does not undo the push. ` : "") +
+      `Verify independently, then push the verified commit to ${target.url} ` +
       `(${target.branch} into ${target.base}) as ${target.login} and ` +
       `${target.pr ? "reuse " + target.pr : "create a draft PR"}. Profile: ${target.profile}.` +
       (target.review ? " Observe or request one silent review per head. For up to three reviewed heads, fix in-scope findings locally and independently verify and push the fixes before permanently recording them as addressed." : "");
-    if (!(await o.confirm(decision, signal))) throw Error("Publication declined; no stages started");
+    if (!(await o.confirm(decision, signal)))
+      throw Error(`Publication declined; original ${originalHead}, pinned ${pinnedBase}; no stages started or remote write`);
+    signal.throwIfAborted();
     clean();
-    if (git("rev-parse", "HEAD") !== base) throw Error("Candidate changed during confirmation");
-    privateFile(path.join(dir, "run.json"), JSON.stringify({ base, blob, plan, models: o.models, target }));
+    if (git("rev-parse", "HEAD") !== originalHead || git("rev-parse", `HEAD:${rel}`) !== blob)
+      throw Error("Candidate changed during confirmation");
+    privateFile(path.join(dir, "run.json"), JSON.stringify({ base, blob, plan, models: o.models, target, originalHead, pinnedBase, remoteHead }));
+    if (needsRebase) {
+      phase("startup");
+      const context = `original ${originalHead}, pinned ${pinnedBase}`;
+      const gitState = () => ({
+        head: git("rev-parse", "HEAD"),
+        branch: git("rev-parse", "--symbolic-full-name", "HEAD"),
+        status: git("status", "--porcelain=v1", "--untracked-files=all"),
+      });
+      const featureRef = `refs/heads/${branch}`;
+      const gitOperation = ["rebase-merge", "rebase-apply", "MERGE_HEAD", "CHERRY_PICK_HEAD", "BISECT_START", "sequencer"]
+        .find(name => fs.existsSync(path.resolve(cwd, git("rev-parse", "--git-path", name))));
+      if (gitOperation) throw Error(`Startup rebase stopped: ${gitOperation} exists; ${context}; no remote write`);
+      const mergeBase = git("merge-base", originalHead, pinnedBase);
+      const assertRestored = () => {
+        clean();
+        if (git("rev-parse", "HEAD") !== originalHead) throw Error("Original HEAD not restored");
+      };
+      function recoveryFailed(step: string, error: unknown, rebased?: string): never {
+        uncertain = true;
+        let state: unknown = "unavailable";
+        try { state = gitState(); } catch { /* Keep the lock without Git state. */ }
+        privateFile(path.join(dir, "startup-stop.json"), JSON.stringify({ step, error: safe(String(error)), originalHead, pinnedBase, rebased, featureRef, state }));
+        throw Error(`${step}; ${context}${rebased ? `, rebased ${rebased}` : ""}; ${safe(String(error))}; no remote write; keep the lock and inspect Git state before manual recovery: ${safe(JSON.stringify(state))}`);
+      }
+      signal.throwIfAborted();
+      const rebaseSignal = AbortSignal.any([signal, AbortSignal.timeout(120000)]);
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const child = spawn("git", ["-c", "core.hooksPath=/dev/null", "-c", "rebase.rebaseMerges=false", "rebase",
+            "--no-autostash", "--no-autosquash", "--no-update-refs", pinnedBase],
+          { cwd, env, stdio: "ignore", detached: true });
+          let failure: Error | undefined;
+          const abort = () => {
+            if (!child.pid) return;
+            try { process.kill(-child.pid, "SIGKILL"); } catch (error) {
+              if ((error as NodeJS.ErrnoException).code !== "ESRCH") failure = Error("Could not stop Git rebase");
+            }
+          };
+          child.once("error", error => { failure = error; });
+          child.once("close", code => {
+            rebaseSignal.removeEventListener("abort", abort);
+            if (failure || code !== 0) reject(failure ?? Error(rebaseSignal.aborted ? "Rebase canceled or timed out" : `Git rebase exited with ${code}`));
+            else resolve();
+          });
+          rebaseSignal.addEventListener("abort", abort, { once: true });
+          if (rebaseSignal.aborted) abort();
+        });
+      } catch (error) {
+        try {
+          git("-c", "core.hooksPath=/dev/null", "rebase", "--abort");
+          assertRestored();
+        } catch (restoreError) {
+          recoveryFailed("Startup rebase abort failed", `${error}; ${restoreError}`);
+        }
+        throw Error(`Startup rebase stopped: ${error}; ${context}; restored ${originalHead}; no remote write`);
+      }
+      let rebased: string | undefined;
+      let step = "check";
+      let remoteEffect = "no remote write";
+      try {
+        rebased = git("rev-parse", "HEAD");
+        clean();
+        signal.throwIfAborted();
+        if (git("merge-base", pinnedBase, rebased) !== pinnedBase || git("rev-parse", `${rebased}:${rel}`) !== blob)
+          throw Error("Rebased HEAD does not contain the pinned base and exact reviewed plan blob");
+        message(`Rebased ${originalHead} to ${rebased} onto ${pinnedBase}`);
+        const folder = path.join(dir, "startup-check");
+        fs.mkdirSync(folder, { mode: 0o700 });
+        const out = path.join(folder, "handoff.json");
+        await attempt(o, "startup-check", folder,
+          `/startup-check Review whether the committed plan at ${JSON.stringify(rel)} still fits. This is an inline instruction, not a slash command.\n` +
+          `Original HEAD: ${originalHead}. Pinned base: ${pinnedBase}. Rebased HEAD: ${rebased}. Reviewed plan blob: ${blob}.\n` +
+          `Inspect upstream changes in ${mergeBase}..${pinnedBase} that touch plan-referenced paths. Check binding assumptions, referenced files and symbols, and validation commands. Do not edit, commit, or push.\n` +
+          `Write only a private (0600) UTF-8 JSON handoff, at most 64 KiB, with schemaVersion:1, stage:"startup-check", nonblank summary, status "fits" or "blocked" (with nonblank reason when blocked), head ${rebased}, and planBlob ${blob}.\n` +
+          `Handoff path: ${out}`, signal);
+        clean();
+        if (git("rev-parse", "HEAD") !== rebased) throw Error("Startup checker changed HEAD");
+        const verdict = handoff(out, "startup-check");
+        if (verdict.head !== rebased || verdict.planBlob !== blob) throw Error("Startup verdict does not match the rebased snapshot");
+        if (verdict.status === "blocked") throw Error("Startup check blocked: " + safe(verdict.reason));
+        signal.throwIfAborted();
+        base = rebased;
+        privateFile(path.join(dir, "startup.json"), JSON.stringify({ base, verdict }));
+        message("Startup check: fits");
+        if (remoteHead !== "absent" && !ancestor(remoteHead, rebased)) {
+          step = "push";
+          const pushed = await publication.pushStartup(target, remoteHead, rebased, () => {
+            clean();
+            if (gitState().branch !== featureRef || git("rev-parse", "HEAD") !== rebased)
+              throw Error("Rebased snapshot changed before push");
+          });
+          if (pushed.state === "rejected") throw Error(`Lease rejected; observed ${pushed.observed}`);
+          remoteEffect = pushed.state === "unknown" ? `remote outcome unknown; observed ${pushed.observed}` : `remote changed to ${pushed.observed}`;
+          if (pushed.state === "unknown" || pushed.state === "changed") {
+            uncertain = true;
+            throw Error(pushed.state === "changed" ? pushed.reason : "Push result not confirmed");
+          }
+          message(`Pushed ${rebased} to ${branch} with lease on ${remoteHead}`);
+          if (signal.aborted) {
+            uncertain = true;
+            throw Error("Canceled after the push");
+          }
+        }
+      } catch (error) {
+        if (remoteEffect !== "no remote write") {
+          privateFile(path.join(dir, "startup-stop.json"), JSON.stringify({ step, originalHead, pinnedBase, rebased, remoteHead, remoteEffect, reason: safe(String(error)) }));
+          throw Error(`Startup ${step} stopped: ${error}; ${context}, captured ${remoteHead}, rebased ${rebased}; ${remoteEffect}${uncertain ? "; keep the lock for manual recovery" : ""}`);
+        }
+        try {
+          const state = gitState();
+          if (state.branch !== featureRef) throw Error(`Expected branch ${featureRef}; found ${state.branch === "HEAD" ? "detached HEAD" : state.branch} at ${state.head}; no reset attempted`);
+          git("-c", "core.hooksPath=/dev/null", "reset", "--keep", originalHead);
+          assertRestored();
+        } catch (restoreError) {
+          recoveryFailed(`Startup ${step} restore failed`, `${error}; ${restoreError}`, rebased);
+        }
+        privateFile(path.join(dir, "startup-stop.json"), JSON.stringify({ step, originalHead, pinnedBase, rebased, remoteHead, reason: safe(String(error)) }));
+        message(`Restored ${originalHead} after startup ${step} stopped`);
+        throw Error(`Startup ${step} stopped: ${error}; ${context}, captured ${remoteHead}, rebased ${rebased ?? "unknown"}; restored ${originalHead}; no remote write`);
+      }
+    }
     let remaining = unchecked(initial),
       n = 0,
       stage: Stage = "execute";
@@ -589,7 +762,11 @@ async function supervise(o: Options | DesignOptions) {
         clean();
         verifies++;
       }
-      phase(stage, stage === "execute" ? ++slices : stage === "verify" && !pending ? verifies : undefined);
+      if (stage === "execute") {
+        phase(stage, ++slices, activeSlice(prev === base ? initial : git("show", prev + ":" + rel)));
+      } else {
+        phase(stage, stage === "verify" && !pending ? verifies : undefined);
+      }
       function committedProgress(head: string) {
         const next = unchecked(git("show", head + ":" + rel));
         if (prev === head || next.length >= remaining.length) throw Error("No committed task progress");

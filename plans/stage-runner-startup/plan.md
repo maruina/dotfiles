@@ -34,6 +34,8 @@
 | `chezmoi` | skill-loader | Change managed extension source | Edited the source worktree only. No apply. |
 | `cli-best-practices` | skill-loader | Change a command's widget | Kept the new label display-only and preserved the launch-counter fallback. |
 | `write` | skill-loader | Update the progress ledger | Recorded checks and limits without changing the requirements. |
+| `codebase-research` | skill-loader | Trace startup and recovery | Checked `supervise()`, `attempt()`, the publisher's Git environment, and the bare-remote fixture. |
+| `cli-best-practices` | skill-loader | Report uncertain recovery | Kept the lock and reported expected and observed Git state when a reset was unsafe. |
 
 **Execution writer (slice 1):** `openai/gpt-6.2-sol`.
 
@@ -204,16 +206,22 @@ When a remote feature ref exists and the rebase rewrote it, the runner SHALL upd
 
 ### Slice 2: Rebase, check, and update the branch before implementation
 ### Task 2: Gate slice 1 on the startup rebase and plan check
+**Progress:** Task 2 verified. The user approved continuing with a branch guard. If the checkout is on another branch or HEAD is detached, the runner does not attempt `git reset --keep`. It records the Git state and retains the lock for manual recovery. `startup-branch` and `startup-detached` verify that the runner moves no ref and does not launch execute. Until Task 3 adds the lease, the runner stops before confirmation if a rebase is necessary and a remote feature ref exists.
+
+**Execution writer (slice 2, Task 2):** `openai/gpt-6.2-sol`.
+
+Task 2 evidence: The two branch-guard fixtures failed before implementation because the confirmation did not pin a base. The first post-implementation run found that `git clone --bare` copied `feature` into the remote fixture. The setup now deletes that ref to test the no-remote case. All nine startup cases passed. The existing complete fixture verifies the up-to-date skip. `npm test` passed (521 passed, 3 skipped), `npm run typecheck` passed, and `npm run test:integration` passed (101 stage-runner cases and 5 Worktrunk cases). This did not test a live GitHub or Rex rollout.
+
 **Delivers:** With no remote feature ref, the runner pins the base, rebases, runs `startup-check`, and starts slice 1 from the rebased baseline, or stops before implementation.
 **Blocked by:** None
 **Traces to:** Requirement: Rebase and check before slice 1.
 **Files:** `dot_pi/agent/exact_extensions/stage-runner/_runner.ts`, `dot_pi/agent/exact_extensions/stage-runner/_publish.ts`, `dot_pi/agent/exact_extensions/stage-runner/index.ts`, `dot_pi/agent/exact_extensions/stage-runner/_runner.test.ts`, `dot_pi/agent/exact_extensions/stage-runner/_integration.test.ts`, `dot_pi/agent/exact_extensions/stage-runner/_fixtures/pi.mjs`.
 
-- [ ] Extend the integration setup with a diverged `main` in the bare remote. Extend `_fixtures/pi.mjs` to answer `startup-check` with `fits`, `blocked`, an invalid handoff, or a snapshot mutation. Add failing cases for each scenario of this requirement, including the conflict abort, the already-up-to-date skip, the rerun after a blocked check, and the base pin failure. Add `rexActivity` and `phaseDisplay` cases for the `startup` phase in `_runner.test.ts`.
-- [ ] Keep the `draft-base-unavailable` contract: the startup pin runs before confirmation, so delete the bare `refs/heads/main` from `_fixtures/pi.mjs` during the first execute launch instead of in the test setup. The case must still stop with `Drafting stopped: could not supply the full pinned comparison`.
-- [ ] Implement `pinBase()` in `_publish.ts` and reuse it in `publish()`. Implement the confirmation text with the pinned SHA, the `startup` phase, the async bounded rebase with abort, the `startup-check` stage and handoff validation, the snapshot check, the restore to the original head after a stop, the `base` rebinding, `run.json` and `startup.json`, and the `message` progress events.
-- [ ] Run `cd dot_pi/agent && npm test && npm run test:integration && npm run typecheck`; expect all to pass, including the existing publication and ARP cases.
-- [ ] Commit with `feat(pi): rebase and check the plan before stage runner execution`.
+- [x] Extend the integration setup with a diverged `main` in the bare remote. Extend `_fixtures/pi.mjs` to answer `startup-check` with `fits`, `blocked`, an invalid handoff, or a snapshot mutation. Add failing cases for each scenario of this requirement, including the conflict abort, the already-up-to-date skip, the rerun after a blocked check, and the base pin failure. Add `rexActivity` and `phaseDisplay` cases for the `startup` phase in `_runner.test.ts`.
+- [x] Keep the `draft-base-unavailable` contract: the startup pin runs before confirmation, so delete the bare `refs/heads/main` from `_fixtures/pi.mjs` during the first execute launch instead of in the test setup. The case must still stop with `Drafting stopped: could not supply the full pinned comparison`.
+- [x] Implement `pinBase()` in `_publish.ts` and reuse it in `publish()`. Implement the confirmation text with the pinned SHA, the `startup` phase, the async bounded rebase with abort, the `startup-check` stage and handoff validation, the snapshot check, the restore to the original head after a stop, the `base` rebinding, `run.json` and `startup.json`, and the `message` progress events.
+- [x] Run `cd dot_pi/agent && npm test && npm run test:integration && npm run typecheck`; expect all to pass, including the existing publication and ARP cases.
+- [x] Commit with `feat(pi): rebase and check the plan before stage runner execution`.
 
 ### Task 3: Force-push the rebased branch with a lease
 **Delivers:** When an existing remote ref was rewritten, the runner updates it with an explicit lease after the accepted check and confirms the remote and PR head before slice 1.

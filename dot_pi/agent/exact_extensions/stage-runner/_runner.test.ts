@@ -23,6 +23,7 @@ test("Rex activity writes only bounded child records on transitions", () => {
     assert.deepEqual(writes, []);
     process.env.PI_PROGRAM_STATUS = "1";
     activity.permission("confirm");
+    activity.phase("startup");
     activity.phase("execute");
     activity.phase("execute");
     const recoveryMessage = "Fix the Verify failure in the Recovery pane, then exit Pi to continue.";
@@ -31,7 +32,7 @@ test("Rex activity writes only bounded child records on transitions", () => {
     activity.phase("verify");
     for (const state of ["done", "error", "idle", "clear"] as const) activity.end(state);
     const expected = (state: string, message = "", kind = "") => `\x1b]7501;state=${state}:id=stage-runner:app=pi-stage-runner${kind && ":kind=" + kind}${message && ":msg=" + Buffer.from(message).toString("base64")}\x1b\\`;
-    assert.deepEqual(writes, [expected("blocked", "confirm", "permission"), expected("working", "execute"),
+    assert.deepEqual(writes, [expected("blocked", "confirm", "permission"), expected("working", "startup"), expected("working", "execute"),
       expected("blocked", recoveryMessage, "question"), expected("blocked", "approve", "permission"), expected("working", "verify"),
       ...["done", "error", "idle", "clear"].map(s => expected(s))]);
     activity.permission("a\x1bb" + "é".repeat(2048));
@@ -113,19 +114,22 @@ test("phase ticks update only the widget and exit freezes the total", (t) => {
   const lines: (string[] | undefined)[] = [], entries: string[] = [];
   const display = phaseDisplay(value => lines.push(value), value => entries.push(value), () => {}, () => now);
   assert.deepEqual(lines, []);
+  display.onEvent({ type: "phase", phase: "startup", at: now });
+  assert.deepEqual(lines.at(-1), ["startup · 00:00"]);
+  now = 1000;
   display.onEvent({ type: "phase", phase: "execute", launch: 1, at: now });
-  now = 2000;
+  now += 2000;
   t.mock.timers.tick(1000);
-  assert.deepEqual(lines.at(-1), ["execute slice 1 · 00:02"]);
+  assert.deepEqual(lines.at(-1), ["execute slice 1 · 00:02 | startup 00:01"]);
   display.onEvent({ type: "phase", phase: "verify", launch: 2, at: now });
   now += 1000;
   t.mock.timers.tick(1000);
-  assert.deepEqual(lines.at(-1), ["verify 2 of 3 · 00:01 | execute 00:02"]);
+  assert.deepEqual(lines.at(-1), ["verify 2 of 3 · 00:01 | startup 00:01 · execute 00:02"]);
   assert.deepEqual(entries, []);
   display.finish("stopped");
   t.mock.timers.tick(1000);
   assert.equal(lines.at(-1), undefined);
-  assert.deepEqual(entries, ["stopped | execute 00:02 · verify 00:01"]);
+  assert.deepEqual(entries, ["stopped | startup 00:01 · execute 00:02 · verify 00:01"]);
 });
 
 test("ARP discovery does not authorize other calls or replenish the request budget", () => {

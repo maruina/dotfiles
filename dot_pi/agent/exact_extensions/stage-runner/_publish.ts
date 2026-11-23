@@ -120,8 +120,9 @@ export function publisher(
       if (!/^[0-9a-f]{40}$/.test(sha) || ref !== "refs/heads/" + branch) throw Error("Unknown remote head");
       return sha;
     };
+    const remoteHead = await remote();
     if (
-      (await remote()) !== "absent" &&
+      remoteHead !== "absent" &&
       JSON.parse(await gh("api", `repos/${repo}/branches/${encodeURIComponent(branch)}`)).protected !== false
     )
       throw Error("Protected branch");
@@ -148,11 +149,18 @@ export function publisher(
     const pr = await lookup();
     return {
       target: { profile, repo, url, branch, base, login, pr: pr?.url ?? null, review: profile === "work" && workOrganization },
-      gh, lookup, remote,
+      gh, lookup, remote, remoteHead,
     };
   }
+  async function pinBase(branch: string) {
+    const ref = `refs/heads/${branch}`;
+    const [base, name] = (await git("ls-remote", "--heads", "origin", ref)).split("\t");
+    if (!/^[0-9a-f]{40}$/.test(base) || name !== ref) throw Error("Cannot pin remote base " + ref);
+    await git("fetch", "--no-tags", "--no-recurse-submodules", "--no-write-fetch-head", "--no-auto-maintenance", "origin", base);
+    return base;
+  }
   return {
-    inspect,
+    inspect, pinBase,
     async publish(approved: Awaited<ReturnType<typeof inspect>>["target"], sha: string, check: () => void,
       draft: (base: string, mergeBase: string, diff: string) => Promise<Draft>,
       onDraftError: (step: string, error: unknown) => never,
@@ -173,10 +181,7 @@ export function publisher(
           try {
             check();
             step = "could not supply the full pinned comparison";
-            const ref = `refs/heads/${approved.base}`;
-            const [base, name] = (await git("ls-remote", "--heads", "origin", ref)).split("\t");
-            if (!/^[0-9a-f]{40}$/.test(base) || name !== ref) throw Error("Cannot pin remote base");
-            await git("fetch", "--no-tags", "--no-recurse-submodules", "--no-write-fetch-head", "--no-auto-maintenance", "origin", base);
+            const base = await pinBase(approved.base);
             const mergeBase = await git("merge-base", base, sha);
             const { stdout } = await exec("git", ["diff", "--no-ext-diff", "--no-textconv", "--binary", mergeBase, sha], {
               cwd, env: gitEnv, timeout: 10000, maxBuffer: 1024 * 1024, signal, encoding: "buffer",

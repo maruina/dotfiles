@@ -87,6 +87,7 @@ for (const failure of [
   "draft-pr-race",
   "draft-cancel",
   "draft-base-unavailable",
+  "startup-fits", "startup-blocked", "startup-invalid", "startup-branch", "startup-detached", "startup-conflict", "startup-blob", "startup-pin", "startup-decline",
   "work-personal-repo",
   "uncertain-create",
   "partial",
@@ -208,7 +209,26 @@ for (const failure of [
     if (failure === "reuse" || failure === "conflict") fs.writeFileSync(bare + ".pr", "1");
     if (failure === "draft-pr-race" || failure === "classic-protected")
       git("--git-dir=" + bare, "update-ref", "refs/heads/feature", "main");
-    if (failure === "draft-base-unavailable") git("--git-dir=" + bare, "update-ref", "-d", "refs/heads/main");
+    if (failure.startsWith("startup-")) {
+      const plan = "plans/demo/plan.md";
+      git("--git-dir=" + bare, "update-ref", "-d", "refs/heads/feature");
+      if (failure === "startup-conflict") {
+        fs.appendFileSync(path.join(cwd, plan), "fixture feature edit\n");
+        git("-C", cwd, "commit", "-qam", "feature edit");
+      } else {
+        git("-C", cwd, "commit", "--allow-empty", "-qm", "feature edit");
+      }
+      if (["startup-blob", "startup-conflict"].includes(failure)) {
+        fs.appendFileSync(path.join(repo, plan), "fixture upstream edit\n");
+        git("commit", "-qam", "advance main");
+      } else {
+        git("commit", "--allow-empty", "-qm", "advance main");
+      }
+      git("--git-dir=" + bare, "fetch", repo, "refs/heads/main:refs/heads/main");
+      if (failure === "startup-pin") git("--git-dir=" + bare, "update-ref", "-d", "refs/heads/main");
+    }
+    const originalHead = git("-C", cwd, "rev-parse", "HEAD").toString().trim();
+    const pinnedBase = git("rev-parse", "main").toString().trim();
     if (failure === "non-fast-forward") {
       git("commit", "--allow-empty", "-qm", "other writer");
       git("--git-dir=" + bare, "fetch", repo, "+refs/heads/main:refs/heads/feature");
@@ -287,12 +307,14 @@ for (const failure of [
       prefix: [path.join(import.meta.dirname, "_fixtures/pi.mjs")],
       profilePath: failure === "missing-profile" ? profilePath + ".absent" : profilePath,
       confirm: async (target: string) => {
+        if (failure === "startup-pin") assert.fail("Pin failure must stop before confirmation");
+        if (failure.startsWith("startup-")) assert.ok(target.includes(pinnedBase));
         assert.ok(target.includes(`${owner}/demo.git (feature into main)`));
         if (arp) assert.match(target, /silent review/i);
         if (failure === "arp-ssh-alias") assert.match(target, /git@ddoghq\.github\.com:ddoghq\/demo\.git/);
         if (failure === "work-personal-repo") assert.doesNotMatch(target, /\b(ARP|review|findings)\b/i);
         if (failure === "stale") git("remote", "set-url", "--push", "origin", "git@github.com:other/demo.git");
-        return failure !== "decline";
+        return !["decline", "startup-decline"].includes(failure);
       },
       env: {
         PATH: bin + path.delimiter + process.env.PATH,
@@ -337,6 +359,49 @@ for (const failure of [
       display.finish(controller.signal.aborted ? "canceled" : "stopped");
       throw error;
     });
+    if (failure.startsWith("startup-")) {
+      const caseName = failure.slice(8);
+      const reason: Record<string, RegExp> = {
+        blocked: /Startup check.*blocked/i, invalid: /Startup check.*Invalid/i,
+        branch: /Startup check.*refs\/heads\/other.*no reset attempted.*keep the lock/i,
+        detached: /Startup check.*detached/i, conflict: /Startup rebase/i,
+        blob: /Startup check.*plan blob/i, pin: /Startup pin/i, decline: /declined/i,
+      };
+      if (caseName === "fits") {
+        const dir = await result;
+        const startup = JSON.parse(fs.readFileSync(path.join(dir, "startup.json"), "utf8"));
+        const runInfo = JSON.parse(fs.readFileSync(path.join(dir, "run.json"), "utf8"));
+        assert.equal(runInfo.originalHead, originalHead);
+        assert.equal(runInfo.pinnedBase, pinnedBase);
+        assert.notEqual(startup.base, originalHead);
+        assert.equal(startup.verdict.status, "fits");
+        assert.deepEqual(phases.slice(0, 2), ["startup", "execute:1"]);
+        const calls = fs.readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line).at(-1));
+        assert.match(calls[0], /^\/startup-check /);
+        assert.ok(calls[1].includes(`Feature baseline ${startup.base}`));
+        assert.equal(fs.readFileSync(bare + ".pushes", "utf8").trim().split("\n").length, 1);
+      } else {
+        await assert.rejects(result, reason[caseName]);
+        if (caseName === "blocked") await assert.rejects(run({ ...options, onEvent: () => {} }), reason.blocked);
+        assert.equal(approvals, 0);
+        assert.equal(fs.existsSync(bare + ".pushes"), false);
+        const calls = fs.existsSync(log) ? fs.readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line).at(-1)) : [];
+        assert.equal(calls.length, caseName === "blocked" ? 2 : ["branch", "detached", "invalid"].includes(caseName) ? 1 : 0);
+        assert.ok(calls.every(prompt => prompt.startsWith("/startup-check ")));
+        const drift = ["branch", "detached"].includes(caseName);
+        assert.equal(fs.readdirSync(options.root).some(name => name.startsWith("lock-")), drift);
+        if (drift) {
+          const checked = fs.readFileSync(log + ".rebased", "utf8");
+          assert.equal(git("rev-parse", "feature").toString().trim(), checked);
+          assert.equal(git("-C", cwd, "rev-parse", "HEAD").toString().trim(), pinnedBase);
+          if (caseName === "branch") assert.equal(git("rev-parse", "other").toString().trim(), pinnedBase);
+        } else {
+          assert.equal(git("-C", cwd, "rev-parse", "HEAD").toString().trim(), originalHead);
+          assert.equal(git("-C", cwd, "status", "--porcelain").toString(), "");
+        }
+      }
+      return;
+    }
     if (failure === "hang") {
       for (let i = 0; i < 200 && !fs.existsSync(log); i++) await delay(10);
       await assert.rejects(run(options), /lock/i);

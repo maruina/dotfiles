@@ -74,30 +74,16 @@ function customMessageEntry(content) {
 	return { type: "custom_message", content };
 }
 
-test("estimateContextTokens returns 0 for an empty branch without a system prompt", () => {
+test("estimateContextTokens combines system prompt, message, and string custom_message entries", () => {
 	assert.equal(estimateContextTokens([], ""), 0);
-});
-
-test("estimateContextTokens estimates the system prompt at chars/4", () => {
 	assert.equal(estimateContextTokens([], "abcd".repeat(4)), 4);
-});
-
-test("estimateContextTokens counts message and custom_message entries", () => {
 	const entries = [
 		messageEntry("user", [{ type: "text", text: "abcd" }]),
 		messageEntry("assistant", [{ type: "text", text: "abcdefgh" }]),
 		customMessageEntry("efgh"),
+		customMessageEntry([{ type: "text", text: "ignored non-string custom_message" }]),
 		{ type: "compaction", summary: "not a source entry" },
 	];
 	assert.equal(estimateContextTokens(entries, ""), 4);
-});
-
-test("estimateContextTokens ignores non-string custom_message content", () => {
-	const entries = [customMessageEntry([{ type: "text", text: "ignored by the statusline estimator" }])];
-	assert.equal(estimateContextTokens(entries, ""), 0);
-});
-
-test("estimateContextTokens adds the system prompt to the branch estimate", () => {
-	const entries = [messageEntry("user", [{ type: "text", text: "abcd" }])];
-	assert.equal(estimateContextTokens(entries, "abcd".repeat(2)), 3);
+	assert.equal(estimateContextTokens([messageEntry("user", [{ type: "text", text: "abcd" }])], "abcd".repeat(2)), 3);
 });

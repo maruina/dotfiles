@@ -6,60 +6,28 @@ import { afterEach, beforeEach, describe, it } from "node:test";
 import { findMatchingRules, parseFrontmatter } from "./_rules.ts";
 
 describe("parseFrontmatter", () => {
-  it("returns empty object for files with no frontmatter", () => {
+  it("parses empty, Claude YAML lists, Cursor globs, alwaysApply, quotes, and description", () => {
     assert.deepEqual(parseFrontmatter("# Just a heading\n\nSome content"), {});
-  });
-
-  it("parses Claude paths as a YAML list", () => {
-    const fm = parseFrontmatter(
-      ["---", "paths:", "  - src/api/**/*.ts", "  - lib/**/*.ts", "---", "body"].join("\n"),
+    assert.deepEqual(
+      parseFrontmatter(["---", "paths:", "  - src/api/**/*.ts", "  - lib/**/*.ts", "---", "body"].join("\n")).paths,
+      ["src/api/**/*.ts", "lib/**/*.ts"],
     );
-    assert.deepEqual(fm.paths, ["src/api/**/*.ts", "lib/**/*.ts"]);
-  });
-
-  it("parses Cursor globs as a single string", () => {
-    const fm = parseFrontmatter(
-      ["---", "globs: src/components/**/*.tsx", "alwaysApply: false", "---", "body"].join("\n"),
+    const single = parseFrontmatter(["---", "globs: src/components/**/*.tsx", "alwaysApply: false", "---", "body"].join("\n"));
+    assert.deepEqual(single.globs, ["src/components/**/*.tsx"]);
+    assert.equal(single.alwaysApply, false);
+    assert.deepEqual(
+      parseFrontmatter(["---", "globs: src/**/*.ts, src/**/*.tsx", "---", "body"].join("\n")).globs,
+      ["src/**/*.ts", "src/**/*.tsx"],
     );
-    assert.deepEqual(fm.globs, ["src/components/**/*.tsx"]);
-    assert.equal(fm.alwaysApply, false);
-  });
-
-  it("parses Cursor globs as a comma-separated string", () => {
-    const fm = parseFrontmatter(
-      ["---", "globs: src/**/*.ts, src/**/*.tsx", "---", "body"].join("\n"),
+    assert.deepEqual(
+      parseFrontmatter(["---", "globs: [a/**/*.ts, b/**/*.ts]", "---", "body"].join("\n")).globs,
+      ["a/**/*.ts", "b/**/*.ts"],
     );
-    assert.deepEqual(fm.globs, ["src/**/*.ts", "src/**/*.tsx"]);
-  });
-
-  it("parses Cursor globs as an inline array", () => {
-    const fm = parseFrontmatter(["---", "globs: [a/**/*.ts, b/**/*.ts]", "---", "body"].join("\n"));
-    assert.deepEqual(fm.globs, ["a/**/*.ts", "b/**/*.ts"]);
-  });
-
-  it("parses alwaysApply: true", () => {
-    const fm = parseFrontmatter(["---", "alwaysApply: true", "---", "body"].join("\n"));
-    assert.equal(fm.alwaysApply, true);
-  });
-
-  it("strips quotes from values", () => {
-    const fm = parseFrontmatter(['---', 'globs: "src/**/*.ts"', "---", "body"].join("\n"));
-    assert.deepEqual(fm.globs, ["src/**/*.ts"]);
-  });
-
-  it("parses Cursor description field", () => {
-    const fm = parseFrontmatter(
-      [
-        "---",
-        'description: RPC service conventions and patterns',
-        "globs: src/services/**/*.ts",
-        "alwaysApply: false",
-        "---",
-        "body",
-      ].join("\n"),
-    );
-    assert.equal(fm.description, "RPC service conventions and patterns");
-    assert.deepEqual(fm.globs, ["src/services/**/*.ts"]);
+    assert.equal(parseFrontmatter(["---", "alwaysApply: true", "---", "body"].join("\n")).alwaysApply, true);
+    assert.deepEqual(parseFrontmatter(["---", 'globs: "src/**/*.ts"', "---", "body"].join("\n")).globs, ["src/**/*.ts"]);
+    const desc = parseFrontmatter(["---", "description: RPC service conventions and patterns", "globs: src/services/**/*.ts", "alwaysApply: false", "---", "body"].join("\n"));
+    assert.equal(desc.description, "RPC service conventions and patterns");
+    assert.deepEqual(desc.globs, ["src/services/**/*.ts"]);
   });
 });
 

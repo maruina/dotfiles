@@ -168,6 +168,7 @@ export default function jiraExtension(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "jira_create",
     label: "Jira Create",
+    exposure: "deferred",
     description:
       'Create a Jira issue. Returns the new key, id, and URL. Descriptions use wiki markup (e.g. "h2. Heading", "*bold*", "[link|url]"), not ADF. Default issue type is Task.',
     promptGuidelines: [
@@ -239,6 +240,7 @@ export default function jiraExtension(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "jira_update",
     label: "Jira Update",
+    exposure: "deferred",
     description:
       'Update a Jira issue: edit summary, description, labels, priority, assignee; transition workflow status; or add a comment. All parameters are optional — only provided ones change. Labels are a full replacement list. Assignee takes an email or display name ("Unassigned" clears it). Status is the target workflow status, e.g. "In Progress" or "Done".',
     promptGuidelines: [

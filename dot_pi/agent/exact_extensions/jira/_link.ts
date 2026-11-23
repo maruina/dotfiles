@@ -11,6 +11,7 @@ export function registerJiraLinkTool(pi: ExtensionAPI, jiraRequest: JiraLinkRequ
   pi.registerTool({
     name: "jira_link",
     label: "Jira Link",
+    exposure: "deferred",
     description:
       'Create one Jira issue link between two existing issues. "blocks" and "is blocked by" use the Blocks type; "duplicates" and "is duplicated by" use the Duplicate type.',
     promptGuidelines: [

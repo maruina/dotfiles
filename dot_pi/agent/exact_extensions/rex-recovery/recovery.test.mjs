@@ -318,11 +318,21 @@ test('foreground changes between preview and input are refused', async t => {
   assert.equal(f.calls.some(a => a[0] === 'send'), false);
 });
 
-test('headless Pi hooks never invoke the checkpoint worker', async () => {
+test('headless and stage-runner child Pi hooks never invoke the checkpoint worker', async () => {
   const { default: extension } = await import('./index.ts');
   const handlers = [];
   extension({ on: (_name, handler) => handlers.push(handler), exec: () => { throw Error('must not run'); } });
   for (const handler of handlers) await handler({}, { mode: 'rpc' });
+  const prev = process.env.PI_STAGE_RUNNER_CHILD;
+  process.env.PI_STAGE_RUNNER_CHILD = '1';
+  try {
+    for (const handler of handlers) {
+      await handler({}, { mode: 'tui', cwd: '/tmp', sessionManager: { getSessionFile: () => '/tmp/s.jsonl' } });
+    }
+  } finally {
+    if (prev === undefined) delete process.env.PI_STAGE_RUNNER_CHILD;
+    else process.env.PI_STAGE_RUNNER_CHILD = prev;
+  }
 });
 
 test('an uncertain session creation blocks siblings until its location is known', async t => {

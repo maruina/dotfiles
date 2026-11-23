@@ -1,19 +1,33 @@
-import { createHash, randomUUID } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { execFile, execFileSync } from 'node:child_process';
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
+import { promisify } from 'node:util';
+import { writeAtomicJson } from '../_shared/fs.ts';
+
+const execFileAsync = promisify(execFile);
 
 export const stateDir = () => join(process.env.XDG_STATE_HOME || join(homedir(), '.local/state'), 'pi', 'rex-recovery');
-export function callRex(args) {
+function buildRexArgs(args) {
   const outputArgs = [...args];
   if (!['send', 'send-key'].includes(args[0]) && !(args[0] === 'block' && args[1] === 'call')) {
     const separator = outputArgs.indexOf('--');
     outputArgs.splice(separator < 0 ? outputArgs.length : separator, 0, '--json');
   }
-  return JSON.parse(execFileSync('rex', ['--autostart=false', '--timeout', '5s', ...outputArgs], {
+  const serverArgs = process.env.REX_SERVER ? ['--server', process.env.REX_SERVER] : [];
+  return ['--autostart=false', '--timeout', '5s', ...serverArgs, ...outputArgs];
+}
+export function callRex(args) {
+  return JSON.parse(execFileSync('rex', buildRexArgs(args), {
     encoding: 'utf8', timeout: 7000, maxBuffer: 1024 * 1024,
   }) || '{}');
+}
+async function callRexAsync(args) {
+  const { stdout } = await execFileAsync('rex', buildRexArgs(args), {
+    encoding: 'utf8', timeout: 7000, maxBuffer: 1024 * 1024,
+  });
+  return JSON.parse(stdout || '{}');
 }
 const quote = value => `'${value.replaceAll('\\', '\\\\').replaceAll("'", "\\'")}'`;
 const recordPath = (dir, id) => join(dir, `${id}.json`);
@@ -25,11 +39,7 @@ function writeRecord(dir, record) {
   if (!existsSync(path) && readdirSync(dir).filter(n => n.endsWith('.json')).length >= 1000) {
     throw Error('Checkpoint limit reached (1000); remove old records before saving new panes');
   }
-  const tmp = `${path}.${randomUUID()}.tmp`;
-  try {
-    writeFileSync(tmp, JSON.stringify(record) + '\n', { mode: 0o600, flag: 'wx' });
-    renameSync(tmp, path);
-  } finally { if (existsSync(tmp)) unlinkSync(tmp); }
+  writeAtomicJson(path, record, { mode: 0o600, trailingNewline: true });
 }
 function valid(r) {
   return (r?.version === 1 || (r?.version === 2 && typeof r.startTime === 'string' && Number.isFinite(Date.parse(r.startTime)) && Number.isSafeInteger(r.uid) && typeof r.command === 'string' && r.command.length > 0 && r.command.length <= 4096 && !/[\x00-\x1f]/.test(r.command))) && /^[a-f0-9]{64}$/.test(r.id) &&
@@ -120,12 +130,25 @@ export function checkpoint({ dir = stateDir(), file, cwd, pid = process.pid, env
   if (existsSync(pendingPath(dir, id))) unlinkSync(pendingPath(dir, id));
   return record;
 }
-function inventory(rex) {
-  const who = rex(['whoami']);
-  const sessions = rex(['ls']).sessions.map(s => rex(['session', 'inspect', s.session_id]));
+async function mapBounded(items, limit, fn) {
+  const results = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+async function inventory(rex) {
+  const run = rex === callRex ? callRexAsync : (args) => Promise.resolve(rex(args));
+  const [who, listed] = await Promise.all([run(['whoami']), run(['ls'])]);
+  const sessions = await mapBounded(listed.sessions, 8, s => run(['session', 'inspect', s.session_id]));
   const panes = sessions.flatMap(s => s.windows.flatMap(w => w.layers.flatMap(l => l.blocks.map(b => ({ ...b, session: s.session_id, sessionLabel: s.label, tab: w.window_id, tabLabel: w.label })))));
-  const processes = new Map(panes.map(p => [p.block_id, rex(['block', 'call', '-s', p.session, '-b', p.block_id, 'process'])]));
-  return { who, sessions, panes, processes };
+  const entries = await mapBounded(panes, 8, async p => [p.block_id, await run(['block', 'call', '-s', p.session, '-b', p.block_id, 'process'])]);
+  return { who, sessions, panes, processes: new Map(entries) };
 }
 function acquireLock(dir) {
   try { return openSync(join(dir, '.restore-lock'), 'wx', 0o600); }
@@ -135,12 +158,11 @@ function releaseLock(dir, lock) { closeSync(lock); unlinkSync(join(dir, '.restor
 const snapshotPath = dir => join(dir, 'snapshot');
 export async function saveSnapshot({ dir = stateDir(), rex = callRex, processTable = readProcessTable } = {}) {
   let lock;
-  const tmp = `${snapshotPath(dir)}.${randomUUID()}.tmp`;
   try {
     prepare(dir);
     lock = acquireLock(dir);
     const records = readRecords(dir);
-    const { who, panes, processes } = inventory(rex);
+    const { who, panes, processes } = await inventory(rex);
     if (!who.host_id || !who.endpoint?.startsWith('unix://')) throw Error('A local Rex server is required');
     const selected = [];
     const rows = processTable();
@@ -150,14 +172,12 @@ export async function saveSnapshot({ dir = stateDir(), rex = callRex, processTab
       if (state.known) selected.push({ ...state.known, sessionLabel: pane.sessionLabel, tab: pane.tab, tabLabel: pane.tabLabel });
     }
     const snapshot = { version: 1, host: who.host_id, endpoint: who.endpoint, records: selected };
-    writeFileSync(tmp, JSON.stringify(snapshot) + '\n', { mode: 0o600, flag: 'wx' });
-    renameSync(tmp, snapshotPath(dir));
+    writeAtomicJson(snapshotPath(dir), snapshot, { mode: 0o600, trailingNewline: true });
     return selected;
   } catch (error) {
     error.message += ' Previous snapshot retained.';
     throw error;
   } finally {
-    if (existsSync(tmp)) unlinkSync(tmp);
     if (lock !== undefined) releaseLock(dir, lock);
   }
 }
@@ -183,7 +203,7 @@ export async function restore({ dir = stateDir(), apply = false, rex = callRex, 
     const records = snapshot.records;
     if (!records.length) return results;
     const checkpoints = readRecords(dir);
-    const { sessions, panes, processes } = inventory(rex);
+    const { sessions, panes, processes } = await inventory(rex);
     const local = checkpoints.filter(r => r.host === who.host_id && r.endpoint === who.endpoint);
     const rows = processTable();
     const states = new Map(panes.map(p => [p.block_id, classifyPane(p, processes.get(p.block_id), rows, local, who)]));

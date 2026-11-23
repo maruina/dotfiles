@@ -34,7 +34,7 @@ Each lifecycle prompt is the source of truth for its stage.
 - Use one worktree for each feature branch or pull request.
 
 ## Dynamic Context
-A hidden `user-context` extension injects current repository, branch, pull request, Jira key, worktree, recent-file, and Rex session context when the session runs in a Rex terminal with `rex` available. Treat it as a hint; follow explicit user instructions and repository guidance first. The extension runs `rex-name-session` once from Pi's startup directory in an interactive Rex session. Continue to choose and apply task labels with `rex-name-task`.
+A hidden `user-context` extension injects current repository, branch, pull request, Jira key, worktree, recent-file, and Rex session context when the session runs in a Rex terminal with `rex` available. Treat it as a hint; follow explicit user instructions and repository guidance first. The extension runs `rex-name-session` once from Pi's startup directory and applies deterministic `rex-name-task` labels automatically in an interactive Rex session.
 
 ## Tool Use
 - Use `gh` for GitHub operations.
@@ -50,10 +50,6 @@ A hidden `user-context` extension injects current repository, branch, pull reque
   - The compute role is usually `compute-admin`; the profile is account-scoped, e.g. `exec-sso-staging-compute-admin` or `exec-sso-action-platform-dev-compute-admin`. Derive the account from incident context; when unsure, list candidates with `aws configure list-profiles | grep 'exec-sso-.*-compute-admin'` and ask.
   - Never invent profile names such as `sso-staging-read-only`. If a needed profile is missing, report it as a gap and ask for the account/role instead of fabricating one.
   - Do not run `aws-vault login` or any state-changing AWS action during read-only troubleshooting; an expired SSO token is an evidence gap to report, not a reason to refresh credentials unprompted.
-- For Go, TypeScript, JavaScript, YAML, Helm, and Terraform changes, use language server protocol (LSP) tools selectively after locating the relevant file and line:
-  - Use `lsp_find_references` before renaming, deleting, changing signatures, or changing exported or public symbols.
-  - Use `lsp_context` when type, definition, enclosing-symbol, or reference context materially affects the edit.
-  - Use `lsp_diagnostics` after non-trivial Go or TypeScript edits or when investigating type or schema errors; skip it for purely textual edits.
 - Run `terraform fmt` with `OTEL_TRACES_EXPORTER=`.
 - Personal-profile web search uses the `tvly` CLI (installed by `run_onchange_tavily-cli-install.sh`, authenticated by `TAVILY_API_KEY`) through the vendored `tavily-*` skills in `~/.pi/agent/skills_personal`; refresh them with `/sync-vendored-skills`.
 - Prefer single-line shell commands for copy and paste or shell history unless multiple lines materially improve readability.
@@ -64,7 +60,7 @@ A hidden `user-context` extension injects current repository, branch, pull reque
 - Explain technical behavior with complete English sentences that trace the concrete mechanism: name the exact component, type, field, or step, state what it does or checks at runtime, and connect cause and effect with explicit transitions (`because`, `when`, `so`, `as a result`). Avoid both vague paraphrases (`"the setup agent"`, `"saving status"`) and compressed shorthand or abstract labels (`"durable outbox"`, bare PR lists, or disconnected facts that leave the reader to infer how A caused B).
 - Load `explain` when a substantial explanation depends on relationships, ordering, state changes, comparisons, or code structure that a reader would otherwise have to reconstruct. Let its assessment decide whether a visual helps; do not force a visual for routine status replies or override the requested output format.
 - Load the `write` skill before drafting, rewriting, or reviewing prose artifacts (`*.md` files, documentation, issue or incident registers, plans, design docs, PR descriptions, and messages drafted for the user to send).
-- When drafting a reply for the user to send, put only the message body in a plain-text code block. Keep labels outside the block. Do not add quote bars, line prefixes, or extra indentation.
+- When drafting a reply for the user to send, put only the message body in one fenced block tagged `md` (matching Copycat). Keep labels outside the block. Do not add quote bars, line prefixes, or extra indentation.
 - In Markdown, do not insert a blank line after frontmatter or headings; use one blank line between sections.
 - Write comments only for non-obvious behavior, workarounds, or bug-fix context. Do not restate the code.
 

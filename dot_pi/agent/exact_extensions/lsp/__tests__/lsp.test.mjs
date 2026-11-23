@@ -45,10 +45,12 @@ test("extension registers LSP tools and command", () => {
   const app = fakePi();
   entry.default(app.pi);
 
-  assert.equal(app.tools.size, 16);
+  assert.equal(app.tools.size, 15);
   assert.ok(app.tools.has("lsp_context"));
-  assert.ok(app.tools.has("lsp_prepare_edit_context"));
+  assert.equal(app.tools.has("lsp_prepare_edit_context"), false);
   assert.ok(app.tools.has("lsp_workspace_symbols"));
+  assert.equal(app.tools.get("lsp_context").exposure, undefined);
+  assert.equal(app.tools.get("lsp_workspace_symbols").exposure, "deferred");
   assert.ok(app.commands.has("lsp"));
   assert.ok(app.handlers.some((h) => h.name === "session_start"));
   assert.ok(app.handlers.some((h) => h.name === "session_shutdown"));

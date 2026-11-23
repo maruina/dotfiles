@@ -17,27 +17,16 @@
 // surface in results as an unexpected file. Upgrade path: when scanning, resolve
 // each file's active branch from its tree before reading tags.
 
-import type { ExtensionAPI, SessionEntry, SessionManager, ToolDefinition } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, SessionEntry, SessionManager } from "@earendil-works/pi-coding-agent";
 import { fuzzyFilter } from "@earendil-works/pi-tui";
 import { readdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { Type, type Static, type TSchema } from "typebox";
+import { Type, type Static } from "typebox";
 
 // The runtime hands extensions the full SessionManager, but the exported
 // ReadonlySessionManager type narrows it and omits usesDefaultSessionDir().
 // Cast through the full type so callers can read the default-layout flag.
 type ReadSessionManager = SessionManager;
-
-// deliberate: the pinned pi devDependency (^0.80.6 in package.json) predates
-// the deferred-tool surface; the pi runtime that loads this extension (1.0.0)
-// declares exposure, outputSchema, and AgentToolResult.structuredContent. Keep
-// the runtime-required fields and cast across the older declared type. Upgrade
-// path: drop this intersection once Renovate bumps the devDependency past
-// 0.80.6, then pass the plain ToolDefinition to registerTool.
-type DeferredTool<TParams extends TSchema> = ToolDefinition<TParams> & {
-  exposure: "deferred";
-  outputSchema: TSchema;
-};
 
 const TAG_ENTRY_TYPE = "pi.session-tags";
 const MAX_TOOL_RESULTS = 50;
@@ -200,46 +189,61 @@ async function parseSessionFile(file: string): Promise<{ session: ScannedSession
   return text === undefined ? undefined : parseSessionText(file, text);
 }
 
-async function scanTagVocabulary(root: string): Promise<Map<string, number>> {
-  const vocabulary = new Map<string, number>();
-  const entries = await readdir(root, { recursive: true, withFileTypes: true });
-  for (const entry of entries) {
-    if (!entry.isFile() || !entry.name.endsWith(".jsonl")) continue;
-    const file = join(entry.parentPath, entry.name);
-    const text = await readSessionFile(file);
-    if (text === undefined || !text.includes(`"${TAG_ENTRY_TYPE}"`)) continue;
-    const result = parseSessionText(file, text);
-    if (!result) continue;
-    for (const tag of new Set(result.session.tags)) {
-      if (!TAG_RE.test(tag)) continue;
-      vocabulary.set(tag, (vocabulary.get(tag) ?? 0) + 1);
-    }
-  }
-  return vocabulary;
-}
+const SCAN_CONCURRENCY = 32;
 
-export async function scanSessions(root: string): Promise<ScanResult> {
+async function listJsonlFiles(root: string): Promise<string[]> {
   const files: string[] = [];
   const entries = await readdir(root, { recursive: true, withFileTypes: true });
   for (const entry of entries) {
     if (entry.isFile() && entry.name.endsWith(".jsonl")) files.push(join(entry.parentPath, entry.name));
   }
+  return files;
+}
+
+async function forEachBounded<T>(items: readonly T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> {
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      await fn(items[next++]!);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+}
+
+async function scanTagVocabulary(root: string): Promise<Map<string, number>> {
+  const vocabulary = new Map<string, number>();
+  const files = await listJsonlFiles(root);
+  await forEachBounded(files, SCAN_CONCURRENCY, async (file) => {
+    const text = await readSessionFile(file);
+    if (text === undefined || !text.includes(`"${TAG_ENTRY_TYPE}"`)) return;
+    const result = parseSessionText(file, text);
+    if (!result) return;
+    for (const tag of new Set(result.session.tags)) {
+      if (!TAG_RE.test(tag)) continue;
+      vocabulary.set(tag, (vocabulary.get(tag) ?? 0) + 1);
+    }
+  });
+  return vocabulary;
+}
+
+export async function scanSessions(root: string): Promise<ScanResult> {
+  const files = await listJsonlFiles(root);
   const parsed: Array<{ session: ScannedSession; time: number }> = [];
   let skipped = 0;
-  for (const file of files) {
+  await forEachBounded(files, SCAN_CONCURRENCY, async (file) => {
     const text = await readSessionFile(file);
     if (text === undefined) {
       skipped++;
-      continue;
+      return;
     }
-    if (!text.includes(`"${TAG_ENTRY_TYPE}"`)) continue;
+    if (!text.includes(`"${TAG_ENTRY_TYPE}"`)) return;
     const result = parseSessionText(file, text);
     if (!result) {
       skipped++;
-      continue;
+      return;
     }
     if (result.session.tags.length > 0) parsed.push(result);
-  }
+  });
   parsed.sort((a, b) => b.time - a.time);
   return {
     sessions: parsed.map((entry) => entry.session),
@@ -429,7 +433,7 @@ export default function (pi: ExtensionAPI): void {
     truncated: Type.Boolean(),
   });
   type SearchTagsParams = Static<typeof searchTagsParams>;
-  const searchTool = {
+  pi.registerTool({
     name: "search_sessions_by_tags",
     label: "Search sessions by tags",
     description:
@@ -441,21 +445,24 @@ export default function (pi: ExtensionAPI): void {
       _toolCallId: string,
       params: SearchTagsParams,
       _signal: AbortSignal | undefined,
-      _onUpdate: unknown,
-      ctx: { sessionManager: SessionManager },
+      _onUpdate,
+      ctx,
     ) => {
       if (params.tags.length === 0) throw new Error("search_sessions_by_tags requires at least one tag");
-      const root = resolveScanRoot(ctx.sessionManager.getSessionDir(), ctx.sessionManager.usesDefaultSessionDir());
+      const manager = ctx.sessionManager as ReadSessionManager;
+      const root = resolveScanRoot(manager.getSessionDir(), manager.usesDefaultSessionDir());
       const scan = await scanSessions(root);
       const matched = scan.sessions.filter((session) => sessionMatches(session, params.tags));
       const truncated = matched.length > MAX_TOOL_RESULTS;
       const sessions = truncated ? matched.slice(0, MAX_TOOL_RESULTS) : matched;
       return {
         content: [{ type: "text", text: formatToolTable(sessions, matched.length, truncated) }],
-        structuredContent: { sessions, truncated },
+        structuredContent: {
+          sessions: sessions.map(({ file, name, date, cwd, tags }) => ({ file, name, date, cwd, tags })),
+          truncated,
+        },
         details: { total: scan.total, matched: matched.length, skipped: scan.skipped, truncated },
       };
     },
-  };
-  pi.registerTool(searchTool as unknown as DeferredTool<ReturnType<typeof Type.Object>>);
+  });
 }

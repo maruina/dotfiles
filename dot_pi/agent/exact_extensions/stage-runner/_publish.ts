@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { isWorkGitHubOrg, selectGitHubLogin } from "../_shared/github.ts";
 
 const exec = promisify(execFile);
 export type Draft = { title: string; body: string };
@@ -43,7 +44,7 @@ export function publisher(
   const git = (...args: string[]) => command("git", args, gitEnv);
   async function inspect() {
     const url = await git("remote", "get-url", "--push", "--all", "origin");
-    const isWorkOrganization = (repo: string) => /^(ddoghq|ddoghq-sandbox)\//i.test(repo);
+    const isWorkOrganization = (repo: string) => isWorkGitHubOrg(repo.split("/")[0] ?? "");
     const parse = (s: string) => {
       const match = /^(?:git@(github\.com|ddoghq\.github\.com):|ssh:\/\/git@(github\.com|ddoghq\.github\.com)(?::(22))?\/|ssh:\/\/git@(ssh\.github\.com):(443)\/)([\w.-]+\/[\w.-]+?)(?:\.git)?$/.exec(s);
       if (!match) return undefined;
@@ -65,9 +66,7 @@ export function publisher(
     const workOrganization = isWorkOrganization(repo);
     const login =
       profile === "work"
-        ? workOrganization
-          ? "matteo-ruina_ddog"
-          : "maruina"
+        ? selectGitHubLogin(repo.split("/")[0] ?? "")
         : JSON.parse(await command("gh", ["auth", "status", "--json", "hosts"])).hosts["github.com"].find(
             (a: { active: boolean }) => a.active,
           )?.login;

@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const JIRA_KEY_RE = /\b[A-Z][A-Z0-9]+-[0-9]+\b/g;
 const PR_URL_RE = /https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/\d+/g;
-const MAX_SESSIONS = 100;
+const MAX_SESSIONS = 300;
 const MAX_PROMPTS_PER_SESSION = 10;
 const MAX_PROMPT_CHARS = 200;
 const GITHUB_QUERY_LIMIT = 100;

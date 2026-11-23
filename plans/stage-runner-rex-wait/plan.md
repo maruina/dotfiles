@@ -36,6 +36,9 @@ Implementation attempt: `openai/gpt-6.2-sol`. The pane-close regression failed b
 
 The first full run reported a `draft-cancel` failure before the 240-second command timeout. An isolated run also missed the existing `.draft-ready` deadline, before cancellation. In Rex recovery, the isolated case and the full `npm run test:all` passed without changes to the case or its readiness window. The full run passed 94 stage-runner and five Worktrunk integration cases, TypeScript checks, and Pi smoke. The opt-in Rex smoke test and `git diff --check` also passed after the full run.
 
+### Simplification
+Simplification attempt: `google/gemini-4-neon`. Replaced the nested `SIGTERM` and `SIGKILL` cancellation branches and mutable `current`-capturing `send` helper in `dot_pi/agent/exact_extensions/stage-runner/_recovery.ts` with one two-step signal loop that preserves the exact identity check, signal delivery, bounded wait, `last_exit` reconciliation, and retained-lock error behavior. Left `_fixtures/rex.mjs`, `_fixtures/design-pi.mjs`, `_fixtures/pi.mjs`, `_integration.test.ts`, and `README.md` unchanged because each test case covers a distinct contract and no duplication remains. Verified with `lsp_diagnostics`, `npm run typecheck`, `npm test`, and 11 focused stage-runner integration cases.
+
 ## Scope
 - Use `rex wait --json` on the exact verified block with the same pinned local server and session as the split. Prefer this built-in command to copying the adapter's reconnecting session-wide event stream. The helper waits for one block at a time and does not restore jobs across parent reloads.
 - Preserve the local peer, split response, and foreground Pi identity checks. An exit payload does not establish startup identity. Do not move or weaken the checks before sending `SIGTERM` or `SIGKILL` on cancellation.

@@ -185,25 +185,19 @@ export async function recovery(o: {
     let current = await reconcile(failure ?? "Run canceled");
     if (!hasExit(current?.last_exit)) {
       if (!o.signal.aborted) throw retained(failure ?? "Rex did not confirm exit");
-      const send = (signal: NodeJS.Signals) => {
+      for (const sig of ["SIGTERM", "SIGKILL"] as const) {
         if (current?.child?.pid !== pid || !identity(current)) throw retained("Pi identity changed");
         try {
-          process.kill(pid, signal);
+          process.kill(pid, sig);
         } catch (e) {
           // Pi can exit between inspection and signal delivery. Still require Rex exit evidence.
           if ((e as NodeJS.ErrnoException).code !== "ESRCH") throw e;
         }
-      };
-      send("SIGTERM");
-      const termFailure = await observationFailure(true);
-      if (termFailure) {
-        current = await reconcile(termFailure);
-        if (!hasExit(current?.last_exit)) {
-          send("SIGKILL");
-          const killFailure = await observationFailure(true);
-          if (killFailure && !hasExit((await reconcile(killFailure))?.last_exit))
-            throw retained("Rex did not confirm exit after SIGKILL: " + killFailure);
-        }
+        const waitFailure = await observationFailure(true);
+        if (!waitFailure) break;
+        current = await reconcile(waitFailure);
+        if (hasExit(current?.last_exit)) break;
+        if (sig === "SIGKILL") throw retained("Rex did not confirm exit after SIGKILL: " + waitFailure);
       }
     }
   }

@@ -4,7 +4,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
 import { isPathInside } from "./_shared/fs.ts";
-import { parseGitHubOwnerRepo, selectGitHubLogin } from "./_shared/github.ts";
+import { parseGitHubOwnerRepo, scrubbedGhEnv, selectGitHubLogin } from "./_shared/github.ts";
 import { qualifiedId } from "./_shared/model.ts";
 import { getProfile, type PiProfile } from "./_shared/profile.ts";
 import { buildRexArgs } from "./_shared/rex.ts";
@@ -151,8 +151,7 @@ async function getFastGitContext(cwd: string): Promise<{
   localDefaultBranch: string | null;
 }> {
   const cached = fastGitCache.get(cwd);
-  if (cached) {
-    if (cached.repoRoot === null) return cached;
+  if (cached && cached.repoRoot !== null) {
     const mtime = getFileMtime(cached.headPath);
     if (mtime !== null && mtime === cached.headMtime) return cached;
   }
@@ -165,7 +164,7 @@ async function getFastGitContext(cwd: string): Promise<{
   const headPath = repoRoot ? resolveGitHeadPath(repoRoot) : null;
   const headMtime = getFileMtime(headPath);
   const snapshot: FastGitSnapshot = { repoRoot, branch, localDefaultBranch, headPath, headMtime };
-  fastGitCache.set(cwd, snapshot);
+  if (repoRoot !== null) fastGitCache.set(cwd, snapshot);
   return snapshot;
 }
 
@@ -175,12 +174,6 @@ async function getLocalDefaultBranch(cwd: string): Promise<string | null> {
   return null;
 }
 
-async function getDefaultBranch(cwd: string): Promise<string | null> {
-  const localDefault = await getLocalDefaultBranch(cwd);
-  if (localDefault) return localDefault;
-  return (await runAsync("git", ["remote", "show", "origin"], cwd, 5000))?.match(/HEAD branch: (.+)/)?.[1]?.trim() ?? null;
-}
-
 async function getGitHubEnv(cwd: string, profile: PiProfile): Promise<NodeJS.ProcessEnv | undefined> {
   if (profile !== "work") return undefined;
   const remoteUrl = await gitAsync(cwd, ["remote", "get-url", "origin"]);
@@ -188,17 +181,31 @@ async function getGitHubEnv(cwd: string, profile: PiProfile): Promise<NodeJS.Pro
   const parsed = parseGitHubOwnerRepo(remoteUrl);
   if (!parsed) return undefined;
   const login = selectGitHubLogin(parsed.owner);
-  const cleanEnv = { ...process.env };
-  delete cleanEnv.GH_TOKEN;
-  delete cleanEnv.GITHUB_TOKEN;
+  const cleanEnv = scrubbedGhEnv(process.env);
   const token = await runAsync("gh", ["auth", "token", "--hostname", "github.com", "--user", login], cwd, 3000, cleanEnv);
   if (!token) return undefined;
-  return { ...cleanEnv, GH_TOKEN: token, GH_HOST: "github.com" };
+  return scrubbedGhEnv(cleanEnv, token);
 }
 
-async function getRepoName(cwd: string, localRepoName: string, ghEnv?: NodeJS.ProcessEnv): Promise<string | null> {
-  const nameWithOwner = await runAsync("gh", ["repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"], cwd, 3000, ghEnv);
-  return nameWithOwner ?? localRepoName;
+async function getRepoInfo(
+  cwd: string,
+  localRepoName: string,
+  localDefaultBranch: string | null,
+  ghEnv?: NodeJS.ProcessEnv,
+): Promise<{ repoName: string | null; defaultBranch: string | null }> {
+  const raw = await runAsync("gh", ["repo", "view", "--json", "nameWithOwner,defaultBranchRef"], cwd, 3000, ghEnv);
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw) as { nameWithOwner?: string; defaultBranchRef?: { name?: string } };
+      return {
+        repoName: parsed.nameWithOwner ?? localRepoName,
+        defaultBranch: localDefaultBranch ?? parsed.defaultBranchRef?.name ?? null,
+      };
+    } catch {
+      // Fall through to local defaults.
+    }
+  }
+  return { repoName: localRepoName, defaultBranch: localDefaultBranch };
 }
 
 export function uniqueMatches(text: string): string[] {
@@ -545,12 +552,13 @@ export default function (pi: ExtensionAPI) {
           const slowLines: string[] = [];
           const ghEnv = await getGitHubEnv(cwd, profile);
           const onFeatureBranch = Boolean(branch && branch !== localDefaultBranch);
-          const [remoteRepoName, remoteDefaultBranch, gitHubUser, currentPR] = await Promise.all([
-            getRepoName(cwd, localRepoName, ghEnv),
-            getDefaultBranch(cwd),
+          const [repoInfo, gitHubUser, currentPR] = await Promise.all([
+            getRepoInfo(cwd, localRepoName, localDefaultBranch, ghEnv),
             getGitHubUsername(ghEnv),
             onFeatureBranch ? getCurrentPR(cwd, ghEnv) : Promise.resolve(null),
           ]);
+          const remoteRepoName = repoInfo.repoName;
+          const remoteDefaultBranch = repoInfo.defaultBranch;
 
           if (gitHubUser) {
             slowLines.push("## GitHub Identity");

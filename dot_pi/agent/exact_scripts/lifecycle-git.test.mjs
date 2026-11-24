@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdtempSync, mkdirSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -146,4 +146,22 @@ test('next-slice reports grouped slice progress and committed state', t => {
   assert.equal(r.data.grouped, true);
   assert.deepEqual(r.data.nextSlice, { number: 2, title: 'Two' });
   assert.equal(r.data.remainingCount, 1);
+});
+
+test('resolve-base routes gh auth token by origin owner', t => {
+  const f = fixture(t);
+  f.git('remote', 'add', 'origin', 'git@ddoghq.github.com:ddoghq/compute.git');
+  const bin = path.join(f.temp, 'bin');
+  mkdirSync(bin);
+  const gh = path.join(bin, 'gh');
+  writeFileSync(gh, `#!${process.execPath}\nconst args = process.argv.slice(2);\nif (args[0] === 'auth' && args[1] === 'token') {\n  if (args.includes('matteo-ruina_ddog') && !process.env.GH_TOKEN && !process.env.GITHUB_TOKEN) { console.log('work-token'); process.exit(0); }\n  process.exit(1);\n}\nif (args[0] === 'stack' && process.env.GH_TOKEN === 'work-token') { console.log('Parent branch: maruina/stack-parent'); process.exit(0); }\nprocess.exit(1);\n`);
+  chmodSync(gh, 0o755);
+  const result = spawnSync(process.execPath, [cli, 'resolve-base'], {
+    cwd: f.repo,
+    encoding: 'utf8',
+    timeout: 15000,
+    env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, GH_TOKEN: 'stale', GITHUB_TOKEN: 'stale2' },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout), { schemaVersion: 1, base: 'maruina/stack-parent', source: 'gh-stack' });
 });

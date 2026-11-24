@@ -1,3 +1,4 @@
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { lstatSync, realpathSync } from "node:fs";
 
 export type RexPeerIdentity = {
@@ -83,6 +84,29 @@ export function verifyLocalRexPeer(
     throw new Error("Rex identity does not match the invoking pane.");
   }
   return peer;
+}
+
+export async function execRexJson<T = unknown>(
+  pi: Pick<ExtensionAPI, "exec">,
+  args: string[],
+  options?: {
+    endpoint?: string;
+    timeoutSec?: number;
+    execTimeoutMs?: number;
+    validateEndpoint?: boolean;
+    errorMessage?: string;
+  },
+): Promise<T> {
+  const rexArgs = buildRexArgs(args, {
+    timeoutSec: options?.timeoutSec ?? 5,
+    endpoint: options?.endpoint,
+    validateEndpoint: options?.validateEndpoint,
+  });
+  const result = await pi.exec("rex", rexArgs, { timeout: options?.execTimeoutMs ?? 7000 });
+  if (result.code !== 0 || result.killed || ("truncated" in result && result.truncated)) {
+    throw new Error(options?.errorMessage ?? "Rex inspection/request failed or timed out.");
+  }
+  return JSON.parse(result.stdout) as T;
 }
 
 export function matchesForegroundProcess(

@@ -13,7 +13,7 @@ Perform a fresh read-only closeout. Return one verdict: `VERIFIED` or `BLOCKED`.
 Do not edit, format, generate, apply chezmoi state, stage, commit, switch branches, detach HEAD, or repair anything. Do not run formatter or linter fix modes. Do not push or open or update a PR. If a check would mutate the selected worktree, do not run it; return `BLOCKED` instead. A repair invalidates all prior evidence: hand control back to `/execute` or the user, then require a completely fresh `/verify` run.
 </HARD-GATE>
 
-For a `/stage-runner` attempt, submit the requested private JSON handoff outside Git via `submit_stage_handoff` (or write it directly at the supplied path and schema). Do not push, publish, apply, or create a PR. Check the supplied feature baseline, requirements plan blob, and current candidate before work. Use the supplied feature baseline as `--base` for candidate reconstruction; it takes precedence over the PR target branch and is not a base conflict. Skip manual `lifecycle-git.mjs snapshot` and `compare-snapshots` temp files because `stage-runner` enforces the Git snapshot contract deterministically before and after the stage. Use the pinned plan for requirements and the current plan as the progress ledger. Stop on a mismatch. Keep repository files read-only.
+For a `/stage-runner` attempt, submit the requested private JSON handoff outside Git via `submit_stage_handoff` and omit the manual **Copy-paste follow-up** section. Do not push, publish, apply, or create a PR. Check the supplied feature baseline, requirements plan blob, and current candidate before work. Use the supplied feature baseline as `--base` for candidate reconstruction; it takes precedence over the PR target branch and is not a base conflict. Skip manual `lifecycle-git.mjs snapshot` and `compare-snapshots` temp files because `stage-runner` enforces the Git snapshot contract deterministically before and after the stage. Use the pinned plan for requirements and the current plan as the progress ledger. Stop on a mismatch. Keep repository files read-only.
 
 ## Target resolution
 
@@ -62,7 +62,7 @@ Do not invoke a separate reviewer tool or parse session logs. Pi performs this s
 
 ## Final state and report
 
-After every selected check, repeat `snapshot --base <base>` to a second mode 0600 file outside the worktree. Run `lifecycle-git.mjs compare-snapshots <initial-file> <final-file>`. A tracked or untracked repository-state change is `BLOCKED`; identify the delta and give a non-mutating repair/retry action.
+After every selected check, repeat `snapshot --base <base>` to a second mode 0600 file outside the worktree. Run `node "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/scripts/lifecycle-git.mjs" compare-snapshots <initial-file> <final-file>`. A tracked or untracked repository-state change is `BLOCKED`; identify the delta and give a non-mutating repair/retry action.
 
 Report these sections:
 

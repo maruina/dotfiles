@@ -10,6 +10,7 @@ import {
   mkdtempSync,
   readFileSync,
   realpathSync,
+  rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
@@ -792,6 +793,19 @@ const revealPath = async (
   }
 };
 
+const diffTempDirs = new Set<string>();
+
+const cleanupDiffTempDirs = (): void => {
+  for (const dir of diffTempDirs) {
+    try {
+      rmSync(dir, { recursive: true, force: true });
+    } catch {
+      // Best-effort cleanup of temp diff files.
+    }
+  }
+  diffTempDirs.clear();
+};
+
 const openDiff = async (
   pi: ExtensionAPI,
   ctx: ExtensionContext,
@@ -808,6 +822,7 @@ const openDiff = async (
     .split(path.sep)
     .join("/");
   const tmpDir = mkdtempSync(path.join(os.tmpdir(), "pi-files-"));
+  diffTempDirs.add(tmpDir);
   const tmpFile = path.join(tmpDir, path.basename(target.displayPath));
 
   const existsInHead = await pi.exec(
@@ -822,6 +837,12 @@ const openDiff = async (
     if (result.code !== 0) {
       const errorMessage =
         result.stderr?.trim() || `Failed to diff ${target.displayPath}`;
+      try {
+        rmSync(tmpDir, { recursive: true, force: true });
+      } catch {
+        // Ignore cleanup failure.
+      }
+      diffTempDirs.delete(tmpDir);
       ctx.ui.notify(errorMessage, "error");
       return;
     }
@@ -1080,6 +1101,10 @@ const runFileBrowser = async (
 };
 
 export default function (pi: ExtensionAPI): void {
+  pi.on("session_shutdown", () => {
+    cleanupDiffTempDirs();
+  });
+
   pi.registerCommand("files", {
     description: "Browse edited, changed, and referenced files",
     handler: async (_args, ctx) => {

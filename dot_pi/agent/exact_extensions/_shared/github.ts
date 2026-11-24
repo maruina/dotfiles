@@ -17,3 +17,11 @@ export function parseGitHubOwnerRepo(remoteUrl: string): { owner: string; repo: 
 export function selectGitHubLogin(owner: string): string {
   return isWorkGitHubOrg(owner) ? "matteo-ruina_ddog" : "maruina";
 }
+
+export function scrubbedGhEnv(baseEnv: NodeJS.ProcessEnv = process.env, token?: string): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...baseEnv, GH_PROMPT_DISABLED: "1", GH_HOST: "github.com" };
+  delete env.GH_TOKEN;
+  delete env.GITHUB_TOKEN;
+  if (token) env.GH_TOKEN = token;
+  return env;
+}

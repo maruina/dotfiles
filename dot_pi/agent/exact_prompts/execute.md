@@ -12,7 +12,7 @@ For a `/stage-runner` attempt, submit the private JSON handoff outside Git via `
 
 Execute a committed implementation plan. For trivial low-risk work, `/execute` may also execute directly from a bare prompt after complexity triage.
 
-Use the `resolve-worktree` skill to resolve plan paths with `$GLOB = **/plans/*/plan.md`. Switch context to the owning worktree before reading repository files or modifying code. The recursive glob matches plans nested under monorepo package paths (e.g. `domains/compute/apps/<app>/plans/<ticket>/plan.md`), not only repository-root `plans/`.
+Use the `resolve-worktree` skill to resolve plan paths with `$GLOB = **/plans/*/plan.md`. Switch context to the owning worktree before reading repository files or modifying code. The glob matches nested monorepo plans (e.g. `domains/compute/apps/<app>/plans/<ticket>/plan.md`), not only root `plans/`.
 
 <HARD-GATE>
 Do not start implementation on `main` or `master` without explicit user consent. Do not skip the initial plan or prompt review. Do not continue past blockers, unclear instructions, scope changes, or repeated verification failures; stop and ask.
@@ -49,7 +49,7 @@ Complete the approved slice and its checks, or stop with a concrete blocker.
 ## Slice execution
 A plan with no slice grouping executes all tasks as today and hands off once.
 
-For a plan with `### Slice N` headings, run `lifecycle-git.mjs next-slice <plan-path>` to find the first slice with incomplete tasks, and execute only that slice. After verification passes and you update the ledger, stop and hand off; do not auto-run the remaining slices. A later `/execute` resumes at the next incomplete slice. If the user names a slice, execute it when it has no incomplete blockers. For a multi-slice plan, the terminal state is one verified slice increment with the plan updated as the ledger.
+For a plan with `### Slice N` headings, run `node "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/scripts/lifecycle-git.mjs" next-slice <plan-path>` to find the first slice with incomplete tasks, and execute only that slice. After verification and ledger updates, stop and hand off; do not auto-run the remaining slices. A later `/execute` resumes at the next incomplete slice. If the user names a slice, execute it when it has no incomplete blockers. For a multi-slice plan, the terminal state is one verified slice increment with the plan updated as the ledger.
 
 ## Workflow
 1. **Setup —** Resolve and read the plan completely, or classify the bare prompt as trivial before editing.

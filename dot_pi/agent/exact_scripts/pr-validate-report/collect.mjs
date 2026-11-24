@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
+import { scrubbedGhEnv } from "../_github.mjs";
 import { githubAccountForOwner, parsePullRequestUrl } from "./github-url.mjs";
 
 const HELP = `Usage: node collect.mjs <GitHub pull request URL>
@@ -63,10 +64,7 @@ function runGh(args, { allowPendingExit = false, token } = {}) {
   return new Promise((resolve) => {
     let child;
     const chunks = [];
-    const env = { ...process.env, GH_PROMPT_DISABLED: "1", GH_HOST: "github.com" };
-    delete env.GH_TOKEN;
-    delete env.GITHUB_TOKEN;
-    if (token) env.GH_TOKEN = token;
+    const env = scrubbedGhEnv(process.env, token);
     try {
       child = spawn("gh", args, {
         env,

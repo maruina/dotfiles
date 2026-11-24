@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { readFileSync } from "node:fs";
-import { isWorkGitHubOrg, selectGitHubLogin } from "../_shared/github.ts";
+import { isWorkGitHubOrg, scrubbedGhEnv, selectGitHubLogin } from "../_shared/github.ts";
 import { getProfile } from "../_shared/profile.ts";
 
 const exec = promisify(execFile);
@@ -17,13 +17,8 @@ export function publisher(
     ? (JSON.parse(readFileSync(profilePath, "utf8")) as { profile?: unknown }).profile
     : getProfile(inherited);
   if (profile !== "work" && profile !== "personal") throw Error("Unknown publication profile");
-  const env = {
-    ...inherited,
-    GH_HOST: "github.com",
-    GH_PROMPT_DISABLED: "1",
-    GIT_TERMINAL_PROMPT: "0",
-  } as NodeJS.ProcessEnv;
-  for (const key of ["GH_TOKEN", "GITHUB_TOKEN", "GH_DEBUG", "GIT_SSH", "GIT_SSH_COMMAND"]) delete env[key];
+  const env = { ...scrubbedGhEnv(inherited), GIT_TERMINAL_PROMPT: "0" } as NodeJS.ProcessEnv;
+  for (const key of ["GH_DEBUG", "GIT_SSH", "GIT_SSH_COMMAND"]) delete env[key];
   const sshOptions = ["-oBatchMode=yes", "-oStrictHostKeyChecking=yes"];
   const gitEnv = { ...env, GIT_SSH_COMMAND: ["ssh", ...sshOptions].join(" "), GIT_SSH_VARIANT: "ssh" };
   async function bounded(bin: string, args: string[], vars: NodeJS.ProcessEnv, readSignal?: AbortSignal) {

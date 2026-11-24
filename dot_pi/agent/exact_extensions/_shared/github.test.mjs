@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isWorkGitHubOrg, parseGitHubOwnerRepo, selectGitHubLogin } from "./github.ts";
+import { isWorkGitHubOrg, parseGitHubOwnerRepo, scrubbedGhEnv, selectGitHubLogin } from "./github.ts";
 
 test("parseGitHubOwnerRepo parses HTTPS, SCP, and SSH GitHub remotes and rejects traversal", () => {
   assert.deepEqual(parseGitHubOwnerRepo("git@github.com:maruina/dotfiles.git"), { owner: "maruina", repo: "dotfiles" });
@@ -19,4 +19,14 @@ test("isWorkGitHubOrg and selectGitHubLogin route work orgs to matteo-ruina_ddog
   assert.equal(selectGitHubLogin("ddoghq-sandbox"), "matteo-ruina_ddog");
   assert.equal(selectGitHubLogin("DataDog"), "maruina");
   assert.equal(selectGitHubLogin("maruina"), "maruina");
+});
+
+test("scrubbedGhEnv clears ambient tokens and sets GH_HOST and optional token", () => {
+  const base = { PATH: "/usr/bin", GH_TOKEN: "old", GITHUB_TOKEN: "old2" };
+  const clean = scrubbedGhEnv(base);
+  assert.equal(clean.GH_TOKEN, undefined);
+  assert.equal(clean.GITHUB_TOKEN, undefined);
+  assert.equal(clean.GH_HOST, "github.com");
+  assert.equal(clean.GH_PROMPT_DISABLED, "1");
+  assert.equal(scrubbedGhEnv(base, "fresh").GH_TOKEN, "fresh");
 });

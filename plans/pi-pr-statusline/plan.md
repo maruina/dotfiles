@@ -19,6 +19,19 @@
 | `write` | `skill-loader` | Plan prose | Kept requirements, mechanisms, and limits concrete and verifiable. |
 | `feature-worktree` | `prompt-required` | Durable plan branch | Created `maruina/pi-pr-statusline` worktree from `origin/main` without modifying the base checkout. |
 
+### Execution
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `skill-loader` | `prompt-required` | Execution workflow | Selected execution skills and recorded their use. |
+| `resolve-worktree` | `prompt-required` | Absolute plan path | Resolved the plan to `maruina/pi-pr-statusline`. |
+| `feature-worktree` | `prompt-required` | Local slice commits | Confirmed the feature worktree and left the base checkout on `main`. |
+| `codebase-research` | `skill-loader` | Shared auth and Pi extension lifecycle | Traced token routing, the footer, and the Pi API before implementation. |
+| `chezmoi` | `skill-loader` | Managed Pi extensions | Kept edits in source and left rendered targets unchanged. |
+| `cli-best-practices` | `prompt-required` | Plan-named skill for `gh` subprocesses | Preserved non-interactive auth and passed the token through the subprocess environment. |
+| `write` | `skill-loader` | Plan ledger and commit messages | Recorded check results and kept the plan requirements unchanged. |
+
+Slice 1 writer: `openai/gpt-6.2-sol`.
+
 ## Implementation Contract
 
 ### Components Affected
@@ -150,10 +163,12 @@ Delivers the smallest user-feedback slice: `[state] #N <title>` with a clickable
 **Traces to:** R1
 **Files:** `dot_pi/agent/exact_extensions/_shared/github.ts`, `dot_pi/agent/exact_extensions/_shared/github.test.mjs`, `dot_pi/agent/exact_extensions/user-context.ts`
 
-- [ ] Write failing tests in `dot_pi/agent/exact_extensions/_shared/github.test.mjs` for `routedGhEnv` with an injected runner: `work` profile calls `gh auth token --hostname github.com --user <routed login>` with `GH_TOKEN`/`GITHUB_TOKEN` unset and returns an env with only `GH_TOKEN` set to the token; `personal` profile returns `undefined` without a subprocess; a failed token fetch returns `undefined`.
-- [ ] Add `routedGhEnv` to `dot_pi/agent/exact_extensions/_shared/github.ts` and replace the body of `getGitHubEnv` in `dot_pi/agent/exact_extensions/user-context.ts` with a call to it after the existing remote parse.
-- [ ] Run `node --experimental-strip-types --test dot_pi/agent/exact_extensions/_shared/github.test.mjs dot_pi/agent/exact_extensions/user-context.test.mjs`; expect all tests to pass with no `user-context.test.mjs` change.
-- [ ] Refactor only after green, rerun verification, and commit with `refactor(pi): share routed GitHub env helper`.
+- [x] Write failing tests in `dot_pi/agent/exact_extensions/_shared/github.test.mjs` for `routedGhEnv` with an injected runner: `work` profile calls `gh auth token --hostname github.com --user <routed login>` with `GH_TOKEN`/`GITHUB_TOKEN` unset and returns an env with only `GH_TOKEN` set to the token; `personal` profile returns `undefined` without a subprocess; a failed token fetch returns `undefined`.
+- [x] Add `routedGhEnv` to `dot_pi/agent/exact_extensions/_shared/github.ts` and replace the body of `getGitHubEnv` in `dot_pi/agent/exact_extensions/user-context.ts` with a call to it after the existing remote parse.
+- [x] Run `node --experimental-strip-types --test dot_pi/agent/exact_extensions/_shared/github.test.mjs dot_pi/agent/exact_extensions/user-context.test.mjs`; expect all tests to pass with no `user-context.test.mjs` change.
+- [x] Refactor only after green, rerun verification, and commit with `refactor(pi): share routed GitHub env helper`.
+
+The focused test first failed because `routedGhEnv` was missing. After implementation, two existing Rex hook tests failed because they inherited `PI_STAGE_RUNNER_CHILD=1`. The same command prefixed with `env -u PI_STAGE_RUNNER_CHILD` passed all 22 tests; the explicit child-mode fixture still sets the variable. `npm run typecheck` passed.
 
 ### Task 2: Implement PR GraphQL query, state selection, and left segment
 **Delivers:** `pr-status/github.ts` with an injected runner that resolves the routed env, queries branch PRs across all states, and formats a sanitized left segment with an OSC 8 link.

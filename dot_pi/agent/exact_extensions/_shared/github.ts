@@ -1,3 +1,5 @@
+import type { PiProfile } from "./profile.ts";
+
 const WORK_GH_ORGS = new Set(["ddoghq", "ddoghq-sandbox"]);
 
 export function isWorkGitHubOrg(owner: string): boolean {
@@ -24,4 +26,17 @@ export function scrubbedGhEnv(baseEnv: NodeJS.ProcessEnv = process.env, token?: 
   delete env.GITHUB_TOKEN;
   if (token) env.GH_TOKEN = token;
   return env;
+}
+
+export async function routedGhEnv(
+  owner: string,
+  profile: PiProfile,
+  run: (command: string, args: string[], cwd: string, timeout: number, env: NodeJS.ProcessEnv) => Promise<string | null>,
+  { cwd, timeoutMs = 3000, baseEnv = process.env }: { cwd: string; timeoutMs?: number; baseEnv?: NodeJS.ProcessEnv },
+): Promise<NodeJS.ProcessEnv | undefined> {
+  if (profile !== "work") return undefined;
+  const login = selectGitHubLogin(owner);
+  const cleanEnv = scrubbedGhEnv(baseEnv);
+  const token = await run("gh", ["auth", "token", "--hostname", "github.com", "--user", login], cwd, timeoutMs, cleanEnv);
+  return token ? scrubbedGhEnv(cleanEnv, token) : undefined;
 }

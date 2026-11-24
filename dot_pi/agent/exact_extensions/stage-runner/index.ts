@@ -2,7 +2,7 @@ import path from "node:path";
 import os from "node:os";
 import { getSupportedThinkingLevels } from "@earendil-works/pi-ai";
 import { VERSION, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { formatProgramStatus, Text, type ProgramStatus, type Terminal } from "@earendil-works/pi-tui";
+import { Text, type Terminal } from "@earendil-works/pi-tui";
 import { execRexJson, verifyLocalRexEndpoint, verifyLocalRexPeer } from "../_shared/rex.ts";
 import { qualifiedId } from "../_shared/model.ts";
 import stageRunnerHandoff from "./_handoff.ts";
@@ -99,13 +99,65 @@ export function phaseDisplay(
   };
 }
 
+const PHASE_PROGRESS: Record<Exclude<Phase, "recovery">, number> = {
+  startup: 5,
+  execute: 30,
+  simplify: 65,
+  verify: 80,
+  publish: 90,
+  review: 95,
+  fix: 75,
+};
+
+function encodeOsc7501Text(value: string, maxBytes: number): string {
+  const sanitized = value.replace(/[\x00-\x1f\x7f-\x9f]/g, " ");
+  let bytes = 0;
+  let end = 0;
+  for (const ch of sanitized) {
+    const chBytes = Buffer.byteLength(ch, "utf8");
+    if (bytes + chBytes > maxBytes) break;
+    bytes += chBytes;
+    end += ch.length;
+  }
+  return Buffer.from(sanitized.slice(0, end), "utf8").toString("base64");
+}
+
+function formatStageRunnerStatus(status: {
+  state: "idle" | "working" | "done" | "blocked" | "error" | "clear";
+  kind?: "permission" | "question" | "auth";
+  progress?: number;
+  message?: string;
+  title?: string;
+}): string {
+  if (status.state === "clear") {
+    return "\x1b]7501;state=clear:id=stage-runner\x1b\\";
+  }
+  const pairs = [
+    `state=${status.state}`,
+    "id=stage-runner",
+    "app=pi-stage-runner",
+    `title=${encodeOsc7501Text(status.title ?? "Stage runner", 192)}`,
+  ];
+  if (status.state === "blocked" && status.kind) {
+    pairs.push(`kind=${status.kind}`);
+  }
+  if ((status.state === "working" || status.state === "blocked") &&
+      typeof status.progress === "number" && Number.isInteger(status.progress) &&
+      status.progress >= 0 && status.progress <= 100) {
+    pairs.push(`progress=${status.progress}`);
+  }
+  if (status.message) {
+    pairs.push(`msg=${encodeOsc7501Text(status.message, 2048)}`);
+  }
+  return `\x1b]7501;${pairs.join(":")}\x1b\\`;
+}
+
 export function rexActivity(write: (sequence: string) => void) {
   let previous = "";
-  function report(status: ProgramStatus) {
+  function report(status: Parameters<typeof formatStageRunnerStatus>[0]) {
     if (process.env.PI_PROGRAM_STATUS === "0") return;
-    // Reuse pi-tui's bounded message encoder, but never send its root record.
-    const sequence = formatProgramStatus({ ...status, app: "pi-stage-runner" }).replace(":app=", ":id=stage-runner:app=");
-    if (sequence === previous || !sequence.includes(":id=stage-runner:")) return;
+    const sequence = formatStageRunnerStatus(status);
+    if (sequence === previous) return;
     try {
       write(sequence);
       previous = sequence;
@@ -114,10 +166,14 @@ export function rexActivity(write: (sequence: string) => void) {
     }
   }
   return {
-    phase: (phase: Exclude<Phase, "recovery">) => report({ state: "working", message: phase }),
+    phase: (phase: Exclude<Phase, "recovery">) =>
+      report({ state: "working", message: phase, progress: PHASE_PROGRESS[phase] }),
+    working: (message: string, progress?: number) =>
+      report({ state: "working", message, progress }),
     recovery: (message: string) => report({ state: "blocked", kind: "question", message }),
     permission: (message: string) => report({ state: "blocked", kind: "permission", message }),
-    end: (state: "done" | "error" | "idle" | "clear") => report({ state }),
+    end: (state: "done" | "error" | "idle" | "clear", message?: string) =>
+      report({ state, ...(message && (state === "done" || state === "error") ? { message } : {}) }),
   };
 }
 
@@ -170,14 +226,14 @@ export default function stageRunner(pi: ExtensionAPI) {
         ? undefined
         : phaseDisplay(lines => ctx.ui.setWidget(entryType, lines),
             summary => pi.appendEntry(entryType, summary), message => ctx.ui.notify(message, "info"));
-      let state: "idle" | "done" | "error" = "idle";
+      let state: "clear" | "done" | "error" = "clear";
       let declined = false;
       let outcome = "Run canceled.";
       finished = (async () => {
         // deliberate: Gate on Pi 1.6.x minor line so patch releases do not break the runner; widen after testing 1.7+.
         if (!/^1\.6\./.test(VERSION)) throw Error(`Stage runner requires Pi 1.6.x (found ${VERSION})`);
         await checkRex(pi);
-        if (!design) ctx.ui.setWidget(entryType, tui => {
+        ctx.ui.setWidget(entryType, tui => {
           terminal = tui.terminal;
           return { render: () => [], invalidate() {} };
         });
@@ -217,8 +273,15 @@ export default function stageRunner(pi: ExtensionAPI) {
           notify: (message: string) => ctx.ui.notify(message, "warning"),
         };
         if (design) {
-          progress("Run started.");
-          const evidence = await runDesign({ ...shared, cwd: ctx.cwd, brief: arg, author: models.execute, reviewer: models.verify, progress });
+          const designProgress = (message: string) => {
+            if (message.startsWith("Starting design-draft")) activity.working("design-draft", 15);
+            else if (message.startsWith("Starting design-review")) activity.working("design-review", 50);
+            else if (message.startsWith("Resuming design reviewer")) activity.recovery("Resolve design review findings in the Rex pane");
+            else if (message.startsWith("Starting design-plan")) activity.working("design-plan", 80);
+            progress(message);
+          };
+          designProgress("Run started.");
+          const evidence = await runDesign({ ...shared, cwd: ctx.cwd, brief: arg, author: models.execute, reviewer: models.verify, progress: designProgress });
           state = "done";
           outcome = "Run complete; evidence " + evidence;
           return;
@@ -251,8 +314,8 @@ export default function stageRunner(pi: ExtensionAPI) {
         outcome = "Run complete; evidence " + evidence;
       })()
         .catch((e) => {
-          state = controller.signal.aborted || declined ? "idle" : "error";
-          outcome = state === "idle" ? "Run canceled." : "Run stopped. See the error notification for details.";
+          state = controller.signal.aborted || declined ? "clear" : "error";
+          outcome = state === "clear" ? "Run canceled." : "Run stopped. See the error notification for details.";
           if (shuttingDown) return;
           ctx.ui.notify(
             String(e)
@@ -263,9 +326,11 @@ export default function stageRunner(pi: ExtensionAPI) {
         })
         .finally(() => {
           active = undefined;
-          if (design) progress(outcome);
-          else {
-            activity.end(state);
+          activity.end(state, outcome);
+          if (design) {
+            progress(outcome);
+            ctx.ui.setWidget(entryType, undefined);
+          } else {
             display?.finish(outcome.replace(/[\x00-\x1f\x7f-\x9f]/g, "?"));
           }
         });

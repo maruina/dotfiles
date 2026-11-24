@@ -11,11 +11,13 @@ const exec = promisify(execFile);
 const collector = fileURLToPath(new URL("./collect.mjs", import.meta.url));
 const help = `Usage:
   node workspace.mjs preflight <PR URL> <base repository path> <remote>
+  node workspace.mjs ensure-worktree <PR URL> <base repository path> <remote> <headOid> [--sparse <dir...>]
   node workspace.mjs cleanup <PR URL>
 
 Preflight collects evidence and verifies the fetched PR head without a checkout.
+Ensure-worktree verifies or creates a clean, detached review worktree at headOid.
 Cleanup removes only a clean, detached review worktree for the specified repository.
-Both commands return JSON on stdout.`;
+All commands return JSON on stdout.`;
 
 async function run(command, args, label, options) {
   try {
@@ -93,6 +95,52 @@ function checkPhysicalPath(path) {
   return join(realpathSync(dirname(path)), basename(path));
 }
 
+export async function ensureWorktree({ url, base, remote, headOid, sparse = [], root, git = runGit, physicalPath = checkPhysicalPath }) {
+  const pr = parsePullRequestUrl(url);
+  if (!remote || remote.startsWith("-")) throw new Error("Expected a named Git remote");
+  if (typeof headOid !== "string" || !/^[0-9a-f]{40}$/.test(headOid)) throw new Error("Expected a 40-char commit SHA for headOid");
+  const basePhysical = realpathSync(base);
+  const remoteUrls = (await git(basePhysical, "remote", "get-url", "--all", remote)).trim().split("\n");
+  if (remoteUrls.length !== 1 || !matchesRepository(remoteUrls[0], pr)) {
+    throw new Error(`Git remote does not match ${pr.owner}/${pr.repo}`);
+  }
+  const worktree = reviewWorktree(pr, root);
+  let physical;
+  try {
+    physical = physicalPath(worktree);
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+  if (physical) {
+    const entries = (await git(basePhysical, "worktree", "list", "--porcelain", "-z"))
+      .split("\0\0").filter(Boolean).map((entry) => entry.split("\0"));
+    const registered = entries.slice(1).find(([entryPath]) => entryPath === `worktree ${physical}`);
+    if (!registered) throw new Error(`Existing path is not a registered worktree of ${basePhysical}: ${worktree}`);
+    const toplevel = realpathSync((await git(physical, "rev-parse", "--show-toplevel")).trim());
+    if (toplevel !== physical) throw new Error(`Worktree physical root mismatch: expected ${physical}, observed ${toplevel}`);
+    const wtRemotes = (await git(physical, "remote", "-v")).split("\n");
+    if (!wtRemotes.some((entry) => matchesRepository(entry.match(/\t(\S+) \(fetch\)$/)?.[1], pr))) {
+      throw new Error(`Existing review worktree remote does not match ${pr.owner}/${pr.repo}`);
+    }
+    if (await git(physical, "status", "--porcelain", "--untracked-files=all")) {
+      throw new Error(`Existing review worktree is dirty: ${worktree}`);
+    }
+    const currentHead = (await git(physical, "rev-parse", "HEAD")).trim();
+    if (currentHead === headOid) return { status: "reused", worktree: physical, headOid, sparse: sparse.length > 0 };
+    await git(physical, "checkout", "--detach", headOid);
+    return { status: "updated", worktree: physical, headOid, sparse: sparse.length > 0 };
+  }
+  if (sparse.length > 0) {
+    await git(basePhysical, "worktree", "add", "--no-checkout", "--detach", worktree, headOid);
+    await git(worktree, "sparse-checkout", "init", "--cone");
+    await git(worktree, "sparse-checkout", "set", "--", ...sparse);
+    await git(worktree, "checkout");
+  } else {
+    await git(basePhysical, "worktree", "add", "--detach", worktree, headOid);
+  }
+  return { status: "created", worktree: realpathSync(worktree), headOid, sparse: sparse.length > 0 };
+}
+
 export async function cleanup({ url, root, git = runGit, physicalPath = checkPhysicalPath }) {
   const pr = parsePullRequestUrl(url);
   const worktree = reviewWorktree(pr, root);
@@ -129,6 +177,16 @@ async function main(args) {
   try {
     if (args[0] === "preflight" && args.length === 4) {
       console.log(JSON.stringify(await preflight({ url: args[1], base: realpathSync(args[2]), remote: args[3] })));
+    } else if (args[0] === "ensure-worktree" && args.length >= 5) {
+      const sparseIdx = args.indexOf("--sparse");
+      const sparse = sparseIdx >= 0 ? args.slice(sparseIdx + 1) : [];
+      console.log(JSON.stringify(await ensureWorktree({
+        url: args[1],
+        base: realpathSync(args[2]),
+        remote: args[3],
+        headOid: args[4],
+        sparse,
+      })));
     } else if (args[0] === "cleanup" && args.length === 2) {
       console.log(JSON.stringify(await cleanup({ url: args[1] })));
     } else {

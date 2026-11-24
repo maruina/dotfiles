@@ -16,18 +16,31 @@ type Handler = (event: unknown, context: { cwd: string }) => Promise<void>;
 function session() {
   const handlers = new Map<string, Handler>();
   const calls: Array<{ command: string; args: string[]; cwd: string; timeout?: number }> = [];
+  const inFlight: Promise<unknown>[] = [];
   worktrunkActivity({
     on(event: string, handler: Handler) { handlers.set(event, handler); },
-    async exec(command: string, args: string[], options: { cwd: string; timeout?: number }) {
+    exec(command: string, args: string[], options: { cwd: string; timeout?: number }) {
       calls.push({ command, args, ...options });
-      return exec(command, args, { cwd: options.cwd, timeout: options.timeout });
+      const p = exec(command, args, { cwd: options.cwd, timeout: options.timeout });
+      inFlight.push(p.catch(() => {}));
+      return p;
     },
   } as unknown as ExtensionAPI);
-  return { calls, async emit(event: string, cwd: string) {
-    const handler = handlers.get(event);
-    assert.ok(handler, `missing ${event} handler`);
-    await handler({}, { cwd });
-  } };
+  return {
+    calls,
+    async emit(event: string, cwd: string) {
+      const handler = handlers.get(event);
+      assert.ok(handler, `missing ${event} handler`);
+      await handler({}, { cwd });
+    },
+    async flush() {
+      let prev = -1;
+      while (inFlight.length !== prev) {
+        prev = inFlight.length;
+        await Promise.all(inFlight);
+      }
+    },
+  };
 }
 
 function git(cwd: string, ...args: string[]): string {
@@ -49,10 +62,13 @@ test("events set and clear the branch marker; sessions share it", async () => {
     const first = session();
     const second = session();
     await first.emit("agent_start", cwd);
+    await first.flush();
     assert.equal(marker(cwd), "🤖");
     await first.emit("agent_settled", cwd);
+    await first.flush();
     assert.equal(marker(cwd), "💬");
     await second.emit("agent_start", cwd);
+    await second.flush();
     assert.equal(marker(cwd), "🤖");
     await first.emit("session_shutdown", cwd);
     assert.equal(marker(cwd), undefined);
@@ -86,6 +102,7 @@ test("missing Worktrunk binary does not reject event handlers", async () => {
   try {
     const current = session();
     for (const event of ["agent_start", "agent_settled", "session_shutdown"]) await current.emit(event, tmpdir());
+    await current.flush();
     assert.equal(current.calls.length, 3);
   } finally {
     if (prior === undefined) delete process.env.WORKTRUNK_BIN;
@@ -136,14 +153,21 @@ for (const missingBinary of [false, true]) test(`Pi RPC remains usable ${missing
       });
     }
   }
+  async function waitForMarker(expected: string | undefined) {
+    const deadline = Date.now() + 5_000;
+    while (marker(cwd) !== expected && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    assert.equal(marker(cwd), expected);
+  }
   try {
     child.stdin.write(`${JSON.stringify({ id: "prompt", type: "prompt", message: "fixture" })}\n`);
     await waitFor("agent_start");
-    assert.equal(marker(cwd), missingBinary ? undefined : "🤖");
+    await waitForMarker(missingBinary ? undefined : "🤖");
     writeFileSync(release, "continue");
     await waitFor("agent_settled");
     assert.ok(JSON.stringify(records).includes("fixture complete"), `mock model did not complete: ${stderr}`);
-    assert.equal(marker(cwd), missingBinary ? undefined : "💬");
+    await waitForMarker(missingBinary ? undefined : "💬");
     const closed = once(child, "close");
     child.stdin.end();
     const [code] = await closed;
@@ -169,6 +193,7 @@ test("a hung marker command is bounded", { timeout: 10_000 }, async () => {
   try {
     const current = session();
     await current.emit("agent_start", cwd);
+    await current.flush();
     assert.equal(current.calls[0].timeout, 5000);
   } finally {
     if (prior === undefined) delete process.env.WORKTRUNK_BIN;

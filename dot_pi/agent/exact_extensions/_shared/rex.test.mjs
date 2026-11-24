@@ -5,7 +5,16 @@ import { join } from "node:path";
 import test from "node:test";
 
 import { writeAtomicJson } from "./fs.ts";
-import { isRexId, matchesForegroundProcess, verifyLocalRexEndpoint, verifyLocalRexPeer } from "./rex.ts";
+import { buildRexArgs, isRexId, matchesForegroundProcess, verifyLocalRexEndpoint, verifyLocalRexPeer } from "./rex.ts";
+
+test("buildRexArgs formats autostart, timeout, and server flags", () => {
+  assert.deepEqual(buildRexArgs(["whoami", "--json"]), ["--autostart=false", "whoami", "--json"]);
+  assert.deepEqual(
+    buildRexArgs(["whoami", "--json"], { timeoutSec: 5, endpoint: "unix:///tmp/rex.sock", validateEndpoint: false }),
+    ["--autostart=false", "--timeout", "5s", "--server", "unix:///tmp/rex.sock", "whoami", "--json"],
+  );
+  assert.throws(() => buildRexArgs(["whoami"], { endpoint: "tcp://127.0.0.1:9999" }));
+});
 
 test("isRexId validates Rex identifier format", () => {
   assert.equal(isRexId("session", "session:01a1e56f-9baa"), true);

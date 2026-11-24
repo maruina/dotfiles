@@ -14,6 +14,7 @@ import {
   getWorktreeInfo,
   loadRexLines,
   nameRexSession,
+  nameRexSessionAndTask,
   nameRexTask,
   pathInside,
   repoHints,
@@ -92,7 +93,7 @@ test("loadRexLines passes --autostart=false and --server when set, and disables 
     return "You're running in a Rex terminal.\n\nREX_SESSION=session:x";
   };
   const lines = await loadRexLines({ REX_SESSION: "session:x", REX_SERVER: "unix:///tmp/rex.sock" }, run);
-  assert.deepEqual(calls, [["rex", ["--autostart=false", "--server", "unix:///tmp/rex.sock", "__internal", "session-start", "--agent", "pi", "--feature-session-naming=false"], undefined, 3000]]);
+  assert.deepEqual(calls, [["rex", ["--autostart=false", "--timeout", "3s", "--server", "unix:///tmp/rex.sock", "__internal", "session-start", "--agent", "pi", "--feature-session-naming=false"], undefined, 3000]]);
   assert.deepEqual(lines, [
     "## Rex",
     "",
@@ -114,7 +115,7 @@ test("nameRexSession renames single-pane sessions directly via rex without fish 
     return "";
   };
   await nameRexSession("/tmp/repo", { REX_SESSION: "session:x", REX_BLOCK: "block:x", REX_SERVER: "unix:///tmp/rex.sock" }, run);
-  assert.deepEqual(calls.at(-1), ["rex", ["--autostart=false", "--server", "unix:///tmp/rex.sock", "session", "rename", "session:x", "dotfiles"]]);
+  assert.deepEqual(calls.at(-1), ["rex", ["--autostart=false", "--timeout", "3s", "--server", "unix:///tmp/rex.sock", "session", "rename", "session:x", "dotfiles"]]);
 
   const keepCalls = [];
   await nameRexSession("/tmp/repo", { REX_SESSION: "session:x", REX_BLOCK: "block:x" }, async (cmd, args) => {
@@ -134,7 +135,7 @@ test("nameRexTask labels the containing window for single-pane tabs and the bloc
     }
     return "";
   });
-  assert.deepEqual(calls.at(-1), ["rex", ["--autostart=false", "window", "rename", "-s", "session:x", "window:1", "π-analyze-pi-extensions"]]);
+  assert.deepEqual(calls.at(-1), ["rex", ["--autostart=false", "--timeout", "3s", "window", "rename", "-s", "session:x", "window:1", "π-analyze-pi-extensions"]]);
 
   const splitCalls = [];
   await nameRexTask("π-analyze-pi-extensions", env, async (cmd, args) => {
@@ -144,7 +145,7 @@ test("nameRexTask labels the containing window for single-pane tabs and the bloc
     }
     return "";
   });
-  assert.deepEqual(splitCalls.at(-1), ["rex", ["--autostart=false", "block", "rename", "-s", "session:x", "block:x", "π-analyze-pi-extensions"]]);
+  assert.deepEqual(splitCalls.at(-1), ["rex", ["--autostart=false", "--timeout", "3s", "block", "rename", "-s", "session:x", "block:x", "π-analyze-pi-extensions"]]);
 });
 
 function runHookScenario({ mode = "tui", session = "session:x", block = "block:x", fail = false, reload = false } = {}) {
@@ -221,7 +222,7 @@ test("registered hook names once in the startup directory without waiting, inclu
   assert.equal(alive, true, "the hook returned before rex exited");
   const inspects = recorded.filter((c) => c.args.includes("inspect"));
   assert.equal(inspects.length, 1);
-  assert.deepEqual({ cwd: inspects[0].cwd, args: inspects[0].args }, { cwd: startup, args: ["--autostart=false", "session", "inspect", "session:x", "--json"] });
+  assert.deepEqual({ cwd: inspects[0].cwd, args: inspects[0].args }, { cwd: startup, args: ["--autostart=false", "--timeout", "3s", "session", "inspect", "session:x", "--json"] });
   assert.doesNotMatch(output.message.content, /rex-name-task/);
   assert.doesNotMatch(output.message.content, /rex-name-session/);
   assert.equal(output.systemPrompt, undefined);
@@ -283,6 +284,31 @@ test("registered hook suppresses Rex naming, background fetches, and skill-loade
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("nameRexSessionAndTask inspects Rex once when naming both session and task", async () => {
+  const calls = [];
+  const run = async (cmd, args = []) => {
+    calls.push({ cmd, args });
+    if (cmd === "rex" && args.includes("inspect")) {
+      return JSON.stringify({
+        label: "random-name",
+        windows: [{ window_id: "window:1", layers: [{ blocks: [{ block_id: "block:1" }] }] }],
+      });
+    }
+    if (cmd === "git" && args[0] === "rev-parse") return "/tmp/dotfiles";
+    if (cmd === "git" && args[0] === "remote") return "git@github.com:maruina/dotfiles.git";
+    return "";
+  };
+  await nameRexSessionAndTask(
+    { sessionCwd: "/tmp/dotfiles", taskLabel: "π-fix-tests" },
+    { REX_SESSION: "session:1", REX_BLOCK: "block:1" },
+    run,
+  );
+  const inspects = calls.filter((c) => c.cmd === "rex" && c.args.includes("inspect"));
+  assert.equal(inspects.length, 1);
+  assert.ok(calls.some((c) => c.cmd === "rex" && c.args.includes("session") && c.args.includes("rename") && c.args.includes("dotfiles")));
+  assert.ok(calls.some((c) => c.cmd === "rex" && c.args.includes("window") && c.args.includes("rename") && c.args.includes("π-fix-tests")));
 });
 
 test("formatPR includes state, number, base, title, head, and link", () => {

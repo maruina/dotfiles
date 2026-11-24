@@ -307,7 +307,7 @@ for (const failure of [
           "--override-data",
           JSON.stringify({ profile }),
         ],
-        { input: fs.readFileSync(path.join(import.meta.dirname, "_profile.json.tmpl")) },
+        { input: fs.readFileSync(path.join(import.meta.dirname, "../_shared/profile.json.tmpl")) },
       ),
     );
     const log = path.join(temp, "argv"),

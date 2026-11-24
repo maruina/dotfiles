@@ -71,3 +71,79 @@ test('snapshot compares branch, commits, tracked diffs and untracked content', t
   r = f.run('snapshot', '--base', base); const fourth = path.join(f.temp, 'fourth.json'); writeFileSync(fourth, r.stdout);
   r = f.run('compare-snapshots', third, fourth); assert.equal(r.status, 1); assert.ok(r.data.deltas.includes('head')); assert.ok(r.data.deltas.includes('branch')); assert.ok(r.data.deltas.includes('candidateCommits'));
 });
+
+test('lint-plan validates task headings, Blocked by syntax, checkboxes, and relative paths', t => {
+  const f = fixture(t);
+  f.put('plans/ok/plan.md', [
+    '# Ok Plan',
+    '### Slice 1: First slice',
+    '### Task 1: Do thing',
+    '**Blocked by:** None',
+    '**Files:** src/a.ts',
+    '- [ ] Step one',
+    '### Task 2: Next thing',
+    '**Blocked by:** Task 1',
+    '- [ ] Step two',
+    '## Post-publication validation',
+    '- Check metric after deploy',
+  ].join('\n'));
+  let r = f.run('lint-plan', 'plans/ok/plan.md');
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.data.ok, true);
+  assert.equal(r.data.tasks.length, 2);
+  assert.equal(r.data.slices.length, 1);
+
+  f.put('plans/bad/plan.md', [
+    '# Bad Plan',
+    '- [ ] Loose checkbox',
+    '### Task 1: First',
+    '**Blocked by:** Task 1 (note)',
+    '**Files:** /abs/path.ts',
+    '## Post-publication validation',
+    '- [ ] Post-pub checkbox',
+  ].join('\n'));
+  r = f.run('lint-plan', 'plans/bad/plan.md');
+  assert.equal(r.status, 1);
+  assert.equal(r.data.ok, false);
+  assert.equal(r.data.errors.length, 4);
+});
+
+test('preflight-design checks clean Git status and Status: Approved at HEAD', t => {
+  const f = fixture(t);
+  f.put('plans/demo/design.md', '# Demo\nStatus: Draft\n');
+  f.commit('draft');
+  let r = f.run('preflight-design', 'plans/demo/design.md');
+  assert.equal(r.status, 1);
+  assert.equal(r.data.clean, true);
+  assert.equal(r.data.approved, false);
+
+  f.put('plans/demo/design.md', '# Demo\nStatus: Approved\n');
+  r = f.run('preflight-design', 'plans/demo/design.md');
+  assert.equal(r.status, 1);
+  assert.equal(r.data.clean, false);
+
+  f.commit('approve');
+  r = f.run('preflight-design', 'plans/demo/design.md');
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.data.ok, true);
+});
+
+test('next-slice reports grouped slice progress and committed state', t => {
+  const f = fixture(t);
+  f.put('plans/demo/plan.md', [
+    '# Demo',
+    '### Slice 1: One',
+    '### Task 1: Done',
+    '- [x] done',
+    '### Slice 2: Two',
+    '### Task 2: Todo',
+    '- [ ] todo',
+  ].join('\n'));
+  f.commit('plan');
+  const r = f.run('next-slice', 'plans/demo/plan.md');
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.data.committed, true);
+  assert.equal(r.data.grouped, true);
+  assert.deepEqual(r.data.nextSlice, { number: 2, title: 'Two' });
+  assert.equal(r.data.remainingCount, 1);
+});

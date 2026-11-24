@@ -509,18 +509,14 @@ test("verify checks the complete plan and keeps the candidate read-only", () => 
   ]);
 });
 
-test("verify gates the next execution handoff on plan prerequisites, keeps fixes out of verification, and opens the PR on VERIFIED", () => {
+test("verify keeps verification read-only and hands off PR publication on VERIFIED", () => {
   const text = prompt("verify.md");
 
   requireMarkers(text, [
-    /inspect the next incomplete task's `Blocked by` field and all explicit prerequisites/i,
-    /if any prerequisite is unresolved.*recommend resolving it through `\/plan` or a user decision.*do not say to proceed with implementation/is,
     /never publish on `BLOCKED`/i,
-    /give the exact `\/execute <absolute-plan-path>` command/i,
-    /do not give a worktree root as the plan argument/i,
-    /`\/verify` is read-only for repository files and must not fix or commit/i,
-    /For manual runs, when the verdict is `VERIFIED` and the final state matches the initial snapshot.*stack-split check from the `reviewable-pr-workflow` skill.*unless the user explicitly said not to open a PR.*`\/pr-create --draft`.*`\/pr-update`/i,
-    /offer `\/execute` as the follow-up/i,
+    /offer `\/execute <absolute-plan-path>` \(never a worktree root\) in a standalone `md` fenced block as the follow-up/i,
+    /`\/verify` is read-only for repository files and must not fix, commit, push, or open a PR/i,
+    /For manual runs, when the verdict is `VERIFIED` and the final state matches the initial snapshot.*stack-split check from the `reviewable-pr-workflow` skill.*unless the user explicitly said not to open a PR.*hand off `\/pr-create --draft`.*`\/pr-update`.*standalone `md` fenced block rather than running it/i,
     /only after the fix is implemented and independently verified/i,
     /\*\*Copy-paste follow-up:\*\* when \*\*Findings\*\* contains any finding/i,
     /self-contained prompt for a new execution session in a plain-text code block/i,
@@ -531,6 +527,7 @@ test("verify gates the next execution handoff on plan prerequisites, keeps fixes
     /omit this section only when there are no findings/i,
     /accepted non-blocking style advisories and environment\/toolchain limitations/i,
   ]);
+  assert.doesNotMatch(text, /inspect the next incomplete task's `Blocked by` field/i);
 });
 
 test("validation gates follow the publication stage boundary", () => {

@@ -40,10 +40,7 @@ Use the design, brief, issue, PR feedback, or request for WHAT, and the reposito
 - Investigate discoverable facts yourself; ask the user only for decisions, priorities, or unavailable context.
 - Trace every task to a goal, requirement, or instruction. Preserve source-defined non-goals and deliberate deferrals in the brief and plan; do not change scope.
 
-For a Medium or Large/Risky upstream design, run these checks from the root of its worktree:
-
-- Reject untracked, staged, or unstaged changes to the design. Require empty output from `git status --porcelain=v1 --untracked-files=all -- <design-path>` and read the design with `git show HEAD:<design-path>`. If either check fails, stop and ask the user to reconcile the design with Git before rerunning `/plan`.
-- Require `Status: Approved` in the design header at `HEAD`. Accept the design even if later commits changed its content without changing its status. Do not inspect approval commit history or require a review report or transcript.
+For a Medium or Large/Risky upstream design, run `lifecycle-git.mjs preflight-design <design-path>` from the worktree root (checks `git status --porcelain=v1 --untracked-files=all -- <design-path>` and `git show HEAD:<design-path>`). Reject untracked, staged, or unstaged changes to the design; if dirty, ask to reconcile with Git first. Require `Status: Approved` in the design header at `HEAD`. Accept the design even if later commits changed its content without changing its status. Do not inspect approval commit history or require a review report or transcript.
 
 If the committed design is not marked Approved, stop and request `/new` followed by `/systematic-review <absolute-path-to-design.md>` and explicit approval. Use the `## Handoff` format when blocked.
 
@@ -207,7 +204,7 @@ Prefer a script over long inline CI YAML when logic contains branching, retries,
 For Medium and Large/Risky work, end with a documentation and future-agent guidance task covering user/developer docs, READMEs, runbooks, examples or generated references, and every relevant `AGENTS.md` (adding only durable commands, generation steps, traps, source-of-truth rules, and testing/rollout procedures); update each or record why not. Small plans must state documentation impact.
 
 ## Final review
-Trace one allowed scenario through every applicable control and prerequisite. If any blocks the outcome, resolve the contradiction before commit.
+Run `lifecycle-git.mjs lint-plan <plan-path>` and fix structural errors. Trace one allowed scenario through every applicable control and prerequisite; resolve the contradiction before commit.
 
 Review as a skeptical implementer. Fix issues before committing. Confirm the interactive alignment brief was approved, shared-component scope choices were asked, scope/requirements/tasks/validation trace bidirectionally, referenced paths/commands/types exist, tasks form ordered vertical slices, scenarios cover material happy/edge/failure/negative paths without redundant dimensions, slice grouping is used only when the plan needs it, task and slice metadata follows the plan format, scope beyond the smallest user-feedback slice is explicitly deferred, skill provenance is accurate, and no contradictions, placeholders, or pre-written implementation choreography remain.
 

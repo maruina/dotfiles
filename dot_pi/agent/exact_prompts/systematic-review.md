@@ -23,7 +23,7 @@ Load `skill-loader` first.
 - **No target** — use the current repository root.
 
 ## Design-only review
-For a managed design-review only, commit unambiguous corrections within the runner's stated limits, review the final text, and write the handoff. Do not change the status. This authority ends when you write the handoff; later turns require standalone confirmation.
+For a managed design-review only, commit unambiguous fixes within the runner's stated limits, review the final text, and submit the handoff via `submit_stage_handoff` (or the requested JSON path). Do not change status; on `clean`, `/stage-runner-design` commits `Status: Approved` automatically. This authority ends when you write the handoff; later turns require standalone confirmation.
 
 Run in a fresh `/new` session (or a newly created stage-runner child session) with only the design as task context. If earlier conversation or another artifact already supplied the proposal's meaning, stop and request a fresh session. Load `skill-loader` and `write`; use path resolution and Git metadata only to identify the artifact and its version. Do not read code, sibling artifacts, or prior conversation to complete its meaning. Do not apply the general code/plan review method, design challenge, or handoff below.
 
@@ -52,7 +52,7 @@ For behavior-bearing code, check resource bounds (loops, queues, goroutines, ret
 For `plan.md` targets, check that:
 
 - every requirement maps to a task or explicit follow-up
-- Plan format: `### Task N: <title>` and `### Slice N: <title>`; `**Blocked by:**` lists only `Task N`, `Tasks N-M`, or `None`. Repeat `Task` for discrete references; put notes separately. Put checkboxes inside tasks and feature-wide final verification in a numbered task in the last slice.
+- Plan format: run `lifecycle-git.mjs lint-plan <plan-path>` (`### Task N:`, `### Slice N:`, `**Blocked by:**` with `Task N`/`Tasks N-M`/`None` and separate notes, task-only checkboxes, repo-relative paths); confirm final verification is a numbered task in the last slice.
 - the smallest user-feedback slice is named and is slice 1
 - every execution task maps to a slice in a grouped plan; requirements assigned to later checks stay in scope
 - scope that re-entered from an alternative design or a prior review is deferred with a revisit trigger
@@ -72,7 +72,7 @@ For `plan.md` targets, check that:
 - the plan does not invent behavior beyond the source of truth
 - compare the plan to the approved design: a material decision about user-visible behavior, external dependencies, security, data, cost, assumptions, structure, or test limitations needs explicit user approval before implementation and a design update when applicable; routine implementation details do not need renewed approval
 - validation limits match the approved design and brief; gaps state what tests establish, what remains untested, and whether delivery is blocked or the user explicitly accepted the gap; an accepted gap cannot waive a required check
-- `## Skills loaded and used` records each skill applied during planning, its source, why it was loaded, and how it informed the plan, or explicitly records that none were needed
+- `## Skills loaded and used` follows the `## Provenance record` section of the `skill-loader` skill, or explicitly records that none were needed
 - stop conditions, assumptions, and scope boundaries are explicit
 - no placeholders, contradictions, duplicated work, or bloated instructions remain
 
@@ -80,8 +80,8 @@ Challenge scope against the smallest user-feedback slice, not only against the d
 
 ## Method
 
-1. Use `codebase-research` to locate the target, trace behavior, and find patterns. Read files, diffs, and tests in bounded sections; if a tool response is truncated, retrieve the missing sections before drawing conclusions.
-2. Use `skill-loader` to load target-specific language/domain skills and references before evaluating findings. Follow the `## Provenance record` section of the `skill-loader` skill.
+1. Use `codebase-research` to locate the target, trace behavior, and find patterns. Read in bounded sections; if a tool response is truncated, retrieve the missing sections before drawing conclusions.
+2. Use `skill-loader` to load target-specific language/domain skills and references before evaluating findings; record provenance per its `## Provenance record` section.
 3. Identify languages, package boundaries, test/build commands, entry points, and guidance files.
 4. Map core files, tests, dependencies, callers, and ownership. For plans, read the sibling `design.md`.
 5. Check correctness, concurrency, security, performance, API/UX, tests, and maintainability.
@@ -92,16 +92,15 @@ Challenge scope against the smallest user-feedback slice, not only against the d
 
 ## Output format
 Return a concise review:
-
-1. **Scope reviewed** — target, context, files/components (for PRs: PR URL, base ref, head SHA, and resolved worktree).
+1. **Scope reviewed** — target, context, files (PRs: PR URL, base ref, head SHA, and resolved worktree).
 2. **Discovery summary** — behavior, patterns, assumptions from `codebase-research`.
-3. **Skills loaded and used** — per `skill-loader` provenance rules; state when none were needed.
+3. **Skills loaded and used** — per `skill-loader`; state when none were needed.
 4. **Executive summary** — 3-5 highest-risk themes.
-5. **Findings** — sorted by severity (Critical / High / Medium / Low), with Evidence (`file:line`/function), Why it matters, Suggested fix/alternative, and Confidence (High / Medium / Low).
+5. **Findings** — sorted by severity (Critical / High / Medium / Low), with Evidence (`file:line`), Why it matters, Suggested fix, and Confidence (High / Medium / Low).
 6. **Design challenge** — argue against the current design and propose one better alternative with trade-offs.
-7. **Test gaps** — meaningful missing tests or tests overfitting implementation details.
+7. **Test gaps** — missing tests or tests overfitting implementation details.
 8. **Open questions** — only questions blocking confidence or recommendations.
-9. **Handoff** — close with the next action from `## Handoff`.
+9. **Handoff** — close with `## Handoff`.
 
 If no issues are found, say so; include the design challenge and residual risks.
 

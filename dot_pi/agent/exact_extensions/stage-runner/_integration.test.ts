@@ -331,8 +331,72 @@ for (const failure of [
       assert.equal(widget, undefined);
     });
     let reviewTime = 0;
+    const arpFixtureCall: NonNullable<import("./_runner.ts").Options["arpCall"]> = async ({ name, input, head }, reviewSignal) => {
+      const reviewLog = log + ".review";
+      const prior = fs.existsSync(reviewLog) ? fs.readFileSync(reviewLog, "utf8") : "";
+      const published = git("--git-dir=" + bare, "rev-parse", "feature").toString().trim();
+      if (!fs.existsSync(bare + ".pr")) throw Error("Review started before publication");
+      fs.appendFileSync(reviewLog, JSON.stringify({ name, input, published }) + "\n");
+      if (failure === "arp-cancel") {
+        fs.writeFileSync(reviewLog + "-ready", "ready");
+        await new Promise<void>((_, reject) => {
+          const onAbort = () => reject(Error("ARP review cancelled"));
+          if (reviewSignal.aborted) onAbort();
+          else reviewSignal.addEventListener("abort", onAbort, { once: true });
+        });
+      }
+      const target = { owner: input.owner, repo: input.repo, pull_number: input.pull_number };
+      const original = prior ? JSON.parse(prior.split("\n")[0]).published : published;
+      const reviewIndex = new Set(prior.trim().split("\n").filter(Boolean).map((line) => JSON.parse(line).published).concat(published)).size;
+      const opened = (id: number, reviewed_sha = published) => ({
+        finding_id: id, reviewed_sha, status: "open", file_path: "plans/demo/plan.md", start_line: 1, end_line: 1, body: "Fixture finding",
+      });
+      if (failure.startsWith("arp-fix-")) {
+        fs.appendFileSync(log + ".timeline", JSON.stringify({ event: name.split("agentic_review_").at(-1), head, published, input }) + "\n");
+      }
+      if (name.endsWith("resolve_finding")) {
+        if (failure === "arp-fix-partial" && input.finding_id === 43) throw Error("Fixture partial settlement failure");
+        const reviewed = prior.trim().split("\n").filter(Boolean).map((line) => JSON.parse(line).published).filter((sha: string) => sha !== published).at(-1);
+        const finding = { ...opened(Number(input.finding_id), reviewed), status: "addressed", settlement: { resolution: "addressed", fix_commit_sha: input.fix_commit_sha } };
+        fs.appendFileSync(reviewLog + ".settled", JSON.stringify(finding) + "\n");
+        if (failure === "arp-fix-uncertain") throw Error("Fixture uncertain settlement");
+        return { finding };
+      }
+      if (name.endsWith("get_status")) {
+        const checks = prior.split("get_status").length - 1;
+        let status = "NO_ISSUES_FOUND", action: string | undefined;
+        if ((failure === "arp-draft" && checks === 0) || failure === "arp-stale") {
+          status = "SKIPPED";
+          action = "REVIEW_ACTION_REVIEW_ANYWAY";
+        } else if (failure === "arp-retry-uncertain" && checks < 2) {
+          status = "FAILED";
+          action = "REVIEW_ACTION_RETRY";
+        } else if (failure === "arp-active" && checks === 0) status = "IN_PROGRESS";
+        return { ...target, head_sha: failure === "arp-stale" ? "0".repeat(40) : head, status: "REVIEW_STATUS_" + status, ...(action ? { allowed_action: action } : {}) };
+      }
+      if (name.endsWith("request_review")) {
+        if (failure === "arp-retry-uncertain") throw Error("Fixture uncertain request");
+        return { ...target, head_sha: head, status: "REVIEW_STATUS_QUEUED" };
+      }
+      const settled = fs.existsSync(reviewLog + ".settled") ? fs.readFileSync(reviewLog + ".settled", "utf8").trim().split("\n").map((line) => JSON.parse(line)) : [];
+      const priorHeads = [...new Set(prior.trim().split("\n").filter(Boolean).map((line) => JSON.parse(line).published).filter((sha: string) => sha !== published))];
+      const originalFindings = failure === "arp-fix-limit" && input.status === "all"
+        ? priorHeads.map((sha, i) => opened(42 + i, sha))
+        : [opened(42, original), ...(failure === "arp-fix-partial" ? [opened(43, original)] : [])];
+      const findings = input.status === "all"
+        ? originalFindings.map((f) => settled.find((s: { finding_id: number }) => s.finding_id === f.finding_id) ?? f)
+        : failure === "arp-findings"
+          ? [opened(42)]
+          : failure.startsWith("arp-fix-") && reviewIndex === 1
+            ? originalFindings
+            : failure === "arp-fix-limit"
+              ? [opened(41 + reviewIndex)]
+              : [];
+      return { ...target, scope: "pull_request", status_filter: input.status, reviewed_sha: head, review_in_progress: failure === "arp-incomplete", finding_count: findings.length, findings };
+    };
     const options = {
       cwd,
+      arpCall: arpFixtureCall,
       reviewClock: {
         now: () => reviewTime,
         sleep: async (ms: number, signal: AbortSignal) => {
@@ -512,8 +576,7 @@ for (const failure of [
         const argvCalls = fs.readFileSync(log, "utf8").trim().split("\n").map((line) => JSON.parse(line) as string[]);
         const reviewCall = argvCalls.find((args) => args.some((a) => a.includes("_arp.ts")));
         const fixCall = argvCalls.find((args) => args.at(-1)?.startsWith("ARP fix."));
-        assert.ok(reviewCall?.some((a) => a.endsWith("dd-ai-gateway/extensions/dd-ai-gateway/index.ts")));
-        assert.ok(reviewCall?.some((a) => a.endsWith("pi-client-session-id/index.ts")));
+        assert.equal(reviewCall, undefined, "ARP review operations must not spawn Pi child sessions");
         assert.ok(fixCall?.some((a) => a.endsWith("dd-ai-gateway/extensions/dd-ai-gateway/index.ts")));
         assert.ok(fixCall?.some((a) => a.endsWith("pi-client-session-id/index.ts")));
         assert.ok(fixCall?.some((a) => a.endsWith("compute-guardrails.ts")));

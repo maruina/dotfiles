@@ -1,59 +1,270 @@
+import { execFile } from "node:child_process";
 import * as fs from "node:fs";
 import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
+
+export const ARP_MCP_URL = "https://agentic-review-mcp.mcp.us1.ddbuild.io/internal/mcp";
+const MCP_PROTOCOL_VERSION = "2025-03-26";
+const MAX_MCP_BODY_BYTES = 8 * 1024 * 1024;
+const MCP_CALL_TIMEOUT_MS = 30_000;
+const TOOL_PREFIX = "mcp__agentic_review__";
 
 type Operation = "get_status" | "request_review" | "get_findings" | "resolve_finding";
-export const arpTool = (op: Operation) => "mcp__agentic_review__agentic_review_" + op;
+export const arpTool = (op: Operation) => `${TOOL_PREFIX}agentic_review_${op}`;
+const ALLOWED_RAW_TOOLS = new Set([
+  "agentic_review_get_status",
+  "agentic_review_request_review",
+  "agentic_review_get_findings",
+  "agentic_review_resolve_finding",
+]);
+
 export type ReviewCall = { name: string; input: Record<string, string | number | boolean>; head: string };
 export type ReviewClock = { now: () => number; sleep: (ms: number, signal: AbortSignal) => Promise<void> };
 const clock: ReviewClock = { now: () => performance.now(), sleep: (ms, signal) => sleep(ms, undefined, { signal }) };
 const fullSha = (value: unknown) => typeof value === "string" && /^[a-f0-9]{40}$/.test(value);
 const record = (value: unknown): Record<string, unknown> | undefined =>
-  value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+  value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
 
-export function reviewGuard(call: Pick<ReviewCall, "name" | "input">) {
-  let available = true;
-  let discovery = true;
-  const input = { ...call.input };
-  const name = call.name;
-  return (event: { toolName: string; input: unknown; parentToolCallId?: string }) => {
-    if (!event.parentToolCallId) {
-      if (event.toolName === "tool_search" && discovery && available) {
-        discovery = false;
-        return;
+export type DirectArpOptions = {
+  endpoint?: string;
+  env?: NodeJS.ProcessEnv;
+  fetchImpl?: typeof fetch;
+  tokenProvider?: (signal: AbortSignal) => Promise<string>;
+};
+
+async function readBoundedText(response: Response, maxBytes: number): Promise<string> {
+  if (!response.body) return "";
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) throw Error("ARP response exceeded the size limit");
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  return new TextDecoder("utf8", { fatal: true }).decode(Buffer.concat(chunks, total));
+}
+
+function parseSseJsonRpc(raw: string, id: number): Record<string, unknown> | undefined {
+  let dataLines: string[] = [];
+  const tryFlush = (): Record<string, unknown> | undefined => {
+    if (!dataLines.length) return undefined;
+    const joined = dataLines.join("\n");
+    dataLines = [];
+    try {
+      const parsed = record(JSON.parse(joined));
+      if (parsed && parsed.jsonrpc === "2.0" && parsed.id === id) return parsed;
+    } catch {
+      // Ignore non-JSON or unrelated SSE events.
+    }
+    return undefined;
+  };
+  for (const line of raw.split(/\r?\n/)) {
+    if (line === "") {
+      const match = tryFlush();
+      if (match) return match;
+    } else if (line.startsWith("data:")) {
+      dataLines.push(line.slice(5).replace(/^ /, ""));
+    }
+  }
+  return tryFlush();
+}
+
+async function fetchDdtoolToken(env: NodeJS.ProcessEnv | undefined, signal: AbortSignal): Promise<string> {
+  try {
+    const { stdout } = await execFileAsync(
+      "ddtool",
+      ["auth", "token", "rapid-ai-devx", "--datacenter", "us1.ddbuild.io"],
+      { encoding: "utf8", env, signal, timeout: MCP_CALL_TIMEOUT_MS, maxBuffer: 64 * 1024 },
+    );
+    const token = stdout.trim();
+    if (!token || /\s/.test(token)) throw Error("invalid");
+    return token;
+  } catch (error) {
+    if (signal.aborted) throw error;
+    // Never include command stdout/stderr in errors: output can contain credentials.
+    throw Error("ARP token command failed. Run `ddtool auth login`.");
+  }
+}
+
+class HttpStatusError extends Error {
+  readonly status: number;
+  constructor(status: number) {
+    super(`ARP HTTP status ${status}`);
+    this.status = status;
+  }
+}
+
+export function createDirectArpCaller(options: DirectArpOptions = {}) {
+  const endpoint = options.endpoint ?? ARP_MCP_URL;
+  const doFetch = options.fetchImpl ?? fetch;
+  const getToken = options.tokenProvider ?? ((signal: AbortSignal) => fetchDdtoolToken(options.env, signal));
+  let token = "";
+  let session = "";
+  let initialized = false;
+  let nextId = 0;
+
+  const redact = (value: string) => (token ? value.replaceAll(token, "[redacted]") : value);
+
+  async function refresh(signal: AbortSignal) {
+    const fresh = (await getToken(signal)).trim();
+    if (!fresh || /\s/.test(fresh)) throw Error("ARP token command returned no token. Run `ddtool auth login`.");
+    token = fresh;
+  }
+
+  async function request(
+    signal: AbortSignal,
+    method: string,
+    params: Record<string, unknown> | undefined,
+    notification: boolean,
+  ): Promise<Record<string, unknown> | undefined> {
+    const id = ++nextId;
+    const body: Record<string, unknown> = { jsonrpc: "2.0", method };
+    if (!notification) body.id = id;
+    if (params !== undefined) body.params = params;
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Accept: "application/json, text/event-stream",
+      Authorization: `Bearer ${token}`,
+    };
+    if (initialized) headers["MCP-Protocol-Version"] = MCP_PROTOCOL_VERSION;
+    if (session) headers["Mcp-Session-Id"] = session;
+
+    let response: Response;
+    try {
+      response = await doFetch(endpoint, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+        redirect: "error",
+        signal,
+      });
+    } catch (error) {
+      if (signal.aborted) throw error;
+      throw Error("ARP MCP endpoint is not reachable");
+    }
+
+    if (!response.ok) {
+      try {
+        await response.body?.cancel();
+      } catch {
+        // Ignore cancellation error on failed response.
       }
-      const args = record(event.input);
-      if (available && event.toolName === name && args && Object.keys(args).length === Object.keys(input).length &&
-          Object.entries(input).every(([key, value]) => args[key] === value)) {
-        // Spend the budget before dispatch, including for sibling calls in the same turn.
-        available = false;
-        return;
+      throw new HttpStatusError(response.status);
+    }
+
+    if (method === "initialize") {
+      session = response.headers.get("mcp-session-id") ?? "";
+    }
+    if (notification) {
+      try {
+        await response.body?.cancel();
+      } catch {
+        // Ignore empty notification body cleanup.
+      }
+      return undefined;
+    }
+
+    const raw = redact(await readBoundedText(response, MAX_MCP_BODY_BYTES));
+    const contentType = response.headers.get("content-type") ?? "";
+    const parsed = contentType.startsWith("text/event-stream")
+      ? parseSseJsonRpc(raw, id)
+      : (() => {
+          try {
+            const obj = record(JSON.parse(raw));
+            return obj && obj.jsonrpc === "2.0" && obj.id === id ? obj : undefined;
+          } catch {
+            return undefined;
+          }
+        })();
+
+    if (!parsed) throw Error("ARP returned a malformed MCP response");
+    if (parsed.error !== undefined && parsed.error !== null) throw Error("ARP returned a JSON-RPC error");
+    const result = record(parsed.result);
+    if (!result) throw Error("ARP returned no MCP result");
+    return result;
+  }
+
+  async function initializedCall(signal: AbortSignal, method: string, params: Record<string, unknown>) {
+    if (!initialized) {
+      const initResult = await request(
+        signal,
+        "initialize",
+        {
+          protocolVersion: MCP_PROTOCOL_VERSION,
+          capabilities: {},
+          clientInfo: { name: "pi-stage-runner", version: "1.0.0" },
+        },
+        false,
+      );
+      if (initResult?.protocolVersion !== MCP_PROTOCOL_VERSION) {
+        throw Error("ARP returned an unsupported MCP protocol version");
+      }
+      await request(signal, "notifications/initialized", undefined, true);
+      initialized = true;
+    }
+    return request(signal, method, params, false);
+  }
+
+  return async function callArp(
+    call: ReviewCall,
+    callerSignal: AbortSignal,
+    wallMs: number,
+  ): Promise<Record<string, unknown> | undefined> {
+    const rawName = call.name.startsWith(TOOL_PREFIX) ? call.name.slice(TOOL_PREFIX.length) : call.name;
+    if (!ALLOWED_RAW_TOOLS.has(rawName) || (rawName === "agentic_review_resolve_finding" && call.input.resolution !== "addressed")) {
+      throw Error("Invalid ARP operation: " + call.name);
+    }
+    const timeoutMs = Math.max(1, Math.min(MCP_CALL_TIMEOUT_MS, wallMs));
+    const signal = AbortSignal.any([callerSignal, AbortSignal.timeout(timeoutMs)]);
+    if (!token) await refresh(signal);
+
+    let renewed = false;
+    let restarted = false;
+    for (;;) {
+      try {
+        const result = await initializedCall(signal, "tools/call", { name: rawName, arguments: call.input });
+        if (!result || result.isError === true) {
+          const content = Array.isArray(result?.content)
+            ? result.content
+                .map((part) => (typeof record(part)?.text === "string" ? String(record(part)?.text) : ""))
+                .filter(Boolean)
+                .join("\n")
+            : "";
+          throw Error(redact(content).slice(0, 500) || `ARP tool ${rawName} returned an error`);
+        }
+        return record(result.structuredContent);
+      } catch (error) {
+        if (callerSignal.aborted) throw error;
+        if (!(error instanceof HttpStatusError)) throw error;
+        if (error.status === 401) {
+          if (renewed) throw Error("ARP authentication failed. Run `ddtool auth login`.");
+          renewed = true;
+          await refresh(signal);
+          continue;
+        }
+        if (error.status === 404 && session && !restarted) {
+          restarted = true;
+          session = "";
+          initialized = false;
+          continue;
+        }
+        if (error.status === 403) throw Error("ARP denied access");
+        if (error.status >= 500) throw Error(`ARP is unavailable (HTTP ${error.status})`);
+        throw error;
       }
     }
-    return { block: true, reason: "Tool call is outside this ARP operation's authorization" } as const;
   };
-}
-
-// Loaded explicitly only by the restricted review child.
-export default function arpGuard(pi: ExtensionAPI) {
-  const file = process.env.PI_STAGE_RUNNER_REVIEW;
-  if (!file) throw Error("Missing ARP authorization");
-  const stat = fs.lstatSync(file);
-  if (!stat.isFile() || stat.mode & 0o077 || stat.uid !== process.getuid?.() || stat.size > 4096)
-    throw Error("Invalid ARP authorization file");
-  const call: ReviewCall = JSON.parse(fs.readFileSync(file, "utf8"));
-  if (![arpTool("get_status"), arpTool("request_review"), arpTool("get_findings"), arpTool("resolve_finding")].includes(call.name) ||
-      (call.name === arpTool("resolve_finding") && call.input.resolution !== "addressed"))
-    throw Error("Invalid ARP operation");
-  pi.on("tool_call", reviewGuard(call));
-}
-
-export function reviewPayload(event: unknown) {
-  const e = record(event);
-  const result = record(record(e?.result)?.structuredContent);
-  if (e?.isError !== false || !result || result.isError === true) return undefined;
-  return record(result.structuredContent);
 }
 
 const complete = new Set([
@@ -101,7 +312,7 @@ export function findingFixes(value: unknown, findings: OpenFinding[]): FindingFi
   return fixes;
 }
 
-type ReviewOptions = {
+export type ReviewOptions = {
   dir: string;
   repo: string;
   number: number;

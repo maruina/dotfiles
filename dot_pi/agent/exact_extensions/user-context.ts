@@ -5,6 +5,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { isPathInside } from "./_shared/fs.ts";
 import { parseGitHubOwnerRepo, selectGitHubLogin } from "./_shared/github.ts";
+import { qualifiedId } from "./_shared/model.ts";
 import { getProfile, type PiProfile } from "./_shared/profile.ts";
 import { buildRexArgs } from "./_shared/rex.ts";
 
@@ -204,19 +205,15 @@ export function uniqueMatches(text: string): string[] {
   return [...new Set(text.match(JIRA_KEY_RE) ?? [])];
 }
 
-export function pathInside(child: string, parent: string): boolean {
-  return isPathInside(parent, child);
-}
-
 export function getWorktreeInfo(root: string, profile: PiProfile = getProfile(), home: string = process.env.HOME ?? ""): string[] {
   const lines: string[] = [];
   const baseRoot = path.join(home, profile === "work" ? "dd" : "src");
   const worktreesRoot = path.join(baseRoot, ".worktrees");
-  if (home && pathInside(root, worktreesRoot)) {
+  if (home && isPathInside(worktreesRoot, root)) {
     lines.push(`- This checkout is in the standard ${profile === "work" ? "DataDog" : "personal"} worktree directory.`);
     lines.push(`- Worktree root: ${root}`);
     lines.push(`- Main checkout convention: ${baseRoot}/<repo>`);
-  } else if (home && pathInside(root, baseRoot)) {
+  } else if (home && isPathInside(baseRoot, root)) {
     lines.push(`- Repository root: ${root}`);
     lines.push(`- Worktree convention: ${worktreesRoot}/<repo>/<branch-slug>`);
   }
@@ -270,10 +267,8 @@ export function formatPR(pr: CurrentPullRequest): string {
 
 export function formatCurrentModel(model?: { provider?: string; id?: string; name?: string }): string[] {
   if (!model?.id) return [];
-  const qualifiedId = model.provider && !model.id.startsWith(`${model.provider}/`)
-    ? `${model.provider}/${model.id}`
-    : model.id;
-  return ["## Current Model", `- ${model.name ?? model.id} (${qualifiedId})`];
+  const fullId = model.provider ? qualifiedId(model.provider, model.id) : model.id;
+  return ["## Current Model", `- ${model.name ?? model.id} (${fullId})`];
 }
 
 export function formatRexContext(output: string): string[] {

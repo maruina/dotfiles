@@ -16,10 +16,16 @@ test("only a settled managed child with its own valid handoff shuts down", (t) =
   for (const managed of [false,true]) {
     for (const k of keys) delete process.env[k];
     if (managed) Object.assign(process.env,{ PI_STAGE_RUNNER_CHILD:"1", PI_DESIGN_STAGE:"design-plan", PI_DESIGN_HANDOFF:file });
-    let count = 0, settled = () => {};
-    stageRunner({registerEntryRenderer() {}, registerCommand() {}, on(name: string, cb: Function) {
-      if (name === "agent_settled") settled = () => cb({}, { shutdown: () => count++ });
-    }} as unknown as ExtensionAPI);
+    let count = 0, settled = () => {}, registeredTools: string[] = [];
+    stageRunner({
+      registerEntryRenderer() {},
+      registerCommand() {},
+      registerTool(def: { name: string }) { registeredTools.push(def.name); },
+      on(name: string, cb: Function) {
+        if (name === "agent_settled") settled = () => cb({}, { shutdown: () => count++ });
+      },
+    } as unknown as ExtensionAPI);
+    assert.equal(registeredTools.includes("submit_stage_handoff"), managed);
     fs.rmSync(file,{force:true}); settled(); assert.equal(count,0);
     for (const content of ["{", JSON.stringify({ schemaVersion:1, stage:"design-draft", summary:"done", designPath:"plans/a/design.md", draftCommit:"a".repeat(40) })]) {
       fs.writeFileSync(file,content,{mode:0o600}); settled(); assert.equal(count,0);

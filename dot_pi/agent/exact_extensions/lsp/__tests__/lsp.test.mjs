@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
+import { isPathInside } from "../../_shared/fs.ts";
 import * as utils from "../utils.ts";
 import * as servers from "../servers.ts";
 import * as transport from "../transport.ts";
@@ -113,8 +114,8 @@ test("workspace root discovery and path containment are project scoped", () => {
 
   assert.equal(utils.findWorkspaceRoot(fileA, config), projectA);
   assert.equal(utils.findWorkspaceRoot(fileB, config), projectB);
-  assert.equal(utils.isInsidePath(fileA, projectA), true);
-  assert.equal(utils.isInsidePath(fileB, projectA), false);
+  assert.equal(isPathInside(projectA, fileA), true);
+  assert.equal(isPathInside(projectA, fileB), false);
 });
 
 test("routes Helm chart files before generic YAML files", () => {

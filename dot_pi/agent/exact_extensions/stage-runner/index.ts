@@ -4,7 +4,8 @@ import { getSupportedThinkingLevels } from "@earendil-works/pi-ai";
 import { VERSION, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { formatProgramStatus, Text, type ProgramStatus, type Terminal } from "@earendil-works/pi-tui";
 import { buildRexArgs, verifyLocalRexEndpoint, verifyLocalRexPeer } from "../_shared/rex.ts";
-import { qualifiedId } from "./_model.ts";
+import { qualifiedId } from "../_shared/model.ts";
+import stageRunnerHandoff from "./_handoff.ts";
 import { handoff, run, runDesign, type Choice, type Phase, type RunnerEvent } from "./_runner.ts";
 
 function deadline(name: string, fallback: number) {
@@ -120,6 +121,7 @@ export function rexActivity(write: (sequence: string) => void) {
 export default function stageRunner(pi: ExtensionAPI) {
   const managedStage = process.env.PI_DESIGN_STAGE, managedFile = process.env.PI_DESIGN_HANDOFF;
   if (process.env.PI_STAGE_RUNNER_CHILD === "1" && managedFile && (managedStage === "design-draft" || managedStage === "design-plan")) {
+    stageRunnerHandoff(pi);
     pi.on("agent_settled", (_, ctx) => {
       try { handoff(managedFile, managedStage); } catch { return; }
       ctx.shutdown();
@@ -167,7 +169,8 @@ export default function stageRunner(pi: ExtensionAPI) {
       let declined = false;
       let outcome = "Run canceled.";
       finished = (async () => {
-        if (VERSION !== "1.6.0") throw Error("Stage runner requires Pi 1.6.0");
+        // deliberate: Gate on Pi 1.6.x minor line so patch releases do not break the runner; widen after testing 1.7+.
+        if (!/^1\.6\./.test(VERSION)) throw Error(`Stage runner requires Pi 1.6.x (found ${VERSION})`);
         await checkRex(pi);
         if (!design) ctx.ui.setWidget(entryType, tui => {
           terminal = tui.terminal;

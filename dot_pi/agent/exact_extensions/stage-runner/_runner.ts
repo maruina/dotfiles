@@ -7,7 +7,7 @@ import { publisher, type Draft } from "./_publish.ts";
 import { findingFixes, fixPrompt, reviewPayload, reviewPublished, type FindingFix, type OpenFinding,
   type ReviewCall, type ReviewClock } from "./_arp.ts";
 import { validateHandoffPayload, type HandoffStage } from "./_handoff.ts";
-import { qualifiedId } from "./_model.ts";
+import { qualifiedId } from "../_shared/model.ts";
 import { recovery, sessionInfo } from "./_recovery.ts";
 
 type Stage = "execute" | "simplify" | "verify";
@@ -67,10 +67,15 @@ const id = (m: Choice) => qualifiedId(m.provider, m.id);
 const privateFile = (file: string, value: string | Buffer) =>
   fs.writeFileSync(file, value, { mode: 0o600, flag: "wx" });
 
+function gatewayExtensionPath(env: NodeJS.ProcessEnv): string {
+  return path.join(env.HOME ?? "", "go/src/github.com/DataDog/datadog-pi-packages/packages/dd-ai-gateway/extensions/dd-ai-gateway/index.ts");
+}
+
 function workExtensions(env: NodeJS.ProcessEnv, includeWriterGuardrails = false): string[] {
-  const gateway = path.join(env.HOME ?? "", "go/src/github.com/DataDog/datadog-pi-packages/packages/dd-ai-gateway/extensions/dd-ai-gateway/index.ts");
-  const sessionId = path.resolve(import.meta.dirname, "../pi-client-session-id/index.ts");
-  const base = [gateway, sessionId];
+  const base = [
+    gatewayExtensionPath(env),
+    path.resolve(import.meta.dirname, "../pi-client-session-id/index.ts"),
+  ];
   if (!includeWriterGuardrails) return base;
   return [
     ...base,
@@ -79,22 +84,19 @@ function workExtensions(env: NodeJS.ProcessEnv, includeWriterGuardrails = false)
   ];
 }
 
-function stageChildExtensions(
+export function stageChildExtensions(
   env: NodeJS.ProcessEnv,
   stage: Stage | "startup-check" | "design-review",
 ): string[] {
-  const gateway = path.join(env.HOME ?? "", "go/src/github.com/DataDog/datadog-pi-packages/packages/dd-ai-gateway/extensions/dd-ai-gateway/index.ts");
   const candidates = [
-    ...(fs.existsSync(gateway) ? [gateway] : []),
+    gatewayExtensionPath(env),
     path.resolve(import.meta.dirname, "../pi-client-session-id/index.ts"),
     path.resolve(import.meta.dirname, "./_handoff.ts"),
     path.resolve(import.meta.dirname, "../user-context.ts"),
     path.resolve(import.meta.dirname, "../context-kit/index.ts"),
     path.resolve(import.meta.dirname, "../cost-optimization.ts"),
+    path.resolve(import.meta.dirname, "../compute-guardrails.ts"),
   ];
-  if (stage === "execute" || stage === "simplify") {
-    candidates.push(path.resolve(import.meta.dirname, "../compute-guardrails.ts"));
-  }
   if (stage === "execute" || stage === "simplify" || stage === "verify") {
     candidates.push(path.resolve(import.meta.dirname, "../lsp/index.ts"));
   }
@@ -143,7 +145,7 @@ async function designStages(o: DesignOptions, dir: string, start: string, git: (
     manual: (cmd, display) => { if (display) o.notify?.(cmd); else privateFile(path.join(f, "manual-command"), cmd); } });
   const pane = async (f: string, stage: "design-draft" | "design-plan", prompt: string, args: string[], input: Record<string, string>) => {
     const out = path.join(f, "handoff.json");
-    const argv = paneArgv(o, o.author, [...args, prompt + " Stay in the current worktree and branch. Write a 0600 UTF-8 JSON handoff <=64 KiB to PI_DESIGN_HANDOFF with schemaVersion:1, stage:" + stage + ", nonblank summary and the required revision fields."], { PI_DESIGN_HANDOFF: out, PI_DESIGN_STAGE: stage, ...input });
+    const argv = paneArgv(o, o.author, [...args, prompt + " Stay in the current worktree and branch. Submit the handoff with submit_stage_handoff (or write a 0600 UTF-8 JSON handoff <=64 KiB to PI_DESIGN_HANDOFF with schemaVersion:1, stage:" + stage + ", nonblank summary and the required revision fields)."], { PI_DESIGN_HANDOFF: out, PI_DESIGN_STAGE: stage, ...input });
     o.progress("Starting " + stage + "; evidence " + f);
     await openPane(f, argv);
     signal.throwIfAborted(); clean(); return handoff(out, stage);
@@ -280,7 +282,6 @@ async function attempt(o: Pick<Options, "models" | "env" | "executable" | "prefi
     started = Date.now();
   // Inherit a private umask for session files that Pi creates without an explicit mode.
   const env: NodeJS.ProcessEnv = { ...(o.env ?? process.env), PI_STAGE_RUNNER_CHILD: "1" };
-  delete env.PI_LIFECYCLE_CHILD_CONFIG;
   delete env.PI_STAGE_RUNNER_REVIEW;
   delete env.PI_STAGE_RUNNER_HANDOFF;
   delete env.PI_STAGE_RUNNER_STAGE;
@@ -312,6 +313,9 @@ async function attempt(o: Pick<Options, "models" | "env" | "executable" | "prefi
   } else if (stage !== "arp-review") {
     extra.push("--no-extensions",
       ...stageChildExtensions(env, stage).flatMap(ext => ["--extension", ext]));
+    if (stage === "verify" || stage === "startup-check") {
+      extra.push("--exclude-tools", "write,edit");
+    }
   }
   const mask = process.umask(0o077);
   const child = (() => {
@@ -492,7 +496,7 @@ function paneArgv(o: Pick<Options, "env" | "prefix">, model: Choice, args: strin
   const agentDir = (o.env ?? process.env).PI_CODING_AGENT_DIR;
   const vars = { ...(agentDir ? { PI_CODING_AGENT_DIR: agentDir } : {}), PI_STAGE_RUNNER_CHILD: "1", ...managed };
   return [process.execPath, "--import", "data:text/javascript," + encodeURIComponent(
-    "process.umask(0o077);delete process.env.PI_LIFECYCLE_CHILD_CONFIG;delete process.env.GH_TOKEN;delete process.env.GITHUB_TOKEN;delete process.env.PI_STAGE_RUNNER_HANDOFF;delete process.env.PI_STAGE_RUNNER_STAGE;delete process.env.PI_DESIGN_STAGE;delete process.env.PI_DESIGN_HANDOFF;delete process.env.PI_DESIGN_INPUT;delete process.env.PI_DESIGN_BRIEF;Object.assign(process.env," + JSON.stringify(vars) + ")"),
+    "process.umask(0o077);delete process.env.GH_TOKEN;delete process.env.GITHUB_TOKEN;delete process.env.PI_STAGE_RUNNER_HANDOFF;delete process.env.PI_STAGE_RUNNER_STAGE;delete process.env.PI_DESIGN_STAGE;delete process.env.PI_DESIGN_HANDOFF;delete process.env.PI_DESIGN_INPUT;delete process.env.PI_DESIGN_BRIEF;Object.assign(process.env," + JSON.stringify(vars) + ")"),
     ...(o.prefix ?? [process.argv[1]]), "--provider", model.provider, "--model", model.id, "--thinking", model.thinking, ...args];
 }
 
@@ -695,7 +699,7 @@ async function supervise(o: Options | DesignOptions) {
         if (git("rev-parse", "HEAD") !== rebased) throw Error("Startup checker changed HEAD");
         const verdict = handoff(out, "startup-check");
         if (verdict.head !== rebased || verdict.planBlob !== blob) throw Error("Startup verdict does not match the rebased snapshot");
-        if (verdict.status === "blocked") throw Error("Startup check blocked: " + safe(verdict.reason));
+        if (verdict.status === "blocked") throw Error("Startup check blocked: " + safe(String(verdict.reason)));
         signal.throwIfAborted();
         base = rebased;
         privateFile(path.join(dir, "startup.json"), JSON.stringify({ base, verdict }));
@@ -796,7 +800,7 @@ async function supervise(o: Options | DesignOptions) {
         try {
           await attempt(o, stage, folder, prompt, signal, undefined, undefined, out);
           const h = handoff(out, stage);
-          if (!["success", "VERIFIED"].includes(h.status)) throw Error(JSON.stringify(h));
+          if (typeof h.status !== "string" || !["success", "VERIFIED"].includes(h.status)) throw Error(JSON.stringify(h));
           if (stage === "verify") verificationEvidence = JSON.stringify(h);
           if (stage !== "verify") clean();
           if (stage === "execute") committedProgress(git("rev-parse", "HEAD"));

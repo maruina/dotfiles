@@ -14,7 +14,7 @@ import stageRunner, { phaseDisplay, rexActivity } from "./index.ts";
 import { sessionInfo } from "./_recovery.ts";
 import { arpTool, createDirectArpCaller, reviewPublished } from "./_arp.ts";
 
-test("Rex activity writes only bounded child records on transitions", () => {
+test("Rex activity writes spec-compliant bounded OSC 7501 child records on transitions", () => {
   const writes: string[] = [];
   const activity = rexActivity(sequence => writes.push(sequence));
   const prev = process.env.PI_PROGRAM_STATUS;
@@ -31,20 +31,40 @@ test("Rex activity writes only bounded child records on transitions", () => {
     activity.recovery(recoveryMessage);
     activity.permission("approve");
     activity.phase("verify");
-    for (const state of ["done", "error", "idle", "clear"] as const) activity.end(state);
-    const expected = (state: string, message = "", kind = "") => `\x1b]7501;state=${state}:id=stage-runner:app=pi-stage-runner${kind && ":kind=" + kind}${message && ":msg=" + Buffer.from(message).toString("base64")}\x1b\\`;
-    assert.deepEqual(writes, [expected("blocked", "confirm", "permission"), expected("working", "startup"), expected("working", "execute"),
-      expected("blocked", recoveryMessage, "question"), expected("blocked", "approve", "permission"), expected("working", "verify"),
-      ...["done", "error", "idle", "clear"].map(s => expected(s))]);
+    activity.working("design-review", 50);
+    activity.end("done", "Run complete");
+    activity.end("error", "Run stopped");
+    activity.end("clear");
+    const title = Buffer.from("Stage runner").toString("base64");
+    const expected = (state: string, opts: { message?: string; kind?: string; progress?: number } = {}) => {
+      if (state === "clear") return "\x1b]7501;state=clear:id=stage-runner\x1b\\";
+      const pairs = [`state=${state}`, "id=stage-runner", "app=pi-stage-runner", `title=${title}`];
+      if (opts.kind) pairs.push(`kind=${opts.kind}`);
+      if (opts.progress !== undefined) pairs.push(`progress=${opts.progress}`);
+      if (opts.message) pairs.push(`msg=${Buffer.from(opts.message).toString("base64")}`);
+      return `\x1b]7501;${pairs.join(":")}\x1b\\`;
+    };
+    assert.deepEqual(writes, [
+      expected("blocked", { message: "confirm", kind: "permission" }),
+      expected("working", { message: "startup", progress: 5 }),
+      expected("working", { message: "execute", progress: 30 }),
+      expected("blocked", { message: recoveryMessage, kind: "question" }),
+      expected("blocked", { message: "approve", kind: "permission" }),
+      expected("working", { message: "verify", progress: 80 }),
+      expected("working", { message: "design-review", progress: 50 }),
+      expected("done", { message: "Run complete" }),
+      expected("error", { message: "Run stopped" }),
+      expected("clear"),
+    ]);
     activity.permission("a\x1bb" + "é".repeat(2048));
-    assert.equal(writes.at(-1), expected("blocked", "a b" + "é".repeat(1022), "permission"));
+    assert.equal(writes.at(-1), expected("blocked", { message: "a b" + "é".repeat(1022), kind: "permission" }));
   } finally {
     if (prev === undefined) delete process.env.PI_PROGRAM_STATUS;
     else process.env.PI_PROGRAM_STATUS = prev;
   }
 });
 
-test("shutdown clears the runner record after cancellation removes its widget", async t => {
+test("cancellation clears the runner child record and removes its widget", async t => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "rex-"));
   const server = createServer();
   const socket = path.join(dir, "r");
@@ -75,9 +95,9 @@ test("shutdown clears the runner record after cancellation removes its widget", 
     },
   } });
   await cleared;
-  assert.deepEqual(writes, ["\x1b]7501;state=idle:id=stage-runner:app=pi-stage-runner\x1b\\"]);
+  assert.deepEqual(writes, ["\x1b]7501;state=clear:id=stage-runner\x1b\\"]);
   await shutdown();
-  assert.equal(writes.at(1), "\x1b]7501;state=clear:id=stage-runner:app=pi-stage-runner\x1b\\");
+  assert.equal(writes.length, 1, "duplicate clear on shutdown is deduplicated");
 });
 
 test("active slice follows committed progress within and across slices", () => {

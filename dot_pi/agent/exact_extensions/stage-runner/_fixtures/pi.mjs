@@ -49,10 +49,15 @@ if (drafting) {
     fs.writeFileSync(process.env.ARGV_LOG + ".draft-ready", "ready");
     await new Promise(resolve => setTimeout(resolve, 30000));
   }
-  const draft = fail === "draft-malformed" ? "not JSON" : JSON.stringify({
-    title: "Explain the verified feature",
-    body: fail === "draft-oversized" ? "x".repeat(70000) : "## What is this PR?\nFixture explanation.",
-  });
+  const draft =
+    fail === "draft-malformed"
+      ? "not JSON"
+      : fail === "draft-blocked"
+        ? JSON.stringify({ blocked: "diff could not be read" })
+        : JSON.stringify({
+            title: "Explain the verified feature",
+            body: fail === "draft-oversized" ? "x".repeat(70000) : "## What is this PR?\nFixture explanation.",
+          });
   console.log(JSON.stringify({ type: "session", id: "fixture-draft" }));
   console.log(JSON.stringify({ type: "message_end", message: { role: "assistant", stopReason: "stop",
     content: [{ type: "text", text: draft }] } }));

@@ -11,7 +11,7 @@ import { createServer } from "node:net";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import stageRunner, { phaseDisplay, rexActivity } from "./index.ts";
 import { sessionInfo } from "./_recovery.ts";
-import { arpTool, reviewGuard, reviewPublished } from "./_arp.ts";
+import { arpTool, createDirectArpCaller, reviewPublished } from "./_arp.ts";
 
 test("Rex activity writes only bounded child records on transitions", () => {
   const writes: string[] = [];
@@ -132,38 +132,93 @@ test("phase ticks update only the widget and exit freezes the total", (t) => {
   assert.deepEqual(entries, ["stopped | startup 00:01 · execute 00:02 · verify 00:01"]);
 });
 
-test("ARP discovery does not authorize other calls or replenish the request budget", () => {
-  const name = arpTool("request_review");
-  const input = { owner: "fixture", repo: "demo", pull_number: 1, action: "retry", silent: true,
-    expected_head_sha: "a".repeat(40) };
-  const guard = reviewGuard({ name, input });
-  const dispatched: string[] = [];
-  function dispatch(toolName: string, args: object, parentToolCallId?: string) {
-    if (!guard({ toolName, input: args, parentToolCallId })) dispatched.push(toolName);
-  }
-  dispatch("tool_search", { query: name });
-  for (const [key, value] of Object.entries({
-    owner: "other", repo: "other", pull_number: 2, action: "review_anyway", silent: false,
-    expected_head_sha: "b".repeat(40), unexpected: true,
-  })) dispatch(name, { ...input, [key]: value });
-  for (const blocked of ["bash", "write", "codemode", arpTool("get_status"), "mcp__agentic_review__agentic_review_resolve_finding"])
-    dispatch(blocked, input);
-  dispatch(name, input, "parent");
-  dispatch(name, input);
-  dispatch(name, input);
-  assert.deepEqual(dispatched, ["tool_search", name]);
-});
+test("createDirectArpCaller initializes Streamable HTTP MCP, handles JSON/SSE, refreshes on 401, resets on 404, and redacts tokens", async () => {
+  const seen: Array<{ method: string; auth: string | null; session: string | null; rawTool?: string }> = [];
+  let tokenCount = 0;
+  let expiredOnce = false;
+  let resetOnce = false;
+  const fetchImpl: typeof fetch = async (_url, init) => {
+    const headers = init?.headers as Record<string, string>;
+    const body = JSON.parse(String(init?.body ?? "{}"));
+    seen.push({
+      method: body.method,
+      auth: headers.Authorization ?? null,
+      session: headers["Mcp-Session-Id"] ?? null,
+      rawTool: body.params?.name,
+    });
+    if (body.method === "initialize") {
+      return new Response(
+        JSON.stringify({ jsonrpc: "2.0", id: body.id, result: { protocolVersion: "2025-03-26" } }),
+        { status: 200, headers: { "Content-Type": "application/json", "Mcp-Session-Id": `sess-${seen.length}` } },
+      );
+    }
+    if (body.method === "notifications/initialized") {
+      return new Response(null, { status: 202 });
+    }
+    if (body.params?.name === "agentic_review_get_status" && !expiredOnce) {
+      expiredOnce = true;
+      return new Response("unauthorized", { status: 401 });
+    }
+    if (body.params?.name === "agentic_review_get_findings" && !resetOnce) {
+      resetOnce = true;
+      return new Response("not found", { status: 404 });
+    }
+    if (body.params?.name === "agentic_review_get_findings") {
+      const sse = `event: message\ndata: ${JSON.stringify({
+        jsonrpc: "2.0",
+        id: body.id,
+        result: { isError: false, structuredContent: { scope: "pull_request", findings: [], echo: "tok-2" } },
+      })}\n\n`;
+      return new Response(sse, { status: 200, headers: { "Content-Type": "text/event-stream" } });
+    }
+    return new Response(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        id: body.id,
+        result: { isError: false, structuredContent: { status: "REVIEW_STATUS_NO_ISSUES_FOUND", head_sha: "a".repeat(40) } },
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  };
+  const callArp = createDirectArpCaller({
+    endpoint: "https://arp.test/internal/mcp",
+    fetchImpl,
+    tokenProvider: async () => `tok-${++tokenCount}`,
+  });
+  const signal = new AbortController().signal;
+  const status = await callArp(
+    { name: arpTool("get_status"), head: "a".repeat(40), input: { owner: "ddoghq", repo: "demo", pull_number: 1 } },
+    signal,
+    5000,
+  );
+  assert.equal(status?.status, "REVIEW_STATUS_NO_ISSUES_FOUND");
+  assert.equal(tokenCount, 2, "must refresh token once on 401");
 
-test("ARP settlement authorization binds one addressed call to the exact fix", () => {
-  const name = arpTool("resolve_finding");
-  const input = { owner: "fixture", repo: "demo", finding_id: 42, resolution: "addressed",
-    fix_commit_sha: "a".repeat(40), fix_change_summary: "Keep the lock", reason: "Verified fix" };
-  const guard = reviewGuard({ name, input });
-  for (const wrong of [{ resolution: "invalid" }, { finding_id: 43 }, { fix_commit_sha: "b".repeat(40) }]) {
-    assert.ok(guard({ toolName: name, input: { ...input, ...wrong } })?.block);
-  }
-  assert.equal(guard({ toolName: name, input }), undefined);
-  assert.ok(guard({ toolName: name, input })?.block);
+  const findings = await callArp(
+    { name: arpTool("get_findings"), head: "a".repeat(40), input: { owner: "ddoghq", repo: "demo", pull_number: 1, status: "open" } },
+    signal,
+    5000,
+  );
+  assert.equal(findings?.scope, "pull_request");
+  assert.equal(findings?.echo, "[redacted]", "must redact bearer token from response text");
+  assert.equal(seen.filter((s) => s.method === "initialize").length, 2, "must re-initialize once after 404");
+
+  await assert.rejects(
+    () => callArp(
+      { name: arpTool("resolve_finding"), head: "a".repeat(40), input: { resolution: "invalid" } },
+      signal,
+      5000,
+    ),
+    /Invalid ARP operation/,
+  );
+  await assert.rejects(
+    () => callArp(
+      { name: "mcp__agentic_review__evil_tool", head: "a".repeat(40), input: {} },
+      signal,
+      5000,
+    ),
+    /Invalid ARP operation/,
+  );
 });
 
 for (const outcome of ["matching", "dismissed", "wrong-sha", "drift"] as const) {

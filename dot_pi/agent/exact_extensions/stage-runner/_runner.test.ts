@@ -5,7 +5,8 @@ import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { activeSlice, events, validate, preflight, prune, runDesign } from "./_runner.ts";
+import { activeSlice, events, validate, preflight, prepareDraft, prune, runDesign } from "./_runner.ts";
+import { getProfile } from "../_shared/profile.ts";
 
 import { createServer } from "node:net";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -360,4 +361,70 @@ test("preflight ignores checkboxes and ledger markers inside fenced code blocks"
   ].join("\n");
   assert.doesNotThrow(() => preflight(plan, ["a", "a", "b"], false));
   assert.throws(() => preflight("```md\n- [ ] only fenced\n```", ["a", "a", "b"], false));
+});
+
+test("prepareDraft writes large (>120 KiB) evidence to a private 0600 file instead of argv", async (t) => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "stage-runner-draft-"));
+  t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+  const draftDir = path.join(tmp, "draft");
+  fs.mkdirSync(draftDir, { mode: 0o700 });
+  const fakePi = path.join(tmp, "fake-pi.mjs");
+  const promptOut = path.join(tmp, "prompt.txt");
+  fs.writeFileSync(
+    fakePi,
+    `import * as fs from "node:fs";
+const prompt = process.argv.at(-1);
+fs.writeFileSync(${JSON.stringify(promptOut)}, prompt);
+const reply = JSON.stringify({ title: "Large diff draft", body: "## What is this PR?\\nSummary." });
+console.log(JSON.stringify({ type: "session", id: "draft-large" }));
+console.log(JSON.stringify({ type: "message_end", message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: reply }] } }));
+console.log(JSON.stringify({ type: "agent_settled", aborted: false }));
+`,
+  );
+  const largeDiff = "diff --git a/big.txt b/big.txt\n" + "+".repeat(150 * 1024);
+  const choice = { provider: "p", id: "m", thinking: "low" };
+  const draft = await prepareDraft(
+    {
+      cwd: tmp,
+      plan: path.join(tmp, "plans/demo/plan.md"),
+      root: tmp,
+      models: { execute: choice, simplify: choice, verify: choice },
+      signal: new AbortController().signal,
+      onEvent: () => {},
+      confirm: async () => true,
+      executable: process.execPath,
+      prefix: [fakePi],
+    },
+    draftDir,
+    {
+      repo: "owner/repo",
+      head: "a".repeat(40),
+      baseTip: "b".repeat(40),
+      mergeBase: "c".repeat(40),
+      plan: "plans/demo/plan.md",
+      diff: largeDiff,
+      verification: JSON.stringify({ status: "VERIFIED", summary: "ok" }),
+    },
+    new AbortController().signal,
+    false,
+  );
+  assert.deepEqual(draft, { title: "Large diff draft", body: "## What is this PR?\nSummary." });
+  const evidencePath = path.join(draftDir, "evidence.json");
+  assert.equal(fs.statSync(evidencePath).mode & 0o777, 0o600);
+  const prompt = fs.readFileSync(promptOut, "utf8");
+  assert.ok(Buffer.byteLength(prompt) < 32 * 1024);
+  assert.ok(prompt.includes(evidencePath));
+  assert.equal(JSON.parse(fs.readFileSync(evidencePath, "utf8")).diff.length, largeDiff.length);
+});
+
+test("getProfile validates an explicit profilePath strictly", (t) => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "profile-test-"));
+  t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+  const personalPath = path.join(tmp, "personal.json");
+  const invalidPath = path.join(tmp, "invalid.json");
+  fs.writeFileSync(personalPath, JSON.stringify({ profile: "personal" }));
+  fs.writeFileSync(invalidPath, JSON.stringify({ profile: "other" }));
+  assert.equal(getProfile({ PI_PROFILE: "work" }, personalPath), "personal");
+  assert.throws(() => getProfile({}, invalidPath), /Unknown publication profile/);
+  assert.throws(() => getProfile({}, path.join(tmp, "missing.json")));
 });

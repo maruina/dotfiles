@@ -59,30 +59,80 @@ const SOURCE_NAMES = [
   "checks",
 ];
 
+const DEFAULT_TIMEOUT_MS = 60_000;
+const DEFAULT_MAX_STDOUT_BYTES = 32 * 1024 * 1024;
+const KILL_GRACE_MS = 2_000;
+
+function positiveIntEnv(name, fallback) {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  const value = Number(raw);
+  return Number.isSafeInteger(value) && value > 0 ? value : fallback;
+}
+
 function runGh(args, { allowPendingExit = false, token } = {}) {
   return new Promise((resolve) => {
+    const timeoutMs = positiveIntEnv("PR_VALIDATE_GH_TIMEOUT_MS", DEFAULT_TIMEOUT_MS);
+    const maxBytes = positiveIntEnv("PR_VALIDATE_GH_MAX_BYTES", DEFAULT_MAX_STDOUT_BYTES);
     let child;
     const chunks = [];
+    let totalBytes = 0;
+    let abortedError = null;
+    let settled = false;
+    let timeoutTimer = null;
+    let killTimer = null;
     const env = scrubbedGhEnv(process.env, token);
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      if (timeoutTimer) clearTimeout(timeoutTimer);
+      if (killTimer) clearTimeout(killTimer);
+      resolve(result);
+    };
+    const terminate = (errorCode) => {
+      if (abortedError) return;
+      abortedError = errorCode;
+      chunks.length = 0;
+      try { child.kill("SIGTERM"); } catch { /* Process already exited. */ }
+      killTimer = setTimeout(() => {
+        try { child.kill("SIGKILL"); } catch { /* Process already exited. */ }
+      }, KILL_GRACE_MS);
+      killTimer.unref?.();
+    };
     try {
       child = spawn("gh", args, {
         env,
         stdio: ["ignore", "pipe", "ignore"],
       });
     } catch (error) {
-      resolve({ ok: false, error: spawnErrorCode(error) });
+      finish({ ok: false, error: spawnErrorCode(error) });
       return;
     }
 
-    child.stdout.on("data", (chunk) => chunks.push(chunk));
-    child.once("error", (error) => resolve({ ok: false, error: spawnErrorCode(error) }));
-    child.once("close", (code, signal) => {
-      const output = Buffer.concat(chunks).toString("utf8");
-      if (code === 0 || (allowPendingExit && code === 8)) {
-        resolve({ ok: true, output, exitCode: code });
+    timeoutTimer = setTimeout(() => terminate("timeout"), timeoutMs);
+    timeoutTimer.unref?.();
+
+    child.stdout.on("data", (chunk) => {
+      if (abortedError) return;
+      totalBytes += chunk.byteLength;
+      if (totalBytes > maxBytes) {
+        terminate("output_too_large");
         return;
       }
-      resolve({ ok: false, error: signal ? `signal_${signal}` : `gh_exit_${code ?? "unknown"}` });
+      chunks.push(chunk);
+    });
+    child.once("error", (error) => finish({ ok: false, error: abortedError ?? spawnErrorCode(error) }));
+    child.once("close", (code, signal) => {
+      if (abortedError) {
+        finish({ ok: false, error: abortedError });
+        return;
+      }
+      const output = Buffer.concat(chunks, totalBytes).toString("utf8");
+      if (code === 0 || (allowPendingExit && code === 8)) {
+        finish({ ok: true, output, exitCode: code });
+        return;
+      }
+      finish({ ok: false, error: signal ? `signal_${signal}` : `gh_exit_${code ?? "unknown"}` });
     });
   });
 }

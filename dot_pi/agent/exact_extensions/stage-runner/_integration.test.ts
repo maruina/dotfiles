@@ -821,10 +821,17 @@ for (const failure of [
       assert.equal(argv![argv!.indexOf("--tools") + 1], "read");
       assert.ok(argv!.includes("--no-extensions"));
       const prompt = argv!.at(-1)!;
-      assert.match(prompt, /diff --git a\/before-startup b\/before-startup/);
-      assert.match(prompt, /\+end of large patch/);
-      assert.doesNotMatch(prompt, /diff --git a\/base-only b\/base-only/);
-      assert.ok(prompt.includes(git("rev-parse", "main").toString().trim()));
+      const draftEvidencePath = path.join(options.root, bundle, "draft", "evidence.json");
+      assert.equal(fs.statSync(draftEvidencePath).mode & 0o777, 0o600);
+      assert.ok(prompt.includes(draftEvidencePath));
+      const draftEvidence = JSON.parse(fs.readFileSync(draftEvidencePath, "utf8")) as {
+        diff: string;
+        baseTip: string;
+      };
+      assert.match(draftEvidence.diff, /diff --git a\/before-startup b\/before-startup/);
+      assert.match(draftEvidence.diff, /\+end of large patch/);
+      assert.doesNotMatch(draftEvidence.diff, /diff --git a\/base-only b\/base-only/);
+      assert.equal(draftEvidence.baseTip, git("rev-parse", "main").toString().trim());
       const create = JSON.parse(fs.readFileSync(bare + ".pr.argv", "utf8"));
       assert.equal(create[create.indexOf("--title") + 1], "Explain the verified feature");
       assert.equal(create[create.indexOf("--body") + 1], "## What is this PR?\nFixture explanation.");

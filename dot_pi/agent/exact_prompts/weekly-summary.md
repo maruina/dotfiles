@@ -56,7 +56,7 @@ Prioritize:
 4. in-progress work
 5. invisible work such as reviews and support
 
-## Phase 7: Draft the weekly page
+## Phase 6: Draft the weekly page
 
 Use this structure:
 
@@ -92,7 +92,7 @@ Style rules:
 - If evidence is weak, phrase conservatively.
 - Keep pi-session-only details as drafts or candidate bullets unless the user confirms them.
 
-## Phase 8: Save to Obsidian
+## Phase 7: Save to Obsidian
 
 Write the final draft to:
 

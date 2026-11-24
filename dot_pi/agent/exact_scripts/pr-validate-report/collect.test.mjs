@@ -91,6 +91,10 @@ if (source === "metadata" && process.env.FAKE_GH_SCENARIO === "missing-changed-f
   process.stdout.write(JSON.stringify(pages.metadata));
 } else if (source === "diff" && process.env.FAKE_GH_SCENARIO === "large-diff") {
   process.stdout.write("diff --git a/large b/large\n" + "+".repeat(2 * 1024 * 1024));
+} else if (source === "diff" && process.env.FAKE_GH_SCENARIO === "timeout-diff") {
+  setTimeout(() => {}, 10_000);
+} else if (source === "diff" && process.env.FAKE_GH_SCENARIO === "oversized-diff") {
+  process.stdout.write("diff --git a/huge b/huge\n" + "+".repeat(256 * 1024));
 } else if (source === "reviewThreads" && process.env.FAKE_GH_SCENARIO === "nested-thread-pagination") {
   pages.reviewThreads[0].data.repository.pullRequest.reviewThreads.nodes[0].comments.pageInfo.hasNextPage = true;
   process.stdout.write(JSON.stringify([pages.reviewThreads[0]]));
@@ -283,6 +287,30 @@ test("large diffs are collected without the execFile default buffer limit", (t) 
   const { result } = runCollector(t, ["https://github.com/example-org/example-repo/pull/42"], "large-diff");
   assert.equal(result.status, 0, result.stderr);
   assert.equal(JSON.parse(result.stdout).diff.length, "diff --git a/large b/large\n".length + 2 * 1024 * 1024);
+});
+
+test("a hung gh call times out without failing other sources", (t) => {
+  const { result } = runCollector(t, ["https://github.com/example-org/example-repo/pull/42"], "timeout-diff", {
+    PR_VALIDATE_GH_TIMEOUT_MS: "150",
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const evidence = JSON.parse(result.stdout);
+  assert.equal(evidence.collection.status, "partial");
+  assert.deepEqual(evidence.collection.sources.diff, { status: "unavailable", error: "timeout" });
+  assert.equal(evidence.collection.sources.metadata.status, "complete");
+  assert.equal(evidence.diff, null);
+});
+
+test("oversized gh stdout fails the source cleanly without buffering unbounded data", (t) => {
+  const { result } = runCollector(t, ["https://github.com/example-org/example-repo/pull/42"], "oversized-diff", {
+    PR_VALIDATE_GH_MAX_BYTES: "65536",
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const evidence = JSON.parse(result.stdout);
+  assert.equal(evidence.collection.status, "partial");
+  assert.deepEqual(evidence.collection.sources.diff, { status: "unavailable", error: "output_too_large" });
+  assert.equal(evidence.collection.sources.metadata.status, "complete");
+  assert.equal(evidence.diff, null);
 });
 
 test("invalid PR URLs fail before invoking gh or emitting evidence", (t) => {

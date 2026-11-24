@@ -166,8 +166,9 @@ export default function (pi: ExtensionAPI) {
 					const statuses = footerData.getExtensionStatuses();
 					const costStatus = statuses.get("session-cost");
 					const costText = costStatus ?? theme.fg("dim", "$—");
+					const prStatus = statuses.get("pr-status");
 					const otherStatuses = [...statuses.entries()]
-						.filter(([key, value]) => key !== "session-cost" && Boolean(value))
+						.filter(([key, value]) => key !== "session-cost" && key !== "pr-status" && Boolean(value))
 						.map(([, value]) => theme.fg("dim", value));
 
 					const usageParts = [
@@ -183,7 +184,14 @@ export default function (pi: ExtensionAPI) {
 					const llmInfo = theme.fg("accent", llm);
 					const usage = usageParts.join("  ");
 
-					return [renderLine(left, right, width), renderLine(llmInfo, usage, width)];
+					const lines = [renderLine(left, right, width), renderLine(llmInfo, usage, width)];
+					if (prStatus) {
+						const split = prStatus.indexOf("\t");
+						const prLeft = split < 0 ? prStatus : prStatus.slice(0, split);
+						const prRight = split < 0 ? "" : prStatus.slice(split + 1);
+						lines.push(renderLine(prLeft, prRight, width));
+					}
+					return lines;
 				},
 			};
 		});

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isWorkGitHubOrg, parseGitHubOwnerRepo, scrubbedGhEnv, selectGitHubLogin } from "./github.ts";
+import { isWorkGitHubOrg, parseGitHubOwnerRepo, routedGhEnv, scrubbedGhEnv, selectGitHubLogin } from "./github.ts";
 
 test("parseGitHubOwnerRepo parses HTTPS, SCP, and SSH GitHub remotes and rejects traversal", () => {
   assert.deepEqual(parseGitHubOwnerRepo("git@github.com:maruina/dotfiles.git"), { owner: "maruina", repo: "dotfiles" });
@@ -29,4 +29,27 @@ test("scrubbedGhEnv clears ambient tokens and sets GH_HOST and optional token", 
   assert.equal(clean.GH_HOST, "github.com");
   assert.equal(clean.GH_PROMPT_DISABLED, "1");
   assert.equal(scrubbedGhEnv(base, "fresh").GH_TOKEN, "fresh");
+});
+
+test("routedGhEnv reads the work login token with a scrubbed environment", async () => {
+  const baseEnv = { PATH: "/usr/bin", GH_TOKEN: "old", GITHUB_TOKEN: "old2" };
+  const clean = { PATH: "/usr/bin", GH_HOST: "github.com", GH_PROMPT_DISABLED: "1" };
+  let calls = 0;
+  const env = await routedGhEnv("ddoghq", "work", async (...args) => {
+    calls++;
+    assert.deepEqual(args, ["gh", ["auth", "token", "--hostname", "github.com", "--user", "matteo-ruina_ddog"], "/repo", 3000, clean]);
+    return "test-token";
+  }, { cwd: "/repo", baseEnv });
+  assert.equal(calls, 1);
+  assert.deepEqual(env, { ...clean, GH_TOKEN: "test-token" });
+});
+
+test("routedGhEnv skips personal auth and returns no env when work auth fails", async () => {
+  const opts = { cwd: "/repo", timeoutMs: 10000, baseEnv: {} };
+  assert.equal(await routedGhEnv("maruina", "personal", () => assert.fail("unexpected subprocess"), opts), undefined);
+  assert.equal(await routedGhEnv("maruina", "work", async (_command, args, _cwd, timeout) => {
+    assert.equal(args.at(-1), "maruina");
+    assert.equal(timeout, 10000);
+    return null;
+  }, opts), undefined);
 });

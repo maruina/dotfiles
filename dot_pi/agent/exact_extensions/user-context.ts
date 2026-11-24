@@ -4,7 +4,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
 import { isPathInside } from "./_shared/fs.ts";
-import { parseGitHubOwnerRepo, scrubbedGhEnv, selectGitHubLogin } from "./_shared/github.ts";
+import { parseGitHubOwnerRepo, routedGhEnv, selectGitHubLogin } from "./_shared/github.ts";
 import { qualifiedId } from "./_shared/model.ts";
 import { getProfile, type PiProfile } from "./_shared/profile.ts";
 import { buildRexArgs } from "./_shared/rex.ts";
@@ -180,11 +180,7 @@ async function getGitHubEnv(cwd: string, profile: PiProfile): Promise<NodeJS.Pro
   if (!remoteUrl) return undefined;
   const parsed = parseGitHubOwnerRepo(remoteUrl);
   if (!parsed) return undefined;
-  const login = selectGitHubLogin(parsed.owner);
-  const cleanEnv = scrubbedGhEnv(process.env);
-  const token = await runAsync("gh", ["auth", "token", "--hostname", "github.com", "--user", login], cwd, 3000, cleanEnv);
-  if (!token) return undefined;
-  return scrubbedGhEnv(cleanEnv, token);
+  return routedGhEnv(parsed.owner, profile, runAsync, { cwd });
 }
 
 async function getRepoInfo(

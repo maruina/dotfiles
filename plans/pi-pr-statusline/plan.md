@@ -33,6 +33,18 @@
 
 Slice 1 writer: `openai/gpt-6.2-sol`.
 
+| Slice 2 skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `skill-loader` | `prompt-required` | Execution workflow | Selected skills for the query and ledger changes. |
+| `resolve-worktree` | `prompt-required` | Absolute plan path | Resolved the plan to the pinned candidate's worktree. |
+| `feature-worktree` | `prompt-required` | Local slice commits | Confirmed the feature branch and left the base checkout on `main`. |
+| `codebase-research` | `skill-loader` | GraphQL query and footer | Traced the query result through `setStatus` to the footer and checked the GitHub schema. |
+| `chezmoi` | `skill-loader` | Managed Pi extension | Kept changes in source and did not apply them. |
+| `cli-best-practices` | `prompt-required` | Plan-named skill for `gh` subprocesses | Preserved one non-interactive query and kept credentials in the subprocess environment. |
+| `write` | `skill-loader` | Plan ledger and commit messages | Recorded test evidence without changing requirements. |
+
+Slice 2 writer: `openai/gpt-6.2-sol`.
+
 ## Implementation Contract
 
 ### Components Affected
@@ -221,10 +233,12 @@ Delivers: the right segment of line 3 shows the CI symbol and the unreplied revi
 **Traces to:** R4
 **Files:** `dot_pi/agent/exact_extensions/pr-status/github.ts`, `dot_pi/agent/exact_extensions/pr-status/pr-status.test.mjs`
 
-- [ ] Add failing tests in `dot_pi/agent/exact_extensions/pr-status/pr-status.test.mjs` covering R4: one test per CI table row in Key Decisions, and unreplied, resolved, outdated, self-replied, `null`-author, and truncated threads.
-- [ ] Extend the query and formatter in `dot_pi/agent/exact_extensions/pr-status/github.ts` to classify CI and threads and fill the right segment.
-- [ ] Run `node --experimental-strip-types --test dot_pi/agent/exact_extensions/pr-status/pr-status.test.mjs`; expect all R1, R3, and R4 tests to pass.
-- [ ] Refactor only after green, rerun verification, and commit with `feat(pi): show CI status and unreplied comments in PR status line`.
+- [x] Add failing tests in `dot_pi/agent/exact_extensions/pr-status/pr-status.test.mjs` covering R4: one test per CI table row in Key Decisions, and unreplied, resolved, outdated, self-replied, `null`-author, and truncated threads.
+- [x] Extend the query and formatter in `dot_pi/agent/exact_extensions/pr-status/github.ts` to classify CI and threads and fill the right segment.
+- [x] Run `node --experimental-strip-types --test dot_pi/agent/exact_extensions/pr-status/pr-status.test.mjs`; expect all R1, R3, and R4 tests to pass.
+- [x] Refactor only after green, rerun verification, and commit with `feat(pi): show CI status and unreplied comments in PR status line`.
+
+All 7 new tests failed before the query and formatter changes. All 16 focused tests passed after the changes, and TypeScript language-server diagnostics were empty. No refactor followed. GitHub's published GraphQL schema confirms that `PullRequest.statusCheckRollup` describes the PR head ref. The tests mock `gh` and do not establish live GitHub response behavior.
 
 ### Task 6: Final verification and documentation check
 **Delivers:** Verified typecheck, full Pi test suite, smoke test, and documentation check.

@@ -1,11 +1,31 @@
 import { parseGitHubOwnerRepo, routedGhEnv, scrubbedGhEnv, selectGitHubLogin } from "../_shared/github.ts";
 import type { PiProfile } from "../_shared/profile.ts";
 
+// deliberate: Read one page of checks and threads per poll. Follow cursors if the footer needs complete results.
 const QUERY = `query BranchPullRequests($owner: String!, $repo: String!, $headRef: String!) {
   viewer { login }
   repository(owner: $owner, name: $repo) {
     pullRequests(headRefName: $headRef, states: [OPEN, MERGED, CLOSED], first: 5, orderBy: { field: UPDATED_AT, direction: DESC }) {
-      nodes { number title url state isDraft headRepository { nameWithOwner } }
+      nodes {
+        number title url state isDraft headRepository { nameWithOwner }
+        statusCheckRollup {
+          contexts(first: 100) {
+            pageInfo { hasNextPage }
+            nodes {
+              __typename
+              ... on CheckRun { status conclusion }
+              ... on StatusContext { state }
+            }
+          }
+        }
+        reviewThreads(first: 100) {
+          pageInfo { hasNextPage }
+          nodes {
+            isResolved isOutdated
+            comments(last: 1) { nodes { author { login } } }
+          }
+        }
+      }
     }
   }
 }`;
@@ -18,6 +38,14 @@ export type AsyncRunner = (
   env?: NodeJS.ProcessEnv,
 ) => Promise<string | null>;
 
+type Page<T> = { nodes: (T | null)[]; pageInfo: { hasNextPage: boolean } };
+type CheckContext = { __typename: string; status?: string; conclusion?: string | null; state?: string };
+type ReviewThread = {
+  isResolved: boolean;
+  isOutdated: boolean;
+  comments: { nodes: ({ author: { login: string } | null } | null)[] };
+};
+
 type PullRequest = {
   number: number;
   title: string;
@@ -25,6 +53,8 @@ type PullRequest = {
   state: "OPEN" | "MERGED" | "CLOSED";
   isDraft: boolean;
   headRepository: { nameWithOwner: string } | null;
+  statusCheckRollup: { contexts: Page<CheckContext> } | null;
+  reviewThreads: Page<ReviewThread>;
 };
 
 type QueryResult = {
@@ -44,6 +74,49 @@ function validPullUrl(value: string, number: number): boolean {
   if (!match || match[0] !== value || match[3] !== String(number)) return false;
   const url = new URL(value);
   return url.pathname === `/${match[1]}/${match[2]}/pull/${number}`;
+}
+
+function checkOutcome(check: CheckContext | null) {
+  if (check?.__typename === "StatusContext") {
+    switch (check.state) {
+      case "FAILURE": case "ERROR": return "failure";
+      case "PENDING": case "EXPECTED": return "pending";
+      case "SUCCESS": return "success";
+      default: return "unknown";
+    }
+  }
+  if (check?.__typename !== "CheckRun") return "unknown";
+  const { status, conclusion } = check;
+  if (["FAILURE", "TIMED_OUT", "ACTION_REQUIRED", "STARTUP_FAILURE"].includes(conclusion ?? "")) return "failure";
+  if (!["COMPLETED", "IN_PROGRESS", "PENDING", "QUEUED", "REQUESTED", "WAITING"].includes(status ?? "") ||
+    (conclusion !== null && !["SUCCESS", "SKIPPED", "NEUTRAL", "CANCELLED", "STALE"].includes(conclusion ?? ""))) return "unknown";
+  if (status !== "COMPLETED") return "pending";
+  if (conclusion === "SUCCESS") return "success";
+  if (conclusion === "SKIPPED" || conclusion === "NEUTRAL") return "neutral";
+  return "other";
+}
+
+function ciSymbol(rollup: PullRequest["statusCheckRollup"]): string {
+  if (rollup === null) return "—";
+  const { nodes, pageInfo } = rollup.contexts;
+  if (nodes.length === 0 && !pageInfo.hasNextPage) return "—";
+  const outcomes = nodes.map(checkOutcome);
+  if (outcomes.includes("failure")) return "✗";
+  if (pageInfo.hasNextPage || outcomes.includes("unknown")) return "?";
+  if (outcomes.includes("pending")) return "◔";
+  if (outcomes.includes("success") && !outcomes.includes("other")) return "✓";
+  return "⊘";
+}
+
+function unrepliedCount({ nodes, pageInfo }: Page<ReviewThread>, viewer: string): string {
+  let count = 0;
+  const viewerLogin = viewer.toLowerCase();
+  for (const thread of nodes) {
+    if (!thread || thread.isResolved || thread.isOutdated) continue;
+    const lastComment = thread.comments.nodes[0];
+    if (lastComment && lastComment.author?.login.toLowerCase() !== viewerLogin) count++;
+  }
+  return `${count}${pageInfo.hasNextPage ? "+" : ""}`;
 }
 
 export async function queryPrStatus(
@@ -79,7 +152,7 @@ export async function queryPrStatus(
     const state = pr.state === "OPEN" && pr.isDraft ? "draft" : pr.state.toLowerCase();
     const text = `#${pr.number} ${sanitizeTitle(pr.title)}`;
     const linked = validPullUrl(pr.url, pr.number) ? `\x1b]8;;${pr.url}\x1b\\${text}\x1b]8;;\x1b\\` : text;
-    return `[${state}] ${linked}\t`;
+    return `[${state}] ${linked}\t${ciSymbol(pr.statusCheckRollup)} CI  💬 ${unrepliedCount(pr.reviewThreads, login)}`;
   } catch {
     // Subprocess errors and response bodies must not reach the footer or logs.
     throw new Error("Cannot read PR status");

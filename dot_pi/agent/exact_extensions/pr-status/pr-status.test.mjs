@@ -13,7 +13,10 @@ const link = (text) => `\x1b]8;;${url}\x1b\\${text}\x1b]8;;\x1b\\`;
 const pr = {
   number: 42, title: "Fix foo", url, state: "OPEN", isDraft: false,
   headRepository: { nameWithOwner: "ddoghq/compute" },
+  statusCheckRollup: null,
+  reviewThreads: { nodes: [], pageInfo: { hasNextPage: false } },
 };
+const rightStatus = "— CI  💬 0";
 
 function response(nodes, login = "matteo-ruina_ddog") {
   return JSON.stringify({ data: { viewer: { login }, repository: { pullRequests: { nodes } } } });
@@ -31,7 +34,7 @@ test("work query routes auth in the environment and checks the returned viewer",
       return args[1][0] === "auth" ? "test-token" : response([pr], login);
     }, "work");
     if (login === "other") await assert.rejects(status, /^Error: Cannot read PR status$/);
-    else assert.equal(await status, `[open] ${link("#42 Fix foo")}\t`);
+    else assert.equal(await status, `[open] ${link("#42 Fix foo")}\t${rightStatus}`);
     assert.equal(calls.length, 2);
     assert.deepEqual(calls[0], ["gh", ["auth", "token", "--hostname", "github.com", "--user", "matteo-ruina_ddog"], cwd, 10000, cleanEnv]);
     const [command, args, actualCwd, timeout, env] = calls[1];
@@ -72,16 +75,71 @@ test("personal query uses one request and selects matching PRs, preferring an op
       return response(nodes, "personal-login");
     });
     assert.equal(calls, 1);
-    assert.equal(status, state ? `[${state}] ${link("#42 Fix foo")}\t` : undefined);
+    assert.equal(status, state ? `[${state}] ${link("#42 Fix foo")}\t${rightStatus}` : undefined);
   }
 });
 
 test("query strips terminal controls and only links a valid GitHub pull request URL", async () => {
   const title = "\x1b[31mFix\x1b[0m\x1b]0;bad\x07 foo\x1b]8;;bad\x1b\\\t\n\x00\x7f\x9b31m\x9d0;bad\x9c";
   for (const unsafe of ["http://github.com/ddoghq/compute/pull/42", "https://github.com@evil.test/ddoghq/compute/pull/42", `${url}\x07bad`, `${url}/files`]) {
-    assert.equal(await query(async () => response([{ ...pr, title, url: unsafe }])), "[open] #42 Fix foo\t");
+    assert.equal(await query(async () => response([{ ...pr, title, url: unsafe }])), `[open] #42 Fix foo\t${rightStatus}`);
   }
-  assert.equal(await query(async () => response([{ ...pr, title }])), `[open] ${link("#42 Fix foo")}\t`);
+  assert.equal(await query(async () => response([{ ...pr, title }])), `[open] ${link("#42 Fix foo")}\t${rightStatus}`);
+});
+
+const check = (conclusion, status = "COMPLETED") => ({ __typename: "CheckRun", status, conclusion });
+const context = (state) => ({ __typename: "StatusContext", state });
+const connection = (nodes, hasNextPage = false) => ({ nodes, pageInfo: { hasNextPage } });
+const rollup = (nodes, hasNextPage) => ({ contexts: connection(nodes, hasNextPage) });
+const thread = (author, flags = {}) => ({
+  isResolved: false, isOutdated: false, ...flags,
+  comments: { nodes: [{ author: author === null ? null : { login: author } }] },
+});
+
+for (const [name, symbol, inputs] of [
+  ["no checks", "—", [null, rollup([])]],
+  ["known failure takes precedence over unknown and incomplete data", "✗", [
+    ...["FAILURE", "TIMED_OUT", "ACTION_REQUIRED", "STARTUP_FAILURE"].map((value) => rollup([check(value)], true)),
+    ...["FAILURE", "ERROR"].map((value) => rollup([{ __typename: "FutureContext" }, context(value)])),
+  ]],
+  ["incomplete or unknown data takes precedence over pending", "?", [
+    rollup([], true), rollup([check(null, "QUEUED")], true),
+    ...[{ __typename: "FutureContext" }, check("FUTURE"), check(null, "FUTURE"), context("FUTURE")]
+      .map((node) => rollup([check(null, "QUEUED"), node])),
+  ]],
+  ["pending checks take precedence over successes", "◔", [
+    ...[check(null, "QUEUED"), context("PENDING"), context("EXPECTED")]
+      .map((node) => rollup([check("SUCCESS"), node])),
+  ]],
+  ["success can include skipped and neutral checks", "✓", [rollup([context("SUCCESS"), check("SKIPPED"), check("NEUTRAL")])]],
+  ["other completed sets are not passing", "⊘", [
+    rollup([check("CANCELLED")]), rollup([check("SUCCESS"), check("STALE")]), rollup([check("SKIPPED"), check("NEUTRAL")]),
+  ]],
+]) {
+  test(`CI: ${name}`, async () => {
+    for (const statusCheckRollup of inputs) {
+      const status = await query(async () => response([{ ...pr, statusCheckRollup, reviewThreads: connection([]) }]));
+      assert.equal(status, `[open] ${link("#42 Fix foo")}\t${symbol} CI  💬 0`, JSON.stringify(statusCheckRollup));
+    }
+  });
+}
+
+test("query requests bounded CI and last-comment data and counts unreplied threads", async () => {
+  const threads = [
+    thread("reviewer"), thread(null), thread("reviewer", { isResolved: true }),
+    thread("reviewer", { isOutdated: true }), thread("PERSONAL-LOGIN"),
+  ];
+  for (const hasNextPage of [false, true]) {
+    const status = await query(async (_command, args) => {
+      const graphql = args.find((arg) => arg.startsWith("query=")).replace(/\s+/g, " ");
+      assert.match(graphql, /statusCheckRollup \{ contexts\(first: 100\) \{ pageInfo \{ hasNextPage \} nodes \{ __typename \.\.\. on CheckRun \{ status conclusion \} \.\.\. on StatusContext \{ state \}/);
+      assert.match(graphql, /reviewThreads\(first: 100\) \{ pageInfo \{ hasNextPage \} nodes \{ isResolved isOutdated comments\(last: 1\) \{ nodes \{ author \{ login \}/);
+      return response([{
+        ...pr, statusCheckRollup: rollup([check("FAILURE")]), reviewThreads: connection(threads, hasNextPage),
+      }], "personal-login");
+    });
+    assert.equal(status, `[open] ${link("#42 Fix foo")}\t✗ CI  💬 2${hasNextPage ? "+" : ""}`);
+  }
 });
 
 function session({ hasUI = true, mode = "tui", checkout = branch, origin = remote } = {}) {
@@ -131,7 +189,7 @@ function session({ hasUI = true, mode = "tui", checkout = branch, origin = remot
   };
 }
 
-const openStatus = `[open] ${link("#42 Fix foo")}\t`;
+const openStatus = `[open] ${link("#42 Fix foo")}\t${rightStatus}`;
 
 test("session skips headless, non-TUI, default-branch, and non-GitHub checkouts", async () => {
   for (const options of [{ hasUI: false }, { mode: "rpc" }, { checkout: "main" }, { checkout: "master" }, { checkout: "trunk" }, { origin: "git@example.com:owner/repo.git" }]) {
@@ -165,8 +223,7 @@ test("same-branch failures keep stale status and back off until the timer retrie
   await s.emit("session_start");
   s.state.graphql = () => null;
   await s.tick();
-  assert.match(s.statuses.at(-1)[1], /stale/);
-  assert.ok(s.statuses.at(-1)[1].includes(link("#42 Fix foo")));
+  assert.deepEqual(s.statuses.at(-1), ["pr-status", `[open] ${link("#42 Fix foo")} stale\t${rightStatus}`]);
   const count = s.commands.length;
   await s.emit("agent_end");
   assert.equal(s.commands.length, count);

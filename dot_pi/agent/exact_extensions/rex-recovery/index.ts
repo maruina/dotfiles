@@ -25,7 +25,7 @@ export default function rexRecovery(pi: ExtensionAPI) {
   }
   pi.on("session_start", (_event, ctx) => {
     lastSavedKey = null;
-    return save(true, ctx);
+    void save(true, ctx);
   });
   pi.on("agent_start", (_event, ctx) => save(false, ctx));
   pi.on("agent_settled", (_event, ctx) => save(false, ctx));

@@ -139,25 +139,22 @@ test("search_sessions_by_tags filters by all tags, caps at 50, and rejects empty
   }
 });
 
-test("before_agent_start injects guidance once per session, resets on compaction, and skips stage-runner children", async () => {
+test("session-tags does not inject per-turn before_agent_start messages", async () => {
   const { handlers } = await loadExtension();
-  const first = handlers.get("before_agent_start")({ type: "before_agent_start", prompt: "tagged cla?" }, { cwd: "/workspace" });
-  assert.equal(first.message.customType, "session-tags");
-  assert.equal(first.message.display, false);
-  assert.match(first.message.content, /search_sessions_by_tags/);
-  assert.equal(handlers.get("before_agent_start")({ type: "before_agent_start", prompt: "follow up" }, { cwd: "/workspace" }), undefined);
+  assert.equal(handlers.has("before_agent_start"), false);
+});
 
-  handlers.get("session_compact")({}, { cwd: "/workspace" });
-  assert.equal(handlers.get("before_agent_start")({ type: "before_agent_start", prompt: "after" }, { cwd: "/workspace" }).message.customType, "session-tags");
-
-  const prev = process.env.PI_STAGE_RUNNER_CHILD;
-  process.env.PI_STAGE_RUNNER_CHILD = "1";
+test("/tag vocabulary scan is lazy and does not read session files during session_start", async () => {
+  const ext = await loadExtension();
+  const root = await mkdtemp(join(tmpdir(), "pi-session-tags-lazy-"));
   try {
-    handlers.get("session_compact")({}, { cwd: "/workspace" });
-    assert.equal(handlers.get("before_agent_start")({ type: "before_agent_start", prompt: "child" }, { cwd: "/workspace" }), undefined);
+    await startSession(ext, root);
+    // Write a tagged session AFTER session_start; a lazy scan will discover it on first completion.
+    await writeSession(root, { timestamp: "2026-01-05T10:00:00.000Z", tags: [["lazy-tag"]] });
+    const items = await ext.commands.get("tag").getArgumentCompletions("lazy");
+    assert.deepEqual(items.map((i) => i.label), ["lazy-tag"]);
   } finally {
-    if (prev === undefined) delete process.env.PI_STAGE_RUNNER_CHILD;
-    else process.env.PI_STAGE_RUNNER_CHILD = prev;
+    await rm(root, { recursive: true, force: true });
   }
 });
 

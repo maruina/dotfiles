@@ -33,6 +33,7 @@ import {
   Text,
 } from "@earendil-works/pi-tui";
 import { parseGitStatusPorcelainZ } from "./_git.ts";
+import { isPathInside } from "../_shared/fs.ts";
 
 type ContentBlock = {
   type?: string;
@@ -415,11 +416,6 @@ const collectSessionFileChanges = (
 
 const splitNullSeparated = (value: string): string[] =>
   value.split("\0").filter(Boolean);
-
-const isPathInside = (root: string, targetPath: string): boolean => {
-  const relative = path.relative(root, targetPath);
-  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
-};
 
 const getGitRoot = async (
   pi: ExtensionAPI,

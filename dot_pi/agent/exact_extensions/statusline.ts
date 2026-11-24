@@ -152,7 +152,7 @@ export default function (pi: ExtensionAPI) {
 						context = formatContext(contextUsage);
 					}
 					const branch = footerData.getGitBranch();
-					const dir = process.cwd().split("/").pop() || "";
+					const dir = (ctx.cwd || process.cwd()).split("/").pop() || "";
 					const sandbox = sandboxStatus();
 
 					const thinking = pi.getThinkingLevel();

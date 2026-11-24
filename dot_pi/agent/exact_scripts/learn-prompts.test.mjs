@@ -169,8 +169,8 @@ test("guidance distinguishes gh-as routing from direct gh and explains Rex start
     /gh-as.*owner\/repo.*pr view.*pr list/is,
     /gh-as.*api user/is,
     /direct `gh`.*switch.*restore/is,
-    /rex-name-session.*startup directory.*interactive/is,
-    /rex-name-task/is,
+    /names the Rex session.*startup directory.*interactive/is,
+    /deterministic Rex task labels/is,
   ]);
 });
 

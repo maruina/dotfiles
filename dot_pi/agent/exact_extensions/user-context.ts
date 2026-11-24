@@ -1,16 +1,16 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { execFile } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
+import { isPathInside } from "./_shared/fs.ts";
 import { parseGitHubOwnerRepo, selectGitHubLogin } from "./_shared/github.ts";
+import { getProfile, type PiProfile } from "./_shared/profile.ts";
 
 export { parseGitHubOwnerRepo, selectGitHubLogin };
 
 const execFileAsync = promisify(execFile);
 const JIRA_KEY_RE = /\b[A-Z][A-Z0-9]+-[0-9]+\b/g;
-const DATA_DOG_ROOT = path.join(process.env.HOME ?? "", "dd");
-const DATA_DOG_WORKTREES = path.join(DATA_DOG_ROOT, ".worktrees");
 const TASK_LABEL_RE = /^π-[a-z]+(-[a-z]+){1,3}$/;
 const TASK_STOPWORDS = new Set([
   "a", "about", "all", "also", "an", "and", "any", "are", "as", "at", "be", "but", "by",
@@ -73,14 +73,13 @@ type CurrentPullRequest = {
   headRefName?: string;
 };
 
-type RecentPullRequest = {
-  number: number;
-  title: string;
-  state: string;
-  url?: string;
-  baseRefName?: string;
-  headRefName?: string;
-};
+type AsyncRunner = (
+  command: string,
+  args?: string[],
+  cwd?: string,
+  timeout?: number,
+  env?: NodeJS.ProcessEnv,
+) => Promise<string | null>;
 
 async function runAsync(command: string, args: string[] = [], cwd?: string, timeout = 10000, env?: NodeJS.ProcessEnv): Promise<string | null> {
   try {
@@ -91,8 +90,8 @@ async function runAsync(command: string, args: string[] = [], cwd?: string, time
   }
 }
 
-function gitAsync(cwd: string, args: string[], timeout = 2000): Promise<string | null> {
-  return runAsync("git", args, cwd, timeout);
+function gitAsync(cwd: string, args: string[], timeout = 2000, run: AsyncRunner = runAsync): Promise<string | null> {
+  return run("git", args, cwd, timeout);
 }
 
 const gitIdentityCache = new Map<string, { name: string | null; email: string | null }>();
@@ -109,6 +108,65 @@ async function getGitIdentity(cwd: string): Promise<{ name: string | null; email
   return identity;
 }
 
+function resolveGitHeadPath(repoRoot: string): string | null {
+  const dotGit = path.join(repoRoot, ".git");
+  try {
+    const st = statSync(dotGit);
+    if (st.isDirectory()) return path.join(dotGit, "HEAD");
+    if (st.isFile()) {
+      const content = readFileSync(dotGit, "utf8").trim();
+      const match = /^gitdir:\s*(.+)$/.exec(content);
+      if (match?.[1]) return path.resolve(repoRoot, match[1].trim(), "HEAD");
+    }
+  } catch {
+    // Ignore missing/unreadable .git metadata.
+  }
+  return null;
+}
+
+function getFileMtime(filePath: string | null): number | null {
+  if (!filePath) return null;
+  try {
+    return statSync(filePath).mtimeMs;
+  } catch {
+    return null;
+  }
+}
+
+type FastGitSnapshot = {
+  repoRoot: string | null;
+  branch: string | null;
+  localDefaultBranch: string | null;
+  headPath: string | null;
+  headMtime: number | null;
+};
+
+const fastGitCache = new Map<string, FastGitSnapshot>();
+
+async function getFastGitContext(cwd: string): Promise<{
+  repoRoot: string | null;
+  branch: string | null;
+  localDefaultBranch: string | null;
+}> {
+  const cached = fastGitCache.get(cwd);
+  if (cached) {
+    if (cached.repoRoot === null) return cached;
+    const mtime = getFileMtime(cached.headPath);
+    if (mtime !== null && mtime === cached.headMtime) return cached;
+  }
+
+  const [repoRoot, branch, localDefaultBranch] = await Promise.all([
+    gitAsync(cwd, ["rev-parse", "--show-toplevel"]),
+    gitAsync(cwd, ["branch", "--show-current"]),
+    getLocalDefaultBranch(cwd),
+  ]);
+  const headPath = repoRoot ? resolveGitHeadPath(repoRoot) : null;
+  const headMtime = getFileMtime(headPath);
+  const snapshot: FastGitSnapshot = { repoRoot, branch, localDefaultBranch, headPath, headMtime };
+  fastGitCache.set(cwd, snapshot);
+  return snapshot;
+}
+
 async function getLocalDefaultBranch(cwd: string): Promise<string | null> {
   const originHead = await gitAsync(cwd, ["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"]);
   if (originHead?.startsWith("origin/")) return originHead.slice("origin/".length);
@@ -121,7 +179,8 @@ async function getDefaultBranch(cwd: string): Promise<string | null> {
   return (await runAsync("git", ["remote", "show", "origin"], cwd, 5000))?.match(/HEAD branch: (.+)/)?.[1]?.trim() ?? null;
 }
 
-async function getGitHubEnv(cwd: string): Promise<NodeJS.ProcessEnv | undefined> {
+async function getGitHubEnv(cwd: string, profile: PiProfile): Promise<NodeJS.ProcessEnv | undefined> {
+  if (profile !== "work") return undefined;
   const remoteUrl = await gitAsync(cwd, ["remote", "get-url", "origin"]);
   if (!remoteUrl) return undefined;
   const parsed = parseGitHubOwnerRepo(remoteUrl);
@@ -145,29 +204,30 @@ export function uniqueMatches(text: string): string[] {
 }
 
 export function pathInside(child: string, parent: string): boolean {
-  const rel = path.relative(parent, child);
-  return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+  return isPathInside(parent, child);
 }
 
-function getWorktreeInfo(root: string): string[] {
+export function getWorktreeInfo(root: string, profile: PiProfile = getProfile(), home: string = process.env.HOME ?? ""): string[] {
   const lines: string[] = [];
-  if (DATA_DOG_WORKTREES && pathInside(root, DATA_DOG_WORKTREES)) {
-    lines.push("- This checkout is in the standard DataDog worktree directory.");
+  const baseRoot = path.join(home, profile === "work" ? "dd" : "src");
+  const worktreesRoot = path.join(baseRoot, ".worktrees");
+  if (home && pathInside(root, worktreesRoot)) {
+    lines.push(`- This checkout is in the standard ${profile === "work" ? "DataDog" : "personal"} worktree directory.`);
     lines.push(`- Worktree root: ${root}`);
-    lines.push(`- Main checkout convention: ${DATA_DOG_ROOT}/<repo>`);
-  } else if (DATA_DOG_ROOT && pathInside(root, DATA_DOG_ROOT)) {
+    lines.push(`- Main checkout convention: ${baseRoot}/<repo>`);
+  } else if (home && pathInside(root, baseRoot)) {
     lines.push(`- Repository root: ${root}`);
-    lines.push(`- Worktree convention: ${DATA_DOG_WORKTREES}/<repo>/<branch-slug>`);
+    lines.push(`- Worktree convention: ${worktreesRoot}/<repo>/<branch-slug>`);
   }
   return lines;
 }
 
-function repoHints(root: string, repoName: string | null): string[] {
+export function repoHints(root: string, repoName: string | null, profile: PiProfile = getProfile()): string[] {
   const repo = repoName ?? path.basename(root);
   const lowerRepo = repo.toLowerCase();
   const lines: string[] = [];
 
-  if (lowerRepo.includes("dd-source")) {
+  if (profile === "work" && lowerRepo.includes("dd-source")) {
     lines.push("- In dd-source, use `bzl` rather than `bazel` for builds/tests.");
     lines.push("- Prefer `:all` targets when practical (for example, `bzl test //path/to/package:all`).");
   }
@@ -199,39 +259,7 @@ async function getCurrentPR(cwd: string, ghEnv?: NodeJS.ProcessEnv): Promise<Cur
   }
 }
 
-async function getRecentPRs(cwd: string, limit = 3, ghEnv?: NodeJS.ProcessEnv): Promise<RecentPullRequest[]> {
-  const raw = await runAsync(
-    "gh",
-    ["pr", "list", "--author", "@me", "--limit", String(limit * 3), "--state", "all", "--json", "number,title,state,url,baseRefName,headRefName"],
-    cwd,
-    10000,
-    ghEnv,
-  );
-  if (!raw) return [];
-  try {
-    const all = JSON.parse(raw) as RecentPullRequest[];
-    return all.filter((pr) => pr.state === "OPEN" || pr.state === "MERGED").slice(0, limit);
-  } catch {
-    return [];
-  }
-}
-
-function escapeRegExp(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-async function getRecentFiles(email: string, cwd: string, sampleSize = 10): Promise<string[]> {
-  const raw = await runAsync("git", ["log", `--author=${escapeRegExp(email)}`, "--since=3 months ago", "--name-only", "--pretty=format:"], cwd, 15000);
-  if (!raw) return [];
-  const files = [...new Set(raw.split("\n").map((line) => line.trim()).filter(Boolean))];
-
-  // Deterministic-ish sample: prefer files seen more recently in git-log order, but spread
-  // across the set so this does not always return only files from the latest commit.
-  const stride = Math.max(1, Math.floor(files.length / sampleSize));
-  return files.filter((_, index) => index % stride === 0).slice(0, Math.min(sampleSize, files.length));
-}
-
-export function formatPR(pr: RecentPullRequest | CurrentPullRequest): string {
+export function formatPR(pr: CurrentPullRequest): string {
   const state = pr.state === "OPEN" ? "OPEN" : pr.state === "MERGED" ? "MERGED" : pr.state;
   const base = pr.baseRefName ? ` → ${pr.baseRefName}` : "";
   const head = pr.headRefName ? `${pr.headRefName}` : `#${pr.number}`;
@@ -251,14 +279,90 @@ export function formatRexContext(output: string): string[] {
   return ["## Rex", "", ...output.split("\n")];
 }
 
-type AsyncRunner = typeof runAsync;
+function rexBaseArgs(env: NodeJS.ProcessEnv): string[] {
+  return ["--autostart=false", ...(env.REX_SERVER ? ["--server", env.REX_SERVER] : [])];
+}
 
 // rex __internal session-start prints the Rex guidance block and exits 0
 // with no output when REX_SESSION is unset, so it is safe outside Rex.
 export async function loadRexLines(env: NodeJS.ProcessEnv, run: AsyncRunner): Promise<string[] | null> {
   if (!env.REX_SESSION) return null;
-  const output = await run("rex", ["__internal", "session-start", "--agent", "pi", "--feature-session-naming=false"], undefined, 3000);
+  const output = await run("rex", [...rexBaseArgs(env), "__internal", "session-start", "--agent", "pi", "--feature-session-naming=false"], undefined, 3000);
   return output ? formatRexContext(output) : null;
+}
+
+type RexSessionSnapshot = {
+  label?: string;
+  windows?: Array<{
+    window_id?: string;
+    label?: string;
+    layers?: Array<{ blocks?: Array<{ block_id?: string; label?: string }> }>;
+  }>;
+};
+
+function repoNameFromRemote(remote: string): string {
+  return remote.trim().replace(/\/+$/, "").replace(/^.*[/:]/, "").replace(/\.git$/, "");
+}
+
+export async function nameRexSession(cwd: string, env: NodeJS.ProcessEnv, run: AsyncRunner = runAsync): Promise<void> {
+  const session = env.REX_SESSION;
+  const block = env.REX_BLOCK;
+  if (!session || !block) return;
+  const base = rexBaseArgs(env);
+  const raw = await run("rex", [...base, "session", "inspect", session, "--json"], cwd, 3000);
+  if (!raw) return;
+  let snapshot: RexSessionSnapshot;
+  try {
+    snapshot = JSON.parse(raw) as RexSessionSnapshot;
+  } catch {
+    return;
+  }
+  const label = snapshot.label ?? "";
+  if (label.startsWith("keep:")) return;
+  const windows = snapshot.windows ?? [];
+  const blocks = windows.flatMap((w) => (w.layers ?? []).flatMap((l) => (l.blocks ?? []).map((b) => b.block_id)));
+  if (windows.length !== 1 || blocks.length !== 1 || blocks[0] !== block) return;
+
+  const root = await gitAsync(cwd, ["rev-parse", "--show-toplevel"], 2000, run);
+  let name = "";
+  if (root) {
+    let remote = await gitAsync(cwd, ["remote", "get-url", "origin"], 2000, run);
+    if (!remote) {
+      const remotes = await gitAsync(cwd, ["remote"], 2000, run);
+      const firstRemote = remotes?.split("\n")[0]?.trim();
+      if (firstRemote) remote = await gitAsync(cwd, ["remote", "get-url", firstRemote], 2000, run);
+    }
+    name = remote ? repoNameFromRemote(remote) : path.basename(root);
+  } else {
+    name = path.basename(cwd);
+  }
+  if (!name || label === name) return;
+  await run("rex", [...base, "session", "rename", session, name], cwd, 3000);
+}
+
+export async function nameRexTask(label: string, env: NodeJS.ProcessEnv, run: AsyncRunner = runAsync): Promise<void> {
+  const session = env.REX_SESSION;
+  const block = env.REX_BLOCK;
+  if (!session || !block || !TASK_LABEL_RE.test(label)) return;
+  const base = rexBaseArgs(env);
+  const raw = await run("rex", [...base, "session", "inspect", session, "--json"], undefined, 3000);
+  if (!raw) return;
+  let snapshot: RexSessionSnapshot;
+  try {
+    snapshot = JSON.parse(raw) as RexSessionSnapshot;
+  } catch {
+    return;
+  }
+  const containing = (snapshot.windows ?? []).find((w) =>
+    (w.layers ?? []).some((l) => (l.blocks ?? []).some((b) => b.block_id === block)),
+  );
+  if (!containing?.window_id) return;
+  const paneCount = (containing.layers ?? []).reduce((sum, l) => sum + (l.blocks?.length ?? 0), 0);
+  if (paneCount > 1) {
+    await run("rex", [...base, "block", "rename", "-s", session, block, label], undefined, 3000);
+  } else {
+    await run("rex", [...base, "window", "rename", "-s", session, containing.window_id, label], undefined, 3000);
+  }
 }
 
 const rexNamingKey = Symbol.for("user-context.rex-naming");
@@ -307,27 +411,26 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("before_agent_start", async (event, ctx) => {
+    const profile = getProfile();
     const stageRunnerChild = process.env.PI_STAGE_RUNNER_CHILD === "1";
     const inInteractiveRex = !stageRunnerChild && ctx.mode === "tui" && Boolean(process.env.REX_SESSION) && Boolean(process.env.REX_BLOCK);
     if (inInteractiveRex && !rexNamingState.attempted) {
       rexNamingState.attempted = true;
-      void runAsync("fish", ["-c", "rex-name-session"], rexNamingState.startupCwd, 3000);
+      void nameRexSession(rexNamingState.startupCwd, process.env);
     }
     if (inInteractiveRex && event.messageType === "user" && typeof event.prompt === "string") {
       const slashLabel = deriveSlashTaskLabel(event.prompt);
       const taskLabel = slashLabel ?? (!rexNamingState.taskNamed ? derivePromptTaskLabel(event.prompt) : null);
       if (taskLabel) {
         rexNamingState.taskNamed = true;
-        void runAsync("fish", ["-c", `rex-name-task ${taskLabel}`], ctx.cwd, 3000);
+        void nameRexTask(taskLabel, process.env);
       }
     }
     const { cwd } = ctx;
-    const [{ name, email }, rexLines, repoRoot, branch, localDefaultBranch] = await Promise.all([
+    const [{ name, email }, rexLines, { repoRoot, branch, localDefaultBranch }] = await Promise.all([
       getGitIdentity(cwd),
       stageRunnerChild ? Promise.resolve(null) : getRexLines(),
-      gitAsync(cwd, ["rev-parse", "--show-toplevel"]),
-      gitAsync(cwd, ["branch", "--show-current"]),
-      getLocalDefaultBranch(cwd),
+      getFastGitContext(cwd),
     ]);
 
     const fastLines: string[] = [];
@@ -355,7 +458,7 @@ export default function (pi: ExtensionAPI) {
       const cached = cachedRepoContext?.key === repoContextKey ? cachedRepoContext : null;
       const repoName = localRepoName;
       const defaultBranch = localDefaultBranch;
-      const jiraKeys = uniqueMatches([branch, repoName].filter(Boolean).join(" "));
+      const jiraKeys = profile === "work" ? uniqueMatches([branch, repoName].filter(Boolean).join(" ")) : [];
 
       if (repoName) {
         if (fastLines.length > 0) fastLines.push("");
@@ -381,14 +484,14 @@ export default function (pi: ExtensionAPI) {
         for (const key of jiraKeys) fastLines.push(`- ${key}: https://datadoghq.atlassian.net/browse/${key}`);
       }
 
-      const worktreeLines = getWorktreeInfo(repoRoot);
+      const worktreeLines = getWorktreeInfo(repoRoot, profile);
       if (worktreeLines.length > 0) {
         fastLines.push("");
         fastLines.push("## Worktree Context");
         fastLines.push(...worktreeLines);
       }
 
-      const hintLines = repoHints(repoRoot, repoName);
+      const hintLines = repoHints(repoRoot, repoName, profile);
       if (hintLines.length > 0) {
         fastLines.push("");
         fastLines.push("## Repo-Specific Hints");
@@ -415,14 +518,13 @@ export default function (pi: ExtensionAPI) {
         repoContextFetchKey = repoContextKey;
         void (async () => {
           const slowLines: string[] = [];
-          const ghEnv = await getGitHubEnv(cwd);
-          const [remoteRepoName, remoteDefaultBranch, gitHubUser, currentPR, prs, files] = await Promise.all([
+          const ghEnv = await getGitHubEnv(cwd, profile);
+          const onFeatureBranch = Boolean(branch && branch !== localDefaultBranch);
+          const [remoteRepoName, remoteDefaultBranch, gitHubUser, currentPR] = await Promise.all([
             getRepoName(cwd, localRepoName, ghEnv),
             getDefaultBranch(cwd),
             getGitHubUsername(ghEnv),
-            getCurrentPR(cwd, ghEnv),
-            getRecentPRs(cwd, 3, ghEnv),
-            email ? getRecentFiles(email, cwd) : Promise.resolve([] as string[]),
+            onFeatureBranch ? getCurrentPR(cwd, ghEnv) : Promise.resolve(null),
           ]);
 
           if (gitHubUser) {
@@ -434,19 +536,6 @@ export default function (pi: ExtensionAPI) {
             if (slowLines.length > 0) slowLines.push("");
             slowLines.push("## Current Branch Pull Request");
             slowLines.push(formatPR(currentPR));
-          }
-
-          const recent = currentPR ? prs.filter((pr) => pr.number !== currentPR.number) : prs;
-          if (recent.length > 0) {
-            if (slowLines.length > 0) slowLines.push("");
-            slowLines.push("## Recent Pull Requests");
-            for (const pr of recent) slowLines.push(formatPR(pr));
-          }
-
-          if (files.length > 0) {
-            if (slowLines.length > 0) slowLines.push("");
-            slowLines.push("## Files Recently Modified by User (sample, last 3 months)");
-            for (const file of files) slowLines.push(`- ${file}`);
           }
 
           if (repoContextFetchKey === repoContextKey) {

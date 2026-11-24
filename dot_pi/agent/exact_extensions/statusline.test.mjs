@@ -3,7 +3,7 @@ import test from "node:test";
 
 import statusline, { estimateContextTokens } from "./statusline.ts";
 
-async function contextFooter(usage, statuses = new Map()) {
+async function contextFooter(usage, statuses = new Map(), cwd = "/tmp/my-session-repo") {
 	let footer;
 	const pi = {
 		on(event, handler) {
@@ -12,6 +12,7 @@ async function contextFooter(usage, statuses = new Map()) {
 		getThinkingLevel: () => "off",
 	};
 	const ctx = {
+		cwd,
 		getContextUsage: () => usage,
 		getSystemPrompt: () => "abcd".repeat(18),
 		sessionManager: { getBranch: () => [] },
@@ -51,6 +52,11 @@ test("footer renders other extension statuses alongside session-cost", async () 
 	const lines = await contextFooter(undefined, statuses);
 	assert.match(lines[1], /\$0\.42/);
 	assert.match(lines[1], /🛡 guardrails/);
+});
+
+test("footer displays the basename of ctx.cwd rather than process.cwd()", async () => {
+	const lines = await contextFooter(undefined, new Map(), "/some/other/worktree-dir");
+	assert.match(lines[0], /📁 worktree-dir/);
 });
 
 test("statusline skips footer registration in non-TUI or headless sessions", async () => {

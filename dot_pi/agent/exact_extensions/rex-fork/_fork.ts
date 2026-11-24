@@ -187,15 +187,12 @@ export async function runTabFork(api: ExtensionAPI, ctx: ExtensionContext, curre
   let created: any;
   try {
     if (!settled()) throw new Error("Source changed before creation.");
-    const layout = { block: { flavor: "com.superlogical.terminal.shell", options: {
-      shell, login: true, cwd: ctx.cwd,
-      command: ["/usr/bin/env", `PI_CODING_AGENT_DIR=${getAgentDir()}`, `PI_REX_FORK_ATTEMPT=${directory}`, ...command, "--session", snapshot.path],
-    } } };
-    const request = destination === "tab"
-      ? { session_id: peer.session_id, focus: true, layout }
-      : { session_id: peer.session_id, focus: true, layout, anchor_id: peer.block_id, side: "after", direction: destination === "right" ? "horizontal" : "vertical" };
+    const spawnCmd = ["/usr/bin/env", `PI_CODING_AGENT_DIR=${getAgentDir()}`, `PI_REX_FORK_ATTEMPT=${directory}`, ...command, "--session", snapshot.path];
+    const createArgs = destination === "tab"
+      ? ["window", "new", "-s", peer.session_id, "--shell", shell, "-c", ctx.cwd, "--focus", "--json", "--", ...spawnCmd]
+      : ["split", "-s", peer.session_id, "-b", peer.block_id, "--split", destination, "--shell", shell, "-c", ctx.cwd, "--focus", "--json", "--", ...spawnCmd];
     submitted = true;
-    created = await rex(pi, endpoint, ["api", "call", "-s", peer.session_id, destination === "tab" ? "session.new_window" : "session.new_split", JSON.stringify(request)]);
+    created = await rex(pi, endpoint, createArgs);
     atomicJson(join(directory, "creation.json"), created);
     if ((destination === "tab" ? !isRexId("window", created.window_id) : created.anchor_id !== peer.block_id)
       || !Array.isArray(created.block_ids) || created.block_ids.length !== 1

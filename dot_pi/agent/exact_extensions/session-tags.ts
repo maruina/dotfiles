@@ -1,6 +1,7 @@
 // Session tags: human-assigned tags stored as pi.session-tags custom entries.
-// `/tag` arguments use a vocabulary warmed once at the first session_start. The
-// scan reads every session file but JSON-parses only files with the tag marker.
+// `/tag` arguments use a vocabulary warmed lazily on the first completion
+// request. The scan reads every session file but JSON-parses only files with
+// the tag marker.
 //
 // Entry contract: /tag appends { type: "custom", customType: "pi.session-tags",
 // data: { tags: string[] } } via pi.appendEntry. The session_start handler
@@ -22,6 +23,7 @@ import { fuzzyFilter } from "@earendil-works/pi-tui";
 import { readdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { Type, type Static } from "typebox";
+import { forEachBounded } from "./_shared/async.ts";
 
 // The runtime hands extensions the full SessionManager, but the exported
 // ReadonlySessionManager type narrows it and omits usesDefaultSessionDir().
@@ -32,10 +34,6 @@ const TAG_ENTRY_TYPE = "pi.session-tags";
 const MAX_TOOL_RESULTS = 50;
 const FALLBACK_NAME_MAX_LENGTH = 100;
 const TAG_RE = /^[a-z0-9][a-z0-9-]*$/;
-const TAGS_GUIDANCE = `## Session Tags
-Sessions can carry user-assigned tags, set with /tag cla,controllers. To answer
-questions about sessions by tag, load the deferred tool \`search_sessions_by_tags\`
-through \`tool_search\`, then search the returned session files with rg/read.`;
 
 export interface ParsedTags {
   tags: string[];
@@ -200,16 +198,6 @@ async function listJsonlFiles(root: string): Promise<string[]> {
   return files;
 }
 
-async function forEachBounded<T>(items: readonly T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> {
-  let next = 0;
-  const worker = async () => {
-    while (next < items.length) {
-      await fn(items[next++]!);
-    }
-  };
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
-}
-
 async function scanTagVocabulary(root: string): Promise<Map<string, number>> {
   const vocabulary = new Map<string, number>();
   const files = await listJsonlFiles(root);
@@ -295,15 +283,15 @@ function sameTags(a: string[], b: string[]): boolean {
 
 export default function (pi: ExtensionAPI): void {
   let currentTags: string[] = [];
+  let scanRoot: string | undefined;
   let tagVocabulary: Map<string, number> | undefined;
   let tagVocabularyPromise: Promise<void> | undefined;
-  let guidanceInjected = false;
   const currentProcessTags = new Set<string>();
 
   // deliberate: Tags written by another Pi process stay invisible until restart.
   // Refresh when `/tags` runs or use a derived mtime-keyed cache for live updates.
-  // deliberate: The startup scan reads every session file. At about 10x the
-  // current session count, use a derived cache keyed by path, mtime, and size.
+  // deliberate: The lazy completion scan reads every session file once. At about
+  // 10x the current session count, use a derived cache keyed by path, mtime, and size.
   const rememberTags = (tags: string[]) => {
     for (const tag of tags) {
       if (!TAG_RE.test(tag)) continue;
@@ -323,36 +311,11 @@ export default function (pi: ExtensionAPI): void {
   // active branch once the conversation continues. Reconstruct from all entries
   // in file order (getBranch() would miss them), matching the scan's rule.
   pi.on("session_start", (_event, ctx) => {
-    guidanceInjected = false;
     currentTags = tagsFromBranch(ctx.sessionManager.getEntries());
     rememberTags(currentTags);
     if (process.env.PI_STAGE_RUNNER_CHILD === "1" || (ctx.mode !== undefined && ctx.mode !== "tui")) return;
-    if (tagVocabularyPromise) return;
-
     const manager = ctx.sessionManager as ReadSessionManager;
-    const root = resolveScanRoot(manager.getSessionDir(), manager.usesDefaultSessionDir());
-    tagVocabularyPromise = scanTagVocabulary(root)
-      .then(setTagVocabulary)
-      .catch(() => setTagVocabulary(new Map()));
-  });
-
-  pi.on("session_compact", () => {
-    guidanceInjected = false;
-  });
-
-  // The deferred tool is invisible to the model, so the agent must be told the
-  // tag concept exists and how to reach the tool. Emit once per session (and
-  // again after compaction) so repeated turns do not accumulate copies.
-  pi.on("before_agent_start", () => {
-    if (process.env.PI_STAGE_RUNNER_CHILD === "1" || guidanceInjected) return;
-    guidanceInjected = true;
-    return {
-      message: {
-        customType: "session-tags",
-        content: TAGS_GUIDANCE,
-        display: false,
-      },
-    };
+    scanRoot = resolveScanRoot(manager.getSessionDir(), manager.usesDefaultSessionDir());
   });
 
   // deliberate: pi-tui does not request slash-argument completions on a comma
@@ -361,7 +324,13 @@ export default function (pi: ExtensionAPI): void {
   pi.registerCommand("tag", {
     description: "Set or edit this session's tags. Arguments autocomplete tags from session history. After a comma, type and delete a character to reopen suggestions. Usage: /tag cla,controllers, or /tag with no arguments to edit in a dialog.",
     getArgumentCompletions: async (argumentPrefix) => {
-      if (!tagVocabularyPromise) return null;
+      if (!scanRoot) return null;
+      if (!tagVocabularyPromise) {
+        const root = scanRoot;
+        tagVocabularyPromise = scanTagVocabulary(root)
+          .then(setTagVocabulary)
+          .catch(() => setTagVocabulary(new Map()));
+      }
       await tagVocabularyPromise;
       if (!tagVocabulary) return null;
 

@@ -42,6 +42,7 @@ Slice 1 writer: `openai/gpt-6.2-sol`.
 | `chezmoi` | `skill-loader` | Managed Pi extension | Kept changes in source and did not apply them. |
 | `cli-best-practices` | `prompt-required` | Plan-named skill for `gh` subprocesses | Preserved one non-interactive query and kept credentials in the subprocess environment. |
 | `write` | `skill-loader` | Plan ledger and commit messages | Recorded test evidence without changing requirements. |
+| `learning-candidates` | `prompt-required` | Full-suite command timeout | Recorded how to collect the exit status when integration tests exceed a foreground tool timeout. |
 
 Slice 2 writer: `openai/gpt-6.2-sol`.
 
@@ -246,12 +247,17 @@ All 7 new tests failed before the query and formatter changes. All 16 focused te
 **Traces to:** R1, R2, R3, R4, repo `AGENTS.md` testing and documentation requirements
 **Files:** `dot_pi/agent/exact_extensions/pr-status/` (review whether `README.md` or `AGENTS.md` updates are needed)
 
-- [ ] From `dot_pi/agent/`, run `npm ci --ignore-scripts`, `npm test`, `npm run typecheck`, and `npm run test:all`; expect all suites and `test:smoke` to pass with zero extension load issues. Remove disposable `dot_pi/agent/node_modules` afterward.
-- [ ] Review `AGENTS.md` and `dot_pi/agent/exact_extensions/pr-status/`; record why no `AGENTS.md` or standalone README update is needed (or add a concise README only if non-obvious operator configuration exists).
-- [ ] Commit any documentation update with `docs(pi): document PR status line extension` if changes were needed.
+- [x] From `dot_pi/agent/`, run `npm ci --ignore-scripts`, `npm test`, `npm run typecheck`, and `npm run test:all`; expect all suites and `test:smoke` to pass with zero extension load issues. Remove disposable `dot_pi/agent/node_modules` afterward.
+- [x] Review `AGENTS.md` and `dot_pi/agent/exact_extensions/pr-status/`; record why no `AGENTS.md` or standalone README update is needed (or add a concise README only if non-obvious operator configuration exists).
+- [x] Commit any documentation update with `docs(pi): document PR status line extension` if changes were needed. Not applicable: no operator documentation changed.
+
+`npm ci --ignore-scripts`, `npm test` (516 passed, 4 skipped), and `npm run typecheck` passed. The first `npm run test:all` hit the 175-second tool timeout. The rerun captured exit status 0 and passed the fast suite, 118 integration tests, typecheck, and smoke. Both npm test runs unset the inherited `PI_STAGE_RUNNER_CHILD` so the existing Rex fixtures could exercise regular-session behavior. The offline smoke used a temporary `PI_CODING_AGENT_DIR` with the three candidate entrypoints, and a Pi loader check confirmed that all three were discovered and loaded without errors. The standalone footer tests also passed (10 tests). The disposable dependencies were removed.
+
+Reviewed `AGENTS.md`, `dot_pi/agent/AGENTS.md`, and `dot_pi/agent/exact_extensions/pr-status/`. No README or agent guidance update is needed because Pi discovers the extension without setup, and the extension reuses the existing `gh` authentication and profile rules. The live footer and OSC 8 link check remains pending after apply and gates merge.
 
 ## Post-publication validation
 - **Live footer and OSC 8 link check:** After applying the explicit chezmoi targets listed in `### Rollout and Rollback`, Matteo runs `/reload` in a Pi session on a feature branch with an open PR (and on `main`). **Owner:** Matteo. **Trigger:** After `chezmoi apply`. **Expected evidence:** Line 3 appears below the model line with `[state] #N <title>`, clicking opens the PR in the browser, CI status and unreplied count on the right match GitHub, `user-context` still reports the current branch PR, and line 3 disappears on `main`. **Gates:** Merging to `main`.
 
 ## Learning candidates
 - 2026-11-24: The inherited `PI_STAGE_RUNNER_CHILD=1` suppressed the Rex hooks in two regular `user-context` tests. Unset it for the test process; the explicit child-mode fixture sets it itself. — evidence: `dot_pi/agent/exact_extensions/user-context.test.mjs:222`, `:252`, and `:278`; all 22 focused tests passed with `env -u PI_STAGE_RUNNER_CHILD`.
+- 2026-11-24: Use a command timeout above five minutes or capture a background exit status for the Pi full suite. — evidence: `npm run test:all` hit the 175-second tool timeout; on the successful rerun, `stage-runner` integration tests alone took 259 seconds.

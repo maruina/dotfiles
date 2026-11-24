@@ -25,55 +25,71 @@ const VALID_STAGES = new Set<string>([
 
 const nonblank = (s: unknown): s is string => typeof s === "string" && s.trim().length > 0;
 const oid = (v: unknown): v is string => typeof v === "string" && /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(v);
+const isRecord = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
+const positiveInt = (v: unknown): v is number => typeof v === "number" && Number.isSafeInteger(v) && v > 0;
 
-export function validateHandoffPayload(h: any, stage: HandoffStage) {
-  if (h?.schemaVersion !== 1 || h.stage !== stage || !nonblank(h.summary)) {
+export function validateHandoffPayload(raw: unknown, stage: HandoffStage): Record<string, unknown> {
+  if (!isRecord(raw) || raw.schemaVersion !== 1 || raw.stage !== stage || !nonblank(raw.summary)) {
     throw Error("Invalid handoff header");
   }
   if (stage === "design-draft" || stage === "design-plan") {
     const draft = stage === "design-draft";
-    if (!nonblank(h[draft ? "designPath" : "planPath"]) || !oid(h[draft ? "draftCommit" : "planCommit"])) {
+    if (!nonblank(raw[draft ? "designPath" : "planPath"]) || !oid(raw[draft ? "draftCommit" : "planCommit"])) {
       throw Error("Invalid managed artifact");
     }
-    return h;
+    return raw;
   }
   if (stage === "design-review") {
     if (
-      !oid(h.reviewedBlob) ||
-      !(h.status === "clean" || (h.status === "needs-human" && Array.isArray(h.questions) && h.questions.length && h.questions.every(nonblank)))
+      !oid(raw.reviewedBlob) ||
+      !(raw.status === "clean" || (raw.status === "needs-human" && Array.isArray(raw.questions) && raw.questions.length > 0 && raw.questions.every(nonblank)))
     ) {
       throw Error("Invalid design review");
     }
-    return h;
+    return raw;
   }
   if (stage === "startup-check") {
-    if (!oid(h.head) || !oid(h.planBlob) || !(h.status === "fits" || (h.status === "blocked" && nonblank(h.reason)))) {
+    if (!oid(raw.head) || !oid(raw.planBlob) || !(raw.status === "fits" || (raw.status === "blocked" && nonblank(raw.reason)))) {
       throw Error("Invalid startup-check verdict");
     }
-    return h;
+    return raw;
   }
-  if (stage === "arp-fix") return h;
+  if (stage === "arp-fix") {
+    if (
+      !Array.isArray(raw.findings) ||
+      !raw.findings.every((entry) => {
+        if (!isRecord(entry) || !positiveInt(entry.id)) return false;
+        if (entry.disposition === "needs-operator") return nonblank(entry.reason);
+        return entry.disposition === "fixed" && oid(entry.fixSha) && nonblank(entry.changeSummary);
+      })
+    ) {
+      throw Error("Invalid arp-fix findings");
+    }
+    return raw;
+  }
   if (stage === "verify") {
     if (
-      !["BLOCKED", "VERIFIED"].includes(h.status) ||
-      (h.findings !== undefined &&
-        (!Array.isArray(h.findings) ||
-          !h.findings.every((f: unknown) => f !== null && typeof f === "object" && !Array.isArray(f))))
+      typeof raw.status !== "string" ||
+      !["BLOCKED", "VERIFIED"].includes(raw.status) ||
+      (raw.findings !== undefined && (!Array.isArray(raw.findings) || !raw.findings.every(isRecord)))
     ) {
       throw Error("Invalid verdict");
     }
-  } else if (
-    h.status !== "success" &&
-    !(h.status === "blocked" && ["step", "reason", "evidence", "nextAction"].every((k) => nonblank(h.blocker?.[k])))
-  ) {
-    throw Error("Invalid writer status or blocker");
+  } else {
+    const blocker = isRecord(raw.blocker) ? raw.blocker : undefined;
+    if (
+      raw.status !== "success" &&
+      !(raw.status === "blocked" && blocker && ["step", "reason", "evidence", "nextAction"].every((k) => nonblank(blocker[k])))
+    ) {
+      throw Error("Invalid writer status or blocker");
+    }
   }
-  return h;
+  return raw;
 }
 
 export default function stageRunnerHandoff(pi: ExtensionAPI): void {
-  const handoffPath = process.env.PI_STAGE_RUNNER_HANDOFF;
-  const stage = process.env.PI_STAGE_RUNNER_STAGE;
+  const handoffPath = process.env.PI_STAGE_RUNNER_HANDOFF ?? process.env.PI_DESIGN_HANDOFF;
+  const stage = process.env.PI_STAGE_RUNNER_STAGE ?? process.env.PI_DESIGN_STAGE;
   if (!handoffPath || !stage || !VALID_STAGES.has(stage)) return;
   const typedStage = stage as HandoffStage;
 

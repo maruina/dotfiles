@@ -1,5 +1,5 @@
 import { buildRexArgs, matchesForegroundProcess, verifyLocalRexEndpoint, verifyLocalRexPeer } from "../_shared/rex.ts";
-import { qualifiedId } from "./_model.ts";
+import { qualifiedId } from "../_shared/model.ts";
 import * as fs from "node:fs";
 import path from "node:path";
 import { execFile } from "node:child_process";
@@ -122,11 +122,16 @@ export async function recovery(o: {
   state.block = block;
   o.owner(state);
   const inspect = async () => JSON.parse(await rex("block", "call", "-s", session, "-b", block, "process"));
-  const identity = (view: any) =>
-    Number.isSafeInteger(view.child?.pid) &&
-    view.child.pid > 1 &&
-    view.child.pid !== process.pid &&
-    matchesForegroundProcess(view.foreground, { pid: view.child.pid, cwd: o.cwd, execPath: o.argv[0] });
+  const identity = (view: unknown): view is { child: { pid: number }; foreground: unknown; last_exit?: unknown } => {
+    const v = view as { child?: { pid?: unknown }; foreground?: unknown } | null | undefined;
+    return (
+      typeof v?.child?.pid === "number" &&
+      Number.isSafeInteger(v.child.pid) &&
+      v.child.pid > 1 &&
+      v.child.pid !== process.pid &&
+      matchesForegroundProcess(v.foreground, { pid: v.child.pid, cwd: o.cwd, execPath: o.argv[0] })
+    );
+  };
   let view = await inspect();
   const deadline = Date.now() + 5000;
   while (!identity(view) && !view.last_exit && Date.now() < deadline && !o.signal.aborted) {

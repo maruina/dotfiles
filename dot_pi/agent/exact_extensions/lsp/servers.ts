@@ -1,7 +1,8 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, extname, join, resolve } from "node:path";
 import type { Diagnostic, DocumentSymbol, ServerConfig } from "./protocol.ts";
-import { diagnosticsDetails, findExecutable, flattenSymbols, isInsidePath, relativePath, symbolKindName } from "./utils.ts";
+import { isPathInside } from "../_shared/fs.ts";
+import { diagnosticsDetails, findExecutable, flattenSymbols, relativePath, symbolKindName } from "./utils.ts";
 
 export function typescriptServerConfig(filePath: string, config: ServerConfig): ServerConfig {
   let dir = dirname(resolve(filePath));
@@ -58,7 +59,7 @@ function isHelmFile(filePath: string): boolean {
   if (!chartRoot) return false;
   if (name === "Chart.yaml" || /^values(?:[-.].*)?\.ya?ml$/.test(name)) return true;
   const templatesDir = join(chartRoot, "templates");
-  return HELM_TEMPLATE_EXTENSIONS.includes(ext) && isInsidePath(filePath, templatesDir);
+  return HELM_TEMPLATE_EXTENSIONS.includes(ext) && isPathInside(templatesDir, filePath);
 }
 
 const yamlSettings = {

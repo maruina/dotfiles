@@ -16,7 +16,7 @@ import {
   nameRexSession,
   nameRexSessionAndTask,
   nameRexTask,
-  pathInside,
+
   repoHints,
   uniqueMatches,
 } from "./user-context.ts";
@@ -32,11 +32,13 @@ test("uniqueMatches returns distinct Jira keys in first-seen order", () => {
   );
 });
 
-test("pathInside accepts descendants and rejects sibling prefix lookalikes", () => {
+import { isPathInside } from "./_shared/fs.ts";
+
+test("isPathInside accepts descendants and rejects sibling prefix lookalikes", () => {
   const parent = path.join(path.sep, "tmp", "repo");
-  assert.equal(pathInside(path.join(parent, "sub", "file.ts"), parent), true);
-  assert.equal(pathInside(parent, parent), true);
-  assert.equal(pathInside(path.join(path.sep, "tmp", "repo-other", "file.ts"), parent), false);
+  assert.equal(isPathInside(parent, path.join(parent, "sub", "file.ts")), true);
+  assert.equal(isPathInside(parent, parent), true);
+  assert.equal(isPathInside(parent, path.join(path.sep, "tmp", "repo-other", "file.ts")), false);
 });
 
 test("getWorktreeInfo and repoHints gate work-only conventions by profile", () => {

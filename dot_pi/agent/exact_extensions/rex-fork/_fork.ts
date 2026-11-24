@@ -27,10 +27,14 @@ export function snapshotBranch(source: ExtensionContext["sessionManager"], cwd: 
 type Identity = { endpoint: string; instance_id: string; host_id: string; session_id: string; block_id: string; pid: number };
 type Attempt = { nonce: string; snapshot: string; snapshotId: string; cwd: string; endpoint: string; instance: string; host: string; session: string; sourceBlock: string };
 
-async function rex(pi: ExtensionAPI, endpoint: string, args: string[], timeout = 7000): Promise<any> {
+type RexBlockInspect = { session_id?: string; block?: { block_id?: string; host_id?: string; window_id?: string } };
+type RexProcessView = { foreground?: { pid?: unknown; user_id?: unknown; cwd?: unknown; path?: unknown } };
+type RexCreateResult = { window_id?: unknown; anchor_id?: unknown; block_ids?: unknown };
+
+async function rex<T = unknown>(pi: ExtensionAPI, endpoint: string, args: string[], timeout = 7000): Promise<T> {
   const result = await pi.exec("rex", buildRexArgs(args, { timeoutSec: 5, endpoint, validateEndpoint: false }), { timeout });
   if (result.code !== 0 || result.killed || ("truncated" in result && result.truncated)) throw new Error("Rex inspection/request failed or timed out.");
-  return JSON.parse(result.stdout);
+  return JSON.parse(result.stdout) as T;
 }
 
 async function identity(pi: ExtensionAPI, endpoint: string): Promise<Identity> {
@@ -41,11 +45,11 @@ async function identity(pi: ExtensionAPI, endpoint: string): Promise<Identity> {
 }
 
 async function inspectOwnPane(pi: ExtensionAPI, peer: Identity, cwd: string): Promise<string> {
-  const view = await rex(pi, peer.endpoint, ["block", "inspect", "-s", peer.session_id, peer.block_id, "--json"]);
+  const view = await rex<RexBlockInspect>(pi, peer.endpoint, ["block", "inspect", "-s", peer.session_id, peer.block_id, "--json"]);
   if (view.session_id !== peer.session_id || view.block?.block_id !== peer.block_id || view.block.host_id !== peer.host_id || !isRexId("window", view.block.window_id)) {
     throw new Error("Rex pane membership or host does not match.");
   }
-  const processes = await rex(pi, peer.endpoint, ["block", "call", "-s", peer.session_id, "-b", peer.block_id, "process"]);
+  const processes = await rex<RexProcessView>(pi, peer.endpoint, ["block", "call", "-s", peer.session_id, "-b", peer.block_id, "process"]);
   // deliberate: only a directly foreground Pi is supported; wrappers and background Pi need explicit ancestry validation.
   if (!matchesForegroundProcess(processes.foreground, { pid: process.pid, cwd, execPath: process.execPath })) {
     throw new Error(`This Pi is not the verified foreground process of the invoking pane (expected PID ${process.pid}, executable ${process.execPath}, cwd ${cwd}; observed PID ${processes.foreground?.pid}, UID ${processes.foreground?.user_id}, executable ${processes.foreground?.path}, cwd ${processes.foreground?.cwd}).`);
@@ -58,9 +62,7 @@ function sameServer(before: Identity, after: Identity): boolean {
     && before.pid === after.pid && before.session_id === after.session_id && before.block_id === after.block_id;
 }
 
-function atomicJson(path: string, value: unknown): void {
-  writeAtomicJson(path, value);
-}
+
 
 async function waitForFile(dir: string, filePath: string, deadline: number, current: () => boolean): Promise<boolean> {
   if (existsSync(filePath)) return true;
@@ -94,10 +96,10 @@ function privateDirectory(path: string): void {
   if (!stat.isDirectory() || stat.uid !== process.getuid?.() || (stat.mode & 0o077) !== 0) throw new Error("Fork metadata directory is not private.");
 }
 
-function readPrivate(path: string): any {
+function readPrivate<T = Record<string, unknown>>(path: string): T {
   const stat = lstatSync(path);
   if (!stat.isFile() || stat.uid !== process.getuid?.() || (stat.mode & 0o077) !== 0 || stat.size > 16384) throw new Error("Fork metadata file is not private or bounded.");
-  return JSON.parse(readFileSync(path, "utf8"));
+  return JSON.parse(readFileSync(path, "utf8")) as T;
 }
 
 function launcher(): string[] {
@@ -131,7 +133,7 @@ export async function publishStartupReceipt(pi: ExtensionAPI, ctx: ExtensionCont
   if (dirname(directory) !== root || !/^[a-f0-9-]{36}$/.test(directory.slice(root.length + 1))) throw new Error("Invalid fork attempt path.");
   privateDirectory(root);
   privateDirectory(directory);
-  const attempt: Attempt = readPrivate(join(directory, "attempt.json"));
+  const attempt = readPrivate<Attempt>(join(directory, "attempt.json"));
   if (ctx.mode !== "tui" || attempt.nonce !== directory.slice(root.length + 1) || !isAbsolute(attempt.snapshot)
     || ctx.sessionManager.getSessionFile() !== attempt.snapshot || ctx.sessionManager.getSessionId() !== attempt.snapshotId
     || ctx.cwd !== attempt.cwd || ctx.sessionManager.getCwd() !== attempt.cwd) throw new Error("Fork destination does not match the requested snapshot and cwd.");
@@ -142,7 +144,7 @@ export async function publishStartupReceipt(pi: ExtensionAPI, ctx: ExtensionCont
   if (!current()) throw new Error("Destination lifecycle changed before startup verification.");
   await inspectOwnPane(pi, peer, ctx.cwd);
   if (!current() || ctx.sessionManager.getSessionFile() !== attempt.snapshot || ctx.sessionManager.getSessionId() !== attempt.snapshotId) throw new Error("Destination lifecycle changed before receipt publication.");
-  atomicJson(join(directory, "receipt.json"), { ...attempt, block: peer.block_id, pid: process.pid });
+  writeAtomicJson(join(directory, "receipt.json"), { ...attempt, block: peer.block_id, pid: process.pid });
 }
 
 export async function runTabFork(api: ExtensionAPI, ctx: ExtensionContext, current: () => boolean, settled: () => boolean, destination: "tab" | "right" | "below"): Promise<void> {
@@ -178,13 +180,13 @@ export async function runTabFork(api: ExtensionAPI, ctx: ExtensionContext, curre
     mkdirSync(directory, { mode: 0o700 });
     attempt = { nonce, snapshot: snapshot.path, snapshotId: snapshot.id, cwd: ctx.cwd, endpoint,
       instance: peer.instance_id, host: peer.host_id, session: peer.session_id, sourceBlock: peer.block_id };
-    atomicJson(join(directory, "attempt.json"), attempt);
+    writeAtomicJson(join(directory, "attempt.json"), attempt);
   } catch (error) {
     ctx.ui.notify(`Rex fork snapshot preparation failed; no creation was requested. Snapshot ${snapshot.path} remains available for inspection. ${String(error)}`, "error");
     return;
   }
   let submitted = false;
-  let created: any;
+  let created: RexCreateResult | undefined;
   try {
     if (!settled()) throw new Error("Source changed before creation.");
     const spawnCmd = ["/usr/bin/env", `PI_CODING_AGENT_DIR=${getAgentDir()}`, `PI_REX_FORK_ATTEMPT=${directory}`, ...command, "--session", snapshot.path];
@@ -192,31 +194,33 @@ export async function runTabFork(api: ExtensionAPI, ctx: ExtensionContext, curre
       ? ["window", "new", "-s", peer.session_id, "--shell", shell, "-c", ctx.cwd, "--focus", "--json", "--", ...spawnCmd]
       : ["split", "-s", peer.session_id, "-b", peer.block_id, "--split", destination, "--shell", shell, "-c", ctx.cwd, "--focus", "--json", "--", ...spawnCmd];
     submitted = true;
-    created = await rex(pi, endpoint, createArgs);
-    atomicJson(join(directory, "creation.json"), created);
+    created = await rex<RexCreateResult>(pi, endpoint, createArgs);
+    writeAtomicJson(join(directory, "creation.json"), created);
+    const createdBlocks = Array.isArray(created.block_ids) ? created.block_ids : [];
+    const createdBlock = createdBlocks[0];
     if ((destination === "tab" ? !isRexId("window", created.window_id) : created.anchor_id !== peer.block_id)
-      || !Array.isArray(created.block_ids) || created.block_ids.length !== 1
-      || !isRexId("block", created.block_ids[0]) || created.block_ids[0] === peer.block_id) throw new Error("Rex returned an invalid destination identity.");
+      || createdBlocks.length !== 1
+      || !isRexId("block", createdBlock) || createdBlock === peer.block_id) throw new Error("Rex returned an invalid destination identity.");
     deadline = Date.now() + 15000;
     const receiptPath = join(directory, "receipt.json");
     if (await waitForFile(directory, receiptPath, deadline, current) && current() && Date.now() < deadline) {
-      const receipt = readPrivate(receiptPath);
-      if (Object.entries(attempt).some(([key, value]) => receipt[key] !== value) || receipt.block !== created.block_ids[0]
-        || !Number.isSafeInteger(receipt.pid) || receipt.pid === process.pid) throw new Error("Fork startup receipt does not match this attempt.");
+      const receipt = readPrivate<Record<string, unknown>>(receiptPath);
+      if (Object.entries(attempt).some(([key, value]) => receipt[key] !== value) || receipt.block !== createdBlock
+        || typeof receipt.pid !== "number" || !Number.isSafeInteger(receipt.pid) || receipt.pid === process.pid) throw new Error("Fork startup receipt does not match this attempt.");
       const after = await identity(pi, endpoint);
       if (!current() || Date.now() >= deadline || !sameServer(peer, after)) throw new Error("Source or Rex changed during startup verification.");
-      const target = await rex(pi, endpoint, ["block", "inspect", "-s", peer.session_id, receipt.block, "--json"], Math.max(1, Math.min(7000, deadline - Date.now())));
-      const processInfo = await rex(pi, endpoint, ["block", "call", "-s", peer.session_id, "-b", receipt.block, "process"], Math.max(1, Math.min(7000, deadline - Date.now())));
-      if (!current() || Date.now() >= deadline || target.block?.window_id !== (destination === "tab" ? created.window_id : sourceWindow) || target.block.host_id !== peer.host_id
+      const target = await rex<RexBlockInspect>(pi, endpoint, ["block", "inspect", "-s", peer.session_id, createdBlock, "--json"], Math.max(1, Math.min(7000, deadline - Date.now())));
+      const processInfo = await rex<RexProcessView>(pi, endpoint, ["block", "call", "-s", peer.session_id, "-b", createdBlock, "process"], Math.max(1, Math.min(7000, deadline - Date.now())));
+      if (!current() || Date.now() >= deadline || target.block?.window_id !== (destination === "tab" ? created.window_id : sourceWindow) || target.block?.host_id !== peer.host_id
         || !matchesForegroundProcess(processInfo.foreground, { pid: receipt.pid, cwd: ctx.cwd, execPath: process.execPath })) throw new Error("Destination process identity did not verify.");
       for (const name of ["attempt.json", "creation.json", "receipt.json"]) unlinkSync(join(directory, name));
       rmdirSync(directory);
-      ctx.ui.notify(destination === "tab" ? `Opened an independent conversation in Rex tab ${created.window_id}.` : `Opened an independent conversation in Rex split ${created.block_ids[0]}.`, "info");
+      ctx.ui.notify(destination === "tab" ? `Opened an independent conversation in Rex tab ${String(created.window_id)}.` : `Opened an independent conversation in Rex split ${createdBlock}.`, "info");
       return;
     }
     throw new Error(current() ? "Startup verification timed out." : "Source lifecycle changed during startup verification.");
   } catch (error) {
-    atomicJson(join(directory, "failure.json"), { state: submitted ? "created_unverified" : "snapshot_failed", created, error: String(error) });
+    writeAtomicJson(join(directory, "failure.json"), { state: submitted ? "created_unverified" : "snapshot_failed", created, error: String(error) });
     ctx.ui.notify(`Rex fork ${submitted ? "created/unverified (creation may have occurred)" : "stopped before creation"}: ${String(error)} Inspect ${directory} and snapshot ${snapshot.path}${created?.block_ids ? `; Rex blocks ${JSON.stringify(created.block_ids)}` : ""}. No retry or cleanup was attempted.`, "error");
   }
 }

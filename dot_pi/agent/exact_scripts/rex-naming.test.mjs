@@ -78,8 +78,13 @@ test("split tabs get pane labels without changing the tab", () => {
   assert.equal(r.state.windows[0].label, "existing");
   assert.equal(r.state.windows[0].layers[0].blocks[0].label, "π-test-task");
 });
+test("task labels preserve numeric IDs and alphanumeric segments", () => {
+  const r = run("rex-name-task π-review-s3-pr-123");
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.state.windows[0].label, "π-review-s3-pr-123");
+});
 test("invalid arguments fail before mutation", () => {
-  for (const command of ["rex-name-session extra", "rex-name-task", "rex-name-task invalid", "rex-name-task π-one", "rex-name-task π-too-many-words-in-label"]) {
+  for (const command of ["rex-name-session extra", "rex-name-task", "rex-name-task invalid", "rex-name-task π-one", "rex-name-task π-too-many-words-in-label", "rex-name-task π-review-PR-123", "rex-name-task π-review-#123"]) {
     const r = run(command);
     assert.equal(r.status, 2, command);
     assert.deepEqual(r.state.calls, []);

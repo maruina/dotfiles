@@ -1,6 +1,6 @@
 function rex-name-task --description 'Label this Rex tab, or this pane when the tab is split'
-    if test (count $argv) -ne 1; or not string match -qr '^π-[a-z]+(-[a-z]+){1,3}$' -- "$argv[1]"
-        echo 'Usage: rex-name-task π-two-to-four-words' >&2
+    if test (count $argv) -ne 1; or not string match -qr '^π-[a-z0-9]+(-[a-z0-9]+){1,3}$' -- "$argv[1]"
+        echo 'Usage: rex-name-task π-review-pr-123 (2–4 hyphen-separated parts, lowercase letters or digits)' >&2
         return 2
     end
     if test -z "$REX_SESSION"; or test -z "$REX_BLOCK"

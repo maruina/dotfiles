@@ -8,9 +8,16 @@ const agentDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const promptsDir = existsSync(path.join(agentDir, "exact_prompts"))
   ? path.join(agentDir, "exact_prompts")
   : path.join(agentDir, "prompts");
+const extensionsDir = existsSync(path.join(agentDir, "exact_extensions"))
+  ? path.join(agentDir, "exact_extensions")
+  : path.join(agentDir, "extensions");
 
 function prompt(name) {
   return readFileSync(path.join(promptsDir, name), "utf8");
+}
+
+function extension(name) {
+  return readFileSync(path.join(extensionsDir, name), "utf8");
 }
 
 function requireMarkers(text, markers) {
@@ -1057,7 +1064,11 @@ test("PR validation marketplace discovery is bounded, local, and read-only", () 
 
 test("PR validation and cleanup delegate worktree identity to the same script", () => {
   assert.match(prompt("pr-validate.md"), /workspace\.mjs" preflight/);
-  assert.match(prompt("pr-cleanup.md"), /workspace\.mjs" cleanup/);
+  assert.equal(existsSync(path.join(promptsDir, "pr-cleanup.md")), false);
+  const cleanup = extension("pr-cleanup.ts");
+  assert.match(cleanup, /registerCommand\("pr-cleanup"/);
+  assert.match(cleanup, /"workspace\.mjs"/);
+  assert.match(cleanup, /"cleanup"/);
 });
 
 test("standalone PR commands use shared PR drafting guidance", () => {
@@ -1123,15 +1134,15 @@ test("PR commands have distinct roles and aligned review artifacts", () => {
   const addressFeedback = prompt("pr-address-feedback.md");
   const create = prompt("pr-create.md");
   const update = prompt("pr-update.md");
-  const cleanup = prompt("pr-cleanup.md");
+  const cleanup = extension("pr-cleanup.ts");
 
   assert.match(addressFeedback, /`\/pr-validate` explains and evaluates the PR as a whole/);
   assert.match(addressFeedback, /Build a \*\*targeted model\*\*, not a full `\/pr-validate` walkthrough/);
   assert.match(validate, /pr-validate-reports\/REPO-PR_NUMBER\.json/);
   assert.doesNotMatch(create, /@codex review/);
   assert.doesNotMatch(update, /@codex review/);
-  assert.match(cleanup, /created by `\/pr-validate`/);
-  assert.match(cleanup, /workspace\.mjs" cleanup "\$PR_URL"/);
+  assert.match(cleanup, /created by \/pr-validate/);
+  assert.match(cleanup, /pi\.exec\("node", \[script, "cleanup", parsedArg\.url\]/);
   assert.doesNotMatch(cleanup, /\bHTML\b|git worktree remove|skill-loader/);
 });
 

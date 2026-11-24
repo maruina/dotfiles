@@ -1,5 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { existsSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import { isAbsolute, relative, resolve } from "node:path";
+
+export function isPathInside(parent: string, child: string): boolean {
+  const rel = relative(resolve(parent), resolve(child));
+  return rel === "" || (!rel.startsWith("..") && rel !== ".." && !isAbsolute(rel));
+}
 
 export function writeAtomicJson(
   filePath: string,

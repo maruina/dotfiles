@@ -11,8 +11,12 @@ import {
   deriveSlashTaskLabel,
   formatCurrentModel,
   formatPR,
+  getWorktreeInfo,
   loadRexLines,
+  nameRexSession,
+  nameRexTask,
   pathInside,
+  repoHints,
   uniqueMatches,
 } from "./user-context.ts";
 
@@ -32,6 +36,15 @@ test("pathInside accepts descendants and rejects sibling prefix lookalikes", () 
   assert.equal(pathInside(path.join(parent, "sub", "file.ts"), parent), true);
   assert.equal(pathInside(parent, parent), true);
   assert.equal(pathInside(path.join(path.sep, "tmp", "repo-other", "file.ts"), parent), false);
+});
+
+test("getWorktreeInfo and repoHints gate work-only conventions by profile", () => {
+  assert.match(getWorktreeInfo("/home/u/dd/.worktrees/repo/branch", "work", "/home/u").join("\n"), /DataDog worktree/);
+  assert.deepEqual(getWorktreeInfo("/home/u/dd/.worktrees/repo/branch", "personal", "/home/u"), []);
+  assert.match(getWorktreeInfo("/home/u/src/.worktrees/repo/branch", "personal", "/home/u").join("\n"), /personal worktree/);
+
+  assert.equal(repoHints("/tmp/dd-source", "dd-source", "work").some((l) => l.includes("bzl")), true);
+  assert.equal(repoHints("/tmp/dd-source", "dd-source", "personal").some((l) => l.includes("bzl")), false);
 });
 
 test("buildRepoContextKey changes when branch or email changes", () => {
@@ -72,14 +85,14 @@ test("loadRexLines returns nothing when rex is missing or unusable", async () =>
   assert.equal(await loadRexLines({ REX_SESSION: "session:x" }, run), null);
 });
 
-test("loadRexLines disables Rex's built-in naming and omits LLM tab-naming instructions", async () => {
+test("loadRexLines passes --autostart=false and --server when set, and disables built-in naming", async () => {
   const calls = [];
   const run = async (...args) => {
     calls.push(args);
     return "You're running in a Rex terminal.\n\nREX_SESSION=session:x";
   };
-  const lines = await loadRexLines({ REX_SESSION: "session:x" }, run);
-  assert.deepEqual(calls, [["rex", ["__internal", "session-start", "--agent", "pi", "--feature-session-naming=false"], undefined, 3000]]);
+  const lines = await loadRexLines({ REX_SESSION: "session:x", REX_SERVER: "unix:///tmp/rex.sock" }, run);
+  assert.deepEqual(calls, [["rex", ["--autostart=false", "--server", "unix:///tmp/rex.sock", "__internal", "session-start", "--agent", "pi", "--feature-session-naming=false"], undefined, 3000]]);
   assert.deepEqual(lines, [
     "## Rex",
     "",
@@ -87,6 +100,51 @@ test("loadRexLines disables Rex's built-in naming and omits LLM tab-naming instr
     "",
     "REX_SESSION=session:x",
   ]);
+});
+
+test("nameRexSession renames single-pane sessions directly via rex without fish and preserves keep: names", async () => {
+  const calls = [];
+  const run = async (cmd, args) => {
+    calls.push([cmd, args]);
+    if (cmd === "rex" && args.includes("inspect")) {
+      return JSON.stringify({ label: "old", windows: [{ window_id: "window:1", layers: [{ blocks: [{ block_id: "block:x" }] }] }] });
+    }
+    if (cmd === "git" && args[0] === "rev-parse") return "/tmp/repo";
+    if (cmd === "git" && args[0] === "remote") return "git@github.com:maruina/dotfiles.git";
+    return "";
+  };
+  await nameRexSession("/tmp/repo", { REX_SESSION: "session:x", REX_BLOCK: "block:x", REX_SERVER: "unix:///tmp/rex.sock" }, run);
+  assert.deepEqual(calls.at(-1), ["rex", ["--autostart=false", "--server", "unix:///tmp/rex.sock", "session", "rename", "session:x", "dotfiles"]]);
+
+  const keepCalls = [];
+  await nameRexSession("/tmp/repo", { REX_SESSION: "session:x", REX_BLOCK: "block:x" }, async (cmd, args) => {
+    keepCalls.push([cmd, args]);
+    return JSON.stringify({ label: "keep:pinned", windows: [{ window_id: "window:1", layers: [{ blocks: [{ block_id: "block:x" }] }] }] });
+  });
+  assert.equal(keepCalls.length, 1);
+});
+
+test("nameRexTask labels the containing window for single-pane tabs and the block for split tabs", async () => {
+  const calls = [];
+  const env = { REX_SESSION: "session:x", REX_BLOCK: "block:x" };
+  await nameRexTask("π-analyze-pi-extensions", env, async (cmd, args) => {
+    calls.push([cmd, args]);
+    if (args.includes("inspect")) {
+      return JSON.stringify({ windows: [{ window_id: "window:1", layers: [{ blocks: [{ block_id: "block:x" }] }] }] });
+    }
+    return "";
+  });
+  assert.deepEqual(calls.at(-1), ["rex", ["--autostart=false", "window", "rename", "-s", "session:x", "window:1", "π-analyze-pi-extensions"]]);
+
+  const splitCalls = [];
+  await nameRexTask("π-analyze-pi-extensions", env, async (cmd, args) => {
+    splitCalls.push([cmd, args]);
+    if (args.includes("inspect")) {
+      return JSON.stringify({ windows: [{ window_id: "window:1", layers: [{ blocks: [{ block_id: "block:x" }, { block_id: "block:y" }] }] }] });
+    }
+    return "";
+  });
+  assert.deepEqual(splitCalls.at(-1), ["rex", ["--autostart=false", "block", "rename", "-s", "session:x", "block:x", "π-analyze-pi-extensions"]]);
 });
 
 function runHookScenario({ mode = "tui", session = "session:x", block = "block:x", fail = false, reload = false } = {}) {
@@ -98,12 +156,24 @@ function runHookScenario({ mode = "tui", session = "session:x", block = "block:x
     for (const p of [startup, target, bin]) mkdirSync(p);
     const calls = path.join(dir, "calls");
     const release = path.join(dir, "release");
-    writeFileSync(path.join(bin, "rex"), `#!${process.execPath}\nconsole.log('Rex fixture');\n`, { mode: 0o755 });
-    writeFileSync(path.join(bin, "fish"), `#!${process.execPath}
+    writeFileSync(path.join(bin, "rex"), `#!${process.execPath}
 const fs = require('node:fs');
-fs.appendFileSync(process.env.CALLS, JSON.stringify({ cwd: process.cwd(), args: process.argv.slice(2), pid: process.pid }) + '\\n');
+const args = process.argv.slice(2);
+if (args.includes('session-start')) {
+  console.log('Rex fixture');
+  process.exit(0);
+}
+fs.appendFileSync(process.env.CALLS, JSON.stringify({ cwd: process.cwd(), args, pid: process.pid }) + '\\n');
 if (process.env.FAIL === 'true') process.exit(1);
-const interval = setInterval(() => { if (fs.existsSync(process.env.RELEASE)) { clearInterval(interval); process.exit(0); } }, 10);
+if (args.includes('inspect')) {
+  const interval = setInterval(() => {
+    if (fs.existsSync(process.env.RELEASE)) {
+      clearInterval(interval);
+      console.log(JSON.stringify({ label: 'old', windows: [{ window_id: 'window:1', layers: [{ blocks: [{ block_id: process.env.REX_BLOCK }] }] }] }));
+      process.exit(0);
+    }
+  }, 10);
+}
 `, { mode: 0o755 });
     const moduleUrl = new URL("./user-context.ts", import.meta.url).href;
     const script = `
@@ -134,7 +204,7 @@ const interval = setInterval(() => { if (fs.existsSync(process.env.RELEASE)) { c
     `;
     const result = spawnSync(process.execPath, ["--experimental-strip-types", "--input-type=module", "-e", script], {
       cwd: startup, encoding: "utf8", timeout: 8000,
-      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, REX_SESSION: session, REX_BLOCK: block, CALLS: calls, RELEASE: release, TARGET: target, MODE: mode, FAIL: String(fail), RELOAD: String(reload) },
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, REX_SESSION: session, REX_BLOCK: block, REX_SERVER: "", CALLS: calls, RELEASE: release, TARGET: target, MODE: mode, FAIL: String(fail), RELOAD: String(reload) },
     });
     assert.equal(result.status, 0, result.stderr);
     let recorded = [];
@@ -148,9 +218,10 @@ const interval = setInterval(() => { if (fs.existsSync(process.env.RELEASE)) { c
 
 test("registered hook names once in the startup directory without waiting, including after reload", () => {
   const { recorded, startup, output, secondResult, alive } = runHookScenario({ reload: true });
-  assert.equal(alive, true, "the hook returned before Fish exited");
-  assert.equal(recorded.length, 1);
-  assert.deepEqual({ cwd: recorded[0].cwd, args: recorded[0].args }, { cwd: startup, args: ["-c", "rex-name-session"] });
+  assert.equal(alive, true, "the hook returned before rex exited");
+  const inspects = recorded.filter((c) => c.args.includes("inspect"));
+  assert.equal(inspects.length, 1);
+  assert.deepEqual({ cwd: inspects[0].cwd, args: inspects[0].args }, { cwd: startup, args: ["--autostart=false", "session", "inspect", "session:x", "--json"] });
   assert.doesNotMatch(output.message.content, /rex-name-task/);
   assert.doesNotMatch(output.message.content, /rex-name-session/);
   assert.equal(output.systemPrompt, undefined);

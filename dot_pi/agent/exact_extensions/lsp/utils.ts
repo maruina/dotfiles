@@ -2,6 +2,7 @@ import { accessSync, constants, existsSync, readFileSync, statSync } from "node:
 import { delimiter, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { LOCATION_PREVIEW_LIMIT, POSITION_SNAP_MAX_CANDIDATES, POSITION_SNAP_MAX_DISTANCE, type Diagnostic, type DocumentSymbol, type Location, type LocationLink, type Position, type Range, type ServerConfig, type SymbolInformation, type TextEdit, type ToolLocation, type WorkspaceEdit } from "./protocol.ts";
+import { isPathInside } from "../_shared/fs.ts";
 
 export function toLspPosition(line: number, character: number): Position { if (!Number.isInteger(line) || !Number.isInteger(character) || line < 1 || character < 1) throw new Error("line and column must be positive integers; column is a 1-indexed UTF-16 offset"); return { line: line - 1, character: character - 1 }; }
 export function lspPositionCandidates(filePath: string, line: number, column: number): Position[] {
@@ -59,7 +60,7 @@ function comparePosition(a: Position, b: Position): number { return a.line === b
 function rangeSize(range: Range): number { return (range.end.line - range.start.line) * 100_000 + (range.end.character - range.start.character); }
 export function uriToPath(uri: string): string { try { return fileURLToPath(uri); } catch { return uri; } }
 export function relativePath(path: string, workspaceRoot: string): string { if (!isAbsolute(path)) return path; const rel = relative(workspaceRoot, path); return rel && !rel.startsWith("..") && rel !== ".." && !isAbsolute(rel) ? `.${sep}${rel}` : path; }
-export function isInsidePath(path: string, parent: string): boolean { const rel = relative(resolve(parent), resolve(path)); return rel === "" || Boolean(rel && !rel.startsWith("..") && rel !== ".." && !isAbsolute(rel)); }
+export function isInsidePath(path: string, parent: string): boolean { return isPathInside(parent, path); }
 export function formatLocation(loc: Location, workspaceRoot: string): string { return `${relativePath(uriToPath(loc.uri), workspaceRoot)}:${loc.range.start.line + 1}:${loc.range.start.character + 1}`; }
 export function resolvePath(input: string, workspaceRoot: string): string { return isAbsolute(input) ? input : resolve(workspaceRoot, input); }
 export function findExecutable(command: string): string | null { for (const dir of (process.env.PATH || "").split(delimiter).filter(Boolean)) for (const ext of process.platform === "win32" ? [".exe", ".cmd", ""] : [""]) { const p = join(dir, command + ext); try { if (statSync(p).isFile()) { if (process.platform !== "win32") accessSync(p, constants.X_OK); return p; } } catch { /* not found */ } } return null; }

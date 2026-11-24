@@ -4,7 +4,9 @@ import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, 
 import { homedir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 import { promisify } from 'node:util';
+import { mapBounded } from '../_shared/async.ts';
 import { writeAtomicJson } from '../_shared/fs.ts';
+import { verifyLocalRexEndpoint } from '../_shared/rex.ts';
 
 const execFileAsync = promisify(execFile);
 
@@ -15,7 +17,7 @@ function buildRexArgs(args) {
     const separator = outputArgs.indexOf('--');
     outputArgs.splice(separator < 0 ? outputArgs.length : separator, 0, '--json');
   }
-  const serverArgs = process.env.REX_SERVER ? ['--server', process.env.REX_SERVER] : [];
+  const serverArgs = process.env.REX_SERVER ? ['--server', verifyLocalRexEndpoint(process.env.REX_SERVER)] : [];
   return ['--autostart=false', '--timeout', '5s', ...serverArgs, ...outputArgs];
 }
 export function callRex(args) {
@@ -45,8 +47,8 @@ function valid(r) {
   return (r?.version === 1 || (r?.version === 2 && typeof r.startTime === 'string' && Number.isFinite(Date.parse(r.startTime)) && Number.isSafeInteger(r.uid) && typeof r.command === 'string' && r.command.length > 0 && r.command.length <= 4096 && !/[\x00-\x1f]/.test(r.command))) && /^[a-f0-9]{64}$/.test(r.id) &&
     ['host', 'endpoint', 'session', 'block', 'tab', 'sessionLabel', 'tabLabel', 'file', 'cwd'].every(k =>
       typeof r[k] === 'string' && r[k].length > 0 && r[k].length <= 4096 && !/[\x00-\x1f]/.test(r[k])) &&
-    r.endpoint.startsWith('unix://') && r.session.startsWith('session:') && r.block.startsWith('block:') &&
-    r.tab.startsWith('window:') && !r.sessionLabel.startsWith('-') && !r.tabLabel.startsWith('-') && isAbsolute(r.file) && isAbsolute(r.cwd) && Number.isSafeInteger(r.pid);
+    r.endpoint.startsWith('unix://') && /^session:[\w-]+$/.test(r.session) && /^block:[\w-]+$/.test(r.block) &&
+    /^window:[\w-]+$/.test(r.tab) && !r.sessionLabel.startsWith('-') && !r.tabLabel.startsWith('-') && isAbsolute(r.file) && isAbsolute(r.cwd) && Number.isSafeInteger(r.pid);
 }
 export function readRecords(dir = stateDir()) {
   if (!existsSync(dir)) return [];
@@ -129,18 +131,6 @@ export function checkpoint({ dir = stateDir(), file, cwd, pid = process.pid, env
   writeRecord(dir, record);
   if (existsSync(pendingPath(dir, id))) unlinkSync(pendingPath(dir, id));
   return record;
-}
-async function mapBounded(items, limit, fn) {
-  const results = new Array(items.length);
-  let next = 0;
-  const worker = async () => {
-    while (next < items.length) {
-      const i = next++;
-      results[i] = await fn(items[i]);
-    }
-  };
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
-  return results;
 }
 async function inventory(rex) {
   const run = rex === callRex ? callRexAsync : (args) => Promise.resolve(rex(args));

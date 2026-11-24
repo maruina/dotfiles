@@ -179,15 +179,28 @@ async function tabFixture(run, mode = "success") {
       }
       else if (args.includes("inspect")) value = { session_id: peer.session_id, block: { block_id: args.at(-2), host_id: peer.host_id, window_id: "window:bbbb" } };
       else if (args.at(-1) === "process") value = { foreground: { pid: args.includes("block:bbbb") || mode === "unrelated-process" ? process.pid + 1 : process.pid, user_id: process.getuid(), cwd: realpathSync(root), path: process.execPath } };
-      else if (args.includes("session.new_window") || args.includes("session.new_split")) {
-        payload = JSON.parse(args.at(-1));
+      else if ((args.includes("window") && args.includes("new")) || args.includes("split")) {
+        const sep = args.indexOf("--");
+        const cliFlags = sep >= 0 ? args.slice(0, sep) : args;
+        const command = sep >= 0 ? args.slice(sep + 1) : [];
+        const isSplit = cliFlags.includes("split");
+        const flagValue = (name) => { const idx = cliFlags.indexOf(name); return idx >= 0 ? cliFlags[idx + 1] : undefined; };
+        payload = {
+          kind: isSplit ? "split" : "window",
+          session_id: flagValue("-s"),
+          anchor_id: flagValue("-b"),
+          split: flagValue("--split"),
+          shell: flagValue("--shell"),
+          cwd: flagValue("-c"),
+          focus: cliFlags.includes("--focus"),
+          command,
+        };
         if (mode === "lost") throw new Error("lost creation reply");
         if (mode === "cancel-after") app.events.get("session_shutdown")();
-        const command = payload.layout.block.options.command;
         const directory = command.find(v => v.startsWith("PI_REX_FORK_ATTEMPT=")).slice("PI_REX_FORK_ATTEMPT=".length);
         const attempt = JSON.parse(readFileSync(join(directory, "attempt.json"), "utf8"));
         if (mode !== "missing-receipt") writeFileSync(join(directory, "receipt.json"), JSON.stringify({ ...attempt, nonce: mode === "mismatch" ? "wrong" : attempt.nonce, block: "block:bbbb", pid: process.pid + 1 }), { mode: 0o600 });
-        value = args.includes("session.new_split")
+        value = isSplit
           ? { anchor_id: mode === "invalid-anchor" ? "block:cccc" : peer.block_id, block_ids: ["block:bbbb"], split_ids: ["split:bbbb"], revision: 1 }
           : { window_id: "window:bbbb", block_ids: mode === "malformed-creation" ? [] : ["block:bbbb"], revision: 1 };
       } else throw new Error(`Unexpected external call: ${program} ${args.join(" ")}`);
@@ -204,17 +217,19 @@ async function tabFixture(run, mode = "success") {
   }
 }
 
+const isCreateWindow = ([, args]) => args.includes("window") && args.includes("new");
+const isCreateSplit = ([, args]) => args.includes("split");
+
 test("tab registration launches one independent snapshot without a prompt and verifies its receipt", async () => {
   await tabFixture(async ({ source, sourceBytes, calls, app, payload }) => {
     await app.command.handler("tab", app.ctx);
-    assert.equal(calls.filter(([, args]) => args.includes("session.new_window")).length, 1);
+    assert.equal(calls.filter(isCreateWindow).length, 1);
     assert.deepEqual(readFileSync(source.getSessionFile()), sourceBytes);
     const request = payload();
     assert.equal(request.session_id, "session:aaaa");
     assert.equal(request.focus, true);
-    assert.equal(request.layout.block.options.shell, "/opt/test bin/fish");
-    assert.equal(request.layout.block.options.login, true);
-    const command = request.layout.block.options.command;
+    assert.equal(request.shell, "/opt/test bin/fish");
+    const command = request.command;
     assert.equal(command.at(-2), "--session");
     assert.notEqual(command.at(-1), source.getSessionFile());
     assert.equal(app.notifications.at(-1).level, "info", JSON.stringify(app.notifications));
@@ -228,7 +243,7 @@ test("source launch selectors and messages are not copied to the destination", a
     process.argv.push(...args);
     await app.command.handler("tab", app.ctx);
     assert.equal(app.notifications.at(-1).level, "info", JSON.stringify(app.notifications));
-    const command = payload().layout.block.options.command;
+    const command = payload().command;
     assert.equal(command.length, 7);
     assert.equal(command.at(-2), "--session");
     for (const value of args.filter(value => value !== "--session")) assert.equal(command.includes(value), false, value);
@@ -239,24 +254,23 @@ for (const args of [["--extension", "private-value"], ["--tools", "private-value
   await tabFixture(async ({ root, app, calls }) => {
     process.argv.push(...args);
     await app.command.handler("tab", app.ctx);
-    assert.equal(calls.some(([, values]) => values.includes("session.new_window")), false);
+    assert.equal(calls.some(isCreateWindow), false);
     assert.equal(readdirSync(root).filter(file => file.endsWith(".jsonl")).length, 1);
     assert.equal(app.notifications.at(-1).level, "error");
     assert.equal(app.notifications.at(-1).message.includes("private-value"), false);
   });
 });
 
-for (const [destination, direction] of [["right", "horizontal"], ["below", "vertical"]]) test(`${destination} split anchors to the invoking pane and verifies startup`, async () => {
+for (const destination of ["right", "below"]) test(`${destination} split anchors to the invoking pane and verifies startup`, async () => {
   await tabFixture(async ({ source, sourceBytes, calls, app, payload }) => {
     await app.command.handler(destination, app.ctx);
-    assert.equal(calls.filter(([, args]) => args.includes("session.new_split")).length, 1);
-    assert.equal(calls.some(([, args]) => args.includes("session.new_window")), false);
+    assert.equal(calls.filter(isCreateSplit).length, 1);
+    assert.equal(calls.some(isCreateWindow), false);
     const request = payload();
     assert.equal(request.anchor_id, "block:aaaa");
-    assert.equal(request.direction, direction);
-    assert.equal(request.side, "after");
+    assert.equal(request.split, destination);
     assert.equal(request.focus, true);
-    assert.equal(request.layout.block.options.command.at(-2), "--session");
+    assert.equal(request.command.at(-2), "--session");
     assert.deepEqual(readFileSync(source.getSessionFile()), sourceBytes);
     assert.equal(app.notifications.at(-1).level, "info", JSON.stringify(app.notifications));
   });
@@ -265,8 +279,8 @@ for (const [destination, direction] of [["right", "horizontal"], ["below", "vert
 for (const mode of ["lost", "invalid-anchor"]) test(`right split ${mode} remains uncertain without retry or cleanup`, async () => {
   await tabFixture(async ({ app, calls }) => {
     await app.command.handler("right", app.ctx);
-    assert.equal(calls.filter(([, args]) => args.includes("session.new_split")).length, 1);
-    assert.equal(calls.some(([, args]) => args.includes("session.new_window") || args.includes("close") || args.includes("kill")), false);
+    assert.equal(calls.filter(isCreateSplit).length, 1);
+    assert.equal(calls.some((call) => isCreateWindow(call) || call[1].includes("close") || call[1].includes("kill")), false);
     assert.match(app.notifications.at(-1).message, /created\/unverified/);
   }, mode);
 });
@@ -274,7 +288,7 @@ for (const mode of ["lost", "invalid-anchor"]) test(`right split ${mode} remains
 for (const mode of ["lost", "mismatch", "cancel-after", "malformed-creation"]) test(`tab ${mode} creation remains uncertain without retry or resource cleanup`, async () => {
   await tabFixture(async ({ root, app, calls }) => {
     await app.command.handler("tab", app.ctx);
-    assert.equal(calls.filter(([, args]) => args.includes("session.new_window")).length, 1);
+    assert.equal(calls.filter(isCreateWindow).length, 1);
     assert.match(app.notifications.at(-1).message, /created\/unverified/);
     assert.equal(app.notifications.at(-1).level, "error");
     const attempt = join(root, "rex-fork-attempts", readdirSync(join(root, "rex-fork-attempts"))[0]);
@@ -286,7 +300,7 @@ for (const mode of ["lost", "mismatch", "cancel-after", "malformed-creation"]) t
 for (const mode of ["wrong-user", "stale", "remote", "unrelated-process", "restart", "cancel-before", "malformed", "truncated"]) test(`tab refuses ${mode} before snapshot and creation`, async () => {
   await tabFixture(async ({ root, app, calls, source, sourceBytes }) => {
     await app.command.handler("tab", app.ctx);
-    assert.equal(calls.some(([, args]) => args.includes("session.new_window")), false);
+    assert.equal(calls.some(isCreateWindow), false);
     assert.equal(readdirSync(root).filter(file => file.endsWith(".jsonl")).length, 1);
     assert.deepEqual(readFileSync(source.getSessionFile()), sourceBytes);
     assert.equal(app.notifications.at(-1).level, "error");
@@ -300,7 +314,7 @@ test("tab missing receipt expires without retry or verified success", async () =
     let clock = now();
     Date.now = () => { clock += 5000; return clock; };
     try { await app.command.handler("tab", app.ctx); } finally { Date.now = now; }
-    assert.equal(calls.filter(([, args]) => args.includes("session.new_window")).length, 1);
+    assert.equal(calls.filter(isCreateWindow).length, 1);
     assert.match(app.notifications.at(-1).message, /created\/unverified/);
     assert.match(app.notifications.at(-1).message, /timed out|expired/);
   }, "missing-receipt");
@@ -310,7 +324,7 @@ test("tab attempt metadata IO failure reports the retained snapshot without crea
   await tabFixture(async ({ root, app, calls }) => {
     writeFileSync(join(root, "rex-fork-attempts"), "not a directory");
     await app.command.handler("tab", app.ctx);
-    assert.equal(calls.some(([, args]) => args.includes("session.new_window")), false);
+    assert.equal(calls.some(isCreateWindow), false);
     assert.equal(readdirSync(root).filter(file => file.endsWith(".jsonl")).length, 2);
     assert.match(app.notifications.at(-1).message, /snapshot preparation failed/i);
     assert.match(app.notifications.at(-1).message, /Snapshot .*\.jsonl/);
@@ -321,7 +335,7 @@ test("tab snapshot IO failure does not submit creation", { skip: process.getuid?
   await tabFixture(async ({ root, app, calls }) => {
     chmodSync(root, 0o500);
     try { await app.command.handler("tab", app.ctx); } finally { chmodSync(root, 0o700); }
-    assert.equal(calls.some(([, args]) => args.includes("session.new_window")), false);
+    assert.equal(calls.some(isCreateWindow), false);
     assert.equal(readdirSync(root).filter(file => file.endsWith(".jsonl")).length, 1);
     assert.match(app.notifications.at(-1).message, /EACCES/);
   });
@@ -330,7 +344,7 @@ test("tab snapshot IO failure does not submit creation", { skip: process.getuid?
 test("missing Fish is reported before creating a snapshot or pane", async () => {
   await tabFixture(async ({ root, app, calls }) => {
     await app.command.handler("tab", app.ctx);
-    assert.equal(calls.some(([, args]) => args.includes("session.new_window")), false);
+    assert.equal(calls.some(isCreateWindow), false);
     assert.equal(readdirSync(root).filter(file => file.endsWith(".jsonl")).length, 1);
     assert.match(app.notifications.at(-1).message, /Fish must be installed/);
   }, "missing-fish");
@@ -342,7 +356,7 @@ for (const mode of ["missing-endpoint", "tcp-endpoint", "launcher-flags"]) test(
     if (mode === "tcp-endpoint") process.env.REX_SERVER = "http://127.0.0.1:1";
     if (mode === "launcher-flags") process.argv.push("--extension", "unsupported.ts");
     await app.command.handler("tab", app.ctx);
-    assert.equal(calls.some(([, args]) => args.includes("session.new_window")), false);
+    assert.equal(calls.some(isCreateWindow), false);
     assert.equal(app.notifications.at(-1).level, "error");
   });
 });
@@ -350,7 +364,7 @@ for (const mode of ["missing-endpoint", "tcp-endpoint", "launcher-flags"]) test(
 test("tab serializes overlapping commands without queueing a second fork", async () => {
   await tabFixture(async ({ app, calls }) => {
     await app.command.handler("tab", app.ctx);
-    assert.equal(calls.filter(([, args]) => args.includes("session.new_window")).length, 1);
+    assert.equal(calls.filter(isCreateWindow).length, 1);
     assert.equal(app.notifications[0].level, "warning");
     assert.equal(app.notifications.at(-1).level, "info");
   }, "overlap");

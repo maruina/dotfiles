@@ -84,7 +84,7 @@ GitHub shows stack navigation and PR status in the UI. Do not maintain a duplica
 ## Shared PR drafting
 Use this workflow to prepare text, not to authorize GitHub writes or changes to history. For a new PR, write a short title that names the change. When refreshing a PR, preserve accurate handwritten content and propose a title change only if the existing title is stale. The caller owns approval. Report only tests and rollout results supported by the evidence.
 
-Follow the pre-description check, body template, and reader check below. When matching plan artifacts exist and help the reviewer, use an optional `## Design & implementation plan` section. Link `design.md` as the design record and `plan.md` as implementation context. When external visual assessment is unavailable, use prose and still perform the reader check.
+Follow the pre-description check, body template, and reader check below. When matching plan artifacts exist and help the reviewer, use an optional `## Design & implementation plan` section. Link `design.md` as the design record and `plan.md` as implementation context. When external visual assessment is unavailable, use authoring-model judgment for diagrams, tables, and pseudocode (prose remains valid) and still perform the reader check.
 
 ## Pre-description check
 Before writing or refreshing the description, compare the full diff with the task context, relevant design artifacts, OpenSpec proposals or specs, and linked issue. Check:
@@ -106,7 +106,7 @@ Explain the change rather than summarize the diff. Give the reader enough contex
 - what the result looks like and who or what consumes it;
 - the important design choices and scope boundaries.
 
-Start with behavior the reader can picture. Introduce subsystem terms and code names only after explaining their purpose. Use short paragraphs and concrete language. Do not turn the description into a list of functions, types, or changed files.
+Start with behavior the reader can picture. Introduce subsystem terms and code names only after explaining their purpose. Use short paragraphs and concrete language. Organize changes by behavioral responsibility, attaching file paths and symbol links as navigation aids rather than dumping a raw list of functions, types, or changed files.
 
 When a change produces output, show representative output. If it provides multiple formats or interfaces, explain who uses each and when. Use the same scenario across examples so readers can compare them. Keep examples as small as possible without hiding the behavior being explained.
 
@@ -121,22 +121,33 @@ For non-trivial changes, use this structure. For trivial changes, omit sections 
 ## What is this PR?
 Explain the practical problem, why it matters, and what this change does.
 
+### Context for reviewers unfamiliar with <subsystem>
+Optional for domain-specific subsystems: explain current behavior, the target model, and any key metadata, label, or annotation contract in a compact table.
+
+**Not in this PR:** Name deferred work, companion or stacked PRs, and what keeps existing behavior.
+
+## What changes in this PR
+List changes as numbered behavioral units (`**1. <Behavior> (`path/to/file`).**`) with head-SHA symbol links as navigation aids. Include a short fenced `text` pseudocode block when the PR implements a non-trivial guard, state machine, or decision order.
+
 ## Why is it built this way?
-Explain the important design choices, tradeoffs, and scope boundaries.
+Frame each bullet or subsection around a concrete reviewer question (`**Why X instead of Y:**`, `**Why we rejected Z:**`, `**Why no W:**`) covering tradeoffs, rejected alternatives, replaced ADRs, and safety invariants.
 
 ## How it works
-Follow the input-to-result flow in a few steps. Mention files or symbols as navigation aids, not as the organizing principle.
+Follow the input-to-result flow in a few steps. Add focused `mermaid` diagrams (`sequenceDiagram`, `flowchart`) or tables for each distinct flow (for example, happy path, bypass/error cases, adoption, recovery, or handback), keeping one concept per diagram. Include representative inputs, outputs, or before/after behavior and explain who uses each format or interface and when.
 
-## <Topic-specific examples heading>
-Show representative inputs, outputs, or before/after behavior. Explain who uses each format or interface and when.
+## Rollout & safety
+Optional when deploy order, pause/drain steps, RBAC or CLI prerequisites, recovery/handback procedures, or accepted operational limits apply.
 
 ## Tests
-Report validation performed and relevant limits.
+State the exact commands run, targets and pass counts, key edge-case or fault tests, downstream compatibility builds when applicable, and what the tests do not verify.
+
+## Links
+Optional concise list of Jira tickets, design records, cross-repo sibling PRs, and immediate base/next PR references.
 ```
 
-Omit the examples section when it does not improve understanding. Use a fenced example or a `diff` block to make behavior concrete. Add a `mermaid` diagram when it makes a flow, interaction, or transformation easier to understand. GitHub renders Mermaid natively; follow `mermaid-best-practices`, keep one concept per diagram, and skip diagrams when prose or an example is already clear.
+Omit optional subsections and examples when they do not improve understanding. Use a fenced example, `text` pseudocode, or `diff` block to make behavior concrete. Add a `mermaid` diagram when it makes a flow, interaction, or transformation easier to understand. GitHub renders Mermaid natively; follow `mermaid-best-practices`, keep one concept per diagram, and skip diagrams when prose or an example is already clear.
 
-Keep relevant design links. Let GitHub provide stack navigation for stacked PRs. Include `## Evidence` only when external artifacts help explain or verify the change. Add `## Lessons learned` only for reviewer-relevant surprises or tradeoffs.
+Let GitHub provide stack navigation for stacked PRs instead of maintaining a manual stack-status table; use `## Links` only for concise cross-repo, Jira, design, or immediate stack references. Include `## Evidence` only when external artifacts help explain or verify the change. Add `## Lessons learned` only for reviewer-relevant surprises or tradeoffs.
 
 Link code references to the file at the PR head SHA with line anchors. Commit links must use `/pull/<pr>/changes/<full-sha>`, never bare `/commit/<sha>` links.
 
@@ -147,7 +158,7 @@ Read `explain` and its `references/visual-assessment.md`. Before publishing the 
 
 For follow-up edits to the same draft, reassess only if the reader question, the facts that support the representation, or the set of allowed representations changes. Do not call Jev again for copy edits. If the user specifies a format and the evidence and destination support it, use it without calling Jev.
 
-Follow the reference's bounds, gates, explicit-format override, and unavailable-assessment fallback; prose is a valid result. If a visual helps, place one focused representation beside the explanation it supports and verify it against the final diff. Load `mermaid-best-practices` before authoring Mermaid. Do not create HTML files or open a browser.
+Follow the reference's bounds, gates, explicit-format override, and unavailable-assessment fallback; prose is a valid result. For multi-actor, branching, or stateful changes, default to including focused Mermaid diagrams, metadata or comparison tables, or pseudocode blocks alongside prose, using Jev to check whether an additional or specific representation helps rather than to strip visuals from distinct flows. Place each focused representation beside the explanation it supports (one concept per diagram; multiple diagrams are appropriate when a PR covers distinct flows) and verify each one against the final diff. Load `mermaid-best-practices` before authoring Mermaid. Do not create HTML files or open a browser.
 
 Before publishing, check: Can a reader explain why this change exists, how it works, and what it produces without reading the diff or implementation session?
 

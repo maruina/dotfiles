@@ -36,7 +36,7 @@ Handle uncommitted changes before creating the PR:
 
 After committing intended changes, rerun the branch-diff commands. If the branch has no diff from `origin/$base`, stop: there is nothing to open.
 
-Read repository guidance in the root and changed package directories. Locate relevant `plans/**/design.md` and `plans/**/plan.md` artifacts, OpenSpec proposals or specs, and linked issue context.
+Read repository guidance in the root and changed package directories. Locate relevant `plans/**/design.md` and `plans/**/plan.md` artifacts, OpenSpec proposals or specs, and linked issue context. Collect Jira keys and related cross-repo or sibling PR URLs from the branch name, commits, and plan or design docs so the draft populates `**Not in this PR:**` and `## Links` on the first pass.
 
 ## Phase 2: Prepare a reviewable change
 Read the significant diff and relevant design artifacts. Build the explanation from the problem, behavior, design choices, and representative examples, following `reviewable-pr-workflow`. Identify tests and supporting evidence. Ignore generated files unless they are needed to understand or verify the change.
@@ -53,7 +53,7 @@ Draft the title and body in create mode using `## Shared PR drafting` in `review
 
 Before publishing the body, apply `## Reader check and visual assessment` from `reviewable-pr-workflow` (including reading `explain` and its `references/visual-assessment.md` to run the single Jev assessment on the drafted explanation, and loading `mermaid-best-practices` before authoring Mermaid).
 
-For a native stack, run `gh stack submit` and capture the PR URLs and numbers it reports. Do not push or create the stack's PRs separately. For a standalone branch, push it and create a draft PR:
+For a native stack, run `gh stack submit` and capture the PR URLs and numbers it reports. Do not push or create the stack's PRs separately. Immediately after `gh stack submit`, draft and apply the full `reviewable-pr-workflow` body to each created PR with `gh pr edit <number> --body-file <temp-file>` so stacked PRs do not remain minimal stubs. For a standalone branch, push it and create a draft PR:
 
 ```bash
 git push -u origin "$(git branch --show-current)"

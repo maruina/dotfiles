@@ -52,7 +52,9 @@ Before refreshing the description, run the `## Pre-description check` in `review
 
 Before publishing the body, apply `## Reader check and visual assessment` from `reviewable-pr-workflow` (including reading `explain` and its `references/visual-assessment.md` to run the single Jev assessment on the drafted explanation, and loading `mermaid-best-practices` before authoring Mermaid).
 
-Also reassess existing visuals against the full PR diff. Preserve accurate handwritten visuals; update or remove stale generated visuals in place rather than appending duplicates. A prose assessment does not by itself justify deleting an accurate handwritten visual.
+Also reassess existing visuals against the full PR diff. Treat all existing Mermaid diagrams, tables, pseudocode blocks, and explanatory subsections in the current PR body as preserved by default, and apply surgical section-by-section updates instead of full-body rewrites. Preserve accurate handwritten visuals; update or remove stale generated visuals in place rather than appending duplicates. A prose assessment does not by itself justify deleting an accurate handwritten visual.
+
+Before running `gh pr edit`, apply a shrink/deletion guard: if the refreshed body removes any existing Mermaid diagram, table, or top-level section, or substantially reduces the body length, verify that each removal maps to deleted code or superseded behavior; otherwise restore the preserved content or ask the user before overwriting.
 
 If the title is stale, propose a replacement. Change it only when the user explicitly requested it or approves the proposal.
 

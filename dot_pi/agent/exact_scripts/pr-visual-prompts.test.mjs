@@ -56,9 +56,12 @@ for (const name of ["pr-create", "pr-update"]) {
   });
 }
 
-test("PR updates reassess existing visuals without discarding accurate handwritten content", () => {
+test("PR updates preserve existing diagrams, tables, and structure with a shrink/deletion guard", () => {
   const text = prompt("pr-update");
   assert.ok(text.includes("reassess existing visuals against the full PR diff"));
+  assert.ok(text.includes("Treat all existing Mermaid diagrams, tables, pseudocode blocks, and explanatory subsections"));
+  assert.ok(text.includes("surgical section-by-section updates"));
   assert.ok(text.includes("Preserve accurate handwritten visuals"));
   assert.ok(text.includes("update or remove stale generated visuals in place"));
+  assert.ok(text.includes("shrink/deletion guard"));
 });

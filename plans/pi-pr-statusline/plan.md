@@ -189,10 +189,12 @@ The R1 tests first failed because `pr-status/github.ts` did not exist. All 4 R1 
 **Traces to:** R2
 **Files:** `dot_pi/agent/exact_extensions/statusline.ts`, `dot_pi/agent/exact_extensions/statusline.test.mjs`
 
-- [ ] Add failing tests in `dot_pi/agent/exact_extensions/statusline.test.mjs` covering R2: 3rd line below the model line when `"pr-status"` is set, `"pr-status"` excluded from line 2, `<right>` right-aligned after the first `\t`, a value without `\t` rendered left-only, OSC 8 link truncation at narrow width, and unchanged 2-line output when `"pr-status"` is absent or empty.
-- [ ] Update `dot_pi/agent/exact_extensions/statusline.ts` to extract `"pr-status"` from `footerData.getExtensionStatuses()`, split it on the first `\t`, and append `renderLine(left, right, width)` as line 3 when non-empty.
-- [ ] Run `node --experimental-strip-types --test dot_pi/agent/exact_extensions/statusline.test.mjs`; expect all tests to pass.
-- [ ] Refactor only after green, rerun verification, and commit with `feat(pi): render PR status on conditional third footer line`.
+- [x] Add failing tests in `dot_pi/agent/exact_extensions/statusline.test.mjs` covering R2: 3rd line below the model line when `"pr-status"` is set, `"pr-status"` excluded from line 2, `<right>` right-aligned after the first `\t`, a value without `\t` rendered left-only, OSC 8 link truncation at narrow width, and unchanged 2-line output when `"pr-status"` is absent or empty.
+- [x] Update `dot_pi/agent/exact_extensions/statusline.ts` to extract `"pr-status"` from `footerData.getExtensionStatuses()`, split it on the first `\t`, and append `renderLine(left, right, width)` as line 3 when non-empty.
+- [x] Run `node --experimental-strip-types --test dot_pi/agent/exact_extensions/statusline.test.mjs`; expect all tests to pass.
+- [x] Refactor only after green, rerun verification, and commit with `feat(pi): render PR status on conditional third footer line`.
+
+The 3 new footer tests failed against the old renderer. All 10 footer tests passed after adding line 3, including truncation with the real Pi TUI implementation.
 
 ### Task 4: Wire bounded polling extension in `pr-status/index.ts`
 **Delivers:** Auto-discovered Pi extension that polls the active feature branch on `session_start`, `agent_end`, and a 120-second timer with backoff, branch-keyed stale retention, and shutdown cleanup.

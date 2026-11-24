@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { visibleWidth } from "@earendil-works/pi-tui";
 
 import statusline, { estimateContextTokens } from "./statusline.ts";
 
-async function contextFooter(usage, statuses = new Map(), cwd = "/tmp/my-session-repo") {
+async function contextFooter(usage, statuses = new Map(), cwd = "/tmp/my-session-repo", width = 160) {
 	let footer;
 	const pi = {
 		on(event, handler) {
@@ -28,7 +29,7 @@ async function contextFooter(usage, statuses = new Map(), cwd = "/tmp/my-session
 	};
 	statusline(pi);
 	await pi.start({}, ctx);
-	return footer.render(160);
+	return footer.render(width);
 }
 
 test("context footer shows the configured context window", async () => {
@@ -52,6 +53,44 @@ test("footer renders other extension statuses alongside session-cost", async () 
 	const lines = await contextFooter(undefined, statuses);
 	assert.match(lines[1], /\$0\.42/);
 	assert.match(lines[1], /🛡 guardrails/);
+});
+
+const prOpen = "\x1b]8;;https://github.com/maruina/dotfiles/pull/42\x1b\\";
+const prClose = "\x1b]8;;\x1b\\";
+const prLeft = `[open] ${prOpen}#42 A pull request with a long title${prClose}`;
+
+test("footer puts PR status below the unchanged model line and aligns the right segment", async () => {
+	const base = await contextFooter(undefined);
+	const right = "✓ CI  💬 2";
+	const status = new Map([["pr-status", `${prLeft}\t${right}`]]);
+	const lines = await contextFooter(undefined, status);
+	assert.deepEqual(lines.slice(0, 2), base);
+	assert.equal(lines.length, 3);
+	assert.ok(lines[2].startsWith(prLeft));
+	assert.ok(lines[2].endsWith(right));
+	assert.equal(visibleWidth(lines[2]), 160);
+});
+
+test("footer supports left-only PR status and preserves the two lines when PR status is empty", async () => {
+	const base = await contextFooter(undefined);
+	assert.equal(base.length, 2);
+	assert.deepEqual(await contextFooter(undefined, new Map([["pr-status", ""]])), base);
+	for (const status of [prLeft, `${prLeft}\t`]) {
+		const lines = await contextFooter(undefined, new Map([["pr-status", status]]));
+		assert.deepEqual(lines.slice(0, 2), base);
+		assert.equal(lines[2].trimEnd(), prLeft);
+	}
+});
+
+test("footer keeps the OSC 8 link closed when it truncates a PR title", async () => {
+	const status = new Map([["pr-status", `${prLeft}\t✓ CI`]]);
+	const lines = await contextFooter(undefined, status, undefined, 24);
+	assert.equal(lines.length, 3);
+	assert.equal(visibleWidth(lines[2]), 24);
+	assert.ok(lines[2].includes(`${prOpen}#42`));
+	assert.ok(lines[2].includes(prClose));
+	assert.ok(lines[2].endsWith("✓ CI"));
+	assert.ok(!lines[2].includes("long title"));
 });
 
 test("footer displays the basename of ctx.cwd rather than process.cwd()", async () => {

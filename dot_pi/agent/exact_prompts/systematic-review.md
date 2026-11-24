@@ -52,7 +52,7 @@ For behavior-bearing code, check resource bounds (loops, queues, goroutines, ret
 For `plan.md` targets, check that:
 
 - every requirement maps to a task or explicit follow-up
-- Plan format: run `lifecycle-git.mjs lint-plan <plan-path>` (`### Task N:`, `### Slice N:`, `**Blocked by:**` with `Task N`/`Tasks N-M`/`None` and separate notes, task-only checkboxes, repo-relative paths); confirm final verification is a numbered task in the last slice.
+- Plan format: run `node "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/scripts/lifecycle-git.mjs" lint-plan <plan-path>` (`### Task N:`, `### Slice N:`, `**Blocked by:**` with `Task N`/`Tasks N-M`/`None`, task-only checkboxes, repo-relative paths); final verification is a numbered task in the last slice.
 - the smallest user-feedback slice is named and is slice 1
 - every execution task maps to a slice in a grouped plan; requirements assigned to later checks stay in scope
 - scope that re-entered from an alternative design or a prior review is deferred with a revisit trigger

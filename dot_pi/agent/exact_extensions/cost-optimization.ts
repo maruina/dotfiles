@@ -41,7 +41,10 @@ async function captureCommandOutput(
     const text = decoder.decode(data, { stream: true });
     tail += text;
     if (Buffer.byteLength(tail, "utf8") > maxBytes * 2) {
-      tail = Buffer.from(tail, "utf8").subarray(-maxBytes * 2).toString("utf8");
+      const buf = Buffer.from(tail, "utf8");
+      let start = buf.length - maxBytes * 2;
+      while (start < buf.length && (buf[start]! & 0xc0) === 0x80) start++;
+      tail = buf.subarray(start).toString("utf8");
     }
 
     for (const character of text) {

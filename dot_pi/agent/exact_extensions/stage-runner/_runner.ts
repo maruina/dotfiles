@@ -297,12 +297,18 @@ async function attempt(o: Pick<Options, "models" | "env" | "executable" | "prefi
     extra.push("--no-extensions", "--no-approve", "--no-skills", "--no-prompt-templates", "--no-context-files",
       "--tools", "read", ...drafting.extensions.flatMap(file => ["--extension", file]));
   } else if (stage === "arp-fix") {
+    const optionalWriterExts = [
+      path.resolve(import.meta.dirname, "../user-context.ts"),
+      path.resolve(import.meta.dirname, "../cost-optimization.ts"),
+      path.resolve(import.meta.dirname, "../lsp/index.ts"),
+    ].filter((file) => fs.existsSync(file));
     extra.push("--no-extensions",
       "--extension", path.join(import.meta.dirname, "_handoff.ts"),
       ...workExtensions(env, true).flatMap(ext => ["--extension", ext]),
+      ...optionalWriterExts.flatMap(ext => ["--extension", ext]),
       "--no-approve", "--exclude-tools", "mcp__*,codemode,tool_search");
   } else {
-    extra.push("--no-extensions",
+    extra.push("--no-extensions", "--no-approve",
       ...stageChildExtensions(env, stage).flatMap(ext => ["--extension", ext]));
     if (stage === "verify" || stage === "startup-check") {
       extra.push("--exclude-tools", "write,edit");
@@ -393,7 +399,7 @@ async function attempt(o: Pick<Options, "models" | "env" | "executable" | "prefi
             }
           }
           if (e.type === "agent_start") { settled = false; assistant = undefined; }
-          if (drafting && e.type === "message_end" && e.message?.role === "assistant") assistant = e.message;
+          if (e.type === "message_end" && e.message?.role === "assistant") assistant = e.message;
           if (e.type === "agent_settled") settled = e.aborted === false;
           if (e.type === "turn_start") turn++;
         }
@@ -406,6 +412,10 @@ async function attempt(o: Pick<Options, "models" | "env" | "executable" | "prefi
       throw Error((stopping || "Pi did not settle successfully; exit " + code) + "; session " + (session || "unknown"));
     signal.throwIfAborted();
     drafting?.accept(assistant);
+    const content = (assistant as { content?: Array<{ type?: string; text?: string }> } | undefined)?.content;
+    return Array.isArray(content)
+      ? content.filter((part) => part?.type === "text" && typeof part.text === "string").map((part) => part.text).join("\n").trim()
+      : "";
   } finally {
     if (labels.size) o.onEvent?.({ type: "skills", labels: [] });
     clearTimeout(idle);
@@ -781,8 +791,13 @@ async function supervise(o: Options | DesignOptions) {
       let verificationEvidence: string | undefined;
       try {
         try {
-          await attempt(o, stage, folder, prompt, signal, undefined, out);
-          const h = handoff(out, stage);
+          const lastMessage = await attempt(o, stage, folder, prompt, signal, undefined, out);
+          let h: Record<string, unknown>;
+          try {
+            h = handoff(out, stage);
+          } catch (handoffError) {
+            throw Error(lastMessage ? `${handoffError}; last assistant message: ${safe(lastMessage)}` : String(handoffError));
+          }
           if (typeof h.status !== "string" || !["success", "VERIFIED"].includes(h.status)) throw Error(JSON.stringify(h));
           if (stage === "verify") verificationEvidence = JSON.stringify(h);
           if (stage !== "verify") clean();

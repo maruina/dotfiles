@@ -2,6 +2,7 @@
 // Collects deterministic weekly work evidence (date range, existing Obsidian note,
 // GitHub PRs via gh, Jira keys, and Pi session summaries) as JSON for /weekly-summary.
 import { spawnSync } from "node:child_process";
+import { scrubbedGhEnv } from "./_github.mjs";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -196,10 +197,7 @@ function extractMessageText(content) {
 }
 
 function defaultRunGh(args, { token } = {}) {
-  const env = { ...process.env, GH_PROMPT_DISABLED: "1", GH_HOST: "github.com" };
-  delete env.GH_TOKEN;
-  delete env.GITHUB_TOKEN;
-  if (token) env.GH_TOKEN = token;
+  const env = scrubbedGhEnv(process.env, token);
   const res = spawnSync("gh", args, { encoding: "utf8", env, timeout: 30_000 });
   if (res.error) {
     return { ok: false, stdout: "", error: `spawn_${res.error.code || "UNKNOWN"}` };

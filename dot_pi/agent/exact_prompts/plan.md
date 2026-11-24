@@ -7,7 +7,7 @@ Planning input:
 
 > $ARGUMENTS
 
-Turn agreed framing, a design, an issue, or a clear request into an implementation plan.
+Turn agreed framing or a clear request into a plan.
 
 <HARD-GATE>
 Do not write implementation code, scaffold application files, or change files outside the plan document. Non-trivial work ends with a committed `plan.md` in a feature worktree.
@@ -40,7 +40,7 @@ Use the design, brief, issue, PR feedback, or request for WHAT, and the reposito
 - Investigate discoverable facts yourself; ask the user only for decisions, priorities, or unavailable context.
 - Trace every task to a goal, requirement, or instruction. Preserve source-defined non-goals and deliberate deferrals in the brief and plan; do not change scope.
 
-For a Medium or Large/Risky upstream design, run `lifecycle-git.mjs preflight-design <design-path>` from the worktree root (checks `git status --porcelain=v1 --untracked-files=all -- <design-path>` and `git show HEAD:<design-path>`). Reject untracked, staged, or unstaged changes to the design; if dirty, ask to reconcile with Git first. Require `Status: Approved` in the design header at `HEAD`. Accept the design even if later commits changed its content without changing its status. Do not inspect approval commit history or require a review report or transcript.
+For a Medium or Large/Risky upstream design, run `node "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/scripts/lifecycle-git.mjs" preflight-design <design-path>` from the worktree root. Reject untracked, staged, or unstaged changes to the design; ask to reconcile with Git first. Require `Status: Approved` in the design header at `HEAD`. Accept the design even if later commits changed its content without changing its status. Do not inspect approval commit history or require a review report or transcript.
 
 If the committed design is not marked Approved, stop and request `/new` followed by `/systematic-review <absolute-path-to-design.md>` and explicit approval. Use the `## Handoff` format when blocked.
 
@@ -67,7 +67,7 @@ Ask a planning question when multiple reasonable approaches materially change co
 Pressure-test material risks: untrusted inputs, invalid states, permissions, sensitive data, partial failure, bounded growth, cancellation, timeouts, retries, idempotency, scale, dependency unavailability, data integrity, ownership, observability, rollout, and rollback. Prefer boring existing technology and APIs. If the owning team would not accept being paged for the result, revise or narrow the plan.
 
 ## Planning alignment gate
-The planning alignment brief and durable plan must include `Skills loaded and used`; use the exact durable-plan heading `## Skills loaded and used`. Fill it per the `## Provenance record` section of the `skill-loader` skill.
+The planning alignment brief and durable plan must include `Skills loaded and used`; use `## Skills loaded and used` in the durable plan. Fill it per the `## Provenance record` section of the `skill-loader` skill.
 
 ```md
 ## Planning alignment brief
@@ -204,7 +204,7 @@ Prefer a script over long inline CI YAML when logic contains branching, retries,
 For Medium and Large/Risky work, end with a documentation and future-agent guidance task covering user/developer docs, READMEs, runbooks, examples or generated references, and every relevant `AGENTS.md` (adding only durable commands, generation steps, traps, source-of-truth rules, and testing/rollout procedures); update each or record why not. Small plans must state documentation impact.
 
 ## Final review
-Run `lifecycle-git.mjs lint-plan <plan-path>` and fix structural errors. Trace one allowed scenario through every applicable control and prerequisite; resolve the contradiction before commit.
+Run `node "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/scripts/lifecycle-git.mjs" lint-plan <plan-path>` and fix structural errors. Trace one allowed scenario through every applicable control and prerequisite; resolve the contradiction before commit.
 
 Review as a skeptical implementer. Fix issues before committing. Confirm the interactive alignment brief was approved, shared-component scope choices were asked, scope/requirements/tasks/validation trace bidirectionally, referenced paths/commands/types exist, tasks form ordered vertical slices, scenarios cover material happy/edge/failure/negative paths without redundant dimensions, slice grouping is used only when the plan needs it, task and slice metadata follows the plan format, scope beyond the smallest user-feedback slice is explicitly deferred, skill provenance is accurate, and no contradictions, placeholders, or pre-written implementation choreography remain.
 

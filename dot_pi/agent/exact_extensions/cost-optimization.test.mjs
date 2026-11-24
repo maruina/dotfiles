@@ -184,3 +184,17 @@ test("ignores skill reads removed from context by compaction", async () => {
     assert.equal(result, undefined);
   });
 });
+
+test("truncating multi-byte UTF-8 bash output does not split characters", async () => {
+  const { tools } = await loadExtension();
+  const result = await tools.get("bash").execute(
+    "test-utf8",
+    { command: `node -e 'process.stdout.write("é".repeat(25000))'` },
+    undefined,
+    undefined,
+    { cwd: process.cwd() },
+  );
+  assert.match(result.content[0].text, /Output truncated/);
+  assert.equal(result.content[0].text.includes("\uFFFD"), false);
+  await rm(dirname(result.details.fullOutputPath), { recursive: true, force: true });
+});

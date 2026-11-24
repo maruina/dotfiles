@@ -10,7 +10,7 @@ Update the current branch's existing GitHub PR after implementation or review fe
 Load `skill-loader` first and follow its skill-selection rules. Read `reviewable-pr-workflow` before acting. It is the source of truth for PR bodies, history, stacks, and reporting. For stacked PRs, also read `github-stacks` and use GitHub's native stack workflow.
 
 ## Phase 1: Establish PR and review state
-Run:
+Follow the GitHub account-routing and login capture/restore rule in `AGENTS.md` (or use `gh-as`) before `gh` commands, then run:
 
 ```bash
 gh pr view --json number,title,body,baseRefName,url,author,reviews,comments,latestReviews,reviewDecision

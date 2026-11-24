@@ -14,9 +14,9 @@ Creating a PR is the explicit side effect of this command. Create it as a draft.
 ## Phase 1: Establish PR state
 Parse `--base <branch>`. All remaining arguments are task context.
 
-If `--base` is absent, resolve it with `node "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/scripts/lifecycle-git.mjs" resolve-base` (parent branch from `gh stack status` when in a native stack; otherwise `main`).
+If `--base` is absent, resolve it with `node "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/scripts/lifecycle-git.mjs" resolve-base` (`gh stack status` parent, open PR base, `origin/HEAD`, or `main`).
 
-Run:
+Follow the GitHub account-routing and login capture/restore rule in `AGENTS.md` (or use `gh-as`) before `gh` commands, then run:
 
 ```bash
 git status --short

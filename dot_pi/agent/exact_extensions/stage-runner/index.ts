@@ -3,7 +3,7 @@ import os from "node:os";
 import { getSupportedThinkingLevels } from "@earendil-works/pi-ai";
 import { VERSION, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { formatProgramStatus, Text, type ProgramStatus, type Terminal } from "@earendil-works/pi-tui";
-import { buildRexArgs, verifyLocalRexEndpoint, verifyLocalRexPeer } from "../_shared/rex.ts";
+import { execRexJson, verifyLocalRexEndpoint, verifyLocalRexPeer } from "../_shared/rex.ts";
 import { qualifiedId } from "../_shared/model.ts";
 import stageRunnerHandoff from "./_handoff.ts";
 import { handoff, run, runDesign, type Choice, type Phase, type RunnerEvent } from "./_runner.ts";
@@ -16,11 +16,14 @@ function deadline(name: string, fallback: number) {
 
 async function checkRex(pi: ExtensionAPI) {
   const endpoint = verifyLocalRexEndpoint(process.env.REX_SERVER);
-  const result = await pi.exec("rex", buildRexArgs(["whoami", "--json"], { timeoutSec: 5, endpoint, validateEndpoint: false }), {
-    timeout: 5000,
+  const peer = await execRexJson(pi, ["whoami", "--json"], {
+    timeoutSec: 5,
+    execTimeoutMs: 5000,
+    endpoint,
+    validateEndpoint: false,
+    errorMessage: "Cannot verify Rex identity",
   });
-  if (result.code !== 0 || result.killed) throw Error("Cannot verify Rex identity");
-  verifyLocalRexPeer(JSON.parse(result.stdout), endpoint, {
+  verifyLocalRexPeer(peer, endpoint, {
     session: process.env.REX_SESSION,
     block: process.env.REX_BLOCK,
   });

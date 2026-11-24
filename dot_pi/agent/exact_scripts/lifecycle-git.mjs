@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { closeSync, existsSync, globSync, lstatSync, openSync, readFileSync, readlinkSync, readSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
+import { getGhTokenSync, parseGitHubOwnerRepo, scrubbedGhEnv, selectGitHubLogin } from './_github.mjs';
 
 class CliError extends Error {
   constructor(code, message, exitCode = 1) { super(message); this.code = code; this.exitCode = exitCode; }
@@ -203,14 +204,26 @@ function nextSlice(root, file) {
   }
   return { schemaVersion: 1, path: full, committed, grouped, nextSlice: nextSliceInfo, remainingCount };
 }
-function resolveBase(root) {
+function resolveGhEnv(root) {
   try {
-    const stackOut = execFileSync('gh', ['stack', 'status'], { cwd: root, encoding: 'utf8', timeout: 10000, stdio: ['ignore', 'pipe', 'ignore'] });
+    const remote = git(root, 'remote', 'get-url', 'origin').trim();
+    const parsed = parseGitHubOwnerRepo(remote);
+    if (parsed) {
+      const token = getGhTokenSync(selectGitHubLogin(parsed.owner), { cwd: root });
+      if (token) return scrubbedGhEnv(process.env, token);
+    }
+  } catch { /* fall through */ }
+  return scrubbedGhEnv(process.env);
+}
+function resolveBase(root) {
+  const ghEnv = resolveGhEnv(root);
+  try {
+    const stackOut = execFileSync('gh', ['stack', 'status'], { cwd: root, env: ghEnv, encoding: 'utf8', timeout: 10000, stdio: ['ignore', 'pipe', 'ignore'] });
     const match = /parent(?: branch)?:\s*([^\s]+)/i.exec(stackOut);
     if (match?.[1]) return { schemaVersion: 1, base: match[1], source: 'gh-stack' };
   } catch { /* fall through */ }
   try {
-    const prBase = execFileSync('gh', ['pr', 'view', '--json', 'baseRefName', '-q', '.baseRefName'], { cwd: root, encoding: 'utf8', timeout: 10000, stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    const prBase = execFileSync('gh', ['pr', 'view', '--json', 'baseRefName', '-q', '.baseRefName'], { cwd: root, env: ghEnv, encoding: 'utf8', timeout: 10000, stdio: ['ignore', 'pipe', 'ignore'] }).trim();
     if (prBase) return { schemaVersion: 1, base: prBase, source: 'gh-pr' };
   } catch { /* fall through */ }
   try {

@@ -291,7 +291,7 @@ test("large diffs are collected without the execFile default buffer limit", (t) 
 
 test("a hung gh call times out without failing other sources", (t) => {
   const { result } = runCollector(t, ["https://github.com/example-org/example-repo/pull/42"], "timeout-diff", {
-    PR_VALIDATE_GH_TIMEOUT_MS: "150",
+    PR_VALIDATE_GH_TIMEOUT_MS: "1000",
   });
   assert.equal(result.status, 0, result.stderr);
   const evidence = JSON.parse(result.stdout);

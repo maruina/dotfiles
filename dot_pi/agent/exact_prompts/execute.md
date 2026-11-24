@@ -78,7 +78,7 @@ The terminal state is implemented, verified changes with the plan updated as the
 6. Run the specified verification, or explain why an equivalent command is required before running it.
 7. Mark the step complete only after verification passes.
 8. If verification fails, debug only within the current step and plan scope. Stop after 3 focused attempts on the same failure.
-9. Commit only when the plan says to commit. Use the exact commit message unless it no longer matches the change; if it does not match, stop and ask. If the plan leaves commit boundaries ambiguous, commit only when a logical unit is complete, tests pass, and the message would describe a complete valuable change. If unsure, stop and ask.
+9. Commit when the plan says to (always commit slice and ledger in `/stage-runner`). Use the exact commit message unless it no longer matches the change; if it does not match, stop and ask. If the plan leaves commit boundaries ambiguous, commit only when a logical unit is complete, tests pass, and the message would describe a complete valuable change. If unsure, stop and ask.
 
 Do not disable a required check, weaken an agreed expectation, or change a tolerance merely to obtain a pass. If an expectation is wrong, stop and return to `/plan` for approval before changing it. Prompts and skills are advisory; CI, permissions, and required reviews provide enforcement.
 

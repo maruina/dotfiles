@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm, stat, truncate, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { Writable } from "node:stream";
 import test from "node:test";
 
 async function loadExtension() {
@@ -197,4 +198,29 @@ test("truncating multi-byte UTF-8 bash output does not split characters", async 
   assert.match(result.content[0].text, /Output truncated/);
   assert.equal(result.content[0].text.includes("\uFFFD"), false);
   await rm(dirname(result.details.fullOutputPath), { recursive: true, force: true });
+});
+
+test("handles temp WriteStream errors without crashing and preserves preview output", async () => {
+  const { captureCommandOutput } = await import("./cost-optimization.ts");
+  const { exitCode, output } = await captureCommandOutput(
+    async (onData) => {
+      onData(Buffer.from("x".repeat(4096)));
+      onData(Buffer.from("y".repeat(4096)));
+      return 0;
+    },
+    1024,
+    "pi-bash-err",
+    () =>
+      new Writable({
+        write(_chunk, _enc, cb) {
+          cb(Object.assign(new Error("ENOSPC: no space left on device"), { code: "ENOSPC" }));
+        },
+      }),
+  );
+
+  assert.equal(exitCode, 0);
+  assert.equal(output.truncated, true);
+  assert.equal(output.fullOutputPath, undefined);
+  assert.equal(output.totalBytes, 8192);
+  assert.ok(output.text.endsWith("y".repeat(1024)));
 });

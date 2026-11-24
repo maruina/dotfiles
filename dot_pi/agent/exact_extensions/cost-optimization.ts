@@ -20,40 +20,47 @@ interface CommandOutput {
   fullOutputPath?: string;
 }
 
-async function captureCommandOutput(
+export async function captureCommandOutput(
   run: (onData: (data: Buffer) => void) => Promise<number | null>,
   maxBytes: number,
   tempFilePrefix: string,
+  createStream: (filePath: string) => NodeJS.WritableStream = (filePath) => createWriteStream(filePath),
 ): Promise<{ exitCode: number | null; output: CommandOutput }> {
   const tempDir = await mkdtemp(join(tmpdir(), `${tempFilePrefix}-`));
   const fullOutputPath = join(tempDir, "output.log");
-  const fullOutput = createWriteStream(fullOutputPath);
-  const decoder = new TextDecoder();
-  let tail = "";
+  const fullOutput = createStream(fullOutputPath);
+  let writeFailed = false;
+  fullOutput.on("error", () => {
+    writeFailed = true;
+  });
+
+  const tailLimit = maxBytes * 2;
+  const tailChunks: Buffer[] = [];
+  let tailBytes = 0;
   let totalBytes = 0;
   let totalLines = 0;
   let hasOpenLine = false;
 
   const append = (data: Buffer): void => {
+    if (data.length === 0) return;
     totalBytes += data.length;
-    fullOutput.write(data);
-
-    const text = decoder.decode(data, { stream: true });
-    tail += text;
-    if (Buffer.byteLength(tail, "utf8") > maxBytes * 2) {
-      const buf = Buffer.from(tail, "utf8");
-      let start = buf.length - maxBytes * 2;
-      while (start < buf.length && (buf[start]! & 0xc0) === 0x80) start++;
-      tail = buf.subarray(start).toString("utf8");
+    if (!writeFailed) {
+      fullOutput.write(data);
     }
 
-    for (const character of text) {
-      if (character === "\n") {
+    for (const byte of data) {
+      if (byte === 0x0a) {
         totalLines++;
         hasOpenLine = false;
       } else {
         hasOpenLine = true;
       }
+    }
+
+    tailChunks.push(data);
+    tailBytes += data.length;
+    while (tailChunks.length > 1 && tailBytes - tailChunks[0]!.length >= tailLimit) {
+      tailBytes -= tailChunks.shift()!.length;
     }
   };
 
@@ -61,28 +68,31 @@ async function captureCommandOutput(
   try {
     exitCode = await run(append);
   } finally {
-    const remaining = decoder.decode();
-    tail += remaining;
-    for (const character of remaining) {
-      if (character === "\n") {
-        totalLines++;
-        hasOpenLine = false;
-      } else {
-        hasOpenLine = true;
-      }
+    if (!writeFailed) {
+      await new Promise<void>((resolve) => {
+        fullOutput.once("finish", resolve);
+        fullOutput.once("error", () => {
+          writeFailed = true;
+          resolve();
+        });
+        fullOutput.end();
+      });
     }
-    await new Promise<void>((resolve, reject) => {
-      fullOutput.once("finish", resolve);
-      fullOutput.once("error", reject);
-      fullOutput.end();
-    });
   }
+
+  let tailBuf = tailChunks.length === 1 ? tailChunks[0]! : Buffer.concat(tailChunks, tailBytes);
+  if (tailBuf.length > tailLimit) {
+    let start = tailBuf.length - tailLimit;
+    while (start < tailBuf.length && (tailBuf[start]! & 0xc0) === 0x80) start++;
+    tailBuf = tailBuf.subarray(start);
+  }
+  const tail = new TextDecoder("utf8").decode(tailBuf);
 
   if (hasOpenLine) totalLines++;
   const truncated = totalBytes > maxBytes || totalLines > MAX_OUTPUT_LINES;
   const preview = truncateTail(tail, { maxBytes, maxLines: MAX_OUTPUT_LINES });
 
-  if (!truncated) {
+  if (!truncated || writeFailed) {
     await rm(tempDir, { recursive: true, force: true });
   }
 
@@ -93,7 +103,7 @@ async function captureCommandOutput(
       truncated,
       totalBytes,
       totalLines,
-      fullOutputPath: truncated ? fullOutputPath : undefined,
+      fullOutputPath: truncated && !writeFailed ? fullOutputPath : undefined,
     },
   };
 }
@@ -101,7 +111,8 @@ async function captureCommandOutput(
 function formatOutput(output: CommandOutput): string {
   if (!output.truncated) return output.text || "(no output)";
 
-  return `${output.text}\n\n[Output truncated: showing the last ${formatSize(Buffer.byteLength(output.text, "utf8"))} of ${formatSize(output.totalBytes)} across ${output.totalLines} lines. Full output: ${output.fullOutputPath}]`;
+  const suffix = output.fullOutputPath ? ` Full output: ${output.fullOutputPath}` : " Full output unavailable (temp write failed).";
+  return `${output.text}\n\n[Output truncated: showing the last ${formatSize(Buffer.byteLength(output.text, "utf8"))} of ${formatSize(output.totalBytes)} across ${output.totalLines} lines.${suffix}]`;
 }
 
 // deliberate: mirror the formats supported by Pi's read tool with a small signature

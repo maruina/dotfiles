@@ -1,4 +1,4 @@
-import { buildRexArgs, matchesForegroundProcess, verifyLocalRexEndpoint, verifyLocalRexPeer } from "../_shared/rex.ts";
+import { buildRexArgs, isRexId, matchesForegroundProcess, verifyLocalRexEndpoint, verifyLocalRexPeer } from "../_shared/rex.ts";
 import { qualifiedId } from "../_shared/model.ts";
 import * as fs from "node:fs";
 import path from "node:path";
@@ -114,8 +114,7 @@ export async function recovery(o: {
   if (
     created.anchor_id !== anchor ||
     created.block_ids.length !== 1 ||
-    typeof block !== "string" ||
-    !/^block:[\w-]+$/.test(block) ||
+    !isRexId("block", block) ||
     block === anchor
   )
     throw Error("Uncertain recovery split");

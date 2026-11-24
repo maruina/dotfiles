@@ -12,7 +12,7 @@ export type RexPeerIdentity = {
 };
 
 export function isRexId(kind: "session" | "window" | "block", value: unknown): value is string {
-  return typeof value === "string" && new RegExp(`^${kind}:[a-f0-9-]+$`, "i").test(value);
+  return typeof value === "string" && new RegExp(`^${kind}:[\\w-]+$`).test(value);
 }
 
 export function verifyLocalRexEndpoint(endpoint: string | undefined = process.env.REX_SERVER): string {

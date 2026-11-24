@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 if (process.env.GH_TOKEN || process.env.GITHUB_TOKEN) throw Error('GitHub credential reached stage child');
 const args = process.argv.slice(2),
   prompt = args.at(-1),
-  stage = prompt.slice(1).split(" ")[0];
+  stage = process.env.PI_STAGE_RUNNER_STAGE ?? prompt.slice(1).split(" ")[0];
 const drafting = prompt.startsWith("Prepare a PR draft.");
 if (drafting) {
   if (process.env.SSH_AUTH_SOCK || process.env.GH_ENTERPRISE_TOKEN || process.env.GH_CONFIG_DIR)

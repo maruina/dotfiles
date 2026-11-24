@@ -6,7 +6,7 @@ import { isAbsolute, join } from 'node:path';
 import { promisify } from 'node:util';
 import { mapBounded } from '../_shared/async.ts';
 import { writeAtomicJson } from '../_shared/fs.ts';
-import { buildRexArgs as buildSharedRexArgs } from '../_shared/rex.ts';
+import { buildRexArgs as buildSharedRexArgs, isRexId } from '../_shared/rex.ts';
 
 const execFileAsync = promisify(execFile);
 
@@ -46,8 +46,8 @@ function valid(r) {
   return (r?.version === 1 || (r?.version === 2 && typeof r.startTime === 'string' && Number.isFinite(Date.parse(r.startTime)) && Number.isSafeInteger(r.uid) && typeof r.command === 'string' && r.command.length > 0 && r.command.length <= 4096 && !/[\x00-\x1f]/.test(r.command))) && /^[a-f0-9]{64}$/.test(r.id) &&
     ['host', 'endpoint', 'session', 'block', 'tab', 'sessionLabel', 'tabLabel', 'file', 'cwd'].every(k =>
       typeof r[k] === 'string' && r[k].length > 0 && r[k].length <= 4096 && !/[\x00-\x1f]/.test(r[k])) &&
-    r.endpoint.startsWith('unix://') && /^session:[\w-]+$/.test(r.session) && /^block:[\w-]+$/.test(r.block) &&
-    /^window:[\w-]+$/.test(r.tab) && !r.sessionLabel.startsWith('-') && !r.tabLabel.startsWith('-') && isAbsolute(r.file) && isAbsolute(r.cwd) && Number.isSafeInteger(r.pid);
+    r.endpoint.startsWith('unix://') && isRexId('session', r.session) && isRexId('block', r.block) &&
+    isRexId('window', r.tab) && !r.sessionLabel.startsWith('-') && !r.tabLabel.startsWith('-') && isAbsolute(r.file) && isAbsolute(r.cwd) && Number.isSafeInteger(r.pid);
 }
 export function readRecords(dir = stateDir()) {
   if (!existsSync(dir)) return [];

@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
-import { scrubbedGhEnv } from "../_github.mjs";
-import { githubAccountForOwner, parsePullRequestUrl } from "./github-url.mjs";
+import { parsePullRequestUrl, scrubbedGhEnv, selectGitHubLogin as githubAccountForOwner } from "../_github.mjs";
 
 const HELP = `Usage: node collect.mjs <GitHub pull request URL>
 

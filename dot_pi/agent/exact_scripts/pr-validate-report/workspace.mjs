@@ -5,7 +5,7 @@ import { homedir, tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
-import { githubRemoteIdentity, parsePullRequestUrl } from "./github-url.mjs";
+import { githubRemoteIdentity, parsePullRequestUrl } from "../_github.mjs";
 
 const exec = promisify(execFile);
 const collector = fileURLToPath(new URL("./collect.mjs", import.meta.url));

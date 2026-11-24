@@ -21,24 +21,34 @@ export const JIRA_EMAIL = process.env["JIRA_EMAIL"] ?? "matteo.ruina@datadoghq.c
 const OP_REF =
   process.env["ATLASSIAN_API_KEY_REF"] ?? "op://Employee/Confluence API tokens/personal";
 
-// Module-level cache — fetched once per Pi process.
+const DEFAULT_TIMEOUT_MS = 30_000;
+
+// Module-level cache — fetched once per Pi process (deduplicating concurrent calls).
 let cachedToken: string | null = null;
+let tokenPromise: Promise<string> | null = null;
 
 async function getToken(): Promise<string> {
   if (cachedToken !== null) return cachedToken;
-  try {
-    const { stdout } = await execFileAsync("op", ["read", OP_REF], {
-      encoding: "utf8",
-      timeout: 15_000,
-    });
-    cachedToken = stdout.trim();
-    if (!cachedToken) throw new Error("op read returned empty value");
-    return cachedToken;
-  } catch (err) {
-    throw new Error(
-      `jira: failed to read API token from 1Password (${OP_REF}): ${err instanceof Error ? err.message : String(err)}`,
-    );
-  }
+  if (tokenPromise !== null) return tokenPromise;
+  tokenPromise = (async () => {
+    try {
+      const { stdout } = await execFileAsync("op", ["read", OP_REF], {
+        encoding: "utf8",
+        timeout: 15_000,
+      });
+      const token = stdout.trim();
+      if (!token) throw new Error("op read returned empty value");
+      cachedToken = token;
+      return token;
+    } catch (err) {
+      throw new Error(
+        `jira: failed to read API token from 1Password (${OP_REF}): ${err instanceof Error ? err.message : String(err)}`,
+      );
+    } finally {
+      tokenPromise = null;
+    }
+  })();
+  return tokenPromise;
 }
 
 export interface JiraRequestOptions {
@@ -71,11 +81,14 @@ export async function jiraRequest(opts: JiraRequestOptions): Promise<unknown> {
     headers["Content-Type"] = "application/json";
   }
 
+  const timeoutSignal = AbortSignal.timeout(DEFAULT_TIMEOUT_MS);
+  const signal = opts.signal ? AbortSignal.any([opts.signal, timeoutSignal]) : timeoutSignal;
+
   const response = await fetch(url, {
     method: opts.method,
     headers,
     body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-    signal: opts.signal,
+    signal,
   });
 
   if (!response.ok) {

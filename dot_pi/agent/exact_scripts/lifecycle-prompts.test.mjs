@@ -418,6 +418,9 @@ test("lifecycle stages enforce negative scenarios, consumer maps, behavioral che
 
 test("managed design prompts state only their stage exceptions", () => {
   assert.match(prompt("brainstorm.md"), /managed design-draft child.*independent comprehension review/);
+  // Ensure the managed design-draft instruction is outside any fenced Markdown block.
+  const brainstormUnfenced = prompt("brainstorm.md").replace(/^```[\s\S]*?^```$/gm, "");
+  assert.match(brainstormUnfenced, /managed design-draft child.*independent comprehension review/);
   assert.match(prompt("plan.md"), /managed design-plan child.*PI_DESIGN_INPUT.*skip worktree discovery/);
   assert.match(prompt("systematic-review.md"), /managed design-review.*authority ends when you write the handoff; later turns require standalone confirmation/);
 });

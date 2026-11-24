@@ -13,6 +13,8 @@ Use this command to clarify what problem to solve, who it affects, the desired o
 Do not write implementation code, scaffold application files, or finalize product or design decisions without user confirmation. The default terminal state for non-trivial work is a committed `design.md` in a feature worktree. Use a chat-only alignment brief only when the user explicitly requests lightweight brainstorming, no artifacts, no worktree, or a quick discussion.
 </HARD-GATE>
 
+In a managed design-draft child, stay in this worktree and branch, commit a Draft for independent comprehension review at every size, and follow the runner's draft handoff instructions.
+
 ## Input
 Use `$ARGUMENTS` when provided. Otherwise use the current conversation as the seed, including findings from `/troubleshoot` or prior discussion. Apply the same skeptical framing either way. If neither contains a relevant problem, ask what the user wants to brainstorm.
 
@@ -58,8 +60,6 @@ Classification: Small / Medium / Large/Risky
 
 Why:
 - ...
-
-In a managed design-draft child, stay in this worktree and branch, commit a Draft for independent comprehension review at every size, and follow the runner's draft handoff instructions.
 
 ## Pushback
 ...

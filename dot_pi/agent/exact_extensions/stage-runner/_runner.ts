@@ -50,7 +50,6 @@ export type Options = {
 export function decode(b: Buffer): string {
   return new TextDecoder("utf8", { fatal: true }).decode(b);
 }
-const nonblank = (s: unknown) => typeof s === "string" && s.trim().length > 0;
 export function safe(s: string): string {
   return s.replace(/[^\x20-\x7e]/g, "?").slice(0, 500);
 }

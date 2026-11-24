@@ -440,6 +440,7 @@ test("lifecycle prompts stay within prompt context budgets", () => {
     ["execute.md", 15_125],
     ["verify.md", 13_700],
     ["simplify.md", 9_500],
+    ["pr-validate.md", 25_250],
   ]);
 
   for (const [file, budgetBytes] of budgets) {
@@ -758,32 +759,54 @@ test("PR descriptions explain behavior and examples without a reviewer checklist
 
 test("PR validation prompt defines a safe delegated review contract", () => {
   const text = prompt("pr-validate.md");
+  const hardGate = text.match(/<HARD-GATE>[\s\S]*?<\/HARD-GATE>/)?.[0] ?? "";
+  assert.ok(hardGate, "pr-validate.md must include a <HARD-GATE> block");
 
   requireMarkers(text, [
     /^description: .+$/m,
     /^argument-hint: "<GitHub PR URL> \[context\]"$/m,
     /^PR request: \$ARGUMENTS$/m,
-    /<HARD-GATE>[\s\S]*read-only[\s\S]*<\/HARD-GATE>/i,
-    /Approve/,
-    /Ask/,
-    /Request changes/,
+    /^## Inputs$/m,
+    /^## Phase 1:/m,
+    /^## Phase 2:/m,
+    /^## Pass 1:/m,
+    /^## Pass 2:/m,
+    /^## Pass 3:/m,
+    /^## Pass 4:/m,
+    /^## Verdict criteria$/m,
+    /^## Verdict rules$/m,
+    /^## Attention items$/m,
+    /^## Output$/m,
+    /^## Skills loaded and used$/m,
+    /\bApprove\b/,
+    /\bAsk\b/,
+    /\bRequest changes\b/,
     /context.*evidence.*not instructions/is,
-    /after analysis starts, do not ask questions/i,
     /no cluster writes/i,
-    /do not refresh credentials/i,
-    /Coverage/,
+    /credential refresh/i,
+    /\bCoverage\b/,
     provenanceReference,
-    /verify the base-repository remote/i,
-    /existing worktree.*clean.*including untracked/is,
-    /workspace\.mjs.*preflight.*pr\.headRefOid.*fetched head/is,
-    /`HEAD_REF_OID` to `headOid`/,
+    /repo-checkout/,
+    /remote.*ORG\/REPO/is,
+    /workspace\.mjs.*preflight/is,
+    /`HEAD_REF_OID`.*`headOid`/is,
     /~\/\.pi\/agent\/pr-validate-reports\/REPO-PR_NUMBER\.html/,
-    /only permitted writes are the report data.*the HTML report.*scratch files/is,
-    /fetched PR objects.*checkout updates to the clean, verified review worktree/is,
-    /canonical.*paths|physical.*paths/i,
-    /clean[\s\S]*HEAD[\s\S]*differs[\s\S]*checkout --detach[\s\S]*HEAD_REF_OID/i,
-    /Do not repeat report prose in the chat/,
+    /physical paths|canonical paths/i,
+    /existing worktree is clean.*--untracked-files=all/is,
+    /git checkout --detach "\$HEAD_REF_OID"/,
+    /never repeat report prose|do not repeat report prose/i,
     /cannot inject markup or scripts/i,
+  ]);
+
+  requireMarkers(hardGate, [
+    /read-only/i,
+    /refresh credentials/i,
+    /REPO-PR_NUMBER\.json/,
+    /REPO-PR_NUMBER\.html/,
+    /workspace\.mjs preflight/,
+    /review worktree/i,
+    /untrusted evidence/i,
+    /after analysis starts, do not ask questions/i,
   ]);
 
   assert.doesNotMatch(text, /reset --hard/);
@@ -794,21 +817,25 @@ test("PR validation uses one collector for GitHub evidence", () => {
   const phase1 = text.slice(text.indexOf("## Phase 1"), text.indexOf("## Phase 2"));
   const phase2 = text.slice(text.indexOf("## Phase 2"), text.indexOf("## Pass 1"));
 
-  requireMarkers(text, [
-    /collector once.*checks `pr\.headRefOid` against the fetched head/is,
-    /preflight fails.*Coverage gap and stop/is,
+  requireMarkers(phase1, [
+    /workspace\.mjs" preflight/,
+    /collector once.*`pr\.headRefOid`/is,
+    /preflight fails.*Coverage gap.*stop/is,
     /`evidenceFile`/,
-    /external queries.*Datadog.*Atlas/is,
-    /DDCI CI-status tools/i,
+    /ensure-worktree/,
+  ]);
+  requireMarkers(phase2, [
+    /evidence\.json/,
+    /codemode.*Promise\.allSettled/is,
+    /Datadog.*atlas workflow list/is,
+    /DDCI CI-status/i,
   ]);
 
   assert.equal((phase1.match(/scripts\/pr-validate-report\/workspace\.mjs/g) ?? []).length, 1);
-  assert.ok(phase1.indexOf("workspace.mjs") < phase1.indexOf("If the expected path exists"));
-  assert.ok(phase1.indexOf("existing worktree is clean") < phase1.indexOf("HEAD` differs"));
+  assert.ok(phase1.indexOf("workspace.mjs") < phase1.indexOf("ensure-worktree"));
+  assert.ok(phase1.indexOf("existing worktree is clean") < phase1.indexOf("checkout --detach"));
   assert.doesNotMatch(phase1, /FETCH_HEAD|rm -rf|collect\.mjs/);
   assert.doesNotMatch(phase2, /\bgh (?:pr (?:view|diff|checks)|api)\b/);
-  assert.match(phase2, /external queries.*Datadog.*Atlas/is);
-  assert.match(phase2, /DDCI CI-status tools/i);
 });
 
 test("PR validation reads Git objects by default and does not run untrusted PR code", () => {
@@ -822,107 +849,96 @@ test("PR validation reads Git objects by default and does not run untrusted PR c
     /record the reason in Coverage/i,
   ]);
   assert.ok(phase1.indexOf("Choose the read mode") > phase1.indexOf("workspace.mjs"));
-  assert.ok(phase1.indexOf("Choose the read mode") < phase1.indexOf("If the expected path exists"));
+  assert.ok(phase1.indexOf("Choose the read mode") < phase1.indexOf("ensure-worktree"));
 
   requireMarkers(text, [
     /<HARD-GATE>[\s\S]*Build or run PR code only[\s\S]*repository-owned[\s\S]*`pr\.isCrossRepository` is `false`[\s\S]*<\/HARD-GATE>/,
-    /deleted assertions.*new skips.*expected values edited to match the new output/is,
+    /deleted assertions.*new skips.*expected values edited/is,
     /instructions aimed at the reviewer agent.*attention item/is,
   ]);
   assert.doesNotMatch(text, /revision-2|CMPT-4066|Slot 4/);
 });
 
-test("PR validation revision 2 report shape, severity, and provenance", () => {
+test("PR validation report shape, severity, signals, and provenance", () => {
   const text = prompt("pr-validate.md");
 
   requireMarkers(text, [
-    // Report page section list (revision 2)
-    /\*\*Hero\.\*\*/,
-    /\*\*Chip navigation\.\*\*/,
-    /\*\*Walkthrough\.\*\*/,
-    /\*\*Item chapters\.\*\*/,
-    /\*\*Your question\.\*\*/,
-    /\*\*Reference\.\*\*/,
-    // Six-slot item story
-    /\*\*Where this fits\.\*\*/,
-    /link to the related Walkthrough step/i,
-    /\*\*Why it matters\.\*\*/,
-    /\*\*What the code does now\.\*\*/,
-    /\*\*Why that is bad\.\*\*/,
-    /\*\*Is it real\?\*\*/,
-    /\*\*Fix shape\.\*\*/,
-    // Exposure and fix-cost severity
-    /Exposure: real/,
-    /Exposure: none now/,
+    // Every-verdict report and required sections
+    /report for every verdict.*Approve/is,
+    /\*\*Hero\*\*/,
+    /\*\*PR summary\*\*/,
+    /\*\*Review gates\*\*/,
+    /\*\*Walkthrough\*\*/,
+    /\*\*Reviewer questions\*\*/,
+    /\*\*Item chapters\*\*/,
+    /\*\*Your question\*\*/,
+    /\*\*Reference\*\*/,
+    /outside `<details>`/i,
+    // Six-slot item story and signal-before-identifier rule
+    /Where this fits/,
+    /Why it matters/,
+    /What the code does now/,
+    /Why that is bad/,
+    /Is it real\?/,
+    /Fix shape/,
+    /explain the signal.*before naming its identifier/is,
+    /end with the real harm/i,
+    /comment\.text.*explain the signal.*before its identifier/is,
+    // Exposure, fix-cost severity, and deploy-time condition
+    /\breal\b.*\bnone now\b.*\bunknown\b/is,
+    /\bsmall\b.*\blarge\b/is,
     /Exposure: unknown/,
-    /Fix cost: small/,
-    /Fix cost: large/,
-    /deploy-time condition/,
-    // Every-verdict report, including Approve
-    /report for every verdict/,
-    /including Approve/,
-    // Model and thinking level in report and chat, or their unavailability
-    /thinking level/,
-    // Strict Mermaid and agent-written labels only
+    /deploy-time condition/i,
+    // Model/thinking, strict Mermaid, and ten gates
+    /thinking level|`thinking`/i,
     /securityLevel: "strict"/,
-    /labels that the agent writes/,
-    // Ten criteria, including Observability, Dependencies, and Docs
-    /Observability/,
-    /Dependencies/,
-    /Docs/,
+    /agent-written/i,
+    /\bObservability\b/,
+    /\bDependencies\b/,
+    /\bDocs\b/,
   ]);
 
   assert.doesNotMatch(text, /feedback for improving `skill-loader`/i);
-});
-
-test("PR validation explains signals before identifiers and ends with the real harm", () => {
-  const text = prompt("pr-validate.md");
-
-  requireMarkers(text, [
-    /explain the signal before naming its identifier/i,
-    /end with the real harm/i,
-    /comment\.text.*explain the signal in plain words before its identifier/is,
-  ]);
+  assert.doesNotMatch(text, /confirmed, refuted, or open/i);
 });
 
 test("PR validation defines prior-comment metadata, matching, and summary tags", () => {
   const text = prompt("pr-validate.md");
 
   requireMarkers(text, [
-    /author login.*author type.*comment URL.*path.*line/is,
+    /author login.*`authorType`.*`url`.*`path`.*`line`/is,
     /`authorType`.*REST `user\.type`/is,
     /never by login/i,
     /same failure at the same code path/i,
     /PR author/i,
-    /resolved.*outdated.*does not change/is,
-    /priorComments.*author.*kind.*url/is,
+    /resolved or outdated.*does not change/is,
+    /priorComments/i,
+    /\{author, kind, url\}/,
     /Not raised before/,
-    /author type is unavailable.*Coverage gap/is,
+    /`authorType` is unavailable.*Coverage gap/is,
     /prior-comment tag.*linked comment URLs/is,
   ]);
 });
 
 test("PR validation walkthrough separates the current and proposed systems", () => {
   const text = prompt("pr-validate.md");
-  const walkthrough = text.split("### Walkthrough")[1].split("### Item story")[0];
+  const output = text.slice(text.indexOf("## Output"));
 
-  requireMarkers(walkthrough, [
-    /System today diagram/i,
-    /Proposed system diagram/i,
-    /walkthrough\.systemToday\.diagram/,
-    /walkthrough\.proposedSystem\.diagram/,
-    /explanation/i,
+  requireMarkers(output, [
+    /walkthrough\.systemToday/,
+    /walkthrough\.proposedSystem/,
+    /walkthrough\.steps/,
+    /entry-point|entry point/i,
     /proposed flow/i,
-    /entry-point order/i,
-    /item.*link.*proposed.*step/is,
+    /`item\.step`/,
   ]);
-  assert.doesNotMatch(walkthrough, /walkthrough\.(?:problem|coreIntuition|solutionMap|flowchart)|^\d+\. \*\*(?:Problem|Core intuition|Solution map|Map flowchart)/m);
-  assert.match(text, /PR content and context.*(?:walkthrough|Walkthrough).*escape/i);
+  assert.doesNotMatch(output, /walkthrough\.(?:problem|coreIntuition|solutionMap|flowchart)/);
+  assert.match(text, /escaping.*untrusted PR content/is);
 });
 
 test("PR validation checklist covers eight evidence-backed reviewer questions", () => {
   const text = prompt("pr-validate.md");
-  const checklist = text.split("### Reviewer questions")[1].split("### Item story")[0];
+  const output = text.slice(text.indexOf("## Output"));
   const ids = [
     "change-purpose",
     "necessity",
@@ -933,70 +949,39 @@ test("PR validation checklist covers eight evidence-backed reviewer questions", 
     "failure-observability",
     "manual-inspection",
   ];
-  const positions = ids.map((id) => checklist.indexOf(`\`${id}\``));
+  const positions = ids.map((id) => output.indexOf(`\`${id}\``));
   positions.forEach((position, i) => assert.ok(position >= 0, `missing ${ids[i]}`));
   assert.deepEqual([...positions].sort((a, b) => a - b), positions);
 
-  requireMarkers(checklist, [
-    /OpenSpec or proposal artifact/i,
-    /Is the change necessary/,
-    /changed files unexpected or unexplained/i,
-    /gRPC\/API.*public program parameters.*object models or fields.*database schema/is,
-    /Go interfaces.*surrounding architecture.*normal/is,
-    /bootstrap.*circular dependency/is,
-    /failure mode.*on-call.*4 a\.m\./is,
-    /skip manual UI, function, and algorithm inspection.*description and associated tests/is,
-    /agent still reads and checks all relevant UI, functions, and algorithms/is,
-    /only when both the AI-written behavior description and associated tests are clear/is,
-    /If either is missing or unclear.*inspect the affected code manually/is,
-    /Do not report a defect only because a listed category is absent/is,
+  requireMarkers(output, [
+    /copying each `question` verbatim from `example\.json`/i,
+    /go-interfaces.*surrounding architecture/is,
+    /manual-inspection.*still reads.*UI, functions, and algorithms/is,
+    /only when both.*description and associated tests are clear/is,
     /not verdict gates/i,
-    /40 words or fewer/,
+    /do not report a defect merely because a category is absent/i,
   ]);
 
-  const reportContract = text.split("### Report contract")[1].split("### Walkthrough")[0];
-  assert.ok(reportContract.indexOf("**Walkthrough.**") < reportContract.indexOf("**Reviewer questions.**"));
-  assert.ok(reportContract.indexOf("**Reviewer questions.**") < reportContract.indexOf("**Item chapters.**"));
+  assert.ok(output.indexOf("**Walkthrough**") < output.indexOf("**Reviewer questions**"));
+  assert.ok(output.indexOf("**Reviewer questions**") < output.indexOf("**Item chapters**"));
 });
 
-test("PR validation report includes PR summary and review gates", () => {
-  const text = prompt("pr-validate.md");
-
-  requireMarkers(text, [
-    /\*\*PR summary\.\*\*/,
-    /What it does/,
-    /Why/,
-    /Files by class/,
-    /\*\*Review gates\.\*\*/,
-    /Gate \| Status \| Evidence/,
-    /Pass/,
-    /Fail/,
-    /Open/,
-    /Fail or Open row links to its item, or to Coverage when no item exists/i,
-    /both tables.*outside `<details>`/is,
-  ]);
-
-  assert.doesNotMatch(text, /confirmed, refuted, or open/i);
-});
-
-test("PR validation report is rendered from bounded JSON data", () => {
+test("PR validation delegates JSON schema and word limits to example.json and render.mjs", () => {
   const text = prompt("pr-validate.md");
 
   requireMarkers(text, [
     /~\/\.pi\/agent\/pr-validate-reports\/REPO-PR_NUMBER\.json/,
     /scripts\/pr-validate-report\/render\.mjs/,
-    /schemaVersion.*2/is,
-    /Read `example\.json`/,
-    /Read the `write` skill before you write any report text/,
-    /rejects text that is longer than its word limits/i,
-    /Do not read, write, or edit the HTML file/,
-    /Hero box also holds the \*\*PR summary\.\*\* table/,
-    /`lead` of 25 words or fewer/,
-    /each title to 10 words and description to 30 words/,
-    /Describe the proposed system, not a repeated today\/changed\/effect comparison/,
+    /schemaVersion:\s*2/,
+    /example\.json/,
+    /render\.mjs --help/,
+    /`write` skill/,
+    /word-limit errors|word limits/i,
+    /never read, write, or edit the HTML file/i,
     /`rg -l` or `rg --max-count`/,
-    /`pr\.files`.*per-file change size first/,
+    /`pr\.files`/,
     /atlas workflow list --context <ctx> --query/,
+    /ddr conductor history/,
   ]);
 
   assert.doesNotMatch(text, /`explain` story page shape/);
@@ -1011,15 +996,14 @@ test("PR validation passes collected evidence and accounts for changed lines", (
   requireMarkers(text, [
     /--evidence "\$EVIDENCE_FILE"/,
     /observed added lines/i,
-    /optional `refs` arrays/i,
+    /optional `refs`/i,
     /\{path, side, start, end\}/,
-    /A whole-file ref covers only observed added lines/,
-    /An `L` ref never covers added lines/,
-    /`mechanical` group with a summary of 40 words or fewer and nonempty `refs`/,
-    /Do not invent refs/,
-    /Deletions stay visible even when referenced/,
-    /does not prove that the code was read or correct/,
-    /never changes a gate, the verdict, or render success/,
+    /`L` ref never covers added lines/i,
+    /`mechanical`.*nonempty `refs`/is,
+    /never invent refs/i,
+    /Deletions stay visible even when referenced/i,
+    /does not prove code was read or correct/i,
+    /never changes a gate, verdict, or render success/i,
   ]);
 
   assert.match(text, /<HARD-GATE>[\s\S]*read-only[\s\S]*<\/HARD-GATE>/i);
@@ -1031,15 +1015,15 @@ test("PR validation avoids known wasted turns", () => {
 
   requireMarkers(text, [
     /one `tool_search` call before large reads/is,
-    /Datadog monitor.*DDCI CI.*status/is,
-    /each call invalidates the prompt cache/is,
-    /only GitHub `evidence\.json` file/is,
-    /read only the slices needed during review/is,
-    /do not query.*(?:threads|comments).*again/is,
-    /Read `example\.json` next to the renderer/i,
-    /classify every changed file as generated, build, behavior, test, docs, or schema/i,
-    /Set `marketplace`.*commit and date.*omit.*when discovery (?:was )?skipped/is,
-    /renderer reports errors.*fix every named JSON field in one `edit` call.*run it again/is,
+    /Datadog monitor.*DDCI CI-status/is,
+    /invalidates the prompt cache/is,
+    /single GitHub `evidence\.json` file/is,
+    /read only the slices needed/is,
+    /repeat GitHub queries/i,
+    /example\.json/,
+    /`generated`, `build`, `behavior`, `test`, `docs`, `schema`/,
+    /`marketplace`.*omit `marketplace` when discovery was skipped/is,
+    /one `edit` call/i,
   ]);
 
   assert.doesNotMatch(text, /In the source repository/i);
@@ -1051,14 +1035,14 @@ test("PR validation marketplace discovery is bounded, local, and read-only", () 
 
   requireMarkers(text, [
     /Marketplace discovery/i,
-    /up to five terms|five search terms|no more than five terms/i,
-    /at most three|no more than three|up to three/i,
-    /frontmatter `description:`|`description:` lines/i,
-    /already loads|directories.*pi.*loads|exclud/i,
-    /never `git pull`|no `git pull`|do not pull/i,
-    /commit and date|commit.*date/i,
-    /agent-selected/i,
-    /caller.*gate|gates win|read-only gate/i,
+    /up to five terms/i,
+    /at most three/i,
+    /frontmatter `description:`/i,
+    /excluding directories Pi already loads/i,
+    /never `git pull`/i,
+    /commit and date/i,
+    /`agent-selected`/,
+    /read-only `<HARD-GATE>` always wins/i,
   ]);
 });
 

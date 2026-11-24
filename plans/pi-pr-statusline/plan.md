@@ -29,6 +29,7 @@
 | `chezmoi` | `skill-loader` | Managed Pi extensions | Kept edits in source and left rendered targets unchanged. |
 | `cli-best-practices` | `prompt-required` | Plan-named skill for `gh` subprocesses | Preserved non-interactive auth and passed the token through the subprocess environment. |
 | `write` | `skill-loader` | Plan ledger and commit messages | Recorded check results and kept the plan requirements unchanged. |
+| `learning-candidates` | `prompt-required` | Test environment assumption | Recorded how the stage-runner child environment affected existing tests. |
 
 Slice 1 writer: `openai/gpt-6.2-sol`.
 
@@ -202,10 +203,14 @@ The 3 new footer tests failed against the old renderer. All 10 footer tests pass
 **Traces to:** R3
 **Files:** `dot_pi/agent/exact_extensions/pr-status/index.ts`, `dot_pi/agent/exact_extensions/pr-status/pr-status.test.mjs`
 
-- [ ] Add failing lifecycle tests in `dot_pi/agent/exact_extensions/pr-status/pr-status.test.mjs` covering R3: headless/non-TUI skip, default-branch skip, non-GitHub skip, single in-flight guard, `agent_end` refresh, `agent_end` skipped during backoff, branch switch to another feature branch with a failing refresh clears the line, branch switch to the default branch clears the line, same-branch transient failure keeps a `stale` line with backoff, and `session_shutdown` timer/abort cleanup.
-- [ ] Implement `dot_pi/agent/exact_extensions/pr-status/index.ts` exporting the default extension factory with injectable runner/timer seams for deterministic tests.
-- [ ] Run `node --experimental-strip-types --test dot_pi/agent/exact_extensions/pr-status/pr-status.test.mjs`; expect all R1 and R3 tests to pass.
-- [ ] Refactor only after green, rerun verification, and commit with `feat(pi): poll active branch PR status in footer extension`.
+- [x] Add failing lifecycle tests in `dot_pi/agent/exact_extensions/pr-status/pr-status.test.mjs` covering R3: headless/non-TUI skip, default-branch skip, non-GitHub skip, single in-flight guard, `agent_end` refresh, `agent_end` skipped during backoff, branch switch to another feature branch with a failing refresh clears the line, branch switch to the default branch clears the line, same-branch transient failure keeps a `stale` line with backoff, and `session_shutdown` timer/abort cleanup.
+- [x] Implement `dot_pi/agent/exact_extensions/pr-status/index.ts` exporting the default extension factory with injectable runner/timer seams for deterministic tests.
+- [x] Run `node --experimental-strip-types --test dot_pi/agent/exact_extensions/pr-status/pr-status.test.mjs`; expect all R1 and R3 tests to pass.
+- [x] Refactor only after green, rerun verification, and commit with `feat(pi): poll active branch PR status in footer extension`.
+
+The lifecycle tests first failed because `pr-status/index.ts` did not exist. All 9 query and lifecycle tests passed after implementation. `npm run typecheck` passed, and `env -u PI_STAGE_RUNNER_CHILD npm test` passed (509 tests, 4 skips). An offline Pi 1.6.0 smoke run with a temporary `PI_CODING_AGENT_DIR` and explicit `-e` options loaded the three changed extension entrypoints without load errors. The explicit paths check the candidate without applying it to `$HOME`.
+
+Inspected `AGENTS.md`, `dot_pi/agent/AGENTS.md`, and the extension directory. Slice 1 needs no new operator configuration or agent guidance. Task 6 retains the final documentation and full-suite checks. Matteo's live footer and OSC 8 click check remains pending after apply and gates merge.
 
 ### Slice 2: CI status and unreplied comments
 Delivers: the right segment of line 3 shows the CI symbol and the unreplied review comment count.
@@ -233,3 +238,6 @@ Delivers: the right segment of line 3 shows the CI symbol and the unreplied revi
 
 ## Post-publication validation
 - **Live footer and OSC 8 link check:** After applying the explicit chezmoi targets listed in `### Rollout and Rollback`, Matteo runs `/reload` in a Pi session on a feature branch with an open PR (and on `main`). **Owner:** Matteo. **Trigger:** After `chezmoi apply`. **Expected evidence:** Line 3 appears below the model line with `[state] #N <title>`, clicking opens the PR in the browser, CI status and unreplied count on the right match GitHub, `user-context` still reports the current branch PR, and line 3 disappears on `main`. **Gates:** Merging to `main`.
+
+## Learning candidates
+- 2026-11-24: The inherited `PI_STAGE_RUNNER_CHILD=1` suppressed the Rex hooks in two regular `user-context` tests. Unset it for the test process; the explicit child-mode fixture sets it itself. — evidence: `dot_pi/agent/exact_extensions/user-context.test.mjs:222`, `:252`, and `:278`; all 22 focused tests passed with `env -u PI_STAGE_RUNNER_CHILD`.

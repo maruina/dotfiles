@@ -383,7 +383,7 @@ test("preflight ignores checkboxes and ledger markers inside fenced code blocks"
   assert.throws(() => preflight("```md\n- [ ] only fenced\n```", ["a", "a", "b"], false));
 });
 
-test("prepareDraft writes large (>120 KiB) evidence to a private 0600 file instead of argv", async (t) => {
+test("prepareDraft writes large (>120 KiB) evidence as separate private 0600 multi-line files instead of argv", async (t) => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "stage-runner-draft-"));
   t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
   const draftDir = path.join(tmp, "draft");
@@ -401,7 +401,7 @@ console.log(JSON.stringify({ type: "message_end", message: { role: "assistant", 
 console.log(JSON.stringify({ type: "agent_settled", aborted: false }));
 `,
   );
-  const largeDiff = "diff --git a/big.txt b/big.txt\n" + "+".repeat(150 * 1024);
+  const largeDiff = "diff --git a/big.txt b/big.txt\n" + Array.from({ length: 2000 }, (_, i) => `+line ${i}: ${"x".repeat(80)}`).join("\n") + "\n";
   const choice = { provider: "p", id: "m", thinking: "low" };
   const draft = await prepareDraft(
     {
@@ -429,12 +429,84 @@ console.log(JSON.stringify({ type: "agent_settled", aborted: false }));
     false,
   );
   assert.deepEqual(draft, { title: "Large diff draft", body: "## What is this PR?\nSummary." });
-  const evidencePath = path.join(draftDir, "evidence.json");
-  assert.equal(fs.statSync(evidencePath).mode & 0o777, 0o600);
+  const metadataPath = path.join(draftDir, "metadata.json");
+  const diffPath = path.join(draftDir, "diff.patch");
+  const verificationPath = path.join(draftDir, "verification.json");
+  for (const file of [metadataPath, diffPath, verificationPath]) {
+    assert.equal(fs.statSync(file).mode & 0o777, 0o600);
+  }
+  assert.equal(fs.existsSync(path.join(draftDir, "evidence.json")), false);
   const prompt = fs.readFileSync(promptOut, "utf8");
   assert.ok(Buffer.byteLength(prompt) < 32 * 1024);
-  assert.ok(prompt.includes(evidencePath));
-  assert.equal(JSON.parse(fs.readFileSync(evidencePath, "utf8")).diff.length, largeDiff.length);
+  for (const file of [metadataPath, diffPath, verificationPath]) {
+    assert.ok(prompt.includes(file));
+  }
+  assert.deepEqual(JSON.parse(fs.readFileSync(metadataPath, "utf8")), {
+    repo: "owner/repo",
+    head: "a".repeat(40),
+    baseTip: "b".repeat(40),
+    mergeBase: "c".repeat(40),
+    plan: "plans/demo/plan.md",
+  });
+  assert.ok(fs.readFileSync(metadataPath, "utf8").split("\n").length > 3);
+  assert.equal(fs.readFileSync(diffPath, "utf8"), largeDiff);
+  assert.ok(fs.readFileSync(diffPath, "utf8").split("\n").every((line) => Buffer.byteLength(line) < 50 * 1024));
+  const verificationText = fs.readFileSync(verificationPath, "utf8");
+  assert.ok(verificationText.split("\n").length > 3);
+  assert.deepEqual(JSON.parse(verificationText), { status: "VERIFIED", summary: "ok" });
+});
+
+test("prepareDraft stops with DraftError when the drafting child reports blocked", async (t) => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "stage-runner-draft-blocked-"));
+  t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+  const choice = { provider: "p", id: "m", thinking: "low" };
+
+  for (const [label, replyObj, expected] of [
+    ["structured blocked reason", { blocked: "Could not read diff.patch\nline too long" }, /drafting blocked: Could not read diff\.patch line too long/],
+    ["blank blocked reason fails closed", { blocked: "   " }, /invalid or oversized title or body/],
+    ["mixed blocked and title fails closed", { blocked: "nope", title: "T" }, /invalid or oversized title or body/],
+  ] as const) {
+    const draftDir = path.join(tmp, label.replaceAll(" ", "-"));
+    fs.mkdirSync(draftDir, { mode: 0o700 });
+    const fakePi = path.join(draftDir, "fake-pi.mjs");
+    fs.writeFileSync(
+      fakePi,
+      `const reply = ${JSON.stringify(JSON.stringify(replyObj))};
+console.log(JSON.stringify({ type: "session", id: "draft-blocked" }));
+console.log(JSON.stringify({ type: "message_end", message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: reply }] } }));
+console.log(JSON.stringify({ type: "agent_settled", aborted: false }));
+`,
+    );
+    await assert.rejects(
+      prepareDraft(
+        {
+          cwd: tmp,
+          plan: path.join(tmp, "plans/demo/plan.md"),
+          root: tmp,
+          models: { execute: choice, simplify: choice, verify: choice },
+          signal: new AbortController().signal,
+          onEvent: () => {},
+          confirm: async () => true,
+          executable: process.execPath,
+          prefix: [fakePi],
+        },
+        draftDir,
+        {
+          repo: "owner/repo",
+          head: "a".repeat(40),
+          baseTip: "b".repeat(40),
+          mergeBase: "c".repeat(40),
+          plan: "plans/demo/plan.md",
+          diff: "diff --git a/a.txt b/a.txt\n+hi\n",
+          verification: JSON.stringify({ status: "VERIFIED", summary: "ok" }),
+        },
+        new AbortController().signal,
+        false,
+      ),
+      expected,
+      label,
+    );
+  }
 });
 
 test("getProfile validates an explicit profilePath strictly", (t) => {

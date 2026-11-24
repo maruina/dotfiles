@@ -127,6 +127,7 @@ for (const failure of [
   "reuse",
   "draft-malformed",
   "draft-oversized",
+  "draft-blocked",
   "draft-dirty",
   "draft-pr-race",
   "draft-cancel",
@@ -662,6 +663,7 @@ for (const failure of [
         controller.abort();
       }
       const reasons: Record<string, RegExp> = {
+        "draft-blocked": /Drafting stopped: drafting blocked: diff could not be read/,
         "draft-dirty": /Drafting stopped: verified candidate changed/,
         "draft-pr-race": /Drafting stopped: could not reconfirm the publication target/,
         "draft-cancel": /Drafting stopped: cancelled/,
@@ -821,17 +823,23 @@ for (const failure of [
       assert.equal(argv![argv!.indexOf("--tools") + 1], "read");
       assert.ok(argv!.includes("--no-extensions"));
       const prompt = argv!.at(-1)!;
-      const draftEvidencePath = path.join(options.root, bundle, "draft", "evidence.json");
-      assert.equal(fs.statSync(draftEvidencePath).mode & 0o777, 0o600);
-      assert.ok(prompt.includes(draftEvidencePath));
-      const draftEvidence = JSON.parse(fs.readFileSync(draftEvidencePath, "utf8")) as {
-        diff: string;
+      const draftDir = path.join(options.root, bundle, "draft");
+      const draftMetadataPath = path.join(draftDir, "metadata.json");
+      const draftDiffPath = path.join(draftDir, "diff.patch");
+      const draftVerificationPath = path.join(draftDir, "verification.json");
+      for (const file of [draftMetadataPath, draftDiffPath, draftVerificationPath]) {
+        assert.equal(fs.statSync(file).mode & 0o777, 0o600);
+        assert.ok(prompt.includes(file));
+      }
+      const draftMetadata = JSON.parse(fs.readFileSync(draftMetadataPath, "utf8")) as {
         baseTip: string;
       };
-      assert.match(draftEvidence.diff, /diff --git a\/before-startup b\/before-startup/);
-      assert.match(draftEvidence.diff, /\+end of large patch/);
-      assert.doesNotMatch(draftEvidence.diff, /diff --git a\/base-only b\/base-only/);
-      assert.equal(draftEvidence.baseTip, git("rev-parse", "main").toString().trim());
+      const draftDiff = fs.readFileSync(draftDiffPath, "utf8");
+      assert.match(draftDiff, /diff --git a\/before-startup b\/before-startup/);
+      assert.match(draftDiff, /\+end of large patch/);
+      assert.doesNotMatch(draftDiff, /diff --git a\/base-only b\/base-only/);
+      assert.equal(draftMetadata.baseTip, git("rev-parse", "main").toString().trim());
+      assert.ok(JSON.parse(fs.readFileSync(draftVerificationPath, "utf8")));
       const create = JSON.parse(fs.readFileSync(bare + ".pr.argv", "utf8"));
       assert.equal(create[create.indexOf("--title") + 1], "Explain the verified feature");
       assert.equal(create[create.indexOf("--body") + 1], "## What is this PR?\nFixture explanation.");

@@ -166,8 +166,10 @@ export default function stageRunner(pi: ExtensionAPI) {
       }
       const controller = new AbortController();
       active = controller;
-      const display = phaseDisplay(lines => ctx.ui.setWidget(entryType, lines),
-        summary => pi.appendEntry(entryType, summary), message => ctx.ui.notify(message, "info"));
+      const display = design
+        ? undefined
+        : phaseDisplay(lines => ctx.ui.setWidget(entryType, lines),
+            summary => pi.appendEntry(entryType, summary), message => ctx.ui.notify(message, "info"));
       let state: "idle" | "done" | "error" = "idle";
       let declined = false;
       let outcome = "Run canceled.";
@@ -242,7 +244,7 @@ export default function stageRunner(pi: ExtensionAPI) {
               if (event.phase === "recovery") activity.recovery(event.message);
               else activity.phase(event.phase);
             }
-            display.onEvent(event);
+            display?.onEvent(event);
           },
         });
         state = "done";
@@ -264,7 +266,7 @@ export default function stageRunner(pi: ExtensionAPI) {
           if (design) progress(outcome);
           else {
             activity.end(state);
-            display.finish(outcome.replace(/[\x00-\x1f\x7f-\x9f]/g, "?"));
+            display?.finish(outcome.replace(/[\x00-\x1f\x7f-\x9f]/g, "?"));
           }
         });
     },

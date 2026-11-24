@@ -512,7 +512,7 @@ for (const failure of [
         assert.equal(startup.verdict.status, "fits");
         assert.deepEqual(phases.slice(0, 2), ["startup", "execute:1"]);
         const calls = fs.readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line).at(-1));
-        assert.match(calls[0], /^\/startup-check /);
+        assert.match(calls[0], /^Startup check: /);
         assert.ok(calls[1].includes(`Feature baseline ${startup.base}`));
         const pushes = fs.readFileSync(bare + ".pushes", "utf8").trim().split("\n");
         assert.deepEqual(pushes, [...(["rewrite", "reuse"].includes(caseName) ? [startup.base] : []), git("-C", cwd, "rev-parse", "HEAD").toString().trim()]);
@@ -524,7 +524,7 @@ for (const failure of [
         assert.equal(fs.existsSync(bare + ".pushes"), false);
         const calls = fs.existsSync(log) ? fs.readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line).at(-1)) : [];
         assert.equal(calls.length, caseName === "blocked" ? 2 : ["branch", "detached", "invalid", "commit"].includes(caseName) ? 1 : 0);
-        assert.ok(calls.every(prompt => prompt.startsWith("/startup-check ")));
+        assert.ok(calls.every(prompt => prompt.startsWith("Startup check: ")));
         const drift = ["branch", "detached"].includes(caseName);
         assert.equal(fs.readdirSync(options.root).some(name => name.startsWith("lock-")), drift);
         if (drift) {

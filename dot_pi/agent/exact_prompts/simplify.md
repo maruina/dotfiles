@@ -10,7 +10,7 @@ Target:
 Simplify code for clarity and maintainability while preserving behavior exactly. This pass is separate from refactoring within `/execute`.
 
 <HARD-GATE>
-Do not change behavior. Existing tests must pass before and after; run the focused tests for the touched code first, and again after simplifying. If no tests cover the touched code, say so and stop rather than guessing at behavior. Do not add features, abstractions, or configurability. Do not start on `main` or `master` without explicit user consent.
+Do not change behavior. Existing tests must pass before and after; run the focused tests for the touched code first, and again after simplifying. If no tests cover the touched code, make no edits and report unchanged (in `/stage-runner`, submit `success` unchanged) rather than guessing at behavior. Do not add features, abstractions, or configurability. Do not start on `main` or `master` without explicit user consent.
 </HARD-GATE>
 
 ## Stage runner

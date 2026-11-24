@@ -85,23 +85,27 @@ function workExtensions(env: NodeJS.ProcessEnv, includeWriterGuardrails = false)
   ];
 }
 
-export function stageChildExtensions(
-  env: NodeJS.ProcessEnv,
-  stage: Stage | "startup-check" | "design-review",
-): string[] {
+function optionalChildExtensions(stage: Stage | "startup-check" | "design-review" | "arp-fix"): string[] {
   const candidates = [
-    gatewayExtensionPath(env),
-    path.resolve(import.meta.dirname, "../pi-client-session-id/index.ts"),
-    path.resolve(import.meta.dirname, "./_handoff.ts"),
     path.resolve(import.meta.dirname, "../user-context.ts"),
-    path.resolve(import.meta.dirname, "../context-kit/index.ts"),
     path.resolve(import.meta.dirname, "../cost-optimization.ts"),
-    path.resolve(import.meta.dirname, "../compute-guardrails.ts"),
   ];
-  if (stage === "execute" || stage === "simplify" || stage === "verify") {
+  if (stage === "execute" || stage === "simplify" || stage === "verify" || stage === "arp-fix") {
     candidates.push(path.resolve(import.meta.dirname, "../lsp/index.ts"));
   }
   return candidates.filter((file) => fs.existsSync(file));
+}
+
+export function stageChildExtensions(
+  env: NodeJS.ProcessEnv,
+  stage: Stage | "startup-check" | "design-review" | "arp-fix",
+): string[] {
+  const core = [
+    ...workExtensions(env, true),
+    path.resolve(import.meta.dirname, "./_handoff.ts"),
+  ];
+  const resolvedCore = stage === "arp-fix" ? core : core.filter((file) => fs.existsSync(file));
+  return [...resolvedCore, ...optionalChildExtensions(stage)];
 }
 
 export function activeSlice(plan: string): PlanSlice | undefined {
@@ -297,16 +301,9 @@ async function attempt(o: Pick<Options, "models" | "env" | "executable" | "prefi
     extra.push("--no-extensions", "--no-approve", "--no-skills", "--no-prompt-templates", "--no-context-files",
       "--tools", "read", ...drafting.extensions.flatMap(file => ["--extension", file]));
   } else if (stage === "arp-fix") {
-    const optionalWriterExts = [
-      path.resolve(import.meta.dirname, "../user-context.ts"),
-      path.resolve(import.meta.dirname, "../cost-optimization.ts"),
-      path.resolve(import.meta.dirname, "../lsp/index.ts"),
-    ].filter((file) => fs.existsSync(file));
-    extra.push("--no-extensions",
-      "--extension", path.join(import.meta.dirname, "_handoff.ts"),
-      ...workExtensions(env, true).flatMap(ext => ["--extension", ext]),
-      ...optionalWriterExts.flatMap(ext => ["--extension", ext]),
-      "--no-approve", "--exclude-tools", "mcp__*,codemode,tool_search");
+    extra.push("--no-extensions", "--no-approve",
+      ...stageChildExtensions(env, "arp-fix").flatMap(ext => ["--extension", ext]),
+      "--exclude-tools", "mcp__*,codemode,tool_search");
   } else {
     extra.push("--no-extensions", "--no-approve",
       ...stageChildExtensions(env, stage).flatMap(ext => ["--extension", ext]));
@@ -683,7 +680,7 @@ async function supervise(o: Options | DesignOptions) {
         fs.mkdirSync(folder, { mode: 0o700 });
         const out = path.join(folder, "handoff.json");
         await attempt(o, "startup-check", folder,
-          `/startup-check Review whether the committed plan at ${JSON.stringify(rel)} still fits. This is an inline instruction, not a slash command.\n` +
+          `Startup check: Review whether the committed plan at ${JSON.stringify(rel)} still fits.\n` +
           `Original HEAD: ${originalHead}. Pinned base: ${pinnedBase}. Rebased HEAD: ${rebased}. Reviewed plan blob: ${blob}.\n` +
           `Inspect upstream changes in ${mergeBase}..${pinnedBase} that touch plan-referenced paths. Check binding assumptions, referenced files and symbols, and validation commands. Do not edit, commit, or push.\n` +
           `Submit the handoff with submit_stage_handoff (head ${rebased}, planBlob ${blob}, status "fits" or "blocked" with reason).\n` +

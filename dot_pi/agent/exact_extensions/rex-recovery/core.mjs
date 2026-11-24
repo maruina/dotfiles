@@ -6,7 +6,7 @@ import { isAbsolute, join } from 'node:path';
 import { promisify } from 'node:util';
 import { mapBounded } from '../_shared/async.ts';
 import { writeAtomicJson } from '../_shared/fs.ts';
-import { verifyLocalRexEndpoint } from '../_shared/rex.ts';
+import { buildRexArgs as buildSharedRexArgs } from '../_shared/rex.ts';
 
 const execFileAsync = promisify(execFile);
 
@@ -17,8 +17,7 @@ function buildRexArgs(args) {
     const separator = outputArgs.indexOf('--');
     outputArgs.splice(separator < 0 ? outputArgs.length : separator, 0, '--json');
   }
-  const serverArgs = process.env.REX_SERVER ? ['--server', verifyLocalRexEndpoint(process.env.REX_SERVER)] : [];
-  return ['--autostart=false', '--timeout', '5s', ...serverArgs, ...outputArgs];
+  return buildSharedRexArgs(outputArgs, { timeoutSec: 5, endpoint: process.env.REX_SERVER });
 }
 export function callRex(args) {
   return JSON.parse(execFileSync('rex', buildRexArgs(args), {

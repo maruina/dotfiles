@@ -1,4 +1,4 @@
-import { matchesForegroundProcess, verifyLocalRexEndpoint, verifyLocalRexPeer } from "../_shared/rex.ts";
+import { buildRexArgs, matchesForegroundProcess, verifyLocalRexEndpoint, verifyLocalRexPeer } from "../_shared/rex.ts";
 import { qualifiedId } from "./_model.ts";
 import * as fs from "node:fs";
 import path from "node:path";
@@ -66,7 +66,7 @@ export async function recovery(o: {
   if (!REX_SERVER || !session || !anchor) throw Error("Missing local Rex IDs");
   const endpoint = verifyLocalRexEndpoint(REX_SERVER);
   const [exe, ...prefix] = o.rex ?? ["rex"];
-  const rexArgs = [...prefix, "--autostart=false", "--server", endpoint];
+  const rexArgs = [...prefix, ...buildRexArgs([], { endpoint, validateEndpoint: false })];
   const rexOptions = { cwd: o.cwd, env: o.env, maxBuffer: 128 * 1024, killSignal: "SIGKILL" } as const;
   const runRex = promisify(execFile);
   const rex = async (...args: string[]) =>

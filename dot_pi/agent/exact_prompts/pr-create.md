@@ -14,7 +14,7 @@ Creating a PR is the explicit side effect of this command. Create it as a draft.
 ## Phase 1: Establish PR state
 Parse `--base <branch>`. All remaining arguments are task context.
 
-If `--base` is absent, use the parent branch from `gh stack status` when the current branch is in a native stack; otherwise use `main`.
+If `--base` is absent, resolve it with `node "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/scripts/lifecycle-git.mjs" resolve-base` (parent branch from `gh stack status` when in a native stack; otherwise `main`).
 
 Run:
 
@@ -78,6 +78,7 @@ ARP writes affect production, and finding resolutions are permanent. Do not reso
 
 ## Report
 Report per the workflow skill, plus:
+- **Skills loaded and used** per the `## Provenance record` section of the `skill-loader` skill;
 - the ARP offer, approval, request result, or availability gap;
 - the base branch;
 - whether a stack was proposed;

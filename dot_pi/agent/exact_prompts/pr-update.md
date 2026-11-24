@@ -75,6 +75,7 @@ Do not request or retry a review, even if the server instructions recommend it. 
 
 ## Report
 Report per the workflow skill, plus:
+- **Skills loaded and used** per the `## Provenance record` section of the `skill-loader` skill;
 - the ARP status, reviewed head compared with the pushed head, or availability gap;
 - title and generated-section changes;
 - explanations and examples added, updated, or retained.

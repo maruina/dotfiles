@@ -44,33 +44,37 @@ function worktrunkBin(): string | undefined {
 }
 
 export default function worktrunkActivity(pi: ExtensionAPI): void {
-  const run = async (
+  let queue: Promise<void> = Promise.resolve();
+  const enqueue = (
     cwd: string,
     args: ["set", string] | ["clear"],
   ): Promise<void> => {
-    if (process.env.PI_STAGE_RUNNER_CHILD === "1") return;
+    if (process.env.PI_STAGE_RUNNER_CHILD === "1") return Promise.resolve();
     const bin = worktrunkBin();
-    if (!bin) return;
-    try {
-      await pi.exec(bin, ["config", "state", "marker", ...args], { cwd, timeout: 5000 });
-    } catch {
-      // Activity tracking must never interrupt the host Pi session.
-    }
+    if (!bin) return Promise.resolve();
+    queue = queue.then(async () => {
+      try {
+        await pi.exec(bin, ["config", "state", "marker", ...args], { cwd, timeout: 5000 });
+      } catch {
+        // Activity tracking must never interrupt the host Pi session.
+      }
+    });
+    return queue;
   };
 
-  pi.on("agent_start", async (_event, ctx) => {
-    await run(ctx.cwd, ["set", "🤖"]);
+  pi.on("agent_start", (_event, ctx) => {
+    void enqueue(ctx.cwd, ["set", "🤖"]);
   });
 
   // `agent_end` is not the end: Pi may auto-retry, auto-compact and retry, or
   // pick up a queued follow-up message. `agent_settled` is the event Pi
   // documents for status integrations — it fires once Pi will not continue
   // running on its own.
-  pi.on("agent_settled", async (_event, ctx) => {
-    await run(ctx.cwd, ["set", "💬"]);
+  pi.on("agent_settled", (_event, ctx) => {
+    void enqueue(ctx.cwd, ["set", "💬"]);
   });
 
   pi.on("session_shutdown", async (_event, ctx) => {
-    await run(ctx.cwd, ["clear"]);
+    await enqueue(ctx.cwd, ["clear"]);
   });
 }

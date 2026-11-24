@@ -6,6 +6,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { publisher, type Draft } from "./_publish.ts";
 import { findingFixes, fixPrompt, reviewPayload, reviewPublished, type FindingFix, type OpenFinding,
   type ReviewCall, type ReviewClock } from "./_arp.ts";
+import { validateHandoffPayload, type HandoffStage } from "./_handoff.ts";
 import { qualifiedId } from "./_model.ts";
 import { recovery, sessionInfo } from "./_recovery.ts";
 
@@ -69,13 +70,35 @@ const privateFile = (file: string, value: string | Buffer) =>
 function workExtensions(env: NodeJS.ProcessEnv, includeWriterGuardrails = false): string[] {
   const gateway = path.join(env.HOME ?? "", "go/src/github.com/DataDog/datadog-pi-packages/packages/dd-ai-gateway/extensions/dd-ai-gateway/index.ts");
   const sessionId = path.resolve(import.meta.dirname, "../pi-client-session-id/index.ts");
-  if (!includeWriterGuardrails) return [gateway, sessionId];
+  const base = [gateway, sessionId];
+  if (!includeWriterGuardrails) return base;
   return [
-    gateway,
-    sessionId,
+    ...base,
     path.resolve(import.meta.dirname, "../compute-guardrails.ts"),
     path.resolve(import.meta.dirname, "../context-kit/index.ts"),
   ];
+}
+
+function stageChildExtensions(
+  env: NodeJS.ProcessEnv,
+  stage: Stage | "startup-check" | "design-review",
+): string[] {
+  const gateway = path.join(env.HOME ?? "", "go/src/github.com/DataDog/datadog-pi-packages/packages/dd-ai-gateway/extensions/dd-ai-gateway/index.ts");
+  const candidates = [
+    ...(fs.existsSync(gateway) ? [gateway] : []),
+    path.resolve(import.meta.dirname, "../pi-client-session-id/index.ts"),
+    path.resolve(import.meta.dirname, "./_handoff.ts"),
+    path.resolve(import.meta.dirname, "../user-context.ts"),
+    path.resolve(import.meta.dirname, "../context-kit/index.ts"),
+    path.resolve(import.meta.dirname, "../cost-optimization.ts"),
+  ];
+  if (stage === "execute" || stage === "simplify") {
+    candidates.push(path.resolve(import.meta.dirname, "../compute-guardrails.ts"));
+  }
+  if (stage === "execute" || stage === "simplify" || stage === "verify") {
+    candidates.push(path.resolve(import.meta.dirname, "../lsp/index.ts"));
+  }
+  return candidates.filter((file) => fs.existsSync(file));
 }
 
 export function activeSlice(plan: string): PlanSlice | undefined {
@@ -144,7 +167,7 @@ async function designStages(o: DesignOptions, dir: string, start: string, git: (
   const r = folder("design-review"), out = path.join(r, "handoff.json");
   o.progress("Starting design-review; evidence " + r);
   await attempt({ ...o, models: { verify: o.reviewer, execute: o.author, simplify: o.author } }, "design-review", r,
-    "/systematic-review " + rel + " Managed design review. Commit only unambiguous reference, wording or terminology fixes in the design. Recheck the corrected text. Escalate decisions about scope, behavior, cost, dependencies, authorization or validation. Never approve. Write private 0600 UTF-8 JSON <=64 KiB to " + JSON.stringify(out) + " with schemaVersion:1, stage:design-review, summary, reviewedBlob and status clean or needs-human (with questions).", signal);
+    "/systematic-review " + rel + " Managed design review. Commit only unambiguous reference, wording or terminology fixes in the design. Recheck the corrected text. Escalate decisions about scope, behavior, cost, dependencies, authorization or validation. Never approve. Submit the handoff with submit_stage_handoff (or write private 0600 UTF-8 JSON <=64 KiB to " + JSON.stringify(out) + " with schemaVersion:1, stage:design-review, summary, reviewedBlob and status clean or needs-human (with questions)).", signal, undefined, undefined, out);
   const reviewer = sessionInfo(path.join(r, "sessions"), o.cwd, fs.readFileSync(path.join(r, "session-id"), "utf8"));
   ensure(!reviewer.models.some(m => author.models.includes(m) || m === id(o.author)), "Reviewer used author model");
   const review = (() => {
@@ -223,46 +246,13 @@ export async function* events(source: AsyncIterable<Buffer> | Iterable<Buffer>) 
   if (size) throw Error("Incomplete Pi event");
 }
 
-type DesignStage = "design-draft" | "design-review" | "design-plan";
 type DesignOptions = Pick<Options, "cwd" | "root" | "env" | "signal" | "notify" | "prefix" | "rexCommand" | "executable" | "idleMs" | "wallMs"> & {
   brief: string; author: Choice; reviewer: Choice;
   progress: (message: string) => void;
 };
-type HandoffStage = Stage | "startup-check" | "arp-fix" | DesignStage;
 export function validate(bytes: Buffer, stage: HandoffStage) {
   if (bytes.length > 65536) throw Error("Oversized handoff");
-  const h = JSON.parse(decode(bytes));
-  if (h?.schemaVersion !== 1 || h.stage !== stage || !nonblank(h.summary)) throw Error("Invalid handoff header");
-  const oid = (v: unknown) => typeof v === "string" && /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(v);
-  if (stage === "design-draft" || stage === "design-plan") {
-    const draft = stage === "design-draft";
-    if (!nonblank(h[draft ? "designPath" : "planPath"]) || !oid(h[draft ? "draftCommit" : "planCommit"])) throw Error("Invalid managed artifact");
-    return h;
-  }
-  if (stage === "design-review") {
-    if (!oid(h.reviewedBlob) || !(h.status === "clean" || (h.status === "needs-human" && Array.isArray(h.questions) && h.questions.length && h.questions.every(nonblank)))) throw Error("Invalid design review");
-    return h;
-  }
-  if (stage === "startup-check") {
-    if (!oid(h.head) || !oid(h.planBlob) || !(h.status === "fits" || (h.status === "blocked" && nonblank(h.reason))))
-      throw Error("Invalid startup-check verdict");
-    return h;
-  }
-  if (stage === "arp-fix") return h;
-  if (stage === "verify") {
-    if (
-      !["BLOCKED", "VERIFIED"].includes(h.status) ||
-      (h.findings !== undefined &&
-        (!Array.isArray(h.findings) ||
-          !h.findings.every((f: unknown) => f !== null && typeof f === "object" && !Array.isArray(f))))
-    )
-      throw Error("Invalid verdict");
-  } else if (
-    h.status !== "success" &&
-    !(h.status === "blocked" && ["step", "reason", "evidence", "nextAction"].every((k) => nonblank(h.blocker?.[k])))
-  )
-    throw Error("Invalid writer status or blocker");
-  return h;
+  return validateHandoffPayload(JSON.parse(decode(bytes)), stage);
 }
 
 export function handoff(file: string, stage: HandoffStage) {
@@ -281,7 +271,7 @@ export function handoff(file: string, stage: HandoffStage) {
 }
 
 async function attempt(o: Pick<Options, "models" | "env" | "executable" | "prefix" | "cwd" | "idleMs" | "wallMs"> & Partial<Pick<Options, "onEvent">>, stage: Stage | "startup-check" | "arp-review" | "arp-fix" | "design-review", dir: string, prompt: string, signal: AbortSignal,
-  review?: ReviewCall, drafting?: { extensions: string[]; accept: (message: unknown) => void }) {
+  review?: ReviewCall, drafting?: { extensions: string[]; accept: (message: unknown) => void }, handoffOut?: string) {
   signal.throwIfAborted();
   const extra: string[] = [];
   const sessions = path.join(dir, "sessions");
@@ -292,7 +282,13 @@ async function attempt(o: Pick<Options, "models" | "env" | "executable" | "prefi
   const env: NodeJS.ProcessEnv = { ...(o.env ?? process.env), PI_STAGE_RUNNER_CHILD: "1" };
   delete env.PI_LIFECYCLE_CHILD_CONFIG;
   delete env.PI_STAGE_RUNNER_REVIEW;
+  delete env.PI_STAGE_RUNNER_HANDOFF;
+  delete env.PI_STAGE_RUNNER_STAGE;
   for (const key of ["PI_DESIGN_STAGE", "PI_DESIGN_HANDOFF", "PI_DESIGN_INPUT", "PI_DESIGN_BRIEF"]) delete env[key];
+  if (handoffOut && stage !== "arp-review" && !drafting) {
+    env.PI_STAGE_RUNNER_HANDOFF = handoffOut;
+    env.PI_STAGE_RUNNER_STAGE = stage;
+  }
   if (drafting) {
     for (const key of Object.keys(env)) {
       if (!/^(HOME|USER|LOGNAME|PATH|TMPDIR|SHELL|LANG|LC_[A-Z_]+|PI_CODING_AGENT_DIR|PI_STAGE_RUNNER_CHILD|OPENAI_API_KEY|ANTHROPIC_API_KEY|GEMINI_API_KEY|GOOGLE_API_KEY)$/.test(key)) delete env[key];
@@ -310,8 +306,12 @@ async function attempt(o: Pick<Options, "models" | "env" | "executable" | "prefi
       "--tools", `tool_search,${review.name}`, "--exclude-tools", "codemode");
   } else if (stage === "arp-fix") {
     extra.push("--no-extensions",
+      "--extension", path.join(import.meta.dirname, "_handoff.ts"),
       ...workExtensions(env, true).flatMap(ext => ["--extension", ext]),
       "--no-approve", "--exclude-tools", "mcp__*,codemode,tool_search");
+  } else if (stage !== "arp-review") {
+    extra.push("--no-extensions",
+      ...stageChildExtensions(env, stage).flatMap(ext => ["--extension", ext]));
   }
   const mask = process.umask(0o077);
   const child = (() => {
@@ -492,7 +492,7 @@ function paneArgv(o: Pick<Options, "env" | "prefix">, model: Choice, args: strin
   const agentDir = (o.env ?? process.env).PI_CODING_AGENT_DIR;
   const vars = { ...(agentDir ? { PI_CODING_AGENT_DIR: agentDir } : {}), PI_STAGE_RUNNER_CHILD: "1", ...managed };
   return [process.execPath, "--import", "data:text/javascript," + encodeURIComponent(
-    "process.umask(0o077);delete process.env.PI_LIFECYCLE_CHILD_CONFIG;delete process.env.GH_TOKEN;delete process.env.GITHUB_TOKEN;delete process.env.PI_DESIGN_STAGE;delete process.env.PI_DESIGN_HANDOFF;delete process.env.PI_DESIGN_INPUT;delete process.env.PI_DESIGN_BRIEF;Object.assign(process.env," + JSON.stringify(vars) + ")"),
+    "process.umask(0o077);delete process.env.PI_LIFECYCLE_CHILD_CONFIG;delete process.env.GH_TOKEN;delete process.env.GITHUB_TOKEN;delete process.env.PI_STAGE_RUNNER_HANDOFF;delete process.env.PI_STAGE_RUNNER_STAGE;delete process.env.PI_DESIGN_STAGE;delete process.env.PI_DESIGN_HANDOFF;delete process.env.PI_DESIGN_INPUT;delete process.env.PI_DESIGN_BRIEF;Object.assign(process.env," + JSON.stringify(vars) + ")"),
     ...(o.prefix ?? [process.argv[1]]), "--provider", model.provider, "--model", model.id, "--thinking", model.thinking, ...args];
 }
 
@@ -689,8 +689,8 @@ async function supervise(o: Options | DesignOptions) {
           `/startup-check Review whether the committed plan at ${JSON.stringify(rel)} still fits. This is an inline instruction, not a slash command.\n` +
           `Original HEAD: ${originalHead}. Pinned base: ${pinnedBase}. Rebased HEAD: ${rebased}. Reviewed plan blob: ${blob}.\n` +
           `Inspect upstream changes in ${mergeBase}..${pinnedBase} that touch plan-referenced paths. Check binding assumptions, referenced files and symbols, and validation commands. Do not edit, commit, or push.\n` +
-          `Write only a private (0600) UTF-8 JSON handoff, at most 64 KiB, with schemaVersion:1, stage:"startup-check", nonblank summary, status "fits" or "blocked" (with nonblank reason when blocked), head ${rebased}, and planBlob ${blob}.\n` +
-          `Handoff path: ${out}`, signal);
+          `Submit the handoff with submit_stage_handoff (head ${rebased}, planBlob ${blob}, status "fits" or "blocked" with reason).\n` +
+          `Handoff path: ${out}`, signal, undefined, undefined, out);
         clean();
         if (git("rev-parse", "HEAD") !== rebased) throw Error("Startup checker changed HEAD");
         const verdict = handoff(out, "startup-check");
@@ -765,12 +765,10 @@ async function supervise(o: Options | DesignOptions) {
         blob +
         "; current candidate " +
         prev +
-        ". Write only this attempt's private (0600) UTF-8 JSON handoff outside Git, <=64 KiB. Include schemaVersion:1, stage:" +
-        stage +
-        ", nonblank summary, and " +
+        ". Call submit_stage_handoff with nonblank summary and " +
         (stage === "verify"
           ? 'status "VERIFIED" or "BLOCKED". Set "findings" to a flat JSON array of finding objects (use [] when there are none). Give each finding a classification; do not group findings into an object keyed by classification.'
-          : "status success or blocked; blocked requires blocker {step,reason,evidence,nextAction}.") +
+          : 'status "success" or "blocked" (blocked requires blocker {step,reason,evidence,nextAction}).') +
         "\nHandoff path: " +
         JSON.stringify(out) +
         (pending ? "\nFinding fixes in scope for independent feature-wide verification: " +
@@ -796,7 +794,7 @@ async function supervise(o: Options | DesignOptions) {
       let verificationEvidence: string | undefined;
       try {
         try {
-          await attempt(o, stage, folder, prompt, signal);
+          await attempt(o, stage, folder, prompt, signal, undefined, undefined, out);
           const h = handoff(out, stage);
           if (!["success", "VERIFIED"].includes(h.status)) throw Error(JSON.stringify(h));
           if (stage === "verify") verificationEvidence = JSON.stringify(h);
@@ -998,7 +996,7 @@ async function supervise(o: Options | DesignOptions) {
           privateFile(evidence, JSON.stringify(anchored));
           await published.checkHead(signal);
           checkCandidate();
-          await attempt(o, "arp-fix", fixDir, prompt, signal);
+          await attempt(o, "arp-fix", fixDir, prompt, signal, undefined, undefined, fixOut);
           signal.throwIfAborted();
           clean();
           const candidate = git("rev-parse", "HEAD");

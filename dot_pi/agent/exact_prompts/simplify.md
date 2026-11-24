@@ -14,7 +14,7 @@ Do not change behavior. Existing tests must pass before and after; run the focus
 </HARD-GATE>
 
 ## Stage runner
-For a `/stage-runner` attempt, write only the requested private JSON handoff outside Git, at the supplied path and in the supplied schema. Do not push, publish, apply, or create a PR. Check the supplied feature baseline, requirements plan blob, and current candidate before work. Use the pinned plan for requirements and the current plan as the progress ledger. Stop on a mismatch. Require a clean candidate worktree at stage start.
+For a `/stage-runner` attempt, submit the requested private JSON handoff outside Git via `submit_stage_handoff` (or write it at the supplied path and schema). Do not push, publish, apply, or create a PR. Check the supplied feature baseline, requirements plan blob, and current candidate before work. Use the pinned plan for requirements and the current plan as the progress ledger. Stop on a mismatch. Require a clean candidate worktree at stage start.
 
 ## Handoff metadata
 `--implemented-by` is handoff metadata. For a plan, accept repeatable `--implemented-by <id>` and preserve every writer ID. `--task` carries exact planless requirements. Strip `--implemented-by`, `--task`, and `--base` before target resolution; treat everything after `--task` as literal text, not flags. A plan path is the requirements source when present; use `--task` only for planless work. Preserve the exact original task and base meaning.
@@ -71,7 +71,7 @@ Stop and ask if the target, branch, base, or worktree is ambiguous; the worktree
 ## Handoff
 Use one exact command per standalone `md` fenced block. Quote paths with spaces. Keep prose outside. Omit commands with missing arguments.
 
-Summarize the diff, tests before and after, items left alone, and commit message/hash or why no commit was made. Include **Skills loaded and used** as a `Skill | Source | Why loaded | How used` table; explicitly say when none were needed.
+Summarize the diff, tests before and after, items left alone, and commit message/hash or why no commit was made. Include **Skills loaded and used** per the `## Provenance record` section of the `skill-loader` skill; explicitly say when none were needed.
 
 For a stage-runner attempt, write the requested handoff even when unchanged. The runner starts fresh `/verify`.
 

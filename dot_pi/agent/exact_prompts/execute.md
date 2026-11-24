@@ -8,7 +8,7 @@ Execution input:
 > $ARGUMENTS
 
 ## Stage runner
-For a `/stage-runner` attempt, write only the requested private JSON handoff outside Git, at the supplied path and schema. Do not push, publish, apply, or create a PR. Verify baseline, plan blob, and candidate; use the pinned plan for requirements and current plan as ledger, and stop on mismatch. Treat every stop-and-ask rule below as a `blocked` handoff (`blocker`: `step`, `reason`, `evidence`, `nextAction`), never prose-only. Commit each completed slice with a Conventional Commit and leave a clean tree.
+For a `/stage-runner` attempt, submit the private JSON handoff outside Git via `submit_stage_handoff` (or supplied path/schema). Do not push, publish, apply, or create a PR. Verify baseline, plan blob, and candidate; use the pinned plan for requirements and current plan as ledger, and stop on mismatch. Treat every stop-and-ask rule below as a `blocked` handoff (`blocker`: `step`, `reason`, `evidence`, `nextAction`), never prose-only. Commit each completed slice with a Conventional Commit and leave a clean tree.
 
 Execute a committed implementation plan. For trivial low-risk work, `/execute` may also execute directly from a bare prompt after complexity triage.
 
@@ -49,7 +49,7 @@ Complete the approved slice and its checks, or stop with a concrete blocker.
 ## Slice execution
 A plan with no slice grouping executes all tasks as today and hands off once.
 
-For a plan with `### Slice N` headings, read the plan, find the first slice with incomplete tasks, and execute only that slice. After the slice's verification passes and you update the ledger, stop and hand off; do not auto-run the remaining slices. A later `/execute` on the same plan resumes at the next incomplete slice. If the user names a slice in the extra instructions, execute that slice when it has no incomplete blockers. For a multi-slice plan, the terminal state is one verified slice increment with the plan updated as the ledger.
+For a plan with `### Slice N` headings, run `lifecycle-git.mjs next-slice <plan-path>` to find the first slice with incomplete tasks, and execute only that slice. After verification passes and you update the ledger, stop and hand off; do not auto-run the remaining slices. A later `/execute` resumes at the next incomplete slice. If the user names a slice, execute it when it has no incomplete blockers. For a multi-slice plan, the terminal state is one verified slice increment with the plan updated as the ledger.
 
 ## Workflow
 1. **Setup —** Resolve and read the plan completely, or classify the bare prompt as trivial before editing.
@@ -61,7 +61,7 @@ For a plan with `### Slice N` headings, read the plan, find the first slice with
 7. For plan-based execution, verify the worktree starts with committed `plans/<ticket-or-feature>/plan.md` (and sibling `design.md` when expected). If lifecycle docs are uncommitted or untracked, recover only when the sole uncommitted changes are expected lifecycle artifacts under `plans/<ticket-or-feature>/`, committing `design.md` first and `plan.md` second.
 8. Stop and ask if any uncommitted changes remain after recovery, or if concerns, blockers, or ambiguities remain beyond the choices permitted under `## Posture`.
 9. **Execute —** Execute tasks in order (the first slice with incomplete tasks for a grouped plan, or the single approved change for bare-prompt trivial work).
-10. For each task, update plan checkboxes as work progresses, run the specified verification, and mark steps complete only after verification passes. For plan-based work, maintain an `### Execution` subsection under `## Skills loaded and used`, preserving the planning record. Record the provider-qualified writer ID for each completed slice (or ungrouped execution) in the ledger before committing. For trivial bare prompts, track progress and skill provenance in chat.
+10. For each task, update plan checkboxes as work progresses, run the specified verification, and mark steps complete only after verification passes. For plan-based work, maintain an `### Execution` subsection under `## Skills loaded and used`, preserving the planning record. Record the provider-qualified writer ID for each completed slice (or ungrouped execution) in the ledger before committing. For bare prompts, track progress and skill provenance in chat.
 11. Complete the plan's documentation and future-agent guidance task, including every required `AGENTS.md` inspection (or decide whether docs are unnecessary for trivial bare prompts).
 12. **Prepare verification handoff —** Read changed code as a maintainer without the design or plan. Prefer clear names and structure. If an invariant, order, or fallback needs context, add a short comment next to the decision. Explain what would go wrong without it; do not restate the code.
     Run the final implementation-evidence commands, inspect `git status`, and confirm plan fidelity (every task in the current execution unit is complete, requirements and operational checks match the plan's risk level, no unapproved scope added, and deviations documented in the plan ledger).

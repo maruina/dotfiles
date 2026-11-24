@@ -26,23 +26,8 @@ Parse the PR URL and optional context from `$ARGUMENTS`.
    - Search: `git -C "$BASE_REPO" grep -n -e '<pattern>' "$HEAD_REF_OID" -- <touched-dirs>`. Always scope the search to directories; in a large repository, a search of the full tree can take minutes.
    - List files: `git -C "$BASE_REPO" ls-tree -r --name-only "$HEAD_REF_OID" -- <dir>`.
    Create or reuse the review worktree only when the review needs files on disk: LSP analysis of callers or interfaces in changed Go or TypeScript code, or a build or test that the HARD-GATE allows. Record the reason in Coverage. Steps 5 to 7 apply only to the worktree.
-5. If the expected path exists, verify all of the following before reading its files:
-   - `git -C "$BASE_REPO" worktree list --porcelain` reports it as a worktree registered to the verified base repository.
-   - The physical path of the expected directory matches the physical path returned by `git -C "$WORKTREE" rev-parse --show-toplevel`. Resolve both paths before comparing them so symlinks do not cause a false mismatch.
-   - Its remote identifies the same `ORG/REPO`.
-   - The existing worktree is clean, including untracked files. Check with `git status --porcelain --untracked-files=all`.
-6. If the existing worktree passes every check but its `HEAD` differs from `HEAD_REF_OID`, update it without asking by running `git -C "$WORKTREE" checkout --detach "$HEAD_REF_OID"`. Reuse it when its `HEAD` already matches. If the path is dirty, is not registered to the verified base repository, has a different remote, or resolves to a different physical root, stop before analysis and report the conflict. Do not reset, remove, clean, or otherwise modify an invalid or dirty path.
-7. If the expected path does not exist, create a detached worktree at that path from `HEAD_REF_OID` verified by preflight. Do not guess, reset, or remove another path.
-   - In large repositories (such as `dd-source`), avoid checking out the entire repository. Use Git sparse-checkout cone mode to materialize only necessary paths:
-     ```bash
-     git worktree add --no-checkout <path> <headRefOid>
-     git -C <path> sparse-checkout init --cone
-     git -C <path> sparse-checkout set <touched-top-level-directories>
-     git -C <path> checkout
-     ```
-   - Seed the sparse set with root project configuration files and the top-level directories of all changed files (for example, `domains/<subsystem>`).
-   - If build targets, tests, or imported packages require additional files during analysis, expand the sparse cone dynamically with `git -C <path> sparse-checkout add <directory>`.
-8. Read PR source files only from Git objects at `HEAD_REF_OID` or from the verified worktree. Never read them from the working tree of `BASE_REPO`, which is on another commit.
+5. When a worktree is needed, run `ensure-worktree "$PR_URL" "$BASE_REPO" "$BASE_REMOTE" "$HEAD_REF_OID"` with the same `workspace.mjs` script (append `--sparse <touched-top-level-dirs>` in large repositories such as `dd-source`, seeding root config files and touched top-level directories, and expand dynamically with `git -C "$WORKTREE" sparse-checkout add <directory>` when needed). If the expected path exists, the helper verifies registration to `BASE_REPO`, matching physical paths, remote identity, and that the existing worktree is clean, including untracked files (`git status --porcelain --untracked-files=all`); when `HEAD` differs from `HEAD_REF_OID`, it updates via `git checkout --detach "$HEAD_REF_OID"`. Otherwise it creates a new detached worktree at `WORKTREE`. If it reports a conflict or dirty path, stop before analysis without resetting, removing, or modifying that path.
+6. Read PR source files only from Git objects at `HEAD_REF_OID` or from the verified worktree. Never read them from the working tree of `BASE_REPO`, which is on another commit.
 
 ## Phase 2: Collect PR evidence
 Use one `tool_search` call before large reads to load every deferred MCP tool this review may need, including Datadog monitor tools and DDCI CI-status tools. Do not call `tool_search` again; each call invalidates the prompt cache.

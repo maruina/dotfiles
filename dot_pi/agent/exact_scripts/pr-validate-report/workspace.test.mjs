@@ -4,7 +4,7 @@ import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, statSync, wri
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { cleanup, preflight } from './workspace.mjs';
+import { cleanup, ensureWorktree, preflight } from './workspace.mjs';
 
 const url = 'https://github.com/DataDog/example/pull/17';
 const head = 'a'.repeat(40);
@@ -130,3 +130,29 @@ for (const [name, options, error] of [
     assert.ok(!calls.some(([, command, operation]) => command === 'worktree' && operation === 'remove'));
   });
 }
+
+test('ensureWorktree creates, reuses, updates, and rejects dirty review worktrees', async (t) => {
+  const { temp } = fixture(t);
+  const base = join(temp, 'base');
+  const root = join(temp, '.worktrees');
+  const git = (...args) => execFileSync('git', args, { encoding: 'utf8' });
+  git('init', '--quiet', base);
+  git('-C', base, 'remote', 'add', 'origin', 'https://github.com/DataDog/example.git');
+  writeFileSync(join(base, 'a.txt'), 'v1\n');
+  git('-C', base, 'add', 'a.txt');
+  git('-C', base, '-c', 'user.name=Test', '-c', 'user.email=test@example.com', '-c', 'commit.gpgsign=false', 'commit', '--quiet', '-m', 'c1');
+  const sha1 = git('-C', base, 'rev-parse', 'HEAD').trim();
+  writeFileSync(join(base, 'a.txt'), 'v2\n');
+  git('-C', base, 'add', 'a.txt');
+  git('-C', base, '-c', 'user.name=Test', '-c', 'user.email=test@example.com', '-c', 'commit.gpgsign=false', 'commit', '--quiet', '-m', 'c2');
+  const sha2 = git('-C', base, 'rev-parse', 'HEAD').trim();
+
+  const created = await ensureWorktree({ url, base, remote: 'origin', headOid: sha1, root });
+  assert.equal(created.status, 'created');
+  const reused = await ensureWorktree({ url, base, remote: 'origin', headOid: sha1, root });
+  assert.equal(reused.status, 'reused');
+  const updated = await ensureWorktree({ url, base, remote: 'origin', headOid: sha2, root });
+  assert.equal(updated.status, 'updated');
+  writeFileSync(join(updated.worktree, 'dirty.txt'), 'dirty\n');
+  await assert.rejects(ensureWorktree({ url, base, remote: 'origin', headOid: sha2, root }), /dirty/);
+});

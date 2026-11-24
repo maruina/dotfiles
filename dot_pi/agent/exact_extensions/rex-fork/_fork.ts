@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, rmdirSync, statSync, unlinkSync, watch } from "node:fs";
 import { dirname, isAbsolute, join } from "node:path";
 import { writeAtomicJson } from "../_shared/fs.ts";
-import { isRexId, matchesForegroundProcess, verifyLocalRexEndpoint, verifyLocalRexPeer } from "../_shared/rex.ts";
+import { buildRexArgs, isRexId, matchesForegroundProcess, verifyLocalRexEndpoint, verifyLocalRexPeer } from "../_shared/rex.ts";
 
 export function snapshotBranch(source: ExtensionContext["sessionManager"], cwd: string): { path: string; id: string } {
   const file = source.getSessionFile();
@@ -28,7 +28,7 @@ type Identity = { endpoint: string; instance_id: string; host_id: string; sessio
 type Attempt = { nonce: string; snapshot: string; snapshotId: string; cwd: string; endpoint: string; instance: string; host: string; session: string; sourceBlock: string };
 
 async function rex(pi: ExtensionAPI, endpoint: string, args: string[], timeout = 7000): Promise<any> {
-  const result = await pi.exec("rex", ["--autostart=false", "--timeout", "5s", "--server", endpoint, ...args], { timeout });
+  const result = await pi.exec("rex", buildRexArgs(args, { timeoutSec: 5, endpoint, validateEndpoint: false }), { timeout });
   if (result.code !== 0 || result.killed || ("truncated" in result && result.truncated)) throw new Error("Rex inspection/request failed or timed out.");
   return JSON.parse(result.stdout);
 }

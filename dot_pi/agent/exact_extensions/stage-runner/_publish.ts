@@ -1,8 +1,8 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { readFileSync } from "node:fs";
-import path from "node:path";
 import { isWorkGitHubOrg, selectGitHubLogin } from "../_shared/github.ts";
+import { getProfile } from "../_shared/profile.ts";
 
 const exec = promisify(execFile);
 export type Draft = { title: string; body: string };
@@ -13,7 +13,9 @@ export function publisher(
   inherited: NodeJS.ProcessEnv,
   signal: AbortSignal,
 ) {
-  const { profile } = JSON.parse(readFileSync(profilePath ?? path.join(import.meta.dirname, "_profile.json"), "utf8"));
+  const profile = profilePath
+    ? (JSON.parse(readFileSync(profilePath, "utf8")) as { profile?: unknown }).profile
+    : getProfile(inherited);
   if (profile !== "work" && profile !== "personal") throw Error("Unknown publication profile");
   const env = {
     ...inherited,

@@ -78,11 +78,153 @@ function compare(a, b) {
   const deltas = fields.filter(field => JSON.stringify(a[field]) !== JSON.stringify(b[field]));
   return { schemaVersion: 1, match: deltas.length === 0, deltas };
 }
+function unfencedLines(content) {
+  const result = [];
+  let fence = null;
+  const raw = content.split(/\r?\n/);
+  for (let i = 0; i < raw.length; i++) {
+    const line = raw[i];
+    const marker = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+    if (fence) {
+      if (marker && marker[1].startsWith(fence) && !marker[2].trim()) fence = null;
+      continue;
+    }
+    if (marker && (marker[1][0] === '~' || !marker[2].includes('`'))) {
+      fence = marker[1];
+      continue;
+    }
+    result.push({ line, lineNumber: i + 1 });
+  }
+  return result;
+}
+function lintPlan(file) {
+  if (!existsSync(file)) throw new CliError('missing_file', `Plan not found: ${file}`);
+  const content = readFileSync(file, 'utf8');
+  const lines = unfencedLines(content);
+  const errors = [];
+  const tasks = [];
+  const slices = [];
+  let inTask = false;
+  let inPostPub = false;
+  const blockedByRe = /^(?:None|(?:Tasks? \d+(?:-\d+)?)(?:(?:,\s*|\s+and\s+)Tasks? \d+(?:-\d+)?)*)$/;
+  for (const { line, lineNumber } of lines) {
+    if (/^## /.test(line)) {
+      inTask = false;
+      inPostPub = /^## Post-publication validation\b/i.test(line);
+      continue;
+    }
+    if (/^### Slice\b/.test(line)) {
+      inTask = false;
+      const m = /^### Slice (\d+):\s*(.+)$/.exec(line);
+      if (!m) errors.push(`line ${lineNumber}: malformed slice heading: ${line}`);
+      else slices.push({ number: Number(m[1]), title: m[2].trim() });
+      continue;
+    }
+    if (/^### Task\b/.test(line)) {
+      const m = /^### Task (\d+):\s*(.+)$/.exec(line);
+      if (!m) {
+        errors.push(`line ${lineNumber}: malformed task heading: ${line}`);
+        inTask = false;
+      } else {
+        tasks.push({ number: Number(m[1]), title: m[2].trim() });
+        inTask = true;
+      }
+      continue;
+    }
+    if (/^### /.test(line)) {
+      inTask = false;
+      continue;
+    }
+    const blockedMatch = /^\*\*Blocked by:\*\*\s*(.+)$/.exec(line);
+    if (blockedMatch) {
+      const val = blockedMatch[1].trim();
+      if (!blockedByRe.test(val)) {
+        errors.push(`line ${lineNumber}: invalid Blocked by format (use Task N, Tasks N-M, or None; no parenthetical notes): ${val}`);
+      }
+      continue;
+    }
+    const filesMatch = /^\*\*Files:\*\*\s*(.+)$/.exec(line);
+    if (filesMatch && /(?:^|[\s`,"'(])(?:\/|~\/)[^\s`,"')]+/.test(filesMatch[1])) {
+      errors.push(`line ${lineNumber}: **Files:** must use repo-relative paths, not absolute paths`);
+    }
+    if (/^\s*- \[[ xX]\] /.test(line)) {
+      if (inPostPub) errors.push(`line ${lineNumber}: Post-publication validation must use plain bullets, not checkboxes`);
+      else if (!inTask) errors.push(`line ${lineNumber}: checkbox must appear inside a numbered ### Task N: section`);
+    }
+  }
+  return { schemaVersion: 1, ok: errors.length === 0, errors, tasks, slices };
+}
+function preflightDesign(root, file) {
+  const full = realpathSync(path.resolve(file));
+  const rel = path.relative(root, full);
+  if (rel.startsWith('..') || path.isAbsolute(rel)) throw new CliError('outside_worktree', `Design is outside worktree: ${file}`);
+  const status = git(root, 'status', '--porcelain=v1', '--untracked-files=all', '--', rel).trim();
+  const clean = status === '';
+  let statusLine = null;
+  let head = null;
+  try {
+    head = git(root, 'rev-parse', '--verify', 'HEAD^{commit}').trim();
+    const committed = git(root, 'show', `HEAD:${rel}`);
+    statusLine = committed.split(/\r?\n/)[1] ?? null;
+  } catch {
+    statusLine = null;
+  }
+  const approved = statusLine === 'Status: Approved';
+  return { schemaVersion: 1, ok: clean && approved, clean, approved, statusLine, head, path: full };
+}
+function nextSlice(root, file) {
+  const full = realpathSync(path.resolve(file));
+  const rel = path.relative(root, full);
+  if (rel.startsWith('..') || path.isAbsolute(rel)) throw new CliError('outside_worktree', `Plan is outside worktree: ${file}`);
+  const status = git(root, 'status', '--porcelain=v1', '--untracked-files=all', '--', rel).trim();
+  let committed = false;
+  try {
+    git(root, 'cat-file', '-e', `HEAD:${rel}`);
+    committed = status === '';
+  } catch {
+    committed = false;
+  }
+  const lines = unfencedLines(readFileSync(full, 'utf8'));
+  let grouped = false;
+  let currentSlice = null;
+  let nextSliceInfo = null;
+  let remainingCount = 0;
+  for (const { line } of lines) {
+    if (/^## /.test(line)) {
+      currentSlice = null;
+    } else if (/^### Slice (\d+):\s*(.+)$/.test(line)) {
+      grouped = true;
+      const m = /^### Slice (\d+):\s*(.+)$/.exec(line);
+      currentSlice = { number: Number(m[1]), title: m[2].trim() };
+    } else if (/^\s*- \[ \] .+$/.test(line)) {
+      remainingCount++;
+      if (!nextSliceInfo && currentSlice) nextSliceInfo = currentSlice;
+    }
+  }
+  return { schemaVersion: 1, path: full, committed, grouped, nextSlice: nextSliceInfo, remainingCount };
+}
+function resolveBase(root) {
+  try {
+    const stackOut = execFileSync('gh', ['stack', 'status'], { cwd: root, encoding: 'utf8', timeout: 10000, stdio: ['ignore', 'pipe', 'ignore'] });
+    const match = /parent(?: branch)?:\s*([^\s]+)/i.exec(stackOut);
+    if (match?.[1]) return { schemaVersion: 1, base: match[1], source: 'gh-stack' };
+  } catch { /* fall through */ }
+  try {
+    const prBase = execFileSync('gh', ['pr', 'view', '--json', 'baseRefName', '-q', '.baseRefName'], { cwd: root, encoding: 'utf8', timeout: 10000, stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    if (prBase) return { schemaVersion: 1, base: prBase, source: 'gh-pr' };
+  } catch { /* fall through */ }
+  try {
+    const originHead = git(root, 'symbolic-ref', '--quiet', '--short', 'refs/remotes/origin/HEAD').trim();
+    if (originHead.startsWith('origin/')) return { schemaVersion: 1, base: originHead.slice('origin/'.length), source: 'origin-head' };
+  } catch { /* fall through */ }
+  return { schemaVersion: 1, base: 'main', source: 'fallback' };
+}
 function main(args) {
-  if (args.length === 1 && args[0] === '--help') { console.log('Usage: lifecycle-git.mjs resolve --path PATH | resolve --glob GLOB | discover-plan [--branch BRANCH] | snapshot [--base REF] | compare-snapshots FILE FILE'); return; }
+  if (args.length === 1 && args[0] === '--help') { console.log('Usage: lifecycle-git.mjs resolve --path PATH | resolve --glob GLOB | discover-plan [--branch BRANCH] | snapshot [--base REF] | compare-snapshots FILE FILE | lint-plan PATH | preflight-design PATH | next-slice PATH | resolve-base'); return; }
   const [op, ...rest] = args;
   let output;
   if (op === 'compare-snapshots' && rest.length === 2) output = compare(JSON.parse(readFileSync(rest[0], 'utf8')), JSON.parse(readFileSync(rest[1], 'utf8')));
+  else if (op === 'lint-plan' && rest.length === 1) output = lintPlan(rest[0]);
   else {
     const root = rootAt(process.cwd());
     if (op === 'resolve' && rest.length === 2) output = resolve(root, rest[0], rest[1]);
@@ -96,10 +238,13 @@ function main(args) {
       const candidates = matching.length ? matching : plans.length ? plans : designs;
       output = { schemaVersion: 1, status: candidates.length === 0 ? 'none' : candidates.length === 1 ? 'unique' : 'ambiguous', branch, slug, matching, plans, designs, candidates };
     } else if (op === 'snapshot' && (rest.length === 0 || (rest.length === 2 && rest[0] === '--base'))) output = snapshot(root, rest[1]);
+    else if (op === 'preflight-design' && rest.length === 1) output = preflightDesign(root, rest[0]);
+    else if (op === 'next-slice' && rest.length === 1) output = nextSlice(root, rest[0]);
+    else if (op === 'resolve-base' && rest.length === 0) output = resolveBase(root);
     else throw new CliError('invalid_arguments', 'Invalid command or arguments; use --help', 2);
   }
   console.log(JSON.stringify(output));
-  if (output.match === false) process.exitCode = 1;
+  if (output.match === false || output.ok === false) process.exitCode = 1;
 }
 try { main(process.argv.slice(2)); } catch (error) {
   const e = error instanceof CliError ? error : new CliError('operation_failed', 'Unable to read required evidence');

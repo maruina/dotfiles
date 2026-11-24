@@ -29,6 +29,23 @@ export function verifyLocalRexEndpoint(endpoint: string | undefined = process.en
   return endpoint;
 }
 
+export function buildRexArgs(
+  args: string[],
+  options?: { endpoint?: string; timeoutSec?: number; validateEndpoint?: boolean },
+): string[] {
+  const prefix = ["--autostart=false"];
+  if (options?.timeoutSec !== undefined) {
+    prefix.push("--timeout", `${options.timeoutSec}s`);
+  }
+  if (options?.endpoint) {
+    const endpoint = options.validateEndpoint === false
+      ? options.endpoint
+      : verifyLocalRexEndpoint(options.endpoint);
+    prefix.push("--server", endpoint);
+  }
+  return [...prefix, ...args];
+}
+
 export function verifyLocalRexPeer(
   raw: unknown,
   endpoint: string,

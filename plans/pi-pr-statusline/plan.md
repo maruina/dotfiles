@@ -176,10 +176,12 @@ The focused test first failed because `routedGhEnv` was missing. After implement
 **Traces to:** R1
 **Files:** `dot_pi/agent/exact_extensions/pr-status/github.ts`, `dot_pi/agent/exact_extensions/pr-status/pr-status.test.mjs`
 
-- [ ] Write failing unit tests in `dot_pi/agent/exact_extensions/pr-status/pr-status.test.mjs` covering R1 with an injected runner: dual-account `GH_TOKEN` routing (`work` vs `personal` profile, no `gh auth switch`, env-only token), `viewer.login` mismatch, PR state selection (`draft`, `open`, `merged`, `closed`, preferring `open` and matching `headRepository`), control-character and `\t` stripping, and OSC 8 URL validation.
-- [ ] Implement `dot_pi/agent/exact_extensions/pr-status/github.ts` using `routedGhEnv`, `parseGitHubOwnerRepo`, and `selectGitHubLogin` from `../_shared/github.ts`; the runner signature matches `AsyncRunner` in `user-context.ts`.
-- [ ] Run `node --experimental-strip-types --test dot_pi/agent/exact_extensions/pr-status/pr-status.test.mjs`; expect all R1 tests to pass.
-- [ ] Refactor only after green, rerun verification, and commit with `feat(pi): add PR status GraphQL query and formatter`.
+- [x] Write failing unit tests in `dot_pi/agent/exact_extensions/pr-status/pr-status.test.mjs` covering R1 with an injected runner: dual-account `GH_TOKEN` routing (`work` vs `personal` profile, no `gh auth switch`, env-only token), `viewer.login` mismatch, PR state selection (`draft`, `open`, `merged`, `closed`, preferring `open` and matching `headRepository`), control-character and `\t` stripping, and OSC 8 URL validation.
+- [x] Implement `dot_pi/agent/exact_extensions/pr-status/github.ts` using `routedGhEnv`, `parseGitHubOwnerRepo`, and `selectGitHubLogin` from `../_shared/github.ts`; the runner signature matches `AsyncRunner` in `user-context.ts`.
+- [x] Run `node --experimental-strip-types --test dot_pi/agent/exact_extensions/pr-status/pr-status.test.mjs`; expect all R1 tests to pass.
+- [x] Refactor only after green, rerun verification, and commit with `feat(pi): add PR status GraphQL query and formatter`.
+
+The R1 tests first failed because `pr-status/github.ts` did not exist. All 4 R1 tests and `npm run typecheck` passed after implementation.
 
 ### Task 3: Render conditional 3rd footer line in `statusline.ts`
 **Delivers:** `statusline.ts` displays `"pr-status"` on line 3 below the model line, split on the first `\t`, and keeps the 2-line footer unchanged when absent.

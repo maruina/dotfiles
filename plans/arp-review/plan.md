@@ -100,7 +100,7 @@ No `design.md` exists. `AGENTS.md` permits starting at `/plan` when the design i
   - Final: `npm ci --ignore-scripts`, `npm test`, `npm run test:all`, then remove `node_modules`.
 
 ### Rollout and Rollback
-- **Rollout:** Apply only after independent feature-wide `/verify` and the live trial in `## Post-publication validation`.
+- **Rollout:** Apply after independent feature-wide `/verify`. The live trial in `## Post-publication validation` is optional for this release (operator waiver); fix forward any issue found in live use.
 - **Rollback:** Stop active runs, confirm child exit, revert the `/arp-review` commits, run `chezmoi diff` and `chezmoi apply` only for the changed target files under `~/.pi/agent/extensions/stage-runner/`, `~/.pi/agent/scripts/lifecycle-prompts.test.mjs`, and `~/.pi/agent/AGENTS.md` (name each file, because a directory target can hide drift), and restart Pi. `/stage-runner` keeps working because the extracted helpers keep their behavior.
 
 ## Acceptance criteria
@@ -228,9 +228,9 @@ The runner SHALL invoke `arp-fix` with the `/pr-address-feedback` adjudication p
 
 ## Post-publication validation
 - Owner: Matteo Ruina (operator).
-- Trigger: after the PR is published and independent `/verify` passes, and before merge or `chezmoi apply`.
-- Expected evidence: one live `/arp-review` run on a disposable `ddoghq-sandbox/*` PR that records a fix push, an `addressed` settlement, and a clean re-review, plus one run that stops on `needs-operator` with zero pushes. Record the PR URL, heads, and finding IDs in the PR. If the trial produces no real finding, live settlement validation remains open.
-- Gate: do not merge or apply until the evidence is recorded or the operator explicitly waives the trial for this release.
+- Trigger: the first `/arp-review` run on a real PR with ARP findings after merge and `chezmoi apply`.
+- Expected evidence: a fix push, an `addressed` settlement whose `reason` starts with `Author-tested fix:`, and a clean re-review. When a real finding produces `needs-operator`, also record a stop with zero pushes. Record the PR URL, heads, and finding IDs in the follow-up issue or PR.
+- Gate: none for this release. On 2026-11-25 the operator waived the pre-merge live trial that `dot_pi/agent/exact_extensions/stage-runner/README.md` requires, because no disposable PR with ARP findings is available. The integration tests establish the runner's behavior against `gh` and ARP fixtures. Live authentication, review capture, and settlement stay untested until the first real run. The operator accepts this gap and will fix forward.
 
 ## Learning candidates
 - 2026-11-24: Adding open-PR metadata to the `target` that `publisher().inspect()` returns breaks the `JSON.stringify(target)` checks in `publish()` and `pushStartup()` after every push; use the `lookup()` that `inspect()` already returns. — evidence: `dot_pi/agent/exact_extensions/stage-runner/_publish.ts` lines 157-161 and the `confirmed()` check in `publish()`

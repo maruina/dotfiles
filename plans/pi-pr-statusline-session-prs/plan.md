@@ -183,11 +183,11 @@
 **Traces to:** Requirement: Multi-line PR footer rendering
 **Files:** `dot_pi/agent/exact_extensions/statusline.ts`, `dot_pi/agent/exact_extensions/statusline.test.mjs`
 
-- [ ] Add failing tests in `dot_pi/agent/exact_extensions/statusline.test.mjs` covering two newline-delimited PR lines, OSC 8 truncation on multi-line entries, and empty/newline-only status values.
-- [ ] Update `dot_pi/agent/exact_extensions/statusline.ts` to split `prStatus` on `"\n"`, skip empty lines, and render each `<left>\t<right>` line via `renderLine`.
-- [ ] Run `node --experimental-strip-types --test dot_pi/agent/exact_extensions/statusline.test.mjs`; expect all tests to pass.
-- [ ] Refactor only after green, then rerun the test command.
-- [ ] Commit with `feat(pi): render multi-line PR status in statusline footer`.
+- [x] Add failing tests in `dot_pi/agent/exact_extensions/statusline.test.mjs` covering two newline-delimited PR lines, OSC 8 truncation on multi-line entries, and empty/newline-only status values.
+- [x] Update `dot_pi/agent/exact_extensions/statusline.ts` to split `prStatus` on `"\n"`, skip empty lines, and render each `<left>\t<right>` line via `renderLine`.
+- [x] Run `node --experimental-strip-types --test dot_pi/agent/exact_extensions/statusline.test.mjs`; expect all tests to pass.
+- [x] Refactor only after green, then rerun the test command.
+- [x] Commit with `feat(pi): render multi-line PR status in statusline footer`.
 
 ### Task 2: Add `queryPrByNumber` with cross-repo prefix, `mergedAt`, and per-login token caching
 **Delivers:** `pr-status/github.ts` queries PRs directly by `{ owner, repo, number }` with auth routing, token reuse across PRs, `repo#N` labeling for cross-repo PRs, and structured `{ key, line, state, mergedAt }` results from both `queryPrByNumber` and `queryPrStatus`.

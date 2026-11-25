@@ -71,10 +71,45 @@ test("footer puts PR status below the unchanged model line and aligns the right 
 	assert.equal(visibleWidth(lines[2]), 160);
 });
 
+test("footer renders multiple newline-delimited PR status lines and skips empty lines", async () => {
+	const base = await contextFooter(undefined);
+	const pr2Open = "\x1b]8;;https://github.com/ddoghq/k8s-platform-resources/pull/31949\x1b\\";
+	const pr2Left = `[open] ${pr2Open}k8s-platform-resources#31949 Add quota override${prClose}`;
+	const status = new Map([["pr-status", `${prLeft}\t✓ CI  💬 2\n\n${pr2Left}\t◔ CI  💬 0\n`]]);
+	const lines = await contextFooter(undefined, status);
+	assert.deepEqual(lines.slice(0, 2), base);
+	assert.equal(lines.length, 4);
+	assert.ok(lines[2].startsWith(prLeft));
+	assert.ok(lines[2].endsWith("✓ CI  💬 2"));
+	assert.equal(visibleWidth(lines[2]), 160);
+	assert.ok(lines[3].startsWith(pr2Left));
+	assert.ok(lines[3].endsWith("◔ CI  💬 0"));
+	assert.equal(visibleWidth(lines[3]), 160);
+});
+
+test("footer keeps OSC 8 links closed when truncating multi-line PR statuses", async () => {
+	const pr2Open = "\x1b]8;;https://github.com/ddoghq/k8s-platform-resources/pull/31949\x1b\\";
+	const pr2Left = `[open] ${pr2Open}k8s-platform-resources#31949 A second long title${prClose}`;
+	const status = new Map([["pr-status", `${prLeft}\t✓ CI\n${pr2Left}\t✗ CI`]]);
+	const lines = await contextFooter(undefined, status, undefined, 24);
+	assert.equal(lines.length, 4);
+	for (const [line, open, right] of [
+		[lines[2], `${prOpen}#42`, "✓ CI"],
+		[lines[3], `${pr2Open}k8s`, "✗ CI"],
+	]) {
+		assert.equal(visibleWidth(line), 24);
+		assert.ok(line.includes(open));
+		assert.ok(line.includes(prClose));
+		assert.ok(line.endsWith(right));
+	}
+});
+
 test("footer supports left-only PR status and preserves the two lines when PR status is empty", async () => {
 	const base = await contextFooter(undefined);
 	assert.equal(base.length, 2);
-	assert.deepEqual(await contextFooter(undefined, new Map([["pr-status", ""]])), base);
+	for (const empty of ["", "\n", "\n\n"]) {
+		assert.deepEqual(await contextFooter(undefined, new Map([["pr-status", empty]])), base);
+	}
 	for (const status of [prLeft, `${prLeft}\t`]) {
 		const lines = await contextFooter(undefined, new Map([["pr-status", status]]));
 		assert.deepEqual(lines.slice(0, 2), base);

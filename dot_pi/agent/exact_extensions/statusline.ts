@@ -186,10 +186,13 @@ export default function (pi: ExtensionAPI) {
 
 					const lines = [renderLine(left, right, width), renderLine(llmInfo, usage, width)];
 					if (prStatus) {
-						const split = prStatus.indexOf("\t");
-						const prLeft = split < 0 ? prStatus : prStatus.slice(0, split);
-						const prRight = split < 0 ? "" : prStatus.slice(split + 1);
-						lines.push(renderLine(prLeft, prRight, width));
+						for (const entry of prStatus.split("\n")) {
+							if (!entry.trim()) continue;
+							const split = entry.indexOf("\t");
+							const prLeft = split < 0 ? entry : entry.slice(0, split);
+							const prRight = split < 0 ? "" : entry.slice(split + 1);
+							lines.push(renderLine(prLeft, prRight, width));
+						}
 					}
 					return lines;
 				},

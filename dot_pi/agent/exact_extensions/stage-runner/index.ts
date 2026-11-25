@@ -4,10 +4,23 @@ import { getSupportedThinkingLevels } from "@earendil-works/pi-ai";
 import { VERSION, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text, type Terminal } from "@earendil-works/pi-tui";
 import { execRexJson, verifyLocalRexEndpoint, verifyLocalRexPeer } from "../_shared/rex.ts";
+import { parsePullRequestUrl } from "../_shared/github.ts";
 import { qualifiedId } from "../_shared/model.ts";
 import stageRunnerHandoff from "./_handoff.ts";
 import { parseArpReviewArgs, runArpReview } from "./_arp-review.ts";
 import { handoff, run, runDesign, type Choice, type Phase, type RunnerEvent } from "./_runner.ts";
+
+export function trackPublishedPr(pi: ExtensionAPI, event: RunnerEvent) {
+  if (event.type !== "message" || !event.message.startsWith("Published ")) return;
+  const token = event.message.slice("Published ".length).split(/\s+/, 1)[0];
+  let url: string;
+  try {
+    ({ url } = parsePullRequestUrl(token));
+  } catch {
+    return;
+  }
+  pi.events?.emit("pr-status:track", { url });
+}
 
 function deadline(name: string, fallback: number) {
   const ms = Number(process.env[name] ?? fallback);
@@ -235,6 +248,7 @@ export default function stageRunner(pi: ExtensionAPI) {
       }
       const controller = new AbortController();
       active = controller;
+      if (prUrl) pi.events?.emit("pr-status:track", { url: prUrl });
       const display = design
         ? undefined
         : phaseDisplay(lines => ctx.ui.setWidget(entryType, lines),
@@ -309,6 +323,7 @@ export default function stageRunner(pi: ExtensionAPI) {
               return accepted;
             },
             onEvent: event => {
+              trackPublishedPr(pi, event);
               if (event.type === "phase" && event.phase !== "recovery") activity.phase(event.phase);
               display?.onEvent(event);
             },
@@ -334,6 +349,7 @@ export default function stageRunner(pi: ExtensionAPI) {
             return ctx.ui.confirm("Accept recovered writer?", changes, { signal });
           },
           onEvent: event => {
+            trackPublishedPr(pi, event);
             if (event.type === "phase") {
               if (event.phase === "recovery") activity.recovery(event.message);
               else activity.phase(event.phase);

@@ -35,6 +35,11 @@
 | `diataxis` | `skill-loader` | Review command documentation | Identified where to describe the footer behavior. |
 | `learning-candidates` | `prompt-required` | Record the disproved filter assumption | Added the shell-quoting reproduction to the ledger. |
 
+### Simplification
+- Simplifier: `anthropic/claude-opus-5-5`. Behavior is unchanged.
+- `pr-status/github.ts`: `queryPrStatus` and `queryPrByNumber` now share `queryRepository`. This helper resolves auth, runs `gh api graphql`, and does the fail-closed viewer check in one place. One generic `QueryResult` type replaces two result types.
+- `pr-status/index.ts`: `parsePrRef` replaces three repeated `parsePullRequestUrl` try/catch blocks in `extractFirstPrUrl`, `extractPrFromInput`, and the `pr-status:track` listener.
+
 ## Feasibility
 | Requirement | Mechanism | Evidence it exists | Validation | If unavailable |
 |---|---|---|---|---|

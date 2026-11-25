@@ -53,14 +53,19 @@ function isTrackedGhPrCommand(command: string): boolean {
   return GH_PR_WRITE_COMMAND.test(command.replace(shellLiterals, "_"));
 }
 
+function parsePrRef(value: string): PrRef | null {
+  try {
+    const { owner, repo, number } = parsePullRequestUrl(value);
+    return { owner, repo, number };
+  } catch {
+    return null;
+  }
+}
+
 function extractFirstPrUrl(text: string): PrRef | null {
   for (const match of text.matchAll(PR_URL_CANDIDATE)) {
-    try {
-      const { owner, repo, number } = parsePullRequestUrl(match[0]);
-      return { owner, repo, number };
-    } catch {
-      // Skip invalid URL candidates.
-    }
+    const pr = parsePrRef(match[0]);
+    if (pr) return pr;
   }
   return null;
 }
@@ -81,13 +86,9 @@ function extractPrFromInput(text: string): PrRef | null {
   const match = /^\/pr-address-feedback(?:\s+|$)(.*)$/s.exec(text.trim());
   if (!match) return null;
   for (const token of match[1].trim().split(/\s+/)) {
-    if (!token) continue;
-    try {
-      const { owner, repo, number } = parsePullRequestUrl(token);
-      return { owner, repo, number };
-    } catch {
-      // Skip non-URL tokens before the PR URL.
-    }
+    // Skip non-URL tokens before the PR URL.
+    const pr = token ? parsePrRef(token) : null;
+    if (pr) return pr;
   }
   return null;
 }
@@ -393,14 +394,8 @@ export function createPrStatusExtension({
       if (!restored && trackedPrs.length > 0) persistTrackedPrs();
       unsubscribeTrack = pi.events?.on(TRACK_EVENT, (data) => {
         if (!active || !data || typeof data !== "object" || !("url" in data) || typeof data.url !== "string") return;
-        let pr: PrRef;
-        try {
-          const { owner, repo, number } = parsePullRequestUrl(data.url);
-          pr = { owner, repo, number };
-        } catch {
-          return;
-        }
-        trackPr(pr);
+        const pr = parsePrRef(data.url);
+        if (pr) trackPr(pr);
       });
       void refresh(ctx);
     });

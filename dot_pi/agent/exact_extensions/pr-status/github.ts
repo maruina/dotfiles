@@ -83,13 +83,8 @@ type PullRequest = {
   reviewThreads: Page<ReviewThread>;
 };
 
-type BranchQueryResult = {
-  data?: { viewer: { login: string }; repository: { pullRequests: { nodes: (PullRequest | null)[] } } | null };
-  errors?: unknown[];
-};
-
-type ByNumberQueryResult = {
-  data?: { viewer: { login: string }; repository: { pullRequest: PullRequest | null } | null };
+type QueryResult<Repository> = {
+  data?: { viewer: { login: string }; repository: Repository | null };
   errors?: unknown[];
 };
 
@@ -171,6 +166,23 @@ async function resolveAuthEnv(
   return env;
 }
 
+async function queryRepository<Repository>(
+  owner: string,
+  profile: PiProfile,
+  run: AsyncRunner,
+  fields: string[],
+  { cwd, baseEnv, tokenCache }: { cwd: string; baseEnv: NodeJS.ProcessEnv; tokenCache?: TokenCache },
+): Promise<{ login: string; repository: Repository }> {
+  const env = await resolveAuthEnv(owner, profile, run, { cwd, baseEnv, tokenCache });
+  const raw = await run("gh", ["api", "graphql", ...fields], cwd, 10000, env);
+  if (!raw) throw new Error();
+  const { data, errors } = JSON.parse(raw) as QueryResult<Repository>;
+  const login = data?.viewer?.login;
+  if (errors?.length || !login || !data?.repository ||
+    (profile === "work" && login.toLowerCase() !== selectGitHubLogin(owner))) throw new Error();
+  return { login, repository: data.repository };
+}
+
 function formatPrResult(
   repo: { owner: string; repo: string },
   pr: PullRequest,
@@ -203,19 +215,14 @@ export async function queryPrStatus(
   if (!repo) return undefined;
 
   try {
-    const env = await resolveAuthEnv(repo.owner, profile, run, { cwd, baseEnv, tokenCache });
-    const raw = await run("gh", [
-      "api", "graphql", "--raw-field", `query=${BRANCH_QUERY}`,
-      "--raw-field", `owner=${repo.owner}`, "--raw-field", `repo=${repo.repo}`, "--raw-field", `headRef=${branch}`,
-    ], cwd, 10000, env);
-    if (!raw) throw new Error();
-    const { data, errors } = JSON.parse(raw) as BranchQueryResult;
-    const login = data?.viewer?.login;
-    if (errors?.length || !login || !data?.repository ||
-      (profile === "work" && login.toLowerCase() !== selectGitHubLogin(repo.owner))) throw new Error();
+    const { login, repository } = await queryRepository<{ pullRequests: { nodes: (PullRequest | null)[] } }>(
+      repo.owner, profile, run, [
+        "--raw-field", `query=${BRANCH_QUERY}`,
+        "--raw-field", `owner=${repo.owner}`, "--raw-field", `repo=${repo.repo}`, "--raw-field", `headRef=${branch}`,
+      ], { cwd, baseEnv, tokenCache });
 
     const name = `${repo.owner}/${repo.repo}`.toLowerCase();
-    const matches = data.repository.pullRequests.nodes.filter((node): node is PullRequest =>
+    const matches = repository.pullRequests.nodes.filter((node): node is PullRequest =>
       node?.headRepository?.nameWithOwner.toLowerCase() === name);
     const pr = matches.find((node) => node.state === "OPEN") ?? matches[0];
     if (!pr) return undefined;
@@ -240,18 +247,13 @@ export async function queryPrByNumber(
   if (!Number.isSafeInteger(ref.number) || ref.number < 1) return undefined;
 
   try {
-    const env = await resolveAuthEnv(ref.owner, profile, run, { cwd, baseEnv, tokenCache });
-    const raw = await run("gh", [
-      "api", "graphql", "--raw-field", `query=${PR_BY_NUMBER_QUERY}`,
-      "--raw-field", `owner=${ref.owner}`, "--raw-field", `repo=${ref.repo}`, "--field", `number=${ref.number}`,
-    ], cwd, 10000, env);
-    if (!raw) throw new Error();
-    const { data, errors } = JSON.parse(raw) as ByNumberQueryResult;
-    const login = data?.viewer?.login;
-    if (errors?.length || !login || !data?.repository ||
-      (profile === "work" && login.toLowerCase() !== selectGitHubLogin(ref.owner))) throw new Error();
+    const { login, repository } = await queryRepository<{ pullRequest: PullRequest | null }>(
+      ref.owner, profile, run, [
+        "--raw-field", `query=${PR_BY_NUMBER_QUERY}`,
+        "--raw-field", `owner=${ref.owner}`, "--raw-field", `repo=${ref.repo}`, "--field", `number=${ref.number}`,
+      ], { cwd, baseEnv, tokenCache });
 
-    const pr = data.repository.pullRequest;
+    const pr = repository.pullRequest;
     if (!pr) return undefined;
     return formatPrResult(ref, pr, login, showRepo);
   } catch {

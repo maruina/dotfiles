@@ -77,7 +77,7 @@ No `design.md` exists. `AGENTS.md` permits starting at `/plan` when the design i
 - **Fix commit validation:** When all findings are `fixed`, `runArpReview()` checks that the worktree is clean, then calls `acceptFixes()` with `candidate = HEAD`.
 - **Non-force push and settlement:** Reuse `publication.publish(approved, candidate, checkCandidate, ...)` (which skips drafting and PR creation when `approved.pr` is non-null, pushes without force, and confirms both `remote() === candidate` and `pr.headRefOid === candidate`), then loop to `reviewPublished()` with `fixes: pending.fixes` and `settlementReason: "Author-tested fix"` so settlement runs only after GitHub confirms the pushed head.
 - **Progress labels:** `/arp-review` messages use `head N of <maxHeads>`, not the `/stage-runner` text `head N of 3`.
-- **No regressions to existing commands:** Keep `/stage-runner`, `/stage-runner-design`, and `/stage-runner-cancel` behavior unchanged. Existing tests must keep passing without edits, except for the one added settlement-text assertion in Task 3.
+- **No regressions to existing commands:** Keep `/stage-runner`, `/stage-runner-design`, and `/stage-runner-cancel` behavior unchanged. Existing tests must keep passing without edits, except for the one added settlement-text assertion in Task 3 and the required `settlementReason` field in existing `reviewPublished()` calls in `_runner.test.ts`.
 
 ### Security and Observability Requirements
 - Pass the selected account's token as `GH_TOKEN` only to the authenticated `gh` subprocesses that `publisher()` in `_publish.ts` runs (its existing `ghEnv`). Keep `GH_TOKEN` and `GITHUB_TOKEN` out of every Pi model child (`attempt()`, `paneArgv()`), every `git` and `ssh` subprocess, and the `ddtool` ARP token command.

@@ -174,6 +174,46 @@ export function validate(bytes: Buffer, stage: HandoffStage) {
   return validateHandoffPayload(JSON.parse(decode(bytes)), stage);
 }
 
+type GitRead = (...args: string[]) => string;
+
+export function anchorFinding(git: GitRead, prev: string, finding: OpenFinding): OpenFinding {
+  const { id, reviewedSha, filePath, startLine, endLine } = finding;
+  if (!filePath || filePath.includes("\0") || path.isAbsolute(filePath) || filePath.split("/").includes(".."))
+    throw Error(`Invalid anchor path for finding ${id}`);
+  git("merge-base", "--is-ancestor", reviewedSha, prev);
+  if (git("cat-file", "-t", `${prev}:${filePath}`) !== "blob") throw Error(`Missing anchor file for finding ${id}`);
+  if (reviewedSha === prev) return finding;
+  // deliberate: Map unchanged lines only. If an edit overlaps the anchor, the operator must re-anchor it.
+  const diff = git("--literal-pathspecs", "diff", "--no-renames", "--no-ext-diff", "--no-textconv", "--no-color",
+    "-U0", reviewedSha, prev, "--", filePath);
+  let delta = 0;
+  const hunks = [...diff.matchAll(/^@@ -(\d+)(?:,(\d+))? \+\d+(?:,(\d+))? @@/gm)];
+  if (diff && !hunks.length) throw Error(`Cannot re-anchor finding ${id}`);
+  for (const [, start, removed, added] of hunks) {
+    const line = Number(start), count = Number(removed ?? 1);
+    if (!count ? line < startLine : line + count <= startLine) delta += Number(added ?? 1) - count;
+    else if (line <= endLine) throw Error(`Cannot re-anchor finding ${id}: its lines changed`);
+  }
+  return { ...finding, startLine: startLine + delta, endLine: endLine + delta };
+}
+
+export function acceptFixes({ git, prev, candidate, fixes }: {
+  git: GitRead; prev: string; candidate: string; fixes: Iterable<FindingFix>;
+}) {
+  if (candidate === prev) throw Error("Fix did not advance HEAD");
+  const ancestor = (from: string, to: string) => git("merge-base", "--is-ancestor", from, to);
+  ancestor(prev, candidate);
+  for (const { id, fixSha } of fixes) {
+    try {
+      if (fixSha === prev || git("cat-file", "-t", fixSha) !== "commit") throw Error();
+      ancestor(prev, fixSha);
+      ancestor(fixSha, candidate);
+    } catch {
+      throw Error(`Finding ${id} fixing SHA is outside the fix range: ${fixSha}`);
+    }
+  }
+}
+
 export function handoff(file: string, stage: HandoffStage) {
   const fd = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
   try {
@@ -356,6 +396,58 @@ export function paneArgv(o: Pick<Options, "env" | "prefix">, model: Choice, args
     ...(o.prefix ?? [process.argv[1]]), "--provider", model.provider, "--model", model.id, "--thinking", model.thinking, ...args];
 }
 
+export function acquireRun(o: Pick<Options, "cwd" | "root" | "signal">) {
+  const { cwd } = o;
+  o.signal.throwIfAborted();
+  fs.mkdirSync(o.root, { recursive: true, mode: 0o700 });
+  const root = fs.realpathSync(o.root),
+    stat = fs.statSync(root);
+  if (root === cwd || root.startsWith(cwd + path.sep) || stat.mode & 0o077 || stat.uid !== process.getuid?.())
+    throw Error("Run root must be private and outside Git");
+  const lock = path.join(root, "lock-" + createHash("sha256").update(cwd).digest("hex"));
+  const dir = path.join(root, "run-" + Date.now() + "-" + randomUUID());
+  privateFile(lock, JSON.stringify({ pid: process.pid, dir, cwd }));
+  const owned = fs.statSync(lock);
+  let uncertain = false;
+  const controller = new AbortController(),
+    cancel = () => controller.abort();
+  process.on("SIGTERM", cancel);
+  process.on("SIGINT", cancel);
+  const signal = AbortSignal.any([o.signal, controller.signal]);
+  const ownsLock = () => fs.lstatSync(lock).ino === owned.ino;
+  const owner: Parameters<typeof recovery>[0]["owner"] = (state) => {
+    uncertain = !!state;
+    if (!ownsLock()) throw Error("Lost lock ownership");
+    fs.writeFileSync(lock, JSON.stringify({ pid: process.pid, cwd, dir, recovery: state }));
+  };
+  const complete = (message: string) => {
+    privateFile(path.join(dir, "completed"), message);
+    prune(root);
+  };
+  const failure = (error: unknown, detail = "") => {
+    if (!uncertain && fs.existsSync(dir) && !fs.existsSync(path.join(dir, "completed"))) complete(safe(String(error)));
+    return Error(safe(String(error)) + detail + "; evidence " + dir + (uncertain ? "; uncertain recovery: inspect lock " + lock : ""));
+  };
+  const release = () => {
+    process.off("SIGTERM", cancel);
+    process.off("SIGINT", cancel);
+    if (!uncertain) {
+      try {
+        if (ownsLock()) fs.unlinkSync(lock);
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+      }
+    }
+  };
+  try {
+    fs.mkdirSync(dir, { mode: 0o700 });
+  } catch (error) {
+    try { throw failure(error); }
+    finally { release(); }
+  }
+  return { dir, signal, owner, ownsLock, complete, failure, release, markUncertain: () => { uncertain = true; } };
+}
+
 export const run = (o: Options) => supervise(o);
 export const runDesign = (o: DesignOptions) => supervise(o);
 
@@ -402,37 +494,15 @@ async function supervise(o: Options | DesignOptions) {
     [id(o.models.execute), id(o.models.simplify), id(o.models.verify)],
     (o.env ?? process.env).PI_STAGE_RUNNER_CHILD === "1",
   );
-  o.signal.throwIfAborted();
-  fs.mkdirSync(o.root, { recursive: true, mode: 0o700 });
-  const root = fs.realpathSync(o.root),
-    stat = fs.statSync(root);
-  if (root === cwd || root.startsWith(cwd + path.sep) || stat.mode & 0o077 || stat.uid !== process.getuid?.())
-    throw Error("Run root must be private and outside Git");
-  const lock = path.join(root, "lock-" + createHash("sha256").update(cwd).digest("hex"));
-  const dir = path.join(root, "run-" + Date.now() + "-" + randomUUID());
-  privateFile(lock, JSON.stringify({ pid: process.pid, dir, cwd }));
-  const owned = fs.statSync(lock);
-  let uncertain = false;
+  const { dir, signal, owner, ownsLock, complete, failure, release, markUncertain } = acquireRun(o);
   let pending: { head: string; fixes: FindingFix[]; evidence: string } | undefined;
-  const controller = new AbortController(),
-    cancel = () => controller.abort();
-  process.on("SIGTERM", cancel);
-  process.on("SIGINT", cancel);
-  const signal = AbortSignal.any([o.signal, controller.signal]);
   try {
-    fs.mkdirSync(dir, { mode: 0o700 });
     clean();
     if (git("rev-parse", "HEAD") !== base) throw Error("HEAD changed during preflight");
-    const owner: Parameters<typeof recovery>[0]["owner"] = (state) => {
-      uncertain = !!state;
-      if (fs.lstatSync(lock).ino !== owned.ino) throw Error("Lost lock ownership");
-      fs.writeFileSync(lock, JSON.stringify({ pid: process.pid, cwd, dir, recovery: state }));
-    };
     if ("brief" in o) {
       privateFile(path.join(dir, "run.json"), JSON.stringify({ cwd, branch, startCommit: base, author: o.author, reviewer: o.reviewer }));
       await designStages(o, dir, base, git, clean, signal, owner);
-      privateFile(path.join(dir, "completed"), "plan committed");
-      prune(root);
+      complete("plan committed");
       return dir;
     }
     const writers = new Set([id(o.models.execute)]);
@@ -496,9 +566,7 @@ async function supervise(o: Options | DesignOptions) {
         ancestor,
         onStartupPhase: () => phase("startup"),
         message,
-        markUncertain: () => {
-          uncertain = true;
-        },
+        markUncertain,
       });
     }
     let remaining = unchecked(initial),
@@ -688,7 +756,7 @@ async function supervise(o: Options | DesignOptions) {
         const checkCandidate = () => {
           signal.throwIfAborted();
           clean();
-          if (fs.lstatSync(lock).ino !== owned.ino || git("rev-parse", "HEAD") !== prev)
+          if (!ownsLock() || git("rev-parse", "HEAD") !== prev)
             throw Error("Publication lock or verified head changed");
         };
         const draftDir = path.join(dir, "draft");
@@ -715,6 +783,7 @@ async function supervise(o: Options | DesignOptions) {
         const findings = await reviewPublished({
           dir: headDir, repo: target.repo, number: published.number, url: published.url, head: prev,
           signal, clock: o.reviewClock, onEvent: o.onEvent, fixes: pending?.fixes,
+          settlementReason: "Independently verified fix",
           checkHead: async (reviewSignal) => {
             await published.checkHead(reviewSignal);
             checkCandidate();
@@ -733,27 +802,7 @@ async function supervise(o: Options | DesignOptions) {
           const fixOut = path.join(fixDir, "handoff.json");
           clean();
           if (git("rev-parse", "HEAD") !== prev) throw Error("Candidate changed before fix");
-          const anchor = (finding: OpenFinding): OpenFinding => {
-            const { id, reviewedSha, filePath, startLine, endLine } = finding;
-            if (!filePath || filePath.includes("\0") || path.isAbsolute(filePath) || filePath.split("/").includes(".."))
-              throw Error(`Invalid anchor path for finding ${id}`);
-            git("merge-base", "--is-ancestor", reviewedSha, prev);
-            if (git("cat-file", "-t", `${prev}:${filePath}`) !== "blob") throw Error(`Missing anchor file for finding ${id}`);
-            if (reviewedSha === prev) return finding;
-            // deliberate: Map unchanged lines only. If an edit overlaps the anchor, the operator must re-anchor it.
-            const diff = git("--literal-pathspecs", "diff", "--no-renames", "--no-ext-diff", "--no-textconv", "--no-color",
-              "-U0", reviewedSha, prev, "--", filePath);
-            let delta = 0;
-            const hunks = [...diff.matchAll(/^@@ -(\d+)(?:,(\d+))? \+\d+(?:,(\d+))? @@/gm)];
-            if (diff && !hunks.length) throw Error(`Cannot re-anchor finding ${id}`);
-            for (const [, start, removed, added] of hunks) {
-              const line = Number(start), count = Number(removed ?? 1);
-              if (!count ? line < startLine : line + count <= startLine) delta += Number(added ?? 1) - count;
-              else if (line <= endLine) throw Error(`Cannot re-anchor finding ${id}: its lines changed`);
-            }
-            return { ...finding, startLine: startLine + delta, endLine: endLine + delta };
-          };
-          const anchored = findings.map(anchor);
+          const anchored = findings.map((finding) => anchorFinding(git, prev, finding));
           const evidence = path.join(fixDir, "findings.json");
           const prompt = fixPrompt(prev, anchored, fixOut);
           privateFile(evidence, JSON.stringify(anchored));
@@ -763,20 +812,15 @@ async function supervise(o: Options | DesignOptions) {
           signal.throwIfAborted();
           clean();
           const candidate = git("rev-parse", "HEAD");
-          if (candidate === prev) throw Error("Fix did not advance HEAD");
-          const ancestor = (from: string, to: string) => git("merge-base", "--is-ancestor", from, to);
-          ancestor(prev, candidate);
-          if (git("rev-parse", `${candidate}:${rel}`) !== git("rev-parse", `${prev}:${rel}`)) throw Error("Fix changed plan.md");
-          const fixes = findingFixes(handoff(fixOut, "arp-fix").findings, findings);
-          for (const { id, fixSha } of fixes) {
-            try {
-              if (fixSha === prev || git("cat-file", "-t", fixSha) !== "commit") throw Error();
-              ancestor(prev, fixSha);
-              ancestor(fixSha, candidate);
-            } catch {
-              throw Error(`Finding ${id} fixing SHA is outside the fix range: ${fixSha}`);
+          const fixes: FindingFix[] = [];
+          // Check candidate ancestry before reading the plan blob or handoff, as before extraction.
+          acceptFixes({ git, prev, candidate, fixes: (function* () {
+            if (git("rev-parse", `${candidate}:${rel}`) !== git("rev-parse", `${prev}:${rel}`)) throw Error("Fix changed plan.md");
+            for (const fix of findingFixes(handoff(fixOut, "arp-fix").findings, findings)) {
+              fixes.push(fix);
+              yield fix;
             }
-          }
+          })() });
           pending = { head: candidate, fixes, evidence };
           continue;
         } catch (error) {
@@ -785,27 +829,11 @@ async function supervise(o: Options | DesignOptions) {
       }
       stage = stage === "execute" ? (remaining.length ? "execute" : "simplify") : "verify";
     }
-    privateFile(path.join(dir, "completed"), target.review ? "VERIFIED; ARP complete" : "VERIFIED");
-    prune(root);
+    complete(target.review ? "VERIFIED; ARP complete" : "VERIFIED");
     return dir;
   } catch (error) {
-    if (!uncertain && fs.existsSync(dir) && !fs.existsSync(path.join(dir, "completed"))) {
-      privateFile(path.join(dir, "completed"), safe(String(error)));
-      prune(root);
-    }
-    throw Error(
-      safe(String(error)) + (pending ? `; fix candidate ${pending.head}; finding IDs: ${pending.fixes.map((f) => f.id).join(", ")}` : "") +
-      "; evidence " + dir + (uncertain ? "; uncertain recovery: inspect lock " + lock : ""),
-    );
+    throw failure(error, pending ? `; fix candidate ${pending.head}; finding IDs: ${pending.fixes.map((f) => f.id).join(", ")}` : "");
   } finally {
-    process.off("SIGTERM", cancel);
-    process.off("SIGINT", cancel);
-    if (!uncertain) {
-      try {
-        if (fs.lstatSync(lock).ino === owned.ino) fs.unlinkSync(lock);
-      } catch (e) {
-        if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
-      }
-    }
+    release();
   }
 }

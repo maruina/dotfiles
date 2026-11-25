@@ -1234,7 +1234,7 @@ test("stage runner owns lifecycle automation without legacy resources", () => {
   assert.equal(existsSync(path.join(extensionsDir, "ship-conductor")), false);
   assert.equal(existsSync(path.join(agentDir, "ship-conductor-profile.json.tmpl")), false);
   const runner = readFileSync(path.join(extensionsDir, "stage-runner", "index.ts"), "utf8");
-  for (const command of ["stage-runner", "stage-runner-cancel"]) {
+  for (const command of ["stage-runner", "stage-runner-cancel", "arp-review"]) {
     assert.ok(runner.includes(`registerCommand("${command}",`), command);
   }
   for (const file of ["execute.md", "simplify.md", "verify.md"]) {

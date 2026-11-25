@@ -6,6 +6,7 @@ import { Text, type Terminal } from "@earendil-works/pi-tui";
 import { execRexJson, verifyLocalRexEndpoint, verifyLocalRexPeer } from "../_shared/rex.ts";
 import { qualifiedId } from "../_shared/model.ts";
 import stageRunnerHandoff from "./_handoff.ts";
+import { parseArpReviewArgs, runArpReview } from "./_arp-review.ts";
 import { handoff, run, runDesign, type Choice, type Phase, type RunnerEvent } from "./_runner.ts";
 
 function deadline(name: string, fallback: number) {
@@ -213,11 +214,20 @@ export default function stageRunner(pi: ExtensionAPI) {
       else ctx.ui.notify("No active stage runner", "info");
     },
   });
-  const command = (design: boolean): Parameters<ExtensionAPI["registerCommand"]>[1] => ({
-    description: design ? "Design interactively, review independently, and plan in this worktree" : "Verify and publish an unstarted committed plan; check Agentic Review in the work profile",
+  const command = (kind: "plan" | "design" | "arp"): Parameters<ExtensionAPI["registerCommand"]>[1] => ({
+    description: kind === "design" ? "Design interactively, review independently, and plan in this worktree"
+      : kind === "arp" ? "Run Agentic Review for an existing PR in the work profile"
+      : "Verify and publish an unstarted committed plan; check Agentic Review in the work profile",
     handler: async (arg, ctx) => {
-      if (active || process.env.PI_STAGE_RUNNER_CHILD === "1" || !ctx.hasUI || !arg.trim()) {
-        ctx.ui.notify(`Use ${design ? "/stage-runner-design <brief>" : "/stage-runner <plan-path>"} in an idle interactive parent session`, "error");
+      const design = kind === "design", arp = kind === "arp";
+      let maxHeads: number | undefined;
+      if (arp) {
+        try { ({ maxHeads } = parseArpReviewArgs(arg)); }
+        catch (error) { ctx.ui.notify(String(error), "error"); return; }
+      }
+      if (active || process.env.PI_STAGE_RUNNER_CHILD === "1" || !ctx.hasUI || (!arp && !arg.trim())) {
+        const usage = arp ? "/arp-review [--max-heads <N>]" : design ? "/stage-runner-design <brief>" : "/stage-runner <plan-path>";
+        ctx.ui.notify(`Use ${usage} in an idle interactive parent session`, "error");
         return;
       }
       const controller = new AbortController();
@@ -232,15 +242,15 @@ export default function stageRunner(pi: ExtensionAPI) {
       finished = (async () => {
         // deliberate: Gate on Pi 1.6.x minor line so patch releases do not break the runner; widen after testing 1.7+.
         if (!/^1\.6\./.test(VERSION)) throw Error(`Stage runner requires Pi 1.6.x (found ${VERSION})`);
-        await checkRex(pi);
+        if (!arp) await checkRex(pi);
         ctx.ui.setWidget(entryType, tui => {
           terminal = tui.terminal;
           return { render: () => [], invalidate() {} };
         });
         const models = {} as Record<"execute" | "simplify" | "verify", Choice>;
         for (const stage of ["execute", "simplify", "verify"] as const) {
-          if (design && stage === "simplify") continue;
-          const label = design ? (stage === "execute" ? "author" : "reviewer") : stage;
+          if ((design && stage === "simplify") || (arp && stage !== "execute")) continue;
+          const label = arp ? "ARP review" : design ? (stage === "execute" ? "author" : "reviewer") : stage;
           controller.signal.throwIfAborted();
           const available = ctx.scopedModels
             .map((entry) => entry.model)
@@ -286,6 +296,24 @@ export default function stageRunner(pi: ExtensionAPI) {
           outcome = "Run complete; evidence " + evidence;
           return;
         }
+        if (maxHeads !== undefined) {
+          const evidence = await runArpReview({
+            ...shared, cwd: ctx.cwd, models: { execute: models.execute }, maxHeads,
+            confirm: async (target, signal) => {
+              activity.permission("confirm ARP review");
+              const accepted = await ctx.ui.confirm("Start ARP review?", target, { signal });
+              declined = !accepted;
+              return accepted;
+            },
+            onEvent: event => {
+              if (event.type === "phase" && event.phase !== "recovery") activity.phase(event.phase);
+              display?.onEvent(event);
+            },
+          });
+          state = "done";
+          outcome = "ARP complete; evidence " + evidence;
+          return;
+        }
         const plan = path.resolve(ctx.cwd, arg.trim().replace(/^(['"])(.*)\1$/, "$2"));
         const evidence = await run({
           ...shared,
@@ -317,12 +345,8 @@ export default function stageRunner(pi: ExtensionAPI) {
           state = controller.signal.aborted || declined ? "clear" : "error";
           outcome = state === "clear" ? "Run canceled." : "Run stopped. See the error notification for details.";
           if (shuttingDown) return;
-          ctx.ui.notify(
-            String(e)
-              .replace(/[^\x20-\x7e]/g, "?")
-              .slice(0, 1024),
-            "error",
-          );
+          const reason = String(e).replace(/[^\x20-\x7e]/g, "?");
+          ctx.ui.notify(arp ? reason : reason.slice(0, 1024), "error");
         })
         .finally(() => {
           active = undefined;
@@ -336,6 +360,7 @@ export default function stageRunner(pi: ExtensionAPI) {
         });
     },
   });
-  pi.registerCommand("stage-runner", command(false));
-  pi.registerCommand("stage-runner-design", command(true));
+  pi.registerCommand("stage-runner", command("plan"));
+  pi.registerCommand("stage-runner-design", command("design"));
+  pi.registerCommand("arp-review", command("arp"));
 }

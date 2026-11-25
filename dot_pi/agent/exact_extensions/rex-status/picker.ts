@@ -9,7 +9,7 @@ import {
   SelectList,
   truncateToWidth,
 } from "@earendil-works/pi-tui";
-import { formatRexPanePrompt, type RexPane } from "./panes.ts";
+import { formatRexPaneReference, type RexPane } from "./panes.ts";
 
 const VISIBLE_ITEMS = 10;
 
@@ -45,7 +45,7 @@ function paneSearchText(pane: RexPane): string {
   ].join(" ");
 }
 
-/** Fuzzy-searchable picker of Rex terminal panes with a live preview of the copied prompt. */
+/** Fuzzy-searchable picker of Rex terminal panes with a live preview of the copied reference. */
 export async function pickRexPane(
   ctx: ExtensionContext,
   panes: RexPane[],
@@ -94,7 +94,7 @@ export async function pickRexPane(
         const lines = [rule, truncateToWidth(header, width), ...body];
         if (selected) {
           lines.push(theme.fg("dim", "─".repeat(width)));
-          for (const line of formatRexPanePrompt(selected).split("\n")) {
+          for (const line of formatRexPaneReference(selected).split("\n")) {
             lines.push(truncateToWidth(theme.fg("toolOutput", `  ${line}`), width));
           }
         }

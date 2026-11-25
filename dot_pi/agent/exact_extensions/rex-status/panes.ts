@@ -246,10 +246,6 @@ export function formatRexPaneLocation(pane: RexPane): string {
   return `${pane.sessionLabel} / ${tab} / ${paneDesc}`;
 }
 
-export function formatRexCaptureCommand(pane: RexPane): string {
-  return `rex capture -s ${pane.sessionId} -b ${pane.blockId} --trim --unwrap`;
-}
-
-export function formatRexPanePrompt(pane: RexPane): string {
-  return `Read the output from this Rex pane (${formatRexPaneLocation(pane)}):\n\`${formatRexCaptureCommand(pane)}\``;
+export function formatRexPaneReference(pane: RexPane): string {
+  return `Rex pane: ${formatRexPaneLocation(pane)} (\`-s ${pane.sessionId} -b ${pane.blockId}\`)`;
 }

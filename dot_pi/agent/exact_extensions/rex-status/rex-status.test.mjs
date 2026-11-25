@@ -5,9 +5,8 @@ import { createRexStatusExtension } from "./index.ts";
 import {
   collectLayoutPositions,
   extractSessionPanes,
-  formatRexCaptureCommand,
   formatRexPaneLocation,
-  formatRexPanePrompt,
+  formatRexPaneReference,
   formatSplitPosition,
   listRexPanes,
   sortRexPanes,
@@ -169,10 +168,9 @@ test("listRexPanes sorts current session non-Pi panes before Pi pane and other s
     ["block:beside", "block:c1", "block:pi-here", "block:o1"],
   );
   assert.equal(formatRexPaneLocation(panes[0]), "current / tab 2 (tab-two) / server (right)");
-  assert.equal(formatRexCaptureCommand(panes[0]), "rex capture -s session:s2 -b block:beside --trim --unwrap");
   assert.equal(
-    formatRexPanePrompt(panes[0]),
-    "Read the output from this Rex pane (current / tab 2 (tab-two) / server (right)):\n`rex capture -s session:s2 -b block:beside --trim --unwrap`",
+    formatRexPaneReference(panes[0]),
+    "Rex pane: current / tab 2 (tab-two) / server (right) (`-s session:s2 -b block:beside`)",
   );
 });
 
@@ -230,7 +228,7 @@ test("sortRexPanes preserves relative order within each bucket", () => {
   assert.deepEqual(sorted.map((p) => p.blockId), ["block:a", "block:b"]);
 });
 
-test("/rex-status command copies selected pane prompt and notifies", async () => {
+test("/rex-status command copies selected pane reference and notifies", async () => {
   let registeredHandler;
   const copied = [];
   const notifications = [];
@@ -278,7 +276,7 @@ test("/rex-status command copies selected pane prompt and notifies", async () =>
   });
 
   assert.equal(copied.length, 1);
-  assert.equal(copied[0], formatRexPanePrompt(samplePane));
+  assert.equal(copied[0], formatRexPaneReference(samplePane));
   assert.deepEqual(notifications, [
     { message: "Copied Rex pane reference (dotfiles / tab 1 (dev) / tests (left))", level: "info" },
   ]);

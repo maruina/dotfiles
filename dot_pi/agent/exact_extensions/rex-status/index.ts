@@ -2,7 +2,7 @@ import { copyToClipboard, type ExtensionAPI, type ExtensionContext } from "@eare
 import {
   createRexExecJson,
   formatRexPaneLocation,
-  formatRexPanePrompt,
+  formatRexPaneReference,
   listRexPanes,
   type RexPane,
 } from "./panes.ts";
@@ -21,7 +21,7 @@ export function createRexStatusExtension(deps: RexStatusDeps = {}) {
 
   return function rexStatus(pi: ExtensionAPI) {
     pi.registerCommand("rex-status", {
-      description: "Pick a Rex terminal pane and copy a capture reference for an agent",
+      description: "Pick a Rex terminal pane and copy its reference for an agent",
       handler: async (args, ctx: ExtensionContext) => {
         if (!ctx.hasUI || ctx.mode !== "tui") {
           ctx.ui.notify("/rex-status requires an interactive TUI.", "warning");
@@ -45,13 +45,13 @@ export function createRexStatusExtension(deps: RexStatusDeps = {}) {
         const picked = await choosePane(ctx, panes, args.trim());
         if (!picked) return;
 
-        const snippet = formatRexPanePrompt(picked);
+        const reference = formatRexPaneReference(picked);
         try {
-          await copy(snippet);
+          await copy(reference);
           ctx.ui.notify(`Copied Rex pane reference (${formatRexPaneLocation(picked)})`, "info");
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
-          ctx.ui.notify(`Copy failed (${message}).\n${snippet}`, "warning");
+          ctx.ui.notify(`Copy failed (${message}).\n${reference}`, "warning");
         }
       },
     });

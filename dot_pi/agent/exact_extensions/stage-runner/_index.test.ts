@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import stageRunner from "./index.ts";
+import stageRunner, { trackPublishedPr } from "./index.ts";
 
 test("registers /arp-review and rejects invalid arguments before model selection", async (t) => {
   const savedChild = process.env.PI_STAGE_RUNNER_CHILD;
@@ -15,10 +15,13 @@ test("registers /arp-review and rejects invalid arguments before model selection
   });
   type Command = Parameters<ExtensionAPI["registerCommand"]>[1];
   const commands = new Map<string, Command>();
+  const events: unknown[] = [];
+  const prUrl = "https://github.com/ddoghq/demo/pull/1";
   stageRunner({
     registerEntryRenderer() {},
     registerCommand(name: string, command: Command) { commands.set(name, command); },
     appendEntry() {},
+    events: { emit: (event: string, data: unknown) => events.push([event, data]) },
     on() {},
   } as unknown as ExtensionAPI);
   const command = commands.get("arp-review");
@@ -36,21 +39,44 @@ test("registers /arp-review and rejects invalid arguments before model selection
   assert.match(messages.join("\n"), /--max-heads.*1.*10/);
   assert.equal(messages.length, 2);
 
+  const rejected = {
+    hasUI: false,
+    ui: { notify: () => {}, select: () => assert.fail("Rejected runs must not select a model") },
+  } as unknown as Parameters<Command["handler"]>[1];
+  await command.handler(prUrl, rejected);
+  assert.deepEqual(events, []);
+
   const prompts: string[] = [];
   let selected!: () => void;
   const selectCalled = new Promise<void>(resolve => { selected = resolve; });
-  await command.handler("https://github.com/ddoghq/demo/pull/1", {
+  let finishSelection!: (value: undefined) => void;
+  const selection = new Promise<undefined>(resolve => { finishSelection = resolve; });
+  await command.handler(prUrl, {
     hasUI: true,
     scopedModels: [{ model: { provider: "p", id: "m" } }],
     ui: {
       notify: () => {},
       setWidget: () => {},
-      select: async (prompt: string) => { prompts.push(prompt); selected(); return undefined; },
+      select: async (prompt: string) => { prompts.push(prompt); selected(); return selection; },
     },
   } as unknown as Parameters<Command["handler"]>[1]);
   await selectCalled;
+  await command.handler(prUrl, { ...rejected, hasUI: true });
+  finishSelection(undefined);
+  assert.deepEqual(events, [["pr-status:track", { url: prUrl }]]);
   await new Promise(resolve => setImmediate(resolve));
   assert.deepEqual(prompts, ["Select ARP fix model"]);
+});
+
+test("only a valid publication message emits a tracking event", () => {
+  const events: unknown[] = [];
+  const pi = { events: { emit: (event: string, data: unknown) => events.push([event, data]) } } as unknown as ExtensionAPI;
+  const url = "https://github.com/ddoghq/demo/pull/1";
+  trackPublishedPr(pi, { type: "skills", labels: [] });
+  trackPublishedPr(pi, { type: "message", message: `Found ${url}` });
+  trackPublishedPr(pi, { type: "message", message: "Published https://github.com/ddoghq/demo/issues/1 at abc" });
+  trackPublishedPr(pi, { type: "message", message: `Published ${url} at abc` });
+  assert.deepEqual(events, [["pr-status:track", { url }]]);
 });
 
 test("only a settled managed child with its own valid handoff shuts down", (t) => {

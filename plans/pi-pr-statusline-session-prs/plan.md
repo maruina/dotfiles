@@ -244,16 +244,17 @@
 - [x] Commit with `feat(pi): persist session PRs, backfill on reload, and add /pr-status clear`.
 
 ### Task 5: Emit `pr-status:track` from `stage-runner/index.ts`
+**Execution note:** The command and publication tests failed before the bridge was added. All three tests passed after implementation and again after switching the test to a named helper import.
 **Delivers:** `/stage-runner` and `/arp-review` publish PR URLs to `pr-status` over `pi.events`.
 **Blocked by:** Task 4
 **Traces to:** Requirement: Session persistence, `/reload` backfill, `stage-runner` hook, and `/pr-status clear`
 **Files:** `dot_pi/agent/exact_extensions/stage-runner/index.ts`, `dot_pi/agent/exact_extensions/stage-runner/_index.test.ts`
 
-- [ ] Add failing tests in `dot_pi/agent/exact_extensions/stage-runner/_index.test.ts` verifying that `pi.events.emit("pr-status:track", { url })` is called when `/arp-review <pr-url>` passes its `active`/`hasUI` guard (and not when rejected) and when a `Published <pr-url> at <sha>` `RunnerEvent` `{ type: "message" }` arrives on `onEvent` (extracted helper or `onEvent` handler test).
-- [ ] Emit `pi.events?.emit("pr-status:track", { url })` in `dot_pi/agent/exact_extensions/stage-runner/index.ts` after the `active`/`hasUI` guard when `/arp-review` receives `prUrl`, and inside both `run` and `runArpReview` `onEvent` callbacks when `event.type === "message"` starts with `Published ` and its first token passes `parsePullRequestUrl`.
-- [ ] Run `node --experimental-strip-types --test dot_pi/agent/exact_extensions/stage-runner/_index.test.ts`; expect all tests to pass.
-- [ ] Refactor only after green, then rerun the test command.
-- [ ] Commit with `feat(pi): emit pr-status:track events from stage-runner`.
+- [x] Add failing tests in `dot_pi/agent/exact_extensions/stage-runner/_index.test.ts` verifying that `pi.events.emit("pr-status:track", { url })` is called when `/arp-review <pr-url>` passes its `active`/`hasUI` guard (and not when rejected) and when a `Published <pr-url> at <sha>` `RunnerEvent` `{ type: "message" }` arrives on `onEvent` (extracted helper or `onEvent` handler test).
+- [x] Emit `pi.events?.emit("pr-status:track", { url })` in `dot_pi/agent/exact_extensions/stage-runner/index.ts` after the `active`/`hasUI` guard when `/arp-review` receives `prUrl`, and inside both `run` and `runArpReview` `onEvent` callbacks when `event.type === "message"` starts with `Published ` and its first token passes `parsePullRequestUrl`.
+- [x] Run `node --experimental-strip-types --test dot_pi/agent/exact_extensions/stage-runner/_index.test.ts`; expect all tests to pass.
+- [x] Refactor only after green, then rerun the test command.
+- [x] Commit with `feat(pi): emit pr-status:track events from stage-runner`.
 
 ### Task 6: Check documentation and future-agent guidance
 **Delivers:** Confirm whether `AGENTS.md` or extension READMEs need updates for the new `pr-status` session tracking and `/pr-status clear` command, and apply minimal updates if warranted.

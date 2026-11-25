@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { queryPrStatus } from "./github.ts";
+import { queryPrByNumber, queryPrStatus } from "./github.ts";
 import { createPrStatusExtension } from "./index.ts";
 
 const cwd = "/repo";
@@ -11,15 +11,20 @@ const baseEnv = { PATH: "/usr/bin", GH_TOKEN: "ambient", GITHUB_TOKEN: "also-amb
 const cleanEnv = { PATH: "/usr/bin", GH_HOST: "github.com", GH_PROMPT_DISABLED: "1" };
 const link = (text) => `\x1b]8;;${url}\x1b\\${text}\x1b]8;;\x1b\\`;
 const pr = {
-  number: 42, title: "Fix foo", url, state: "OPEN", isDraft: false,
+  number: 42, title: "Fix foo", url, state: "OPEN", isDraft: false, mergedAt: null,
   headRepository: { nameWithOwner: "ddoghq/compute" },
   statusCheckRollup: null,
   reviewThreads: { nodes: [], pageInfo: { hasNextPage: false } },
 };
+const prKey = "ddoghq/compute#42";
 const rightStatus = "— CI  💬 0";
 
 function response(nodes, login = "matteo-ruina_ddog") {
   return JSON.stringify({ data: { viewer: { login }, repository: { pullRequests: { nodes } } } });
+}
+
+function byNumberResponse(pullRequest, login = "matteo-ruina_ddog") {
+  return JSON.stringify({ data: { viewer: { login }, repository: { pullRequest } } });
 }
 
 function query(run, profile = "personal") {
@@ -34,7 +39,12 @@ test("work query routes auth in the environment and checks the returned viewer",
       return args[1][0] === "auth" ? "test-token" : response([pr], login);
     }, "work");
     if (login === "other") await assert.rejects(status, /^Error: Cannot read PR status$/);
-    else assert.equal(await status, `[open] ${link("#42 Fix foo")}\t${rightStatus}`);
+    else assert.deepEqual(await status, {
+      key: prKey,
+      line: `[open] ${link("#42 Fix foo")}\t${rightStatus}`,
+      state: "OPEN",
+      mergedAt: null,
+    });
     assert.equal(calls.length, 2);
     assert.deepEqual(calls[0], ["gh", ["auth", "token", "--hostname", "github.com", "--user", "matteo-ruina_ddog"], cwd, 10000, cleanEnv]);
     const [command, args, actualCwd, timeout, env] = calls[1];
@@ -44,6 +54,7 @@ test("work query routes auth in the environment and checks the returned viewer",
     const graphql = args.find((arg) => arg.startsWith("query="));
     assert.match(graphql, /viewer\s*\{\s*login\s*\}/);
     assert.match(graphql, /headRefName: \$headRef, states: \[OPEN, MERGED, CLOSED\], first: 5/);
+    assert.match(graphql, /\bmergedAt\b/);
     assert.ok(args.every((arg) => !arg.includes("test-token")));
     assert.equal(actualCwd, cwd);
     assert.equal(timeout, 10000);
@@ -60,11 +71,16 @@ test("work query does not fall back to ambient auth when token lookup fails", as
 test("personal query uses one request and selects matching PRs, preferring an open PR", async () => {
   const fork = { ...pr, headRepository: { nameWithOwner: "fork/compute" } };
   const closed = { ...pr, state: "CLOSED" };
-  const merged = { ...pr, state: "MERGED" };
+  const mergedAt = "2026-04-01T12:00:00Z";
+  const merged = { ...pr, state: "MERGED", mergedAt };
   const draft = { ...pr, isDraft: true };
-  for (const [nodes, state] of [
-    [[fork, closed, draft], "draft"], [[merged, pr], "open"], [[merged, closed], "merged"],
-    [[closed, merged], "closed"], [[fork], undefined], [[], undefined],
+  for (const [nodes, expected] of [
+    [[fork, closed, draft], { label: "draft", state: "OPEN", mergedAt: null }],
+    [[merged, pr], { label: "open", state: "OPEN", mergedAt: null }],
+    [[merged, closed], { label: "merged", state: "MERGED", mergedAt }],
+    [[closed, merged], { label: "closed", state: "CLOSED", mergedAt: null }],
+    [[fork], undefined],
+    [[], undefined],
   ]) {
     let calls = 0;
     const status = await query(async (command, args, _cwd, _timeout, env) => {
@@ -75,16 +91,94 @@ test("personal query uses one request and selects matching PRs, preferring an op
       return response(nodes, "personal-login");
     });
     assert.equal(calls, 1);
-    assert.equal(status, state ? `[${state}] ${link("#42 Fix foo")}\t${rightStatus}` : undefined);
+    assert.deepEqual(status, expected ? {
+      key: prKey,
+      line: `[${expected.label}] ${link("#42 Fix foo")}\t${rightStatus}`,
+      state: expected.state,
+      mergedAt: expected.mergedAt,
+    } : undefined);
   }
 });
 
 test("query strips terminal controls and only links a valid GitHub pull request URL", async () => {
   const title = "\x1b[31mFix\x1b[0m\x1b]0;bad\x07 foo\x1b]8;;bad\x1b\\\t\n\x00\x7f\x9b31m\x9d0;bad\x9c";
   for (const unsafe of ["http://github.com/ddoghq/compute/pull/42", "https://github.com@evil.test/ddoghq/compute/pull/42", `${url}\x07bad`, `${url}/files`]) {
-    assert.equal(await query(async () => response([{ ...pr, title, url: unsafe }])), `[open] #42 Fix foo\t${rightStatus}`);
+    assert.equal((await query(async () => response([{ ...pr, title, url: unsafe }])))?.line, `[open] #42 Fix foo\t${rightStatus}`);
   }
-  assert.equal(await query(async () => response([{ ...pr, title }])), `[open] ${link("#42 Fix foo")}\t${rightStatus}`);
+  assert.equal((await query(async () => response([{ ...pr, title }])))?.line, `[open] ${link("#42 Fix foo")}\t${rightStatus}`);
+});
+
+test("queryPrByNumber routes auth with tokenCache reuse and prefixes cross-repo PRs", async () => {
+  const tokenCache = new Map();
+  const calls = [];
+  const otherUrl = "https://github.com/ddoghq/k8s-platform-resources/pull/31949";
+  const otherLink = (text) => `\x1b]8;;${otherUrl}\x1b\\${text}\x1b]8;;\x1b\\`;
+  const run = async (...args) => {
+    calls.push(args);
+    if (args[1][0] === "auth") return "work-token";
+    if (args[1].includes("repo=k8s-platform-resources")) {
+      return byNumberResponse({ ...pr, number: 31949, title: "Add quota", url: otherUrl });
+    }
+    return byNumberResponse({ ...pr, number: 564, title: "Fix manager", url: "https://github.com/ddoghq/resource-quotas-manager/pull/564" });
+  };
+
+  const cross = await queryPrByNumber(
+    { owner: "ddoghq", repo: "k8s-platform-resources", number: 31949 },
+    "work",
+    run,
+    { cwd, baseEnv, showRepo: true, tokenCache },
+  );
+  const same = await queryPrByNumber(
+    { owner: "ddoghq", repo: "resource-quotas-manager", number: 564 },
+    "work",
+    run,
+    { cwd, baseEnv, showRepo: false, tokenCache },
+  );
+
+  assert.equal(calls.filter((c) => c[1][0] === "auth").length, 1);
+  assert.ok(calls[1][1].includes("--field") && calls[1][1].includes("number=31949"));
+  assert.deepEqual(cross, {
+    key: "ddoghq/k8s-platform-resources#31949",
+    line: `[open] ${otherLink("k8s-platform-resources#31949 Add quota")}\t${rightStatus}`,
+    state: "OPEN",
+    mergedAt: null,
+  });
+  const sameUrl = "https://github.com/ddoghq/resource-quotas-manager/pull/564";
+  assert.deepEqual(same, {
+    key: "ddoghq/resource-quotas-manager#564",
+    line: `[open] \x1b]8;;${sameUrl}\x1b\\#564 Fix manager\x1b]8;;\x1b\\\t${rightStatus}`,
+    state: "OPEN",
+    mergedAt: null,
+  });
+});
+
+test("queryPrByNumber fails closed on viewer mismatch or missing token, handles null PR, and sanitizes title/URL", async () => {
+  await assert.rejects(
+    queryPrByNumber({ owner: "ddoghq", repo: "compute", number: 42 }, "work", async (_c, args) =>
+      args[0] === "auth" ? "tok" : byNumberResponse(pr, "wrong-viewer"), { cwd, baseEnv }),
+    /^Error: Cannot read PR status$/,
+  );
+  await assert.rejects(
+    queryPrByNumber({ owner: "ddoghq", repo: "compute", number: 42 }, "work", async () => null, { cwd, baseEnv }),
+    /^Error: Cannot read PR status$/,
+  );
+  assert.equal(
+    await queryPrByNumber({ owner: "ddoghq", repo: "compute", number: 42 }, "personal", async () => byNumberResponse(null, "personal-login"), { cwd, baseEnv }),
+    undefined,
+  );
+  const mergedAt = "2026-04-01T12:00:00Z";
+  const result = await queryPrByNumber(
+    { owner: "ddoghq", repo: "compute", number: 42 },
+    "personal",
+    async () => byNumberResponse({ ...pr, state: "MERGED", mergedAt, title: "\x1b[31mBad\x1b[0m title", url: `${url}/files` }, "personal-login"),
+    { cwd, baseEnv, showRepo: true },
+  );
+  assert.deepEqual(result, {
+    key: prKey,
+    line: `[merged] compute#42 Bad title\t${rightStatus}`,
+    state: "MERGED",
+    mergedAt,
+  });
 });
 
 const check = (conclusion, status = "COMPLETED") => ({ __typename: "CheckRun", status, conclusion });
@@ -119,7 +213,7 @@ for (const [name, symbol, inputs] of [
   test(`CI: ${name}`, async () => {
     for (const statusCheckRollup of inputs) {
       const status = await query(async () => response([{ ...pr, statusCheckRollup, reviewThreads: connection([]) }]));
-      assert.equal(status, `[open] ${link("#42 Fix foo")}\t${symbol} CI  💬 0`, JSON.stringify(statusCheckRollup));
+      assert.equal(status?.line, `[open] ${link("#42 Fix foo")}\t${symbol} CI  💬 0`, JSON.stringify(statusCheckRollup));
     }
   });
 }
@@ -138,7 +232,7 @@ test("query requests bounded CI and last-comment data and counts unreplied threa
         ...pr, statusCheckRollup: rollup([check("FAILURE")]), reviewThreads: connection(threads, hasNextPage),
       }], "personal-login");
     });
-    assert.equal(status, `[open] ${link("#42 Fix foo")}\t✗ CI  💬 2${hasNextPage ? "+" : ""}`);
+    assert.equal(status?.line, `[open] ${link("#42 Fix foo")}\t✗ CI  💬 2${hasNextPage ? "+" : ""}`);
   }
 });
 

@@ -79,7 +79,8 @@ export function createPrStatusExtension({ run = runCommand, setTimer = startTime
           return;
         }
 
-        const value = await queryPrStatus(remote, branch, profile(), runForRefresh, { cwd: ctx.cwd });
+        const result = await queryPrStatus(remote, branch, profile(), runForRefresh, { cwd: ctx.cwd });
+        const value = result?.line;
         if (signal.aborted) return;
         lastKnown = value ? { key, value } : undefined;
         publish(ctx, value);

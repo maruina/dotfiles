@@ -195,11 +195,11 @@
 **Traces to:** Requirement: Direct PR-by-number GraphQL query with cross-repo labeling
 **Files:** `dot_pi/agent/exact_extensions/pr-status/github.ts`, `dot_pi/agent/exact_extensions/pr-status/pr-status.test.mjs`
 
-- [ ] Add failing tests in `dot_pi/agent/exact_extensions/pr-status/pr-status.test.mjs` for `queryPrByNumber`: work-profile auth routing + `tokenCache` reuse across two PRs, viewer mismatch fail-closed, cross-repo `repo#N` prefix vs same-repo `#N`, `state` and `mergedAt` fields, missing PR (`pullRequest: null`), and control-char / unsafe URL handling; update existing `queryPrStatus` assertions to expect `{ key, line, state, mergedAt }`.
-- [ ] Implement `queryPrByNumber` (sharing GraphQL selection fields including `mergedAt` and PR formatting with `queryPrStatus`) in `dot_pi/agent/exact_extensions/pr-status/github.ts`, returning `{ key, line, state, mergedAt } | undefined` from both functions.
-- [ ] Run `node --experimental-strip-types --test dot_pi/agent/exact_extensions/pr-status/pr-status.test.mjs`; expect all tests to pass.
-- [ ] Refactor only after green, then rerun the test command.
-- [ ] Commit with `feat(pi): add PR-by-number GraphQL query and cross-repo label`.
+- [x] Add failing tests in `dot_pi/agent/exact_extensions/pr-status/pr-status.test.mjs` for `queryPrByNumber`: work-profile auth routing + `tokenCache` reuse across two PRs, viewer mismatch fail-closed, cross-repo `repo#N` prefix vs same-repo `#N`, `state` and `mergedAt` fields, missing PR (`pullRequest: null`), and control-char / unsafe URL handling; update existing `queryPrStatus` assertions to expect `{ key, line, state, mergedAt }`.
+- [x] Implement `queryPrByNumber` (sharing GraphQL selection fields including `mergedAt` and PR formatting with `queryPrStatus`) in `dot_pi/agent/exact_extensions/pr-status/github.ts`, returning `{ key, line, state, mergedAt } | undefined` from both functions.
+- [x] Run `node --experimental-strip-types --test dot_pi/agent/exact_extensions/pr-status/pr-status.test.mjs`; expect all tests to pass.
+- [x] Refactor only after green, then rerun the test command.
+- [x] Commit with `feat(pi): add PR-by-number GraphQL query and cross-repo label`.
 
 ### Task 3: Track, poll, and prune session PRs live from `tool_result` and `input`
 **Delivers:** `pr-status/index.ts` captures PRs live from `bash` `gh pr create` / `gh pr edit` results and `/pr-address-feedback <url>` inputs, reads `origin` on every refresh for cross-repo labeling on `main`, triggers immediate refreshes (including when `inFlight`), deduplicates with feature-branch PRs in deterministic order, enforces the 5-PR cap, prunes `CLOSED` PRs immediately and `MERGED` PRs after 24 hours, and isolates per-PR partial failures.

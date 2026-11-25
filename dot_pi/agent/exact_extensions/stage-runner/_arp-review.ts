@@ -281,7 +281,7 @@ export async function runArpReview(o: ArpReviewOptions) {
       message(`Published ${published.url} at ${candidate}`);
     }
     complete("ARP complete");
-    message(`ARP complete: ${pr.url} at ${head}`);
+    message(`ARP complete - No issues found: ${pr.url} at ${head}`);
     return dir;
   } catch (error) {
     const context = prUrl ? `${prUrl} at ${head}` : head ? `local HEAD ${head}` : "";

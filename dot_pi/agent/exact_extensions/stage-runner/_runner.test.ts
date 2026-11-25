@@ -112,6 +112,7 @@ test("Rex activity writes spec-compliant bounded OSC 7501 child records on trans
     activity.recovery(recoveryMessage);
     activity.permission("approve");
     activity.phase("verify");
+    activity.phase("review");
     activity.working("design-review", 50);
     activity.end("done", "Run complete");
     activity.end("error", "Run stopped");
@@ -132,6 +133,7 @@ test("Rex activity writes spec-compliant bounded OSC 7501 child records on trans
       expected("blocked", { message: recoveryMessage, kind: "question" }),
       expected("blocked", { message: "approve", kind: "permission" }),
       expected("working", { message: "verify", progress: 80 }),
+      expected("working", { message: "Waiting for ARP review", progress: 95 }),
       expected("working", { message: "design-review", progress: 50 }),
       expected("done", { message: "Run complete" }),
       expected("error", { message: "Run stopped" }),
@@ -227,11 +229,15 @@ test("phase ticks update only the widget and exit freezes the total", (t) => {
   now += 1000;
   t.mock.timers.tick(1000);
   assert.deepEqual(lines.at(-1), ["verify 2 of 3 · 00:01 | startup 00:01 · execute 00:02"]);
+  display.onEvent({ type: "phase", phase: "review", at: now });
+  now += 2000;
+  t.mock.timers.tick(1000);
+  assert.deepEqual(lines.at(-1), ["Waiting for ARP review · 00:02 | startup 00:01 · execute 00:02 · verify 00:01"]);
   assert.deepEqual(entries, []);
   display.finish("stopped");
   t.mock.timers.tick(1000);
   assert.equal(lines.at(-1), undefined);
-  assert.deepEqual(entries, ["stopped | startup 00:01 · execute 00:02 · verify 00:01"]);
+  assert.deepEqual(entries, ["stopped | startup 00:01 · execute 00:02 · verify 00:01 · Waiting for ARP review 00:02"]);
 });
 
 test("createDirectArpCaller initializes Streamable HTTP MCP, handles JSON/SSE, refreshes on 401, resets on 404, and redacts tokens", async () => {

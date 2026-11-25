@@ -102,7 +102,7 @@ for (const [scenario, error] of Object.entries({
       assert.equal(fs.readFileSync(path.join(dir, "completed"), "utf8"), "ARP complete");
       assert.equal(fs.statSync(dir).mode & 0o777, 0o700);
       assert.equal(fs.statSync(path.join(dir, "run.json")).mode & 0o777, 0o600);
-      assert.match(events.join("\n"), /ARP complete/);
+      assert.match(events.join("\n"), /ARP complete - No issues found/);
     }
     const reviewStarted = ["clean", "findings", "changed-head", "canceled"].includes(scenario);
     assert.equal(confirmations, reviewStarted || scenario === "declined" ? 1 : 0);

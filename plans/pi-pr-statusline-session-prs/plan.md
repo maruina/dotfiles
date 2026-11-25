@@ -257,14 +257,15 @@
 - [x] Commit with `feat(pi): emit pr-status:track events from stage-runner`.
 
 ### Task 6: Check documentation and future-agent guidance
+**Execution note:** Inspected both `AGENTS.md` files and the runner README. The README now describes footer tracking and `/pr-status clear`. The event changes footer output only, so repository-wide lifecycle guidance did not change.
 **Delivers:** Confirm whether `AGENTS.md` or extension READMEs need updates for the new `pr-status` session tracking and `/pr-status clear` command, and apply minimal updates if warranted.
 **Blocked by:** Task 5
 **Traces to:** Plan documentation requirement
 **Files:** `AGENTS.md`, `dot_pi/agent/exact_extensions/stage-runner/README.md`
 
-- [ ] Inspect `AGENTS.md` and `dot_pi/agent/exact_extensions/stage-runner/README.md` to check whether any documented contract, event, or command list changed.
-- [ ] Update only durable documentation that is stale or missing, or record in the execution notes why no documentation change was needed.
-- [ ] Commit with `docs(pi): document session PR tracking in pr-status` if any documentation file changed.
+- [x] Inspect `AGENTS.md` and `dot_pi/agent/exact_extensions/stage-runner/README.md` to check whether any documented contract, event, or command list changed.
+- [x] Update only durable documentation that is stale or missing, or record in the execution notes why no documentation change was needed.
+- [x] Commit with `docs(pi): document session PR tracking in pr-status` if any documentation file changed.
 
 ### Task 7: Final verification
 **Delivers:** Verified TypeScript typecheck, full fast + integration + smoke test suite, and clean disposable dependency cleanup.

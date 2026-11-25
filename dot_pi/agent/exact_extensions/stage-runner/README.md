@@ -60,6 +60,8 @@ Select the fix model and thinking level upfront so the run can proceed autonomou
 
 If a run stops between a confirmed push and settlement, the pushed fix stays on the remote branch while the reported finding IDs stay `open` in ARP. A new `/arp-review` run would send those findings to the fix child again. Settle the reported finding IDs manually per `## Review or fix a finding manually in the work profile` before running `/arp-review` again.
 
+The `pr-status` extension shows the explicit `/arp-review` PR in the invoking Pi footer after the command passes its idle interactive-session check. It also shows PRs when `/stage-runner` or `/arp-review` reports publication. Use `/pr-status clear` to remove tracked PRs from that session, including after `/reload`. The current feature branch's PR can still appear.
+
 ## Recover after a remote action stops
 1. Read the stop reason and private run bundle. Use the last confirmed action, PR URL, verified and observed SHAs, and finding IDs to identify what may have changed. An accepted verifier handoff does not prove publication or review.
 2. Use read-only checks before any further write. Compare the remote feature ref and the PR head with the verified SHA. If the run included ARP, check ARP status for the exact PR and head. If settlement may have occurred, read PR-wide findings with `status: all` and compare the stored outcome and fixing SHA for each affected ID.

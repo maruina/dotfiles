@@ -14,6 +14,8 @@ import {
 } from "./github.ts";
 
 const STATUS = "pr-status";
+const TRACK_EVENT = "pr-status:track";
+type SessionEntries = ReturnType<ExtensionContext["sessionManager"]["getEntries"]>;
 const TIMEOUT_MS = 10_000;
 const POLL_MS = 120_000;
 const MAX_RETRY_MS = 600_000;
@@ -45,7 +47,10 @@ const startTimer: SetTimer = (callback, delayMs) => {
 };
 
 function isTrackedGhPrCommand(command: string): boolean {
-  return GH_PR_WRITE_COMMAND.test(command);
+  // deliberate: Ignore quoted shell text and stop at an unquoted here-document.
+  // Use a shell parser if tracking needs to recognize commands after its body.
+  const shellLiterals = /'(?:[^']*)(?:'|$)|"(?:\\[\s\S]|[^"\\])*(?:"|$)|`(?:\\[\s\S]|[^`\\])*(?:`|$)|\\[\s\S]|(?<![^\s;&|()])#[^\n]*|<<[\s\S]*/g;
+  return GH_PR_WRITE_COMMAND.test(command.replace(shellLiterals, "_"));
 }
 
 function extractFirstPrUrl(text: string): PrRef | null {
@@ -87,6 +92,70 @@ function extractPrFromInput(text: string): PrRef | null {
   return null;
 }
 
+function addTrackedPr(prs: PrRef[], ref: PrRef): boolean {
+  if (prs.some((pr) => prKey(pr) === prKey(ref))) return false;
+  prs.push(ref);
+  if (prs.length > MAX_TRACKED_PRS) prs.shift();
+  return true;
+}
+
+function parseStoredPr(value: unknown): PrRef | undefined {
+  if (!value || typeof value !== "object") return;
+  const { owner, repo, number } = value as Partial<PrRef>;
+  if (typeof owner !== "string" || typeof repo !== "string" || typeof number !== "number") return;
+  try {
+    const parsed = parsePullRequestUrl(`https://github.com/${owner}/${repo}/pull/${number}`);
+    if (owner === parsed.owner && repo === parsed.repo && number === parsed.number) return { owner, repo, number };
+  } catch {
+    // Ignore invalid session data.
+  }
+}
+
+function restoreTrackedPrs(entries: SessionEntries): PrRef[] | undefined {
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const entry = entries[i];
+    if (entry.type !== "custom" || entry.customType !== STATUS) continue;
+    const data: unknown = entry.data;
+    const refs = data && typeof data === "object" && "prs" in data ? data.prs : undefined;
+    if (!Array.isArray(refs)) continue;
+    const prs: PrRef[] = [];
+    let valid = true;
+    for (const value of refs) {
+      const ref = parseStoredPr(value);
+      if (!ref) {
+        valid = false;
+        break;
+      }
+      addTrackedPr(prs, ref);
+    }
+    if (valid) return prs;
+  }
+}
+
+function backfillTrackedPrs(entries: SessionEntries): PrRef[] {
+  const prs: PrRef[] = [];
+  const commands = new Map<string, string>();
+  for (const entry of entries) {
+    if (entry.type !== "message") continue;
+    const { message } = entry;
+    if (message.role === "assistant") {
+      commands.clear();
+      for (const block of message.content) {
+        if (block.type === "toolCall" && block.name === "bash" && typeof block.arguments?.command === "string") {
+          commands.set(block.id, block.arguments.command);
+        }
+      }
+    } else if (message.role === "toolResult" && message.toolName === "bash") {
+      const command = commands.get(message.toolCallId);
+      commands.delete(message.toolCallId);
+      if (message.isError) continue;
+      const ref = extractPrFromBashResult(command, message.content);
+      if (ref) addTrackedPr(prs, ref);
+    }
+  }
+  return prs;
+}
+
 function markStale(line: string): string {
   return line.replace("\t", " stale\t");
 }
@@ -109,6 +178,7 @@ export function createPrStatusExtension({
   return (pi: ExtensionAPI) => {
     let active = false;
     let currentCtx: ExtensionContext | undefined;
+    let unsubscribeTrack: (() => void) | undefined;
     let inFlight: AbortController | undefined;
     let rerunRequested = false;
     let cancelTimer: (() => void) | undefined;
@@ -134,14 +204,15 @@ export function createPrStatusExtension({
       void refresh(currentCtx);
     }
 
+    function persistTrackedPrs() {
+      pi.appendEntry?.(STATUS, { prs: [...trackedPrs] });
+    }
+
     function trackPr(ref: PrRef) {
-      const key = prKey(ref);
-      if (!trackedPrs.some((pr) => prKey(pr) === key)) {
-        trackedPrs.push(ref);
-        while (trackedPrs.length > MAX_TRACKED_PRS) {
-          const evicted = trackedPrs.shift();
-          if (evicted) lastKnownTracked.delete(prKey(evicted));
-        }
+      const oldest = trackedPrs[0];
+      if (addTrackedPr(trackedPrs, ref)) {
+        if (oldest && oldest !== trackedPrs[0]) lastKnownTracked.delete(prKey(oldest));
+        persistTrackedPrs();
       }
       triggerRefresh();
     }
@@ -260,6 +331,7 @@ export function createPrStatusExtension({
 
         if (prunedKeys.size > 0) {
           trackedPrs = trackedPrs.filter((pr) => !prunedKeys.has(prKey(pr)));
+          persistTrackedPrs();
         }
 
         publish(ctx, renderedLines.length > 0 ? renderedLines.join("\n") : undefined);
@@ -296,7 +368,7 @@ export function createPrStatusExtension({
         retryMs = Math.min(MAX_RETRY_MS, (retryMs || POLL_MS) * 2);
         nextDelay = retryMs;
       } finally {
-        inFlight = undefined;
+        if (inFlight === controller) inFlight = undefined;
         if (active && !signal.aborted) {
           if (rerunRequested) {
             rerunRequested = false;
@@ -315,6 +387,21 @@ export function createPrStatusExtension({
       if (!ctx.hasUI || ctx.mode !== "tui") return;
       active = true;
       currentCtx = ctx;
+      const entries = ctx.sessionManager?.getEntries?.() ?? [];
+      const restored = restoreTrackedPrs(entries);
+      trackedPrs = restored ?? backfillTrackedPrs(entries);
+      if (!restored && trackedPrs.length > 0) persistTrackedPrs();
+      unsubscribeTrack = pi.events?.on(TRACK_EVENT, (data) => {
+        if (!active || !data || typeof data !== "object" || !("url" in data) || typeof data.url !== "string") return;
+        let pr: PrRef;
+        try {
+          const { owner, repo, number } = parsePullRequestUrl(data.url);
+          pr = { owner, repo, number };
+        } catch {
+          return;
+        }
+        trackPr(pr);
+      });
       void refresh(ctx);
     });
     pi.on("tool_result", (event) => {
@@ -330,8 +417,33 @@ export function createPrStatusExtension({
     pi.on("agent_end", (_event, ctx) => {
       if (!retryMs) void refresh(ctx);
     });
+    pi.registerCommand?.(STATUS, {
+      description: "Clear tracked session pull requests: /pr-status clear",
+      handler: async (args, ctx) => {
+        if (!active) return;
+        if (args.trim() !== "clear") {
+          ctx.ui.notify("Use /pr-status clear", "error");
+          return;
+        }
+        const hadTrackedPrs = trackedPrs.length > 0;
+        trackedPrs = [];
+        lastKnownTracked.clear();
+        persistTrackedPrs();
+        if (hadTrackedPrs) {
+          // Discard any refresh that captured the cleared list before it can publish.
+          inFlight?.abort();
+          inFlight = undefined;
+          rerunRequested = false;
+          publish(ctx, lastKnownBranch?.line);
+          triggerRefresh();
+        }
+        ctx.ui.notify("Cleared tracked session pull requests", "info");
+      },
+    });
     pi.on("session_shutdown", () => {
       active = false;
+      unsubscribeTrack?.();
+      unsubscribeTrack = undefined;
       currentCtx = undefined;
       rerunRequested = false;
       cancelTimer?.();

@@ -236,7 +236,7 @@ test("query requests bounded CI and last-comment data and counts unreplied threa
   }
 });
 
-function session({ hasUI = true, mode = "tui", checkout = branch, origin = remote, now = () => Date.parse("2026-04-02T12:00:00Z") } = {}) {
+function session({ hasUI = true, mode = "tui", checkout = branch, origin = remote, now = () => Date.parse("2026-04-02T12:00:00Z"), entries } = {}) {
   const hooks = new Map();
   const statuses = [];
   const commands = [];
@@ -266,11 +266,25 @@ function session({ hasUI = true, mode = "tui", checkout = branch, origin = remot
       pending.set(key, { callback, delay });
       return () => pending.delete(key);
     },
-  })({ on(name, callback) { hooks.set(name, callback); } });
-  const ctx = { cwd, hasUI, mode, ui: { setStatus(key, status) { statuses.push([key, status]); } } };
+  })({
+    on(name, callback) { hooks.set(name, callback); },
+    ...(entries && {
+      appendEntry(customType, data) { entries.push({ type: "custom", customType, data: structuredClone(data) }); },
+      registerCommand(name, command) { hooks.set(name, command.handler); },
+      events: {
+        on(name, callback) {
+          hooks.set(name, callback);
+          return () => hooks.delete(name);
+        },
+      },
+    }),
+  });
+  const notifications = [];
+  const ctx = { cwd, hasUI, mode, sessionManager: entries && { getEntries: () => entries },
+    ui: { setStatus(key, status) { statuses.push([key, status]); }, notify(...args) { notifications.push(args); } } };
   const drain = () => new Promise(setImmediate);
   return {
-    state, statuses, commands, drain,
+    state, statuses, commands, drain, notifications,
     delay: () => {
       assert.ok(pending.size <= 1);
       return pending.values().next().value?.delay;
@@ -440,6 +454,7 @@ test("input tracks /pr-address-feedback URLs and ignores read-only commands, fai
   await s.emit("session_start");
 
   // Negative cases: read-only bash, failed gh pr create, invalid URL, non-allowlisted prompt
+  await s.emit("tool_result", bashResult("printf '%s' 'https://github.com/ddoghq/compute/pull/2'; : 'note; gh pr edit 2'", "https://github.com/ddoghq/compute/pull/2"));
   await s.emit("tool_result", bashResult("gh pr view 1", "https://github.com/ddoghq/compute/pull/1"));
   await s.emit("tool_result", bashResult("cat README.md", "https://github.com/ddoghq/compute/pull/2"));
   await s.emit("tool_result", bashResult("gh pr create --fill", "https://github.com/ddoghq/compute/pull/3", true));
@@ -515,10 +530,93 @@ test("branch PR renders first, deduplicates with tracked PRs, and does not count
   assert.match(lines[5], /#6 PR 6/);
 });
 
+const ref = (number) => ({ owner: "ddoghq", repo: "compute", number });
+const customEntry = (prs) => ({ type: "custom", customType: "pr-status", data: { prs } });
+const message = (message) => ({ type: "message", message });
+
+test("backfill pairs successful bash results in order, skips malformed snapshots, and clear survives reload", async () => {
+  const call = (id, command) => ({ type: "toolCall", id, name: "bash", arguments: { command } });
+  const result = (id, number, isError = false) => message({
+    role: "toolResult", toolCallId: id, ...bashResult("", `https://github.com/ddoghq/compute/pull/${number}`, isError),
+  });
+  const entries = [
+    message({ role: "assistant", content: [
+      call("edit", "cd /worktree && gh pr edit 2"),
+      call("create", "gh pr create --fill"),
+      call("failed", "gh pr create --fill"),
+      call("read", "gh pr view 4"),
+    ] }),
+    result("create", 1), result("edit", 2), result("failed", 3, true), result("read", 4), result("unpaired", 5),
+    customEntry([{ ...ref(6), repo: "../bad" }]), customEntry(null),
+  ];
+  const s = session({ checkout: "main", entries });
+  s.state.graphql = (_signal, args) => {
+    const { owner, repo, number } = byNumberArgs(args);
+    return byNumberResponse(makePr(owner, repo, number));
+  };
+  await s.emit("session_start");
+  assert.deepEqual(entries.at(-1), customEntry([ref(1), ref(2)]));
+  assert.deepEqual(s.statuses.at(-1)[1].split("\n").map((line) => line.match(/#\d+/)[0]), ["#1", "#2"]);
+
+  await s.emit("pr-status", "unknown");
+  assert.equal(s.notifications.at(-1)[1], "error");
+  assert.deepEqual(entries.at(-1), customEntry([ref(1), ref(2)]));
+
+  await s.emit("pr-status", "clear");
+  assert.deepEqual(s.statuses.at(-1), ["pr-status", undefined]);
+  assert.equal(s.notifications.at(-1)[1], "info");
+  assert.deepEqual(entries.at(-1), customEntry([]));
+
+  const reloaded = session({ checkout: "main", entries });
+  await reloaded.emit("session_start");
+  assert.deepEqual(reloaded.statuses, []);
+  assert.ok(reloaded.commands.every(({ command }) => command !== "gh"));
+});
+
+test("clear aborts a tracked query and ignores its late result", async () => {
+  const entries = [customEntry([ref(42)])];
+  const s = session({ checkout: "main", entries });
+  let complete;
+  let signal;
+  s.state.graphql = (requestSignal) => {
+    signal = requestSignal;
+    return new Promise((resolve) => { complete = resolve; });
+  };
+  await s.emit("session_start");
+  assert.ok(signal);
+  await s.emit("pr-status", "clear");
+  assert.equal(signal.aborted, true);
+  complete(byNumberResponse(pr));
+  await s.drain();
+  assert.deepEqual(s.statuses, []);
+  assert.deepEqual(entries.at(-1), customEntry([]));
+  assert.equal(s.delay(), undefined);
+});
+
+test("only valid tracking events update persisted PRs, refresh immediately, and stop at shutdown", async () => {
+  const entries = [];
+  const s = session({ checkout: "main", entries });
+  s.state.graphql = () => byNumberResponse(pr);
+  await s.emit("session_start");
+  for (const payload of [null, {}, { url: "https://github.com/ddoghq/compute/issues/42" }]) {
+    await s.emit("pr-status:track", payload);
+  }
+  assert.deepEqual(entries, []);
+  assert.deepEqual(s.notifications, []);
+  await s.emit("pr-status:track", { url });
+  await s.emit("pr-status:track", { url });
+  assert.deepEqual(entries, [customEntry([ref(42)])]);
+  assert.deepEqual(s.statuses, [["pr-status", openStatus]]);
+  await s.emit("session_shutdown");
+  await s.emit("pr-status:track", { url: url.replace("/42", "/43") });
+  assert.deepEqual(entries, [customEntry([ref(42)])]);
+});
+
 test("CLOSED PRs drop immediately and MERGED PRs drop 24 hours after mergedAt", async () => {
   let currentTime = Date.parse("2026-04-02T11:00:00Z"); // 23h after mergedAt
   const mergedAt = "2026-04-01T12:00:00Z";
-  const s = session({ checkout: "main", origin: remote, now: () => currentTime });
+  const entries = [];
+  const s = session({ checkout: "main", origin: remote, now: () => currentTime, entries });
   let pr1State = "OPEN";
   s.state.graphql = (_signal, args) => {
     const { owner, repo, number } = byNumberArgs(args);
@@ -531,16 +629,20 @@ test("CLOSED PRs drop immediately and MERGED PRs drop 24 hours after mergedAt", 
   await s.emit("tool_result", bashResult("gh pr create", "https://github.com/ddoghq/compute/pull/2"));
   assert.equal(s.statuses.at(-1)[1].split("\n").length, 2);
 
+  assert.deepEqual(entries, [customEntry([ref(1)]), customEntry([ref(1), ref(2)])]);
+
   // Transition PR 1 to CLOSED at T (PR 2 is 23h merged -> still visible)
   pr1State = "CLOSED";
   await s.tick();
   const afterClose = s.statuses.at(-1)[1].split("\n");
   assert.equal(afterClose.length, 1);
   assert.match(afterClose[0], /\[merged\].*#2 PR 2/);
+  assert.deepEqual(entries.at(-1), customEntry([ref(2)]));
 
   // Advance to T + 2h (PR 2 is 25h merged -> pruned)
   currentTime += 2 * 60 * 60 * 1000;
   await s.tick();
+  assert.deepEqual(entries.at(-1), customEntry([]));
   assert.deepEqual(s.statuses.at(-1), ["pr-status", undefined]);
   assert.equal(s.delay(), undefined);
 });

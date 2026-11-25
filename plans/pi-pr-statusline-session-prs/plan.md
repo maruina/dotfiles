@@ -19,6 +19,21 @@
 | `feature-worktree` | `prompt-required` | Durable plan branch creation | Created `maruina/pi-pr-statusline-session-prs` worktree from `origin/main` without modifying the base checkout. |
 | `learning-candidates` | `prompt-required` | Confirmed review fix disproved the planned `stage-runner` hook | Recorded the `stage-runner` `progress()` vs `onEvent` finding under `## Learning candidates`. |
 
+### Execution
+- Slice 2 writer: `openai/gpt-6.2-sol` (GPT-6.2 Sol).
+
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `skill-loader` | `prompt-required` | Select execution guidance | Routed Pi code, command, and documentation work. |
+| `resolve-worktree` | `prompt-required` | Resolve the plan path | Selected the canonical feature worktree. |
+| `feature-worktree` | `prompt-required` | Keep writes off `main` | Confirmed the clean feature branch. |
+| `codebase-research` | `skill-loader` | Trace session and runner behavior | Checked Pi hooks, existing persistence patterns, and the live bash filter. |
+| `chezmoi` | `skill-loader` | Change managed Pi source files | Kept edits in the feature worktree and deferred apply. |
+| `cli-best-practices` | `skill-loader` | Add `/pr-status clear` | Kept the argument contract narrow and notified on invalid use. |
+| `write` | `skill-loader` | Update the plan and documentation | Recorded evidence and operating limits in plain language. |
+| `diataxis` | `skill-loader` | Review command documentation | Identified where to describe the footer behavior. |
+| `learning-candidates` | `prompt-required` | Record the disproved filter assumption | Added the shell-quoting reproduction to the ledger. |
+
 ## Feasibility
 | Requirement | Mechanism | Evidence it exists | Validation | If unavailable |
 |---|---|---|---|---|
@@ -216,16 +231,17 @@
 ### Slice 2: Session persistence, `/reload` backfill, `stage-runner` hook, `/pr-status clear`, and verification
 
 ### Task 4: Add session persistence, `session_start` backfill, `pi.events` listener, and `/pr-status clear`
+**Execution note:** Matteo approved correcting the Slice 1 bash filter before backfill. The new regression failed on a read-only `printf` with quoted `; gh pr edit` text, then passed when the filter ignored shell literals. The filter stops at an unquoted here-document instead of interpreting its body as shell commands. The focused suite passed all 27 tests.
 **Delivers:** Tracked PRs (and prunes/clears) survive `/reload` via `pi.appendEntry`, pre-existing sessions backfill `gh pr create` / `gh pr edit` PRs from `ctx.sessionManager.getEntries()`, `pr-status` validates and handles `pi.events` `"pr-status:track"`, and `/pr-status clear` clears tracked PRs.
 **Blocked by:** Task 3
 **Traces to:** Requirement: Session persistence, `/reload` backfill, `stage-runner` hook, and `/pr-status clear`
 **Files:** `dot_pi/agent/exact_extensions/pr-status/index.ts`, `dot_pi/agent/exact_extensions/pr-status/pr-status.test.mjs`
 
-- [ ] Add failing tests in `dot_pi/agent/exact_extensions/pr-status/pr-status.test.mjs` for: `pi.appendEntry("pr-status", { prs })` persistence on add and on PR-state prune; `session_start` backfill from `getEntries()` (`gh pr create` / `gh pr edit` `toolCall`/`toolResult` pairs); authoritative empty `{ prs: [] }` preventing re-backfill after `/pr-status clear`; malformed persisted entry resilience; `pi.events` `"pr-status:track"` valid URL handling (triggering immediate refresh via stored `ctx`) and invalid payload silent rejection; and `/pr-status clear` plus invalid argument notification.
-- [ ] Implement persistence, `getEntries()` backfill, `pi.events.on("pr-status:track", ...)` subscription (with `parsePullRequestUrl` validation and cleanup on `session_shutdown`), and `pi.registerCommand("pr-status", ...)` (`clear` only) in `dot_pi/agent/exact_extensions/pr-status/index.ts` (extracting pure entry-parsing helpers to `dot_pi/agent/exact_extensions/pr-status/session.ts` if it keeps `index.ts` concise). Guard optional `pi.events` / `pi.registerCommand` / `pi.appendEntry` / `ctx.sessionManager?.getEntries` for minimal test doubles.
-- [ ] Run `node --experimental-strip-types --test dot_pi/agent/exact_extensions/pr-status/pr-status.test.mjs`; expect all tests to pass.
-- [ ] Refactor only after green, then rerun the test command.
-- [ ] Commit with `feat(pi): persist session PRs, backfill on reload, and add /pr-status clear`.
+- [x] Add failing tests in `dot_pi/agent/exact_extensions/pr-status/pr-status.test.mjs` for: `pi.appendEntry("pr-status", { prs })` persistence on add and on PR-state prune; `session_start` backfill from `getEntries()` (`gh pr create` / `gh pr edit` `toolCall`/`toolResult` pairs); authoritative empty `{ prs: [] }` preventing re-backfill after `/pr-status clear`; malformed persisted entry resilience; `pi.events` `"pr-status:track"` valid URL handling (triggering immediate refresh via stored `ctx`) and invalid payload silent rejection; and `/pr-status clear` plus invalid argument notification.
+- [x] Implement persistence, `getEntries()` backfill, `pi.events.on("pr-status:track", ...)` subscription (with `parsePullRequestUrl` validation and cleanup on `session_shutdown`), and `pi.registerCommand("pr-status", ...)` (`clear` only) in `dot_pi/agent/exact_extensions/pr-status/index.ts` (extracting pure entry-parsing helpers to `dot_pi/agent/exact_extensions/pr-status/session.ts` if it keeps `index.ts` concise). Guard optional `pi.events` / `pi.registerCommand` / `pi.appendEntry` / `ctx.sessionManager?.getEntries` for minimal test doubles.
+- [x] Run `node --experimental-strip-types --test dot_pi/agent/exact_extensions/pr-status/pr-status.test.mjs`; expect all tests to pass.
+- [x] Refactor only after green, then rerun the test command.
+- [x] Commit with `feat(pi): persist session PRs, backfill on reload, and add /pr-status clear`.
 
 ### Task 5: Emit `pr-status:track` from `stage-runner/index.ts`
 **Delivers:** `/stage-runner` and `/arp-review` publish PR URLs to `pr-status` over `pi.events`.
@@ -263,4 +279,5 @@
 - **Live `/pr-status clear` and reload check:** In a live session on `main`, Matteo runs `/pr-status clear`, then `/reload`. **Owner:** Matteo. **Trigger:** After live backfill check. **Expected evidence:** The PR lines disappear and do not reappear after `/reload`. **Gates:** Merging to `main`.
 
 ## Learning candidates
+- 2026-11-25: A separator regex over raw bash text matched `; gh pr edit` inside a quoted argument. Reusing the live filter for session backfill would persist the false match — evidence: `dot_pi/agent/exact_extensions/pr-status/pr-status.test.mjs`, the read-only `printf` regression.
 - 2026-11-25: `stage-runner/index.ts` `progress()` is only used by `runDesign`; plan (`run`) and ARP (`runArpReview`) publications emit `Published <url> at <sha>` through `onEvent` `{ type: "message" }` callbacks which call `ctx.ui.notify` and are not persisted to `stage-runner-progress` entries — evidence: `dot_pi/agent/exact_extensions/stage-runner/index.ts:194-197,271-278` and `dot_pi/agent/exact_extensions/stage-runner/_runner.ts:776`.

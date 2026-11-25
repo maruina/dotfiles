@@ -26,7 +26,10 @@ Slice 1 writer: `openai/gpt-6.2-sol`.
 | `feature-worktree` | `prompt-required` | Keep edits off `main` | Used the existing feature worktree. |
 | `codebase-research` | `skill-loader` | Inspect shared runner behavior | Traced run ownership, recovery, publication, ARP review, and fixture boundaries before editing. |
 | `chezmoi` | `skill-loader` | Edit managed Pi resources | Limited edits to the source worktree; did not apply them. |
-| `write` | `skill-loader` | Update the execution ledger | Recorded evidence and limitations without changing requirements. |
+| `write` | `skill-loader` | Write the operator guide and execution ledger | Described the consent, stop conditions, evidence, and limits. |
+| `diataxis` | `skill-loader` | Add operator guidance | Documented how to review an existing PR head and interpret the result. |
+| `cli-best-practices` | `skill-loader` | Implement a Pi slash command | Rejected malformed options before model selection and included target context in stop messages. |
+| `learning-candidates` | `prompt-required` | Record the managed-child test failure | Captured the environment change needed to run parent-session tests. |
 
 ## Decision source
 No `design.md` exists. `AGENTS.md` permits starting at `/plan` when the design is clear. Decisions marked "user-confirmed" come from the operator's answers in the `/plan` conversation on 2026-11-24 and in the `/systematic-review` follow-up on the same branch.
@@ -195,16 +198,17 @@ The runner SHALL invoke `arp-fix` with the `/pr-address-feedback` adjudication p
 - [x] Commit with `refactor(pi): extract stage-runner run lifecycle`.
 
 ### Task 2: Add `/arp-review` with preconditions and a single review
+**Execution:** The parser, registration, and fixture tests failed before implementation. After implementation, all 25 focused unit tests and 126 subprocess integration scenarios passed. Plain `npm test` failed five parent-session tests because the managed execution shell exported `PI_STAGE_RUNNER_CHILD=1`. `env -u PI_STAGE_RUNNER_CHILD npm test` passed (519 passed, 4 skipped), and `npm run typecheck` passed. The local default-branch check uses `refs/remotes/origin/HEAD`, as `/stage-runner` does, so it can reject the default branch without contacting GitHub. The live ARP trial remains pending under the operator waiver.
 **Delivers:** A usable `/arp-review` that reviews the current head, completes when clean, and stops with finding IDs when findings are open.
 **Blocked by:** Task 1
 **Traces to:** Requirements "Parse `/arp-review` arguments", "Enforce PR and profile preconditions before confirmation", "Review the current head".
 **Files:** `dot_pi/agent/exact_extensions/stage-runner/_arp-review.ts`, `dot_pi/agent/exact_extensions/stage-runner/index.ts`, `dot_pi/agent/exact_extensions/stage-runner/_runner.test.ts`, `dot_pi/agent/exact_extensions/stage-runner/_index.test.ts`, `dot_pi/agent/exact_extensions/stage-runner/_integration.test.ts`, `dot_pi/agent/exact_scripts/lifecycle-prompts.test.mjs`, `dot_pi/agent/exact_extensions/stage-runner/README.md`, `dot_pi/agent/AGENTS.md`
 
-- [ ] Add focused failing tests: `parseArpReviewArgs` unit tests in `_runner.test.ts`; `/arp-review` registration in `_index.test.ts` and in the command loop of `lifecycle-prompts.test.mjs`; integration scenarios for the clean head, open findings with `--max-heads 1` and no fix launch, and every precondition in the Test Strategy.
-- [ ] Implement `parseArpReviewArgs(arg)` and `runArpReview()` in `_arp-review.ts`. In Slice 1, any open finding stops the run with the head-cap message after head 1. Use `acquireRun()`, the preconditions, `lookup()`-based `checkHead`, the confirmation disclosure, and `reviewPublished()` on the current head. Pass the single model as `models.execute`. Register `/arp-review` in `index.ts` with single-model selection, the confirmation dialog, `phaseDisplay`, `rexActivity`, and `/stage-runner-cancel` support, without `checkRex(pi)`.
-- [ ] Document `/arp-review [--max-heads <N>]` in `README.md` (consent, stop reasons). Add a one-line `/arp-review` mention to the lifecycle paragraph of `dot_pi/agent/AGENTS.md`.
-- [ ] Run `cd dot_pi/agent && node --test exact_extensions/stage-runner/_runner.test.ts exact_extensions/stage-runner/_index.test.ts && node --test exact_extensions/stage-runner/_integration.test.ts && npm test && npm run typecheck`.
-- [ ] Commit with `feat(pi): add /arp-review for existing PR heads`.
+- [x] Add focused failing tests: `parseArpReviewArgs` unit tests in `_runner.test.ts`; `/arp-review` registration in `_index.test.ts` and in the command loop of `lifecycle-prompts.test.mjs`; integration scenarios for the clean head, open findings with `--max-heads 1` and no fix launch, and every precondition in the Test Strategy.
+- [x] Implement `parseArpReviewArgs(arg)` and `runArpReview()` in `_arp-review.ts`. In Slice 1, any open finding stops the run with the head-cap message after head 1. Use `acquireRun()`, the preconditions, `lookup()`-based `checkHead`, the confirmation disclosure, and `reviewPublished()` on the current head. Pass the single model as `models.execute`. Register `/arp-review` in `index.ts` with single-model selection, the confirmation dialog, `phaseDisplay`, `rexActivity`, and `/stage-runner-cancel` support, without `checkRex(pi)`.
+- [x] Document `/arp-review [--max-heads <N>]` in `README.md` (consent, stop reasons). Add a one-line `/arp-review` mention to the lifecycle paragraph of `dot_pi/agent/AGENTS.md`.
+- [x] Run `cd dot_pi/agent && node --test exact_extensions/stage-runner/_runner.test.ts exact_extensions/stage-runner/_index.test.ts && node --test exact_extensions/stage-runner/_integration.test.ts && npm test && npm run typecheck`.
+- [x] Commit with `feat(pi): add /arp-review for existing PR heads`.
 
 ### Slice 2: Fix, push, settle, and re-review
 ### Task 3: Extract fix acceptance and add the adjudication helpers
@@ -247,3 +251,4 @@ The runner SHALL invoke `arp-fix` with the `/pr-address-feedback` adjudication p
 
 ## Learning candidates
 - 2026-11-24: Adding open-PR metadata to the `target` that `publisher().inspect()` returns breaks the `JSON.stringify(target)` checks in `publish()` and `pushStartup()` after every push; use the `lookup()` that `inspect()` already returns. — evidence: `dot_pi/agent/exact_extensions/stage-runner/_publish.ts` lines 157-161 and the `confirmed()` check in `publish()`
+- 2026-11-25: In a managed `/execute` shell, `PI_STAGE_RUNNER_CHILD=1` disables behaviors that parent-session tests expect. Unset it for the test process, not the active Pi child. — evidence: `npm test` failed five parent-session tests; `env -u PI_STAGE_RUNNER_CHILD npm test` passed (519 passed, 4 skipped).

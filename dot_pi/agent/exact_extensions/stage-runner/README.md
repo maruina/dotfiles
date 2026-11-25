@@ -1,7 +1,7 @@
 # Run a plan and publish the independently verified commit
 Use `/stage-runner` for a reviewed, committed plan that nobody has started. The runner executes one slice at a time and simplifies the full feature once. After it accepts an independent `VERIFIED` verdict, the runner pushes the exact verified commit. It creates a draft pull request (PR) or reuses the matching open PR without changing its title, body, or readiness.
 
-Both runner commands require local Rex `0.1.0-preview.21` (API revision 18) or newer.
+`/stage-runner` and `/stage-runner-design` require local Rex `0.1.0-preview.21` (API revision 18) or newer.
 
 - **Personal:** The runner reports the PR URL and verified SHA and stops after GitHub confirms the PR head. It does not discover or call ARP, even if the tools are installed.
 - **Work:** The runner performs the same publication and continues to ARP (Agentic Review Platform) only for `ddoghq/*` and `ddoghq-sandbox/*`. For these repositories, it ends successfully when ARP reports a complete review of the published head with no open findings. For all other repositories, it stops after GitHub confirms the PR head without discovering or calling ARP.
@@ -50,6 +50,13 @@ The runner observes an existing review for the published head without changing i
 For an open, in-scope finding, the fix child commits the correction locally. The runner requires a fresh independent feature-wide `/verify` for the fix candidate. Only after GitHub confirms the published verified head that contains the fix commit does the runner record the finding as `addressed` with the fixing SHA. It checks the published head around settlement and confirms the stored outcome before it proceeds to re-review. GitHub and ARP checks are not one atomic transaction.
 
 The runner stops for disputed, deferred, or unproven findings, or when it reaches a limit. The operator decides whether to dismiss a finding or accept a risk. The runner does not write `invalid` or `out_of_scope`, resolve GitHub threads, mark a PR ready, merge, or deploy.
+
+## Review the head of an open PR
+Run `/arp-review` in interactive Pi in the work profile. Rex is optional. Use a clean feature worktree for a `ddoghq/*` or `ddoghq-sandbox/*` repository. The PR must be open and target the repository default branch. The runner uses `refs/remotes/origin/HEAD` to check the default branch before contacting GitHub. Local `HEAD`, the remote feature ref, and the PR head must match.
+
+Select one model and thinking level, then check the profile, SSH repository, branch, PR URL, SHA, GitHub login, and head limit in **Start ARP review?**. Confirmation authorizes up to one silent ARP review request per head when ARP permits it. The dialog also lists the non-force pushes and permanent `addressed` settlements that the full review loop can perform. This version reviews only the initial head. It does not launch a fix, push, or settle a finding.
+
+`/arp-review [--max-heads <N>]` accepts a limit from 1 to 10 (default 5). The runner reports `ARP complete` when ARP confirms a complete review with no open findings. It stops and lists the finding IDs if the initial review finds open items. Invalid arguments, a held worktree lock, or an ineligible or changed PR head also stop the run. Use `/stage-runner-cancel` to stop an active review. Cancellation does not undo a review request.
 
 ## Recover after a remote action stops
 1. Read the stop reason and private run bundle. Use the last confirmed action, PR URL, verified and observed SHAs, and finding IDs to identify what may have changed. An accepted verifier handoff does not prove publication or review.

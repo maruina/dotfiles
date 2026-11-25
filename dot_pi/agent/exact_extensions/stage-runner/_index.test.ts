@@ -6,6 +6,27 @@ import path from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import stageRunner from "./index.ts";
 
+test("registers /arp-review and rejects invalid arguments before model selection", async () => {
+  type Command = Parameters<ExtensionAPI["registerCommand"]>[1];
+  const commands = new Map<string, Command>();
+  stageRunner({
+    registerEntryRenderer() {},
+    registerCommand(name: string, command: Command) { commands.set(name, command); },
+    on() {},
+  } as unknown as ExtensionAPI);
+  const command = commands.get("arp-review");
+  assert.ok(command);
+  const messages: string[] = [];
+  await command.handler("--max-heads 0", {
+    hasUI: true,
+    ui: {
+      notify: (message: string) => messages.push(message),
+      select: () => assert.fail("Invalid arguments must not select a model"),
+    },
+  } as unknown as Parameters<Command["handler"]>[1]);
+  assert.match(messages.join("\n"), /--max-heads.*1.*10/);
+});
+
 test("only a settled managed child with its own valid handoff shuts down", (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "managed-"));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));

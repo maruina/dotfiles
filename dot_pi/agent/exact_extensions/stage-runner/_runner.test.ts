@@ -14,6 +14,15 @@ import stageRunner, { phaseDisplay, rexActivity } from "./index.ts";
 import { sessionInfo } from "./_recovery.ts";
 import { arpTool, createDirectArpCaller, reviewPublished } from "./_arp.ts";
 
+test("ARP review accepts one optional bounded head limit", async () => {
+  const { parseArpReviewArgs } = await import("./_arp-review.ts");
+  for (const [arg, maxHeads] of [["", 5], [" --max-heads 3 ", 3], ["--max-heads=10", 10], ["--max-heads 1", 1]] as const)
+    assert.deepEqual(parseArpReviewArgs(arg), { maxHeads });
+  for (const arg of ["--max-heads", "--max-heads=", "--max-heads 0", "--max-heads -1", "--max-heads 11", "--max-heads abc",
+    "--max-heads=1.5", "--max-heads=1e0", "--unknown", "extra", "--max-heads 3 extra", "--max-heads=1 --max-heads=2"])
+    assert.throws(() => parseArpReviewArgs(arg), /\/arp-review.*--max-heads.*1.*10/, arg);
+});
+
 test("Rex activity writes spec-compliant bounded OSC 7501 child records on transitions", () => {
   const writes: string[] = [];
   const activity = rexActivity(sequence => writes.push(sequence));

@@ -16,6 +16,18 @@
 | `feature-worktree` | `prompt-required` | Keep plan and edits off `main` | Created worktree `/Users/matteo.ruina/dd/.worktrees/chezmoi/maruina-arp-review` on branch `maruina/arp-review`. |
 | `write` | `agent-selected` | Plan prose; `AGENTS.md` requires `write` for plans | Applied STE wording and explicit causal/failure descriptions. |
 
+### Execution
+Slice 1 writer: `openai/gpt-6.2-sol`.
+
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `skill-loader` | `prompt-required` | Select execution guidance | Matched the TypeScript extension, managed source, and documentation scope to the domain skills. |
+| `resolve-worktree` | `prompt-required` | Resolve the supplied plan | Confirmed the absolute path belongs to `maruina/arp-review` and checked the pinned commit and plan blob there. |
+| `feature-worktree` | `prompt-required` | Keep edits off `main` | Used the existing feature worktree. |
+| `codebase-research` | `skill-loader` | Inspect shared runner behavior | Traced run ownership, recovery, publication, ARP review, and fixture boundaries before editing. |
+| `chezmoi` | `skill-loader` | Edit managed Pi resources | Limited edits to the source worktree; did not apply them. |
+| `write` | `skill-loader` | Update the execution ledger | Recorded evidence and limitations without changing requirements. |
+
 ## Decision source
 No `design.md` exists. `AGENTS.md` permits starting at `/plan` when the design is clear. Decisions marked "user-confirmed" come from the operator's answers in the `/plan` conversation on 2026-11-24 and in the `/systematic-review` follow-up on the same branch.
 
@@ -172,14 +184,15 @@ The runner SHALL invoke `arp-fix` with the `/pr-address-feedback` adjudication p
 
 ### Slice 1: Review the current PR head and stop or complete
 ### Task 1: Extract the shared run lifecycle
+**Execution:** All 113 existing subprocess integration scenarios passed. TypeScript type checking and `git diff --check` passed.
 **Delivers:** One lock, run-directory, and cancellation implementation that `/arp-review` can reuse.
 **Blocked by:** None
 **Traces to:** Implementation Constraints "Shared run lifecycle".
 **Files:** `dot_pi/agent/exact_extensions/stage-runner/_runner.ts`
 
-- [ ] Extract `acquireRun()` from `supervise()` (lock file, run directory, `SIGTERM`/`SIGINT` handlers, completed marker, `prune()`, lock release) without changing `run()` or `runDesign()` behavior. No new failing test is practical, because this is a behavior-preserving extraction; the existing integration suite is the regression check.
-- [ ] Run `cd dot_pi/agent && node --test exact_extensions/stage-runner/_integration.test.ts && npm run typecheck` and require all existing scenarios to pass.
-- [ ] Commit with `refactor(pi): extract stage-runner run lifecycle`.
+- [x] Extract `acquireRun()` from `supervise()` (lock file, run directory, `SIGTERM`/`SIGINT` handlers, completed marker, `prune()`, lock release) without changing `run()` or `runDesign()` behavior. No new failing test is practical, because this is a behavior-preserving extraction; the existing integration suite is the regression check.
+- [x] Run `cd dot_pi/agent && node --test exact_extensions/stage-runner/_integration.test.ts && npm run typecheck` and require all existing scenarios to pass.
+- [x] Commit with `refactor(pi): extract stage-runner run lifecycle`.
 
 ### Task 2: Add `/arp-review` with preconditions and a single review
 **Delivers:** A usable `/arp-review` that reviews the current head, completes when clean, and stops with finding IDs when findings are open.

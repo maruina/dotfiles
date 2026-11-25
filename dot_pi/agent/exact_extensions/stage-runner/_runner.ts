@@ -356,6 +356,58 @@ export function paneArgv(o: Pick<Options, "env" | "prefix">, model: Choice, args
     ...(o.prefix ?? [process.argv[1]]), "--provider", model.provider, "--model", model.id, "--thinking", model.thinking, ...args];
 }
 
+export function acquireRun(o: Pick<Options, "cwd" | "root" | "signal">) {
+  const { cwd } = o;
+  o.signal.throwIfAborted();
+  fs.mkdirSync(o.root, { recursive: true, mode: 0o700 });
+  const root = fs.realpathSync(o.root),
+    stat = fs.statSync(root);
+  if (root === cwd || root.startsWith(cwd + path.sep) || stat.mode & 0o077 || stat.uid !== process.getuid?.())
+    throw Error("Run root must be private and outside Git");
+  const lock = path.join(root, "lock-" + createHash("sha256").update(cwd).digest("hex"));
+  const dir = path.join(root, "run-" + Date.now() + "-" + randomUUID());
+  privateFile(lock, JSON.stringify({ pid: process.pid, dir, cwd }));
+  const owned = fs.statSync(lock);
+  let uncertain = false;
+  const controller = new AbortController(),
+    cancel = () => controller.abort();
+  process.on("SIGTERM", cancel);
+  process.on("SIGINT", cancel);
+  const signal = AbortSignal.any([o.signal, controller.signal]);
+  const ownsLock = () => fs.lstatSync(lock).ino === owned.ino;
+  const owner: Parameters<typeof recovery>[0]["owner"] = (state) => {
+    uncertain = !!state;
+    if (!ownsLock()) throw Error("Lost lock ownership");
+    fs.writeFileSync(lock, JSON.stringify({ pid: process.pid, cwd, dir, recovery: state }));
+  };
+  const complete = (message: string) => {
+    privateFile(path.join(dir, "completed"), message);
+    prune(root);
+  };
+  const failure = (error: unknown, detail = "") => {
+    if (!uncertain && fs.existsSync(dir) && !fs.existsSync(path.join(dir, "completed"))) complete(safe(String(error)));
+    return Error(safe(String(error)) + detail + "; evidence " + dir + (uncertain ? "; uncertain recovery: inspect lock " + lock : ""));
+  };
+  const release = () => {
+    process.off("SIGTERM", cancel);
+    process.off("SIGINT", cancel);
+    if (!uncertain) {
+      try {
+        if (ownsLock()) fs.unlinkSync(lock);
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+      }
+    }
+  };
+  try {
+    fs.mkdirSync(dir, { mode: 0o700 });
+  } catch (error) {
+    try { throw failure(error); }
+    finally { release(); }
+  }
+  return { dir, signal, owner, ownsLock, complete, failure, release, markUncertain: () => { uncertain = true; } };
+}
+
 export const run = (o: Options) => supervise(o);
 export const runDesign = (o: DesignOptions) => supervise(o);
 
@@ -402,37 +454,15 @@ async function supervise(o: Options | DesignOptions) {
     [id(o.models.execute), id(o.models.simplify), id(o.models.verify)],
     (o.env ?? process.env).PI_STAGE_RUNNER_CHILD === "1",
   );
-  o.signal.throwIfAborted();
-  fs.mkdirSync(o.root, { recursive: true, mode: 0o700 });
-  const root = fs.realpathSync(o.root),
-    stat = fs.statSync(root);
-  if (root === cwd || root.startsWith(cwd + path.sep) || stat.mode & 0o077 || stat.uid !== process.getuid?.())
-    throw Error("Run root must be private and outside Git");
-  const lock = path.join(root, "lock-" + createHash("sha256").update(cwd).digest("hex"));
-  const dir = path.join(root, "run-" + Date.now() + "-" + randomUUID());
-  privateFile(lock, JSON.stringify({ pid: process.pid, dir, cwd }));
-  const owned = fs.statSync(lock);
-  let uncertain = false;
+  const { dir, signal, owner, ownsLock, complete, failure, release, markUncertain } = acquireRun(o);
   let pending: { head: string; fixes: FindingFix[]; evidence: string } | undefined;
-  const controller = new AbortController(),
-    cancel = () => controller.abort();
-  process.on("SIGTERM", cancel);
-  process.on("SIGINT", cancel);
-  const signal = AbortSignal.any([o.signal, controller.signal]);
   try {
-    fs.mkdirSync(dir, { mode: 0o700 });
     clean();
     if (git("rev-parse", "HEAD") !== base) throw Error("HEAD changed during preflight");
-    const owner: Parameters<typeof recovery>[0]["owner"] = (state) => {
-      uncertain = !!state;
-      if (fs.lstatSync(lock).ino !== owned.ino) throw Error("Lost lock ownership");
-      fs.writeFileSync(lock, JSON.stringify({ pid: process.pid, cwd, dir, recovery: state }));
-    };
     if ("brief" in o) {
       privateFile(path.join(dir, "run.json"), JSON.stringify({ cwd, branch, startCommit: base, author: o.author, reviewer: o.reviewer }));
       await designStages(o, dir, base, git, clean, signal, owner);
-      privateFile(path.join(dir, "completed"), "plan committed");
-      prune(root);
+      complete("plan committed");
       return dir;
     }
     const writers = new Set([id(o.models.execute)]);
@@ -496,9 +526,7 @@ async function supervise(o: Options | DesignOptions) {
         ancestor,
         onStartupPhase: () => phase("startup"),
         message,
-        markUncertain: () => {
-          uncertain = true;
-        },
+        markUncertain,
       });
     }
     let remaining = unchecked(initial),
@@ -688,7 +716,7 @@ async function supervise(o: Options | DesignOptions) {
         const checkCandidate = () => {
           signal.throwIfAborted();
           clean();
-          if (fs.lstatSync(lock).ino !== owned.ino || git("rev-parse", "HEAD") !== prev)
+          if (!ownsLock() || git("rev-parse", "HEAD") !== prev)
             throw Error("Publication lock or verified head changed");
         };
         const draftDir = path.join(dir, "draft");
@@ -785,27 +813,11 @@ async function supervise(o: Options | DesignOptions) {
       }
       stage = stage === "execute" ? (remaining.length ? "execute" : "simplify") : "verify";
     }
-    privateFile(path.join(dir, "completed"), target.review ? "VERIFIED; ARP complete" : "VERIFIED");
-    prune(root);
+    complete(target.review ? "VERIFIED; ARP complete" : "VERIFIED");
     return dir;
   } catch (error) {
-    if (!uncertain && fs.existsSync(dir) && !fs.existsSync(path.join(dir, "completed"))) {
-      privateFile(path.join(dir, "completed"), safe(String(error)));
-      prune(root);
-    }
-    throw Error(
-      safe(String(error)) + (pending ? `; fix candidate ${pending.head}; finding IDs: ${pending.fixes.map((f) => f.id).join(", ")}` : "") +
-      "; evidence " + dir + (uncertain ? "; uncertain recovery: inspect lock " + lock : ""),
-    );
+    throw failure(error, pending ? `; fix candidate ${pending.head}; finding IDs: ${pending.fixes.map((f) => f.id).join(", ")}` : "");
   } finally {
-    process.off("SIGTERM", cancel);
-    process.off("SIGINT", cancel);
-    if (!uncertain) {
-      try {
-        if (fs.lstatSync(lock).ino === owned.ino) fs.unlinkSync(lock);
-      } catch (e) {
-        if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
-      }
-    }
+    release();
   }
 }

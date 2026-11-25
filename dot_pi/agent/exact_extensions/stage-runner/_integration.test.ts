@@ -690,12 +690,12 @@ for (const failure of [
         const checks = prior.split("get_status").length - 1;
         let status = "NO_ISSUES_FOUND", action: string | undefined;
         if ((failure === "arp-draft" && checks === 0) || failure === "arp-stale") {
-          status = "SKIPPED";
+          status = "PAUSED_DRAFT";
           action = "REVIEW_ACTION_REVIEW_ANYWAY";
         } else if (failure === "arp-retry-uncertain" && checks < 2) {
           status = "FAILED";
           action = "REVIEW_ACTION_RETRY";
-        } else if (failure === "arp-active" && checks === 0) status = "IN_PROGRESS";
+        } else if (failure === "arp-active" && checks === 0) status = "RUNNING";
         return { ...target, head_sha: failure === "arp-stale" ? "0".repeat(40) : head, status: "REVIEW_STATUS_" + status, ...(action ? { allowed_action: action } : {}) };
       }
       if (name.endsWith("request_review")) {

@@ -271,8 +271,8 @@ const complete = new Set([
   "REVIEW_STATUS_NO_ISSUES_FOUND", "REVIEW_STATUS_ISSUES_FOUND", "REVIEW_STATUS_COMPLETED_NO_POST",
 ]);
 const waiting = new Set([
-  "REVIEW_STATUS_UNSPECIFIED", "REVIEW_STATUS_QUEUED", "REVIEW_STATUS_IN_PROGRESS",
-  "REVIEW_STATUS_SKIPPED", "REVIEW_STATUS_FAILED",
+  "REVIEW_STATUS_UNSPECIFIED", "REVIEW_STATUS_QUEUED", "REVIEW_STATUS_RUNNING",
+  "REVIEW_STATUS_SKIPPED", "REVIEW_STATUS_FAILED", "REVIEW_STATUS_PAUSED_DRAFT",
 ]);
 
 export type OpenFinding = { id: number; reviewedSha: string; filePath: string; startLine: number; endLine: number; body: string };
@@ -436,7 +436,7 @@ export async function reviewPublished(o: ReviewOptions): Promise<OpenFinding[]> 
       const status = await read("get_status");
       const state = status.status;
       if (typeof state !== "string" || (!waiting.has(state) && !complete.has(state)))
-        throw Error("Unknown ARP status");
+        throw Error(`Unknown ARP status: ${String(state)}`);
       if (status.head_sha != null && status.head_sha !== "" && !fullSha(status.head_sha))
         throw Error("Invalid ARP head SHA");
       lastStatus = `${state} at ${status.head_sha || "unknown head"}`;
@@ -463,7 +463,7 @@ export async function reviewPublished(o: ReviewOptions): Promise<OpenFinding[]> 
             if (!ids.length) o.onEvent({ type: "message", message: `ARP review complete with no open findings for ${o.url} at ${o.head}` });
             return findings;
           }
-        } else if (!["REVIEW_STATUS_QUEUED", "REVIEW_STATUS_IN_PROGRESS"].includes(state)) {
+        } else if (!["REVIEW_STATUS_QUEUED", "REVIEW_STATUS_RUNNING"].includes(state)) {
           const action = status.allowed_action === "REVIEW_ACTION_REVIEW_ANYWAY" ? "review_anyway" :
             status.allowed_action === "REVIEW_ACTION_RETRY" ? "retry" : undefined;
           if (action && !requested) {
@@ -480,7 +480,7 @@ export async function reviewPublished(o: ReviewOptions): Promise<OpenFinding[]> 
               remaining();
               o.onEvent({ type: "message", message: "ARP request result uncertain. Reconcile by status; do not request again." });
             }
-          } else if (!requested && (state === "REVIEW_STATUS_SKIPPED" || state === "REVIEW_STATUS_FAILED")) {
+          } else if (!requested && (state === "REVIEW_STATUS_SKIPPED" || state === "REVIEW_STATUS_FAILED" || state === "REVIEW_STATUS_PAUSED_DRAFT")) {
             throw Error("ARP review cannot run; no permitted request action");
           }
         }

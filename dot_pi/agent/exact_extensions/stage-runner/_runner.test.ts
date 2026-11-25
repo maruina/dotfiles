@@ -362,6 +362,64 @@ for (const outcome of ["matching", "dismissed", "wrong-sha", "drift"] as const) 
   });
 }
 
+test("reviewPublished handles REVIEW_STATUS_PAUSED_DRAFT, REVIEW_STATUS_RUNNING, and reports unknown statuses", async (t) => {
+  const target = { owner: "fixture", repo: "demo", pull_number: 1 };
+  const head = "a".repeat(40);
+  const fastClock = { now: () => 0, sleep: async () => {} };
+
+  const okDir = fs.mkdtempSync(path.join(os.tmpdir(), "arp-draft-ok-"));
+  t.after(() => fs.rmSync(okDir, { recursive: true, force: true }));
+  const statuses = [
+    { status: "REVIEW_STATUS_PAUSED_DRAFT", allowed_action: "REVIEW_ACTION_REVIEW_ANYWAY" },
+    { status: "REVIEW_STATUS_RUNNING" },
+    { status: "REVIEW_STATUS_NO_ISSUES_FOUND" },
+  ];
+  const calls: { name: string; input: Record<string, string | number | boolean> }[] = [];
+  const findings = await reviewPublished({
+    dir: okDir, repo: "fixture/demo", number: 1, url: "https://github.com/fixture/demo/pull/1", head,
+    signal: new AbortController().signal, clock: fastClock, onEvent() {}, settlementReason: "Verified",
+    async checkHead() {},
+    async call({ name, input }) {
+      calls.push({ name, input });
+      if (name === arpTool("get_status")) return { ...target, head_sha: head, ...(statuses.shift() ?? {}) };
+      if (name === arpTool("request_review")) return { ...target, head_sha: head, status: "REVIEW_STATUS_QUEUED" };
+      assert.equal(name, arpTool("get_findings"));
+      return { ...target, scope: "pull_request", status_filter: input.status, reviewed_sha: head,
+        review_in_progress: false, finding_count: 0, findings: [] };
+    },
+  });
+  assert.deepEqual(findings, []);
+  assert.deepEqual(calls.map((c) => c.name), [
+    arpTool("get_status"), arpTool("request_review"), arpTool("get_status"), arpTool("get_status"), arpTool("get_findings"),
+  ]);
+  assert.equal(calls[1].input.action, "review_anyway");
+  assert.equal(calls[1].input.silent, true);
+
+  const blockedDir = fs.mkdtempSync(path.join(os.tmpdir(), "arp-draft-blocked-"));
+  t.after(() => fs.rmSync(blockedDir, { recursive: true, force: true }));
+  await assert.rejects(
+    reviewPublished({
+      dir: blockedDir, repo: "fixture/demo", number: 1, url: "https://github.com/fixture/demo/pull/1", head,
+      signal: new AbortController().signal, clock: fastClock, onEvent() {}, settlementReason: "Verified",
+      async checkHead() {},
+      async call() { return { ...target, head_sha: head, status: "REVIEW_STATUS_PAUSED_DRAFT" }; },
+    }),
+    /ARP review cannot run; no permitted request action/,
+  );
+
+  const unknownDir = fs.mkdtempSync(path.join(os.tmpdir(), "arp-unknown-"));
+  t.after(() => fs.rmSync(unknownDir, { recursive: true, force: true }));
+  await assert.rejects(
+    reviewPublished({
+      dir: unknownDir, repo: "fixture/demo", number: 1, url: "https://github.com/fixture/demo/pull/1", head,
+      signal: new AbortController().signal, clock: fastClock, onEvent() {}, settlementReason: "Verified",
+      async checkHead() {},
+      async call() { return { ...target, head_sha: head, status: "REVIEW_STATUS_IN_PROGRESS" }; },
+    }),
+    /Unknown ARP status: REVIEW_STATUS_IN_PROGRESS/,
+  );
+});
+
 test("record selected and actual assistant models; reject unknown provenance", (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "session-"));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));

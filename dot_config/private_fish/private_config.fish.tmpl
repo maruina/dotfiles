@@ -7,6 +7,9 @@ export PATH="$PATH:/Users/ruio/.docker/bin"
 # Need if you install fish with homebrew
 /opt/homebrew/bin/brew shellenv | source
 
+# Disable Homebrew's default upgrade confirmation prompt so brew and topgrade run unattended.
+set -gx HOMEBREW_NO_ASK 1
+
 if status is-interactive
     # Commands to run in interactive sessions can go here
 end

@@ -260,13 +260,14 @@ The runner SHALL invoke `arp-fix` with the `/pr-address-feedback` adjudication p
 - [x] Commit with `feat(pi): fix and settle ARP findings in /arp-review`.
 
 ### Task 5: Final verification
+**Execution:** Writer: `google/gemini-4-neon`. From `dot_pi/agent`, ran `npm ci --ignore-scripts`, `npm test` (522 passed, 4 skipped; 46 skills validated), and `npm run test:all` (`npm test`: 522 passed, 4 skipped; `test:integration`: 131 stage-runner + 6 worktrunk passed; `typecheck`: passed; `test:smoke`: passed), then removed `dot_pi/agent/node_modules`. `git diff --check main...HEAD` passed with only the 12 planned files changed. Did not apply, push, or publish.
 **Delivers:** Evidence that the full suites pass before independent `/verify`.
 **Blocked by:** Task 4
 **Traces to:** All requirements.
 **Files:** None.
 
-- [ ] From `dot_pi/agent`, run `npm ci --ignore-scripts`, `npm test`, and `npm run test:all`. Record the results in this plan. Keep dependencies until both commands complete, then remove `node_modules`.
-- [ ] Run `git diff --check main...HEAD` and confirm no unrelated files changed. Do not apply, push, or publish.
+- [x] From `dot_pi/agent`, run `npm ci --ignore-scripts`, `npm test`, and `npm run test:all`. Record the results in this plan. Keep dependencies until both commands complete, then remove `node_modules`.
+- [x] Run `git diff --check main...HEAD` and confirm no unrelated files changed. Do not apply, push, or publish.
 
 ## Post-publication validation
 - Owner: Matteo Ruina (operator).

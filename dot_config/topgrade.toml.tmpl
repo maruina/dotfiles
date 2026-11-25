@@ -1,11 +1,23 @@
 [misc]
-# IT manages OS updates. Helm repo/plugin updates are noisy and not needed by default.
-disable = ["system", "helm"]
+# IT manages OS and Tailscale updates. Disable noisy, unused, or duplicate steps.
+disable = [
+  "system",
+  "helm",
+  "pnpm",
+  "yarn",
+  "bun_packages",
+  "containers",
+  "github_cli_skills",
+  "gcloud",
+{{- if eq .profile "work" }}
+  "tailscale",
+{{- end }}
+]
 
-# Keep upgrades interactive so broad toolchain updates are explicit.
-assume_yes = false
-ask_retry = true
-show_skipped = true
+# Run autonomously without interactive confirmations or retry prompts.
+assume_yes = true
+ask_retry = false
+show_skipped = false
 
 [git]
 # Avoid fetching stale repos from Topgrade's predefined search paths.
@@ -19,4 +31,9 @@ repos = [
 ]
 {{- else }}
 repos = []
+{{- end }}
+
+{{- if eq .profile "work" }}
+[commands]
+"Dogbrew" = "dogbrew update-all"
 {{- end }}

@@ -6,7 +6,13 @@ import path from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import stageRunner from "./index.ts";
 
-test("registers /arp-review and rejects invalid arguments before model selection", async () => {
+test("registers /arp-review and rejects invalid arguments before model selection", async (t) => {
+  const savedChild = process.env.PI_STAGE_RUNNER_CHILD;
+  delete process.env.PI_STAGE_RUNNER_CHILD;
+  t.after(() => {
+    if (savedChild === undefined) delete process.env.PI_STAGE_RUNNER_CHILD;
+    else process.env.PI_STAGE_RUNNER_CHILD = savedChild;
+  });
   type Command = Parameters<ExtensionAPI["registerCommand"]>[1];
   const commands = new Map<string, Command>();
   stageRunner({

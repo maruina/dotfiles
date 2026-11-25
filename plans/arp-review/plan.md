@@ -31,6 +31,17 @@ Slice 1 writer: `openai/gpt-6.2-sol`.
 | `cli-best-practices` | `skill-loader` | Implement a Pi slash command | Rejected malformed options before model selection and included target context in stop messages. |
 | `learning-candidates` | `prompt-required` | Record the managed-child test failure | Captured the environment change needed to run parent-session tests. |
 
+Task 3 skills:
+
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `skill-loader` | `prompt-required` | Select execution guidance | Matched the managed source, shared runner helpers, and plan edits to the applicable skills. |
+| `resolve-worktree` | `prompt-required` | Resolve the plan | Confirmed the feature worktree and pinned baseline before the operator approved the plan correction. |
+| `feature-worktree` | `prompt-required` | Keep edits off `main` | Committed the plan correction and Task 3 in the existing feature worktree. |
+| `codebase-research` | `skill-loader` | Inspect shared ARP behavior | Traced `reviewPublished()` callers and preserved the stage-runner validation order. |
+| `chezmoi` | `skill-loader` | Edit managed source | Changed source files only and did not apply them. |
+| `write` | `skill-loader` | Draft the prompt and ledger | Used explicit adjudication decisions and recorded the fixture limits. |
+
 ## Decision source
 No `design.md` exists. `AGENTS.md` permits starting at `/plan` when the design is clear. Decisions marked "user-confirmed" come from the operator's answers in the `/plan` conversation on 2026-11-24 and in the `/systematic-review` follow-up on the same branch.
 
@@ -212,15 +223,16 @@ The runner SHALL invoke `arp-fix` with the `/pr-address-feedback` adjudication p
 
 ### Slice 2: Fix, push, settle, and re-review
 ### Task 3: Extract fix acceptance and add the adjudication helpers
+**Execution:** Writer: `openai/gpt-6.2-sol`. All three new unit tests failed before the helpers existed. After implementation, 26 runner unit tests, 126 subprocess integration scenarios (including all `arp-fix-*` cases), `npm run typecheck`, and `git diff --check` passed. The unit command ran with `env -u PI_STAGE_RUNNER_CHILD`, as in Slice 1. The required `settlementReason` also reaches the initial `/arp-review` call; that call still sends no settlements. The fixtures do not test live GitHub or ARP.
 **Delivers:** Shared anchoring and fix-range validation, the adjudication prompt, and complete `needs-operator` reporting.
 **Blocked by:** Task 2
 **Traces to:** Implementation Constraints "Shared re-anchoring and fix acceptance", "Adjudication prompt", "Mixed or `needs-operator` handoff handling".
 **Files:** `dot_pi/agent/exact_extensions/stage-runner/_runner.ts`, `dot_pi/agent/exact_extensions/stage-runner/_arp.ts`, `dot_pi/agent/exact_extensions/stage-runner/_runner.test.ts`, `dot_pi/agent/exact_extensions/stage-runner/_integration.test.ts`
 
-- [ ] Add focused failing unit tests for `anchorFinding` (path traversal, missing blob, overlapping hunk, shifted lines), `acceptFixes` (no progress, `fixSha` outside the range), `arpReviewFixPrompt` (rules present, `ARP fix.` prefix, 64 KiB limit with mixed findings), and `partitionFindingFixes` (all fixed, mixed, all `needs-operator`, duplicate/missing/unknown IDs). Add an assertion to an existing `/stage-runner` settlement scenario in `_integration.test.ts` that the recorded `arp-settlement-<id>-request.json` `reason` starts with `Independently verified fix:`.
-- [ ] Extract `anchorFinding(git, prev, finding)` and `acceptFixes(...)` from `supervise()` and call them from `supervise()`. Add `arpReviewFixPrompt(head, base, findings, out)` with the `deliberate:` source comment, and `partitionFindingFixes(value, findings)` returning `{ fixes, needsOperator }`, in `_arp.ts`. Add the required `settlementReason` option to `ReviewOptions` and pass `"Independently verified fix"` from `supervise()`.
-- [ ] Run `cd dot_pi/agent && node --test exact_extensions/stage-runner/_runner.test.ts && node --test exact_extensions/stage-runner/_integration.test.ts && npm run typecheck` and require all existing `arp-fix-*` scenarios to pass.
-- [ ] Commit with `refactor(pi): share ARP fix acceptance and add adjudication prompt`.
+- [x] Add focused failing unit tests for `anchorFinding` (path traversal, missing blob, overlapping hunk, shifted lines), `acceptFixes` (no progress, `fixSha` outside the range), `arpReviewFixPrompt` (rules present, `ARP fix.` prefix, 64 KiB limit with mixed findings), and `partitionFindingFixes` (all fixed, mixed, all `needs-operator`, duplicate/missing/unknown IDs). Add an assertion to an existing `/stage-runner` settlement scenario in `_integration.test.ts` that the recorded `arp-settlement-<id>-request.json` `reason` starts with `Independently verified fix:`.
+- [x] Extract `anchorFinding(git, prev, finding)` and `acceptFixes(...)` from `supervise()` and call them from `supervise()`. Add `arpReviewFixPrompt(head, base, findings, out)` with the `deliberate:` source comment, and `partitionFindingFixes(value, findings)` returning `{ fixes, needsOperator }`, in `_arp.ts`. Add the required `settlementReason` option to `ReviewOptions` and pass `"Independently verified fix"` from `supervise()`.
+- [x] Run `cd dot_pi/agent && node --test exact_extensions/stage-runner/_runner.test.ts && node --test exact_extensions/stage-runner/_integration.test.ts && npm run typecheck` and require all existing `arp-fix-*` scenarios to pass.
+- [x] Commit with `refactor(pi): share ARP fix acceptance and add adjudication prompt`.
 
 ### Task 4: Add the fix, push, settle, and re-review loop
 **Delivers:** The full `/arp-review` loop up to `maxHeads`.

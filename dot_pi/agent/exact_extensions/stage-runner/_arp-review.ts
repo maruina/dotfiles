@@ -92,7 +92,8 @@ export async function runArpReview(o: ArpReviewOptions) {
     o.onEvent({ type: "phase", phase: "review", at: (o.now ?? (() => performance.now()))() });
     message(`Reviewing ${label}: ${pr.url} at ${head}`);
     const findings = await reviewPublished({ dir, repo: target.repo, number: pr.number, url: pr.url, head, signal,
-      clock: o.reviewClock, checkHead, call: o.arpCall ?? createDirectArpCaller({ env }), onEvent: o.onEvent });
+      clock: o.reviewClock, checkHead, call: o.arpCall ?? createDirectArpCaller({ env }), onEvent: o.onEvent,
+      settlementReason: "Author-tested fix" });
     if (findings.length) {
       // deliberate: Review only the initial head in Slice 1. Slice 2 adds the fix and re-review loop.
       openIds = `; open finding IDs: ${findings.map(finding => finding.id).join(", ")}`;

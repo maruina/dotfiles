@@ -174,6 +174,46 @@ export function validate(bytes: Buffer, stage: HandoffStage) {
   return validateHandoffPayload(JSON.parse(decode(bytes)), stage);
 }
 
+type GitRead = (...args: string[]) => string;
+
+export function anchorFinding(git: GitRead, prev: string, finding: OpenFinding): OpenFinding {
+  const { id, reviewedSha, filePath, startLine, endLine } = finding;
+  if (!filePath || filePath.includes("\0") || path.isAbsolute(filePath) || filePath.split("/").includes(".."))
+    throw Error(`Invalid anchor path for finding ${id}`);
+  git("merge-base", "--is-ancestor", reviewedSha, prev);
+  if (git("cat-file", "-t", `${prev}:${filePath}`) !== "blob") throw Error(`Missing anchor file for finding ${id}`);
+  if (reviewedSha === prev) return finding;
+  // deliberate: Map unchanged lines only. If an edit overlaps the anchor, the operator must re-anchor it.
+  const diff = git("--literal-pathspecs", "diff", "--no-renames", "--no-ext-diff", "--no-textconv", "--no-color",
+    "-U0", reviewedSha, prev, "--", filePath);
+  let delta = 0;
+  const hunks = [...diff.matchAll(/^@@ -(\d+)(?:,(\d+))? \+\d+(?:,(\d+))? @@/gm)];
+  if (diff && !hunks.length) throw Error(`Cannot re-anchor finding ${id}`);
+  for (const [, start, removed, added] of hunks) {
+    const line = Number(start), count = Number(removed ?? 1);
+    if (!count ? line < startLine : line + count <= startLine) delta += Number(added ?? 1) - count;
+    else if (line <= endLine) throw Error(`Cannot re-anchor finding ${id}: its lines changed`);
+  }
+  return { ...finding, startLine: startLine + delta, endLine: endLine + delta };
+}
+
+export function acceptFixes({ git, prev, candidate, fixes }: {
+  git: GitRead; prev: string; candidate: string; fixes: Iterable<FindingFix>;
+}) {
+  if (candidate === prev) throw Error("Fix did not advance HEAD");
+  const ancestor = (from: string, to: string) => git("merge-base", "--is-ancestor", from, to);
+  ancestor(prev, candidate);
+  for (const { id, fixSha } of fixes) {
+    try {
+      if (fixSha === prev || git("cat-file", "-t", fixSha) !== "commit") throw Error();
+      ancestor(prev, fixSha);
+      ancestor(fixSha, candidate);
+    } catch {
+      throw Error(`Finding ${id} fixing SHA is outside the fix range: ${fixSha}`);
+    }
+  }
+}
+
 export function handoff(file: string, stage: HandoffStage) {
   const fd = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
   try {
@@ -743,6 +783,7 @@ async function supervise(o: Options | DesignOptions) {
         const findings = await reviewPublished({
           dir: headDir, repo: target.repo, number: published.number, url: published.url, head: prev,
           signal, clock: o.reviewClock, onEvent: o.onEvent, fixes: pending?.fixes,
+          settlementReason: "Independently verified fix",
           checkHead: async (reviewSignal) => {
             await published.checkHead(reviewSignal);
             checkCandidate();
@@ -761,27 +802,7 @@ async function supervise(o: Options | DesignOptions) {
           const fixOut = path.join(fixDir, "handoff.json");
           clean();
           if (git("rev-parse", "HEAD") !== prev) throw Error("Candidate changed before fix");
-          const anchor = (finding: OpenFinding): OpenFinding => {
-            const { id, reviewedSha, filePath, startLine, endLine } = finding;
-            if (!filePath || filePath.includes("\0") || path.isAbsolute(filePath) || filePath.split("/").includes(".."))
-              throw Error(`Invalid anchor path for finding ${id}`);
-            git("merge-base", "--is-ancestor", reviewedSha, prev);
-            if (git("cat-file", "-t", `${prev}:${filePath}`) !== "blob") throw Error(`Missing anchor file for finding ${id}`);
-            if (reviewedSha === prev) return finding;
-            // deliberate: Map unchanged lines only. If an edit overlaps the anchor, the operator must re-anchor it.
-            const diff = git("--literal-pathspecs", "diff", "--no-renames", "--no-ext-diff", "--no-textconv", "--no-color",
-              "-U0", reviewedSha, prev, "--", filePath);
-            let delta = 0;
-            const hunks = [...diff.matchAll(/^@@ -(\d+)(?:,(\d+))? \+\d+(?:,(\d+))? @@/gm)];
-            if (diff && !hunks.length) throw Error(`Cannot re-anchor finding ${id}`);
-            for (const [, start, removed, added] of hunks) {
-              const line = Number(start), count = Number(removed ?? 1);
-              if (!count ? line < startLine : line + count <= startLine) delta += Number(added ?? 1) - count;
-              else if (line <= endLine) throw Error(`Cannot re-anchor finding ${id}: its lines changed`);
-            }
-            return { ...finding, startLine: startLine + delta, endLine: endLine + delta };
-          };
-          const anchored = findings.map(anchor);
+          const anchored = findings.map((finding) => anchorFinding(git, prev, finding));
           const evidence = path.join(fixDir, "findings.json");
           const prompt = fixPrompt(prev, anchored, fixOut);
           privateFile(evidence, JSON.stringify(anchored));
@@ -791,20 +812,15 @@ async function supervise(o: Options | DesignOptions) {
           signal.throwIfAborted();
           clean();
           const candidate = git("rev-parse", "HEAD");
-          if (candidate === prev) throw Error("Fix did not advance HEAD");
-          const ancestor = (from: string, to: string) => git("merge-base", "--is-ancestor", from, to);
-          ancestor(prev, candidate);
-          if (git("rev-parse", `${candidate}:${rel}`) !== git("rev-parse", `${prev}:${rel}`)) throw Error("Fix changed plan.md");
-          const fixes = findingFixes(handoff(fixOut, "arp-fix").findings, findings);
-          for (const { id, fixSha } of fixes) {
-            try {
-              if (fixSha === prev || git("cat-file", "-t", fixSha) !== "commit") throw Error();
-              ancestor(prev, fixSha);
-              ancestor(fixSha, candidate);
-            } catch {
-              throw Error(`Finding ${id} fixing SHA is outside the fix range: ${fixSha}`);
+          const fixes: FindingFix[] = [];
+          // Check candidate ancestry before reading the plan blob or handoff, as before extraction.
+          acceptFixes({ git, prev, candidate, fixes: (function* () {
+            if (git("rev-parse", `${candidate}:${rel}`) !== git("rev-parse", `${prev}:${rel}`)) throw Error("Fix changed plan.md");
+            for (const fix of findingFixes(handoff(fixOut, "arp-fix").findings, findings)) {
+              fixes.push(fix);
+              yield fix;
             }
-          }
+          })() });
           pending = { head: candidate, fixes, evidence };
           continue;
         } catch (error) {

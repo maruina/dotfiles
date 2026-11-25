@@ -683,6 +683,9 @@ for (const failure of [
       else await result;
       if (key === "two-heads") {
         assert.deepEqual(phases.slice(-5), ["review", "fix", "verify", "publish", "review"]);
+        const runDir = await result;
+        const request = JSON.parse(fs.readFileSync(path.join(runDir, "arp-head-2", "arp-settlement-42-request.json"), "utf8"));
+        assert.match(request.input.reason, /^Independently verified fix:/);
         const argvCalls = fs.readFileSync(log, "utf8").trim().split("\n").map((line) => JSON.parse(line) as string[]);
         const reviewCall = argvCalls.find((args) => args.some((a) => a.includes("_arp.ts")));
         const fixCall = argvCalls.find((args) => args.at(-1)?.startsWith("ARP fix."));

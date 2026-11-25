@@ -68,7 +68,7 @@ No `design.md` exists. `AGENTS.md` permits starting at `/plan` when the design i
 - Pass the selected account's token as `GH_TOKEN` only to the authenticated `gh` subprocesses that `publisher()` in `_publish.ts` runs (its existing `ghEnv`). Keep `GH_TOKEN` and `GITHUB_TOKEN` out of every Pi model child (`attempt()`, `paneArgv()`), every `git` and `ssh` subprocess, and the `ddtool` ARP token command.
 - Keep all run evidence under `~/.pi/agent/lifecycle-runs/` with `0700` directories and `0600` files.
 - Emit `phase("review")`, `phase("fix")`, and `phase("publish")` events so the Pi widget and Rex OSC 7501 status show live progress and phase totals.
-- Every stop message names the PR URL, current head SHA, stop reason, and affected finding IDs.
+- Every stop message names the stop reason. It also names the PR URL, the current head SHA, and the affected finding IDs when the runner knows them. A stop that happens before `lookup()` confirms an open PR omits the PR URL, and a stop before any remote call makes no call to find it.
 
 ### Failure Modes to Handle
 | Failure | Required behavior |

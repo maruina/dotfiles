@@ -35,6 +35,8 @@ function duration(ms: number) {
   return [Math.floor(seconds / 60), seconds % 60].map(n => String(n).padStart(2, "0")).join(":");
 }
 
+const phaseLabel = (phase: Phase) => (phase === "review" ? "Waiting for ARP review" : phase);
+
 export function phaseDisplay(
   widget: (lines: string[] | undefined) => void,
   append: (summary: string) => void,
@@ -59,7 +61,7 @@ export function phaseDisplay(
     if (active) totals.set(active.phase, (totals.get(active.phase) ?? 0) + at - active.at);
   }
   let skills = "";
-  const history = () => [...totals].map(([phase, ms]) => phase + " " + duration(ms)).join(" · ");
+  const history = () => [...totals].map(([phase, ms]) => phaseLabel(phase) + " " + duration(ms)).join(" · ");
   function tick() {
     if (!active) return;
     const { at } = active;
@@ -83,7 +85,7 @@ export function phaseDisplay(
         const title = Array.from(slice.title.replace(/[\p{Cc}\p{Zl}\p{Zp}]/gu, "?"));
         label = `execute slice ${slice.number}: ${title.length > 60 ? title.slice(0, 59).join("") + "…" : title.join("")}`;
       } else {
-        label = launch === undefined ? phase : phase === "execute" ? `execute slice ${launch}` : `verify ${launch} of 3`;
+        label = launch === undefined ? phaseLabel(phase) : phase === "execute" ? `execute slice ${launch}` : `verify ${launch} of 3`;
       }
       tick();
       interval ??= setInterval(tick, 1000);
@@ -168,7 +170,7 @@ export function rexActivity(write: (sequence: string) => void) {
   }
   return {
     phase: (phase: Exclude<Phase, "recovery">) =>
-      report({ state: "working", message: phase, progress: PHASE_PROGRESS[phase] }),
+      report({ state: "working", message: phaseLabel(phase), progress: PHASE_PROGRESS[phase] }),
     working: (message: string, progress?: number) =>
       report({ state: "working", message, progress }),
     recovery: (message: string) => report({ state: "blocked", kind: "question", message }),
@@ -312,7 +314,7 @@ export default function stageRunner(pi: ExtensionAPI) {
             },
           });
           state = "done";
-          outcome = "ARP complete; evidence " + evidence;
+          outcome = "ARP complete - No issues found; evidence " + evidence;
           return;
         }
         const plan = path.resolve(ctx.cwd, arg.trim().replace(/^(['"])(.*)\1$/, "$2"));

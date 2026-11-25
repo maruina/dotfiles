@@ -20,6 +20,7 @@
 | `learning-candidates` | `prompt-required` | Confirmed review fix disproved the planned `stage-runner` hook | Recorded the `stage-runner` `progress()` vs `onEvent` finding under `## Learning candidates`. |
 
 ### Execution
+- Slice 1 writer: `google/gemini-4-neon`. Confirmed the writer from saved execution records for `986b8ac`, `7a5fbf7`, `afec059`, and `5217893`.
 - Slice 2 writer: `openai/gpt-6.2-sol` (GPT-6.2 Sol).
 
 | Skill | Source | Why loaded | How used |
@@ -268,13 +269,14 @@
 - [x] Commit with `docs(pi): document session PR tracking in pr-status` if any documentation file changed.
 
 ### Task 7: Final verification
+**Execution note:** `npm ci --ignore-scripts`, `npm test`, `npm run typecheck`, and `npm run test:all` passed. The first full run hit the tool's 240-second limit during integration. The same command completed on retry: 545 fast tests passed (4 skipped), 143 integration tests passed, and typecheck and smoke passed. An offline smoke with explicit source entrypoints reported no extension load errors. A read-only replay of the planned session recovered both PRs and formatted two status lines after correcting a missing `statusCheckRollup` field in the mock; it did not validate live GitHub data or Rex links. Removed disposable dependencies.
 **Delivers:** Verified TypeScript typecheck, full fast + integration + smoke test suite, and clean disposable dependency cleanup.
 **Blocked by:** Tasks 1-6
 **Traces to:** All requirements in `## Acceptance Criteria`
 **Files:** `dot_pi/agent/`
 
-- [ ] From `dot_pi/agent/`, run `npm ci --ignore-scripts`, `npm test`, `npm run typecheck`, and `npm run test:all` (unsetting `PI_STAGE_RUNNER_CHILD` if inherited); expect all fast, integration, typecheck, and smoke tests to pass with zero extension load errors.
-- [ ] Remove disposable `dot_pi/agent/node_modules` after all suites complete and confirm `git status --short` is clean.
+- [x] From `dot_pi/agent/`, run `npm ci --ignore-scripts`, `npm test`, `npm run typecheck`, and `npm run test:all` (unsetting `PI_STAGE_RUNNER_CHILD` if inherited); expect all fast, integration, typecheck, and smoke tests to pass with zero extension load errors.
+- [x] Remove disposable `dot_pi/agent/node_modules` after all suites complete and confirm `git status --short` is clean.
 
 ## Post-publication validation
 - **Live backfill and multi-PR footer check:** After running `chezmoi --source "$PWD" diff` and `chezmoi --source "$PWD" apply` for the changed extension targets, Matteo runs `/reload` in Pi session `01a20e46-1f69-70aa-84b9-23470cff9866` (running on `resource-quotas-manager` `main`). **Owner:** Matteo. **Trigger:** After `chezmoi apply`. **Expected evidence:** Two PR lines appear below the model line — `k8s-platform-resources#31949` and `#564` — with accurate state, clickable OSC 8 links, CI symbols, and unreplied comment counts. **Gates:** Merging to `main`.

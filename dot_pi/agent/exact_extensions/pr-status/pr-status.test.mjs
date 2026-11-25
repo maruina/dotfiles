@@ -236,19 +236,25 @@ test("query requests bounded CI and last-comment data and counts unreplied threa
   }
 });
 
-function session({ hasUI = true, mode = "tui", checkout = branch, origin = remote } = {}) {
+function session({ hasUI = true, mode = "tui", checkout = branch, origin = remote, now = () => Date.parse("2026-04-02T12:00:00Z") } = {}) {
   const hooks = new Map();
   const statuses = [];
   const commands = [];
   const pending = new Map();
-  const state = { checkout, origin, defaultRef: "origin/trunk", graphql: () => response([pr]) };
+  const state = {
+    checkout,
+    origin,
+    defaultRef: "origin/trunk",
+    graphql: () => response([pr]),
+  };
   createPrStatusExtension({
     profile: () => "work",
+    now,
     async run(signal, command, args, actualCwd, timeout) {
       commands.push({ signal, command, args });
       assert.equal(actualCwd, cwd);
       assert.equal(timeout, 10000);
-      if (command === "gh") return args[0] === "auth" ? "test-token" : state.graphql(signal);
+      if (command === "gh") return args[0] === "auth" ? "test-token" : state.graphql(signal, args);
       assert.equal(command, "git");
       if (args[0] === "branch") return state.checkout;
       if (args[0] === "symbolic-ref") return state.defaultRef;
@@ -269,8 +275,8 @@ function session({ hasUI = true, mode = "tui", checkout = branch, origin = remot
       assert.ok(pending.size <= 1);
       return pending.values().next().value?.delay;
     },
-    emit(name) {
-      hooks.get(name)({}, ctx);
+    emit(name, event = {}) {
+      hooks.get(name)?.(event, ctx);
       return drain();
     },
     tick() {
@@ -369,4 +375,198 @@ test("session runs at most one request and shutdown aborts it without late statu
   assert.equal(s.commands.length, count);
   assert.equal(s.delay(), undefined);
   assert.deepEqual(s.statuses, []);
+});
+
+function bashResult(command, text, isError = false) {
+  return { toolName: "bash", isError, input: { command }, content: [{ type: "text", text }] };
+}
+
+function makePr(owner, repo, number, overrides = {}) {
+  return {
+    ...pr,
+    number,
+    title: `PR ${number}`,
+    url: `https://github.com/${owner}/${repo}/pull/${number}`,
+    headRepository: { nameWithOwner: `${owner}/${repo}` },
+    ...overrides,
+  };
+}
+
+function byNumberArgs(args) {
+  const owner = args.find((a) => a.startsWith("owner="))?.slice(6);
+  const repo = args.find((a) => a.startsWith("repo="))?.slice(5);
+  const number = Number(args.find((a) => a.startsWith("number="))?.slice(7));
+  return { owner, repo, number };
+}
+
+test("compound gh pr create tool results on main track and poll cross-repo and same-repo PRs", async () => {
+  const s = session({ checkout: "main", origin: "git@github.com:ddoghq/resource-quotas-manager.git" });
+  const prs = new Map([
+    ["ddoghq/k8s-platform-resources#31949", makePr("ddoghq", "k8s-platform-resources", 31949, { title: "Add quota" })],
+    ["ddoghq/resource-quotas-manager#564", makePr("ddoghq", "resource-quotas-manager", 564, { title: "Fix manager" })],
+  ]);
+  s.state.graphql = (_signal, args) => {
+    const { owner, repo, number } = byNumberArgs(args);
+    return byNumberResponse(prs.get(`${owner}/${repo}#${number}`) ?? null);
+  };
+
+  await s.emit("session_start");
+  assert.deepEqual(s.statuses, []);
+
+  await s.emit("tool_result", bashResult(
+    "cd ~/dd/.worktrees/k8s-platform-resources/fix && gh pr create --fill",
+    "https://github.com/ddoghq/k8s-platform-resources/pull/31949\nTip: gh event listen https://github.com/ddoghq/k8s-platform-resources/pull/31949",
+  ));
+  await s.emit("tool_result", bashResult(
+    "cd ~/dd/.worktrees/resource-quotas-manager/fix && gh pr edit 564 --title 'Fix manager'",
+    "https://github.com/ddoghq/resource-quotas-manager/pull/564\n",
+  ));
+
+  const last = s.statuses.at(-1)?.[1];
+  assert.ok(last);
+  const lines = last.split("\n");
+  assert.equal(lines.length, 2);
+  assert.match(lines[0], /k8s-platform-resources#31949 Add quota/);
+  assert.match(lines[1], /\x1b\\#564 Fix manager/);
+  assert.equal(s.delay(), 120000);
+});
+
+test("input tracks /pr-address-feedback URLs and ignores read-only commands, failed commands, and other prompts", async () => {
+  const s = session({ checkout: "main", origin: "git@github.com:ddoghq/compute.git" });
+  s.state.graphql = (_signal, args) => {
+    const { owner, repo, number } = byNumberArgs(args);
+    return byNumberResponse(makePr(owner, repo, number));
+  };
+  await s.emit("session_start");
+
+  // Negative cases: read-only bash, failed gh pr create, invalid URL, non-allowlisted prompt
+  await s.emit("tool_result", bashResult("gh pr view 1", "https://github.com/ddoghq/compute/pull/1"));
+  await s.emit("tool_result", bashResult("cat README.md", "https://github.com/ddoghq/compute/pull/2"));
+  await s.emit("tool_result", bashResult("gh pr create --fill", "https://github.com/ddoghq/compute/pull/3", true));
+  await s.emit("tool_result", bashResult("gh pr create --fill", "https://github.com/ddoghq/compute/issues/4"));
+  await s.emit("input", { text: "/pr-validate https://github.com/ddoghq/compute/pull/5" });
+  assert.deepEqual(s.statuses, []);
+
+  // Positive case: /pr-address-feedback with discussion fragment
+  await s.emit("input", { text: "/pr-address-feedback https://github.com/ddoghq/compute/pull/42#discussion_r99" });
+  assert.equal(s.statuses.length, 1);
+  assert.match(s.statuses[0][1], /#42 PR 42/);
+});
+
+test("PR added while a refresh is in flight triggers an immediate follow-up refresh and resets backoff", async () => {
+  const s = session({ checkout: "main", origin: "git@github.com:ddoghq/compute.git" });
+  let releaseFirst;
+  let graphqlCalls = 0;
+  s.state.graphql = (_signal, args) => {
+    graphqlCalls++;
+    const { owner, repo, number } = byNumberArgs(args);
+    if (graphqlCalls === 1) {
+      return new Promise((resolve) => {
+        releaseFirst = () => resolve(null); // fail first refresh to verify retryMs reset
+      });
+    }
+    return byNumberResponse(makePr(owner, repo, number));
+  };
+
+  await s.emit("session_start");
+  await s.emit("tool_result", bashResult("gh pr create", "https://github.com/ddoghq/compute/pull/10"));
+  assert.equal(graphqlCalls, 1);
+
+  // Add second PR while first refresh is still inFlight
+  await s.emit("tool_result", bashResult("gh pr create", "https://github.com/ddoghq/compute/pull/11"));
+  assert.equal(graphqlCalls, 1);
+
+  releaseFirst();
+  await s.drain();
+  await s.drain();
+
+  const last = s.statuses.at(-1)?.[1];
+  assert.ok(last);
+  assert.equal(last.split("\n").length, 2);
+  assert.match(last, /#10 PR 10/);
+  assert.match(last, /#11 PR 11/);
+  assert.equal(s.delay(), 120000);
+});
+
+test("branch PR renders first, deduplicates with tracked PRs, and does not count against the 5-PR tracked cap", async () => {
+  const s = session({ checkout: branch, origin: remote });
+  s.state.graphql = (_signal, args) => {
+    if (args.some((a) => a.startsWith("headRef="))) {
+      return response([makePr("ddoghq", "compute", 99, { title: "Branch PR" })]);
+    }
+    const { owner, repo, number } = byNumberArgs(args);
+    return byNumberResponse(makePr(owner, repo, number));
+  };
+
+  await s.emit("session_start");
+  // Track the branch PR itself (should deduplicate) plus 6 distinct PRs (oldest #1 evicted)
+  await s.emit("tool_result", bashResult("gh pr edit 99", "https://github.com/ddoghq/compute/pull/99"));
+  for (const n of [1, 2, 3, 4, 5, 6]) {
+    await s.emit("tool_result", bashResult("gh pr create", `https://github.com/ddoghq/compute/pull/${n}`));
+  }
+
+  const lines = s.statuses.at(-1)[1].split("\n");
+  assert.equal(lines.length, 6);
+  assert.match(lines[0], /#99 Branch PR/);
+  assert.match(lines[1], /#2 PR 2/);
+  assert.match(lines[2], /#3 PR 3/);
+  assert.match(lines[3], /#4 PR 4/);
+  assert.match(lines[4], /#5 PR 5/);
+  assert.match(lines[5], /#6 PR 6/);
+});
+
+test("CLOSED PRs drop immediately and MERGED PRs drop 24 hours after mergedAt", async () => {
+  let currentTime = Date.parse("2026-04-02T11:00:00Z"); // 23h after mergedAt
+  const mergedAt = "2026-04-01T12:00:00Z";
+  const s = session({ checkout: "main", origin: remote, now: () => currentTime });
+  let pr1State = "OPEN";
+  s.state.graphql = (_signal, args) => {
+    const { owner, repo, number } = byNumberArgs(args);
+    if (number === 1) return byNumberResponse(makePr(owner, repo, 1, { state: pr1State }));
+    return byNumberResponse(makePr(owner, repo, 2, { state: "MERGED", mergedAt }));
+  };
+
+  await s.emit("session_start");
+  await s.emit("tool_result", bashResult("gh pr create", "https://github.com/ddoghq/compute/pull/1"));
+  await s.emit("tool_result", bashResult("gh pr create", "https://github.com/ddoghq/compute/pull/2"));
+  assert.equal(s.statuses.at(-1)[1].split("\n").length, 2);
+
+  // Transition PR 1 to CLOSED at T (PR 2 is 23h merged -> still visible)
+  pr1State = "CLOSED";
+  await s.tick();
+  const afterClose = s.statuses.at(-1)[1].split("\n");
+  assert.equal(afterClose.length, 1);
+  assert.match(afterClose[0], /\[merged\].*#2 PR 2/);
+
+  // Advance to T + 2h (PR 2 is 25h merged -> pruned)
+  currentTime += 2 * 60 * 60 * 1000;
+  await s.tick();
+  assert.deepEqual(s.statuses.at(-1), ["pr-status", undefined]);
+  assert.equal(s.delay(), undefined);
+});
+
+test("partial failure marks only the failed PR stale while healthy PRs update normally", async () => {
+  const s = session({ checkout: "main", origin: remote });
+  let failPr1 = false;
+  let pr2Title = "Initial";
+  s.state.graphql = (_signal, args) => {
+    const { owner, repo, number } = byNumberArgs(args);
+    if (number === 1) return failPr1 ? null : byNumberResponse(makePr(owner, repo, 1, { title: "First" }));
+    return byNumberResponse(makePr(owner, repo, 2, { title: pr2Title }));
+  };
+
+  await s.emit("session_start");
+  await s.emit("tool_result", bashResult("gh pr create", "https://github.com/ddoghq/compute/pull/1"));
+  await s.emit("tool_result", bashResult("gh pr create", "https://github.com/ddoghq/compute/pull/2"));
+
+  failPr1 = true;
+  pr2Title = "Updated";
+  await s.tick();
+
+  const lines = s.statuses.at(-1)[1].split("\n");
+  assert.equal(lines.length, 2);
+  assert.match(lines[0], /#1 First\x1b\]8;;\x1b\\ stale\t/);
+  assert.match(lines[1], /#2 Updated\x1b\]8;;\x1b\\\t/);
+  assert.ok(!lines[1].includes("stale"));
+  assert.equal(s.delay(), 240000);
 });

@@ -14,12 +14,23 @@ import stageRunner, { phaseDisplay, rexActivity } from "./index.ts";
 import { sessionInfo } from "./_recovery.ts";
 import { arpTool, createDirectArpCaller, reviewPublished } from "./_arp.ts";
 
-test("ARP review accepts one optional bounded head limit", async () => {
+test("ARP review accepts an optional PR URL and bounded head limit", async () => {
   const { parseArpReviewArgs } = await import("./_arp-review.ts");
-  for (const [arg, maxHeads] of [["", 5], [" --max-heads 3 ", 3], ["--max-heads=10", 10], ["--max-heads 1", 1]] as const)
-    assert.deepEqual(parseArpReviewArgs(arg), { maxHeads });
+  const prUrl = "https://github.com/ddoghq/demo/pull/1";
+  for (const [arg, expected] of [
+    ["", { maxHeads: 5 }],
+    [" --max-heads 3 ", { maxHeads: 3 }],
+    ["--max-heads=10", { maxHeads: 10 }],
+    ["--max-heads 1", { maxHeads: 1 }],
+    [prUrl, { maxHeads: 5, prUrl }],
+    [`${prUrl}#discussion_r123`, { maxHeads: 5, prUrl }],
+    [`${prUrl} --max-heads 2`, { maxHeads: 2, prUrl }],
+    [`--max-heads=4 ${prUrl}`, { maxHeads: 4, prUrl }],
+  ] as const)
+    assert.deepEqual(parseArpReviewArgs(arg), expected);
   for (const arg of ["--max-heads", "--max-heads=", "--max-heads 0", "--max-heads -1", "--max-heads 11", "--max-heads abc",
-    "--max-heads=1.5", "--max-heads=1e0", "--unknown", "extra", "--max-heads 3 extra", "--max-heads=1 --max-heads=2"])
+    "--max-heads=1.5", "--max-heads=1e0", "--unknown", "extra", "--max-heads 3 extra", "--max-heads=1 --max-heads=2",
+    "http://github.com/ddoghq/demo/pull/1", "https://github.com/ddoghq/demo/issues/1", `${prUrl} ${prUrl}`])
     assert.throws(() => parseArpReviewArgs(arg), /\/arp-review.*--max-heads.*1.*10/, arg);
 });
 

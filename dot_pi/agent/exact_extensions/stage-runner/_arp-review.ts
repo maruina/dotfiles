@@ -1,7 +1,9 @@
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
-import { scrubbedGhEnv } from "../_shared/github.ts";
+import { isWorkGitHubOrg, parseGitHubOwnerRepo, parsePullRequestUrl, scrubbedGhEnv, selectGitHubLogin } from "../_shared/github.ts";
+import { getProfile } from "../_shared/profile.ts";
 import { arpReviewFixPrompt, createDirectArpCaller, partitionFindingFixes, reviewPublished, type FindingFix } from "./_arp.ts";
 import { publisher } from "./_publish.ts";
 import { acceptFixes, acquireRun, anchorFinding, attempt, handoff, privateFile, type Options, type Phase } from "./_runner.ts";
@@ -9,39 +11,146 @@ import { acceptFixes, acquireRun, anchorFinding, attempt, handoff, privateFile, 
 const defaultMaxHeads = 5;
 const maxAllowedHeads = 10;
 
-export function parseArpReviewArgs(arg: string) {
+export function parseArpReviewArgs(arg: string): { maxHeads: number; prUrl?: string } {
+  const usage = `Use /arp-review [<pr-url>] [--max-heads <N>] with an integer from 1 to ${maxAllowedHeads}.`;
   const input = arg.trim();
   if (!input) return { maxHeads: defaultMaxHeads };
-  const match = /^--max-heads(?:[ \t]+|=)([0-9]+)$/.exec(input);
-  const maxHeads = Number(match?.[1]);
-  if (!Number.isInteger(maxHeads) || maxHeads < 1 || maxHeads > maxAllowedHeads)
-    throw Error(`Use /arp-review [--max-heads <N>] with an integer from 1 to ${maxAllowedHeads}.`);
-  return { maxHeads };
+  const tokens = input.split(/\s+/);
+  let maxHeads: number | undefined;
+  let prUrl: string | undefined;
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    if (token === "--max-heads" || token.startsWith("--max-heads=")) {
+      if (maxHeads !== undefined) throw Error(usage);
+      const raw = token === "--max-heads" ? tokens[++i] : token.slice("--max-heads=".length);
+      if (!raw || !/^[0-9]+$/.test(raw)) throw Error(usage);
+      const parsed = Number(raw);
+      if (!Number.isInteger(parsed) || parsed < 1 || parsed > maxAllowedHeads) throw Error(usage);
+      maxHeads = parsed;
+      continue;
+    }
+    if (token.startsWith("-") || prUrl !== undefined) throw Error(usage);
+    try {
+      prUrl = parsePullRequestUrl(token).url;
+    } catch {
+      throw Error(usage);
+    }
+  }
+  return { maxHeads: maxHeads ?? defaultMaxHeads, ...(prUrl ? { prUrl } : {}) };
 }
 
 type ArpReviewOptions = Omit<Options, "plan" | "models" | "approve" | "rexCommand"> & {
   models: Pick<Options["models"], "execute">;
   maxHeads: number;
+  prUrl?: string;
 };
+
+function runGit(cwd: string, env: NodeJS.ProcessEnv, ...args: string[]) {
+  return execFileSync("git", args, {
+    cwd, env, encoding: "utf8", timeout: 10000, maxBuffer: 4 * 1024 * 1024,
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trimEnd();
+}
+
+function resolvePrWorktree({ owner, repo, branch, cwd, env }: {
+  owner: string; repo: string; branch: string; cwd: string; env: NodeJS.ProcessEnv;
+}) {
+  const home = env.HOME || os.homedir();
+  const targetRepo = `${owner}/${repo}`.toLowerCase();
+  const candidates = [
+    cwd,
+    path.join(home, "dd", repo),
+    path.join(home, "go", "src", "github.com", owner, repo),
+    path.join(home, "go", "src", "github.com", "DataDog", repo),
+  ];
+  const seen = new Set<string>();
+  let checkout: string | undefined;
+  for (const candidate of candidates) {
+    if (!fs.existsSync(candidate)) continue;
+    let top: string;
+    try {
+      top = fs.realpathSync(runGit(candidate, env, "rev-parse", "--show-toplevel"));
+    } catch {
+      continue;
+    }
+    if (seen.has(top)) continue;
+    seen.add(top);
+    let remotes: string[];
+    try {
+      remotes = runGit(top, env, "remote", "get-url", "--all", "origin").split("\n");
+    } catch {
+      continue;
+    }
+    if (remotes.some(remote => {
+      const parsed = parseGitHubOwnerRepo(remote);
+      return parsed && `${parsed.owner}/${parsed.repo}`.toLowerCase() === targetRepo;
+    })) {
+      checkout = top;
+      break;
+    }
+  }
+  if (!checkout) throw Error(`No local checkout found for ${owner}/${repo}`);
+  const blocks = runGit(checkout, env, "worktree", "list", "--porcelain").split(/\r?\n\r?\n/);
+  const targetRef = `refs/heads/${branch}`;
+  const matches: string[] = [];
+  for (const block of blocks) {
+    const lines = block.split(/\r?\n/);
+    const worktreeLine = lines.find(line => line.startsWith("worktree "));
+    if (!worktreeLine) continue;
+    if (lines.some(line => line === "prunable" || line.startsWith("prunable "))) continue;
+    if (lines.includes(`branch ${targetRef}`)) matches.push(worktreeLine.slice("worktree ".length));
+  }
+  if (!matches.length) throw Error(`No local worktree found for branch ${branch} of ${owner}/${repo}`);
+  if (matches.length > 1) throw Error(`Multiple local worktrees found for branch ${branch}: ${matches.join(", ")}`);
+  return fs.realpathSync(matches[0]);
+}
 
 export async function runArpReview(o: ArpReviewOptions) {
   if (!Number.isInteger(o.maxHeads) || o.maxHeads < 1 || o.maxHeads > maxAllowedHeads)
     throw Error(`Expected maxHeads from 1 to ${maxAllowedHeads}`);
   const env = scrubbedGhEnv(o.env ?? process.env);
-  const git = (...args: string[]) => execFileSync("git", args, {
-    cwd: o.cwd, env, encoding: "utf8", timeout: 10000, maxBuffer: 4 * 1024 * 1024,
-    stdio: ["ignore", "pipe", "pipe"],
-  }).trimEnd();
-  const cwd = fs.realpathSync(git("rev-parse", "--show-toplevel"));
-  const branch = git("symbolic-ref", "--short", "HEAD");
-  if (["main", "master"].includes(branch)) throw Error("Choose a feature branch");
+  let cwd: string;
+  let branch: string;
+  let requestedPrUrl: string | undefined;
+  if (o.prUrl) {
+    const parsedPr = parsePullRequestUrl(o.prUrl);
+    requestedPrUrl = parsedPr.url;
+    if (getProfile(env, o.profilePath) !== "work") throw Error("/arp-review requires the work profile");
+    if (!isWorkGitHubOrg(parsedPr.owner)) throw Error("/arp-review requires a ddoghq/* or ddoghq-sandbox/* repository");
+    const login = selectGitHubLogin(parsedPr.owner);
+    const token = execFileSync("gh", ["auth", "token", "--hostname", "github.com", "--user", login], {
+      cwd: o.cwd, env, encoding: "utf8", timeout: 10000, stdio: ["ignore", "pipe", "pipe"],
+    }).trim();
+    if (!token) throw Error("Missing GitHub API credential");
+    const ghEnv = { ...env, GH_TOKEN: token };
+    const prView = JSON.parse(execFileSync("gh", [
+      "pr", "view", String(parsedPr.number), "--repo", `${parsedPr.owner}/${parsedPr.repo}`,
+      "--json", "number,url,state,headRefOid,headRefName,baseRefName,headRepository,headRepositoryOwner,isCrossRepository",
+    ], {
+      cwd: o.cwd, env: ghEnv, encoding: "utf8", timeout: 30000, maxBuffer: 1024 * 1024, stdio: ["ignore", "pipe", "pipe"],
+    }));
+    if (prView.state !== "OPEN") throw Error(`No open PR for ${parsedPr.url} (state: ${prView.state ?? "unknown"})`);
+    if (
+      prView.isCrossRepository !== false ||
+      `${prView.headRepositoryOwner?.login}/${prView.headRepository?.name}`.toLowerCase() !== `${parsedPr.owner}/${parsedPr.repo}`.toLowerCase()
+    )
+      throw Error("Conflicting PR target");
+    branch = prView.headRefName;
+    if (!branch || ["main", "master"].includes(branch)) throw Error("Choose a feature branch");
+    cwd = resolvePrWorktree({ owner: parsedPr.owner, repo: parsedPr.repo, branch, cwd: o.cwd, env });
+  } else {
+    cwd = fs.realpathSync(runGit(o.cwd, env, "rev-parse", "--show-toplevel"));
+    branch = runGit(cwd, env, "symbolic-ref", "--short", "HEAD");
+    if (["main", "master"].includes(branch)) throw Error("Choose a feature branch or pass /arp-review <pr-url>");
+  }
+  const git = (...args: string[]) => runGit(cwd, env, ...args);
   let defaultBranch: string;
   try {
     defaultBranch = git("symbolic-ref", "--short", "refs/remotes/origin/HEAD").replace(/^origin\//, "");
   } catch {
     throw Error("Cannot establish origin default branch from refs/remotes/origin/HEAD");
   }
-  if (branch === defaultBranch) throw Error("Choose a feature branch");
+  if (branch === defaultBranch) throw Error("Choose a feature branch or pass /arp-review <pr-url>");
   const clean = () => {
     if (git("status", "--porcelain=v1", "--untracked-files=all") || git("symbolic-ref", "--short", "HEAD") !== branch)
       throw Error("Worktree is dirty or branch changed");
@@ -71,7 +180,8 @@ export async function runArpReview(o: ArpReviewOptions) {
     if (target.branch !== branch || target.base !== defaultBranch) throw Error("GitHub target differs from local branch or base");
     if (!prUrl) throw Error("No open PR for the feature branch");
     const pr = await lookup();
-    if (pr?.url !== prUrl) throw Error("Open PR changed before confirmation");
+    if (pr?.url !== prUrl || (requestedPrUrl && pr.url !== requestedPrUrl))
+      throw Error("Open PR changed before confirmation");
     if (remoteHead !== head || pr.headRefOid !== head)
       throw Error(`Heads differ: local ${head}, remote ${remoteHead}, PR ${pr.headRefOid}`);
     let checkRemoteHead = async (readSignal: AbortSignal) => {

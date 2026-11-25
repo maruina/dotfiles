@@ -117,6 +117,82 @@ for (const [scenario, error] of Object.entries({
   if (fs.existsSync(root)) assert.ok(!fs.readdirSync(root).some(name => name.startsWith("lock-")));
 });
 
+for (const [scenario, error] of Object.entries({
+  "from-base-checkout": undefined,
+  "from-unrelated-cwd": undefined,
+  "closed-pr": /No open PR/i,
+  "missing-worktree": /No local worktree/i,
+  "other-org": /ddoghq/i,
+  "dirty-worktree": /dirty/i,
+})) test(`standalone ARP review by PR URL: ${scenario}`, async (t) => {
+  const { runArpReview } = await import("./_arp-review.ts");
+  const temp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "arp-review-url-test-")));
+  t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
+  const mainCheckout = path.join(temp, "dd", "demo");
+  const featureWorktree = path.join(temp, "wt-feature");
+  const unrelated = path.join(temp, "elsewhere");
+  const bare = path.join(temp, "bare");
+  const bin = path.join(temp, "bin");
+  const root = path.join(temp, "state");
+  for (const dir of [mainCheckout, unrelated, bin]) fs.mkdirSync(dir, { recursive: true });
+  const owner = scenario === "other-org" ? "DataDog" : "ddoghq";
+  const env = {
+    ...process.env, HOME: temp, PATH: bin + path.delimiter + process.env.PATH,
+    GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null", PI_STAGE_RUNNER_CHILD: "", REPO_OWNER: owner,
+    BARE: bare, FAIL: scenario === "closed-pr" ? "closed-pr" : "", ARGV_LOG: path.join(temp, "argv"),
+    GH_TOKEN: "not-for-git", GITHUB_TOKEN: "not-for-git", PI_PROFILE: "work",
+  };
+  const git = (cwd: string, ...args: string[]) => execFileSync("git", args, { cwd, env, encoding: "utf8", stdio: "pipe" }).trim();
+  git(mainCheckout, "init", "-b", "main");
+  git(mainCheckout, "config", "user.name", "Fixture");
+  git(mainCheckout, "config", "user.email", "fixture@example.org");
+  git(mainCheckout, "commit", "--allow-empty", "-qm", "base");
+  const base = git(mainCheckout, "rev-parse", "HEAD");
+  git(mainCheckout, "branch", "feature", base);
+  if (scenario !== "missing-worktree") {
+    git(mainCheckout, "worktree", "add", featureWorktree, "feature");
+    git(featureWorktree, "commit", "--allow-empty", "-qm", "feature");
+  }
+  const head = git(mainCheckout, "rev-parse", "feature");
+  git(mainCheckout, "clone", "--bare", mainCheckout, bare);
+  git(mainCheckout, "remote", "add", "origin", `git@github.com:${owner}/demo.git`);
+  git(mainCheckout, "update-ref", "refs/remotes/origin/main", base);
+  git(mainCheckout, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main");
+  fs.writeFileSync(bare + ".pr", "1");
+  if (scenario === "dirty-worktree") fs.writeFileSync(path.join(featureWorktree, "dirty"), "untracked");
+  for (const name of ["ssh", "gh"]) {
+    const fixture = fs.readFileSync(path.join(import.meta.dirname, "_fixtures", name + ".mjs"), "utf8");
+    fs.writeFileSync(path.join(bin, name), fixture, { mode: 0o700 });
+  }
+  const repo = `${owner}/demo`;
+  const prUrl = `https://github.com/${repo}/pull/1`;
+  const startCwd = scenario === "from-unrelated-cwd" ? unrelated : mainCheckout;
+  const controller = new AbortController();
+  const review = runArpReview({
+    cwd: startCwd, root, env, signal: controller.signal,
+    models: { execute: { provider: "p", id: "a", thinking: "off" } }, maxHeads: 1, prUrl,
+    executable: process.execPath, prefix: [path.join(import.meta.dirname, "_fixtures/pi.mjs")],
+    confirm: async (disclosure) => {
+      assert.ok(disclosure.includes(prUrl));
+      assert.ok(disclosure.includes(head));
+      return true;
+    },
+    onEvent: () => {},
+    arpCall: async ({ name, head: reviewedHead }) => {
+      assert.equal(reviewedHead, head);
+      const target = { owner, repo: "demo", pull_number: 1 };
+      if (name.endsWith("get_status")) return { ...target, status: "REVIEW_STATUS_COMPLETED_NO_POST", head_sha: head };
+      return { ...target, reviewed_sha: head, review_in_progress: false, findings: [], finding_count: 0 };
+    },
+  });
+  if (error) await assert.rejects(review, error);
+  else {
+    const dir = await review;
+    assert.equal(fs.readFileSync(path.join(dir, "completed"), "utf8"), "ARP complete");
+    assert.equal(JSON.parse(fs.readFileSync(path.join(dir, "run.json"), "utf8")).cwd, fs.realpathSync(featureWorktree));
+  }
+});
+
 for (const scenario of ["fix-clean", "needs-operator-single", "needs-operator-mixed", "fix-range", "max-heads-cap"] as const)
 test(`standalone ARP review loop: ${scenario}`, async (t) => {
   const { runArpReview } = await import("./_arp-review.ts");

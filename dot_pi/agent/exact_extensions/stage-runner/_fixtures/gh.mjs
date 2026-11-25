@@ -27,7 +27,22 @@ else if (cmd === "api" && op.endsWith("/rules/branches/feature")) {
     default: json([]);
   }
 } else if (cmd === "api" && op.endsWith("/branches/feature")) json({ protected: process.env.FAIL === "classic-protected" });
-else if (cmd === "pr" && args.includes(repo) && args.includes("--head") && args.includes("feature")) {
+else if (cmd === "pr" && op === "view" && args.includes(repo) && args.includes("1")) {
+  if (!fs.existsSync(marker)) process.exit(1);
+  json({
+    number: 1,
+    url: `https://github.com/${repo}/pull/1`,
+    state: process.env.FAIL === "closed-pr" ? "CLOSED" : "OPEN",
+    headRefOid: execFileSync("git", ["--git-dir=" + process.env.BARE, "rev-parse", "feature"], {
+      encoding: "utf8",
+    }).trim(),
+    headRefName: "feature",
+    baseRefName: process.env.FAIL === "conflict" ? "other" : "main",
+    headRepository: { name: "demo" },
+    headRepositoryOwner: { login: owner },
+    isCrossRepository: false,
+  });
+} else if (cmd === "pr" && args.includes(repo) && args.includes("--head") && args.includes("feature")) {
   if (op === "create") {
     fs.appendFileSync(marker + ".creates", "create\n");
     fs.writeFileSync(marker + ".argv", JSON.stringify(args));

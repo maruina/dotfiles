@@ -12,19 +12,39 @@ test("registers /arp-review and rejects invalid arguments before model selection
   stageRunner({
     registerEntryRenderer() {},
     registerCommand(name: string, command: Command) { commands.set(name, command); },
+    appendEntry() {},
     on() {},
   } as unknown as ExtensionAPI);
   const command = commands.get("arp-review");
   assert.ok(command);
   const messages: string[] = [];
-  await command.handler("--max-heads 0", {
+  for (const bad of ["--max-heads 0", "https://github.com/ddoghq/demo/issues/1"]) {
+    await command.handler(bad, {
+      hasUI: true,
+      ui: {
+        notify: (message: string) => messages.push(message),
+        select: () => assert.fail("Invalid arguments must not select a model"),
+      },
+    } as unknown as Parameters<Command["handler"]>[1]);
+  }
+  assert.match(messages.join("\n"), /--max-heads.*1.*10/);
+  assert.equal(messages.length, 2);
+
+  const prompts: string[] = [];
+  let selected!: () => void;
+  const selectCalled = new Promise<void>(resolve => { selected = resolve; });
+  await command.handler("https://github.com/ddoghq/demo/pull/1", {
     hasUI: true,
+    scopedModels: [{ model: { provider: "p", id: "m" } }],
     ui: {
-      notify: (message: string) => messages.push(message),
-      select: () => assert.fail("Invalid arguments must not select a model"),
+      notify: () => {},
+      setWidget: () => {},
+      select: async (prompt: string) => { prompts.push(prompt); selected(); return undefined; },
     },
   } as unknown as Parameters<Command["handler"]>[1]);
-  assert.match(messages.join("\n"), /--max-heads.*1.*10/);
+  await selectCalled;
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(prompts, ["Select ARP fix model"]);
 });
 
 test("only a settled managed child with its own valid handoff shuts down", (t) => {

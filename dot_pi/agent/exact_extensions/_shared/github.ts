@@ -16,6 +16,25 @@ export function parseGitHubOwnerRepo(remoteUrl: string): { owner: string; repo: 
   return { owner, repo };
 }
 
+export function parsePullRequestUrl(value: string): { owner: string; repo: string; number: number; url: string } {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw Error("Invalid GitHub PR URL");
+  }
+  if (url.protocol !== "https:" || url.hostname !== "github.com" || url.username || url.password || url.port) {
+    throw Error("Invalid GitHub PR URL");
+  }
+  const match = /^\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)\/pull\/([0-9]+)\/?$/.exec(url.pathname);
+  if (!match) throw Error("Invalid GitHub PR URL");
+  const [, owner, repo, rawNumber] = match;
+  if (owner === "." || owner === ".." || repo === "." || repo === "..") throw Error("Invalid GitHub PR URL");
+  const number = Number(rawNumber);
+  if (!Number.isSafeInteger(number) || number < 1) throw Error("Invalid GitHub PR URL");
+  return { owner, repo, number, url: `https://github.com/${owner}/${repo}/pull/${number}` };
+}
+
 export function selectGitHubLogin(owner: string): string {
   return isWorkGitHubOrg(owner) ? "matteo-ruina_ddog" : "maruina";
 }

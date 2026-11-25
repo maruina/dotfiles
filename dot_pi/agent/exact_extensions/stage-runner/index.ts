@@ -221,12 +221,13 @@ export default function stageRunner(pi: ExtensionAPI) {
     handler: async (arg, ctx) => {
       const design = kind === "design", arp = kind === "arp";
       let maxHeads: number | undefined;
+      let prUrl: string | undefined;
       if (arp) {
-        try { ({ maxHeads } = parseArpReviewArgs(arg)); }
+        try { ({ maxHeads, prUrl } = parseArpReviewArgs(arg)); }
         catch (error) { ctx.ui.notify(String(error), "error"); return; }
       }
       if (active || process.env.PI_STAGE_RUNNER_CHILD === "1" || !ctx.hasUI || (!arp && !arg.trim())) {
-        const usage = arp ? "/arp-review [--max-heads <N>]" : design ? "/stage-runner-design <brief>" : "/stage-runner <plan-path>";
+        const usage = arp ? "/arp-review [<pr-url>] [--max-heads <N>]" : design ? "/stage-runner-design <brief>" : "/stage-runner <plan-path>";
         ctx.ui.notify(`Use ${usage} in an idle interactive parent session`, "error");
         return;
       }
@@ -250,7 +251,7 @@ export default function stageRunner(pi: ExtensionAPI) {
         const models = {} as Record<"execute" | "simplify" | "verify", Choice>;
         for (const stage of ["execute", "simplify", "verify"] as const) {
           if ((design && stage === "simplify") || (arp && stage !== "execute")) continue;
-          const label = arp ? "ARP review" : design ? (stage === "execute" ? "author" : "reviewer") : stage;
+          const label = arp ? "ARP fix" : design ? (stage === "execute" ? "author" : "reviewer") : stage;
           controller.signal.throwIfAborted();
           const available = ctx.scopedModels
             .map((entry) => entry.model)
@@ -298,7 +299,7 @@ export default function stageRunner(pi: ExtensionAPI) {
         }
         if (maxHeads !== undefined) {
           const evidence = await runArpReview({
-            ...shared, cwd: ctx.cwd, models: { execute: models.execute }, maxHeads,
+            ...shared, cwd: ctx.cwd, models: { execute: models.execute }, maxHeads, prUrl,
             confirm: async (target, signal) => {
               activity.permission("confirm ARP review");
               const accepted = await ctx.ui.confirm("Start ARP review?", target, { signal });

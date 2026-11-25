@@ -2,9 +2,9 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { scrubbedGhEnv } from "../_shared/github.ts";
-import { createDirectArpCaller, reviewPublished } from "./_arp.ts";
+import { arpReviewFixPrompt, createDirectArpCaller, partitionFindingFixes, reviewPublished, type FindingFix } from "./_arp.ts";
 import { publisher } from "./_publish.ts";
-import { acquireRun, privateFile, type Options } from "./_runner.ts";
+import { acceptFixes, acquireRun, anchorFinding, attempt, handoff, privateFile, type Options, type Phase } from "./_runner.ts";
 
 const defaultMaxHeads = 5;
 const maxAllowedHeads = 10;
@@ -49,16 +49,20 @@ export async function runArpReview(o: ArpReviewOptions) {
   clean();
   const { dir, signal, ownsLock, complete, failure, release } = acquireRun({ ...o, cwd });
   let head: string | undefined, prUrl: string | undefined;
-  let openIds = "";
+  let openIds = "", operatorDetail = "";
+  let pending: { head: string; fixes: FindingFix[] } | undefined;
+  const now = o.now ?? (() => performance.now());
+  const phase = (phase: Exclude<Phase, "recovery">) => o.onEvent({ type: "phase", phase, at: now() });
   const message = (message: string) => o.onEvent({ type: "message", message });
   try {
     const originalHead = git("rev-parse", "HEAD");
     head = originalHead;
-    const checkCandidate = () => {
+    const checkCandidate = (expectedHead: string) => {
+      signal.throwIfAborted();
       clean();
-      if (!ownsLock() || git("rev-parse", "HEAD") !== originalHead) throw Error("Worktree lock or local HEAD changed");
+      if (!ownsLock() || git("rev-parse", "HEAD") !== expectedHead) throw Error("Worktree lock or local HEAD changed");
     };
-    checkCandidate();
+    checkCandidate(originalHead);
     const publication = publisher(cwd, o.profilePath, env, signal);
     const { target, remoteHead, lookup } = await publication.inspect();
     prUrl = target.pr ?? undefined;
@@ -70,34 +74,101 @@ export async function runArpReview(o: ArpReviewOptions) {
     if (pr?.url !== prUrl) throw Error("Open PR changed before confirmation");
     if (remoteHead !== head || pr.headRefOid !== head)
       throw Error(`Heads differ: local ${head}, remote ${remoteHead}, PR ${pr.headRefOid}`);
-    const checkHead = async (readSignal: AbortSignal) => {
+    let checkRemoteHead = async (readSignal: AbortSignal) => {
       const current = await lookup(readSignal);
-      if (current?.url !== pr.url || current.headRefOid !== head)
-        throw Error(`PR head changed; expected ${head}, observed ${current?.headRefOid ?? "no matching open PR"}`);
+      if (current?.url !== pr.url || current.headRefOid !== originalHead)
+        throw Error(`PR head changed; expected ${originalHead}, observed ${current?.headRefOid ?? "no matching open PR"}`);
     };
-    checkCandidate();
+    checkCandidate(originalHead);
     const decision = `Profile: ${target.profile}. SSH repository: ${target.url}. Branch: ${branch}. PR: ${pr.url}. ` +
       `HEAD: ${head}. GitHub login: ${target.login}. Head limit: ${o.maxHeads}. ` +
       "Authorize up to one silent ARP review request per head when ARP permits it. " +
       "The review loop can make non-force pushes of tested fix commits and permanent addressed settlements for fixed findings. " +
-      "This version reviews only the initial head; it does not push or settle findings. " +
       "Cancellation does not undo completed remote writes.";
     const accepted = await o.confirm(decision, signal);
     signal.throwIfAborted();
     if (!accepted) throw Error("ARP review declined; no remote write");
-    checkCandidate();
-    await checkHead(signal);
+    checkCandidate(originalHead);
+    await checkRemoteHead(signal);
     privateFile(path.join(dir, "run.json"), JSON.stringify({ cwd, target, head, models: o.models, maxHeads: o.maxHeads }));
-    const label = `head 1 of ${o.maxHeads}`;
-    o.onEvent({ type: "phase", phase: "review", at: (o.now ?? (() => performance.now()))() });
-    message(`Reviewing ${label}: ${pr.url} at ${head}`);
-    const findings = await reviewPublished({ dir, repo: target.repo, number: pr.number, url: pr.url, head, signal,
-      clock: o.reviewClock, checkHead, call: o.arpCall ?? createDirectArpCaller({ env }), onEvent: o.onEvent,
-      settlementReason: "Author-tested fix" });
-    if (findings.length) {
-      // deliberate: Review only the initial head in Slice 1. Slice 2 adds the fix and re-review loop.
-      openIds = `; open finding IDs: ${findings.map(finding => finding.id).join(", ")}`;
-      throw Error(`${label}: head limit reached (initial review only)`);
+    const arpCall = o.arpCall ?? createDirectArpCaller({ env });
+    for (let reviewedHeads = 1; ; reviewedHeads++) {
+      signal.throwIfAborted();
+      const prev = head;
+      const headDir = reviewedHeads === 1 ? dir : path.join(dir, `arp-head-${reviewedHeads}`);
+      if (headDir !== dir) fs.mkdirSync(headDir, { mode: 0o700 });
+      const label = `head ${reviewedHeads} of ${o.maxHeads}`;
+      phase("review");
+      message(`Reviewing ${label}: ${pr.url} at ${prev}`);
+      const findings = await reviewPublished({
+        dir: headDir,
+        repo: target.repo,
+        number: pr.number,
+        url: pr.url,
+        head: prev,
+        signal,
+        clock: o.reviewClock,
+        checkHead: async (reviewSignal) => {
+          await checkRemoteHead(reviewSignal);
+          checkCandidate(prev);
+        },
+        call: arpCall,
+        onEvent: o.onEvent,
+        fixes: pending?.fixes,
+        settlementReason: "Author-tested fix",
+      });
+      pending = undefined;
+      if (!findings.length) break;
+      const open = findings.map(finding => finding.id).join(", ");
+      openIds = `; open finding IDs: ${open}`;
+      message(`Open findings for ${pr.url} at ${prev}: ${open}`);
+      if (reviewedHeads >= o.maxHeads) {
+        throw Error(`${label}: head limit reached`);
+      }
+      phase("fix");
+      const fixDir = path.join(dir, `arp-fix-${reviewedHeads}`);
+      fs.mkdirSync(fixDir, { mode: 0o700 });
+      const fixOut = path.join(fixDir, "handoff.json");
+      checkCandidate(prev);
+      const anchored = findings.map(finding => anchorFinding(git, prev, finding));
+      privateFile(path.join(fixDir, "findings.json"), JSON.stringify(anchored));
+      const prompt = arpReviewFixPrompt(prev, target.base, anchored, fixOut);
+      await checkRemoteHead(signal);
+      checkCandidate(prev);
+      await attempt(
+        { ...o, cwd, env, models: { execute: o.models.execute, simplify: o.models.execute, verify: o.models.execute } },
+        "arp-fix",
+        fixDir,
+        prompt,
+        signal,
+        undefined,
+        fixOut,
+      );
+      signal.throwIfAborted();
+      clean();
+      const candidate = git("rev-parse", "HEAD");
+      const { fixes, needsOperator } = partitionFindingFixes(handoff(fixOut, "arp-fix").findings, findings);
+      if (needsOperator.length) {
+        const details = needsOperator.map(({ id, reason }) => `#${id}: ${reason.replace(/[^\x20-\x7e]/g, "?")}`).join("; ");
+        const localNote = candidate !== prev ? `; local HEAD ${candidate}` : "";
+        operatorDetail = `; ${details}${localNote}`;
+        throw Error("Operator required");
+      }
+      acceptFixes({ git, prev, candidate, fixes });
+      phase("publish");
+      await checkRemoteHead(signal);
+      const published = await publication.publish(
+        target,
+        candidate,
+        () => checkCandidate(candidate),
+        async () => { throw Error("Unexpected PR draft during /arp-review"); },
+        (step, error) => { throw Error(`Unexpected PR draft failure during /arp-review (${step}): ${error}`); },
+      );
+      head = candidate;
+      openIds = "";
+      pending = { head: candidate, fixes };
+      checkRemoteHead = published.checkHead;
+      message(`Published ${published.url} at ${candidate}`);
     }
     complete("ARP complete");
     message(`ARP complete: ${pr.url} at ${head}`);
@@ -105,8 +176,12 @@ export async function runArpReview(o: ArpReviewOptions) {
   } catch (error) {
     const context = prUrl ? `${prUrl} at ${head}` : head ? `local HEAD ${head}` : "";
     const reason = error instanceof Error ? error.message : String(error);
-    if (context && reason.startsWith(context)) throw failure(reason, openIds);
-    throw failure([context, signal.aborted ? "ARP review canceled" : reason].filter(Boolean).join("; "), openIds);
+    const unsettled = pending && !reason.includes("remaining IDs:")
+      ? `; pushed SHA ${pending.head}; unsettled finding IDs: ${pending.fixes.map(f => f.id).join(", ")}`
+      : "";
+    const detail = `${operatorDetail}${openIds}${unsettled}`;
+    if (context && reason.startsWith(context)) throw failure(reason, detail);
+    throw failure([context, signal.aborted ? "ARP review canceled" : reason].filter(Boolean).join("; "), detail);
   } finally {
     release();
   }

@@ -42,6 +42,18 @@ Task 3 skills:
 | `chezmoi` | `skill-loader` | Edit managed source | Changed source files only and did not apply them. |
 | `write` | `skill-loader` | Draft the prompt and ledger | Used explicit adjudication decisions and recorded the fixture limits. |
 
+Tasks 4–5 writer: `google/gemini-4-neon`.
+
+| Skill | Source | Why loaded | How used |
+|---|---|---|---|
+| `skill-loader` | `prompt-required` | Select execution guidance | Matched the TypeScript runner, managed source, and README updates to the applicable skills. |
+| `resolve-worktree` | `prompt-required` | Resolve the supplied plan | Resolved the plan path to the `maruina/arp-review` worktree before reading or editing files. |
+| `feature-worktree` | `prompt-required` | Keep edits off `main` | Worked and committed in the existing feature worktree. |
+| `codebase-research` | `skill-loader` | Inspect runner, publish, and ARP boundaries | Traced `attempt()`, `publication.publish()`, `reviewPublished()`, and `failure()` truncation limits before wiring the loop. |
+| `chezmoi` | `skill-loader` | Edit managed Pi resources | Modified source files under `dot_pi/agent/` only; did not apply to `$HOME`. |
+| `write` | `skill-loader` | Update README and execution ledger | Stated the fix loop, settlement text, and push-to-settlement recovery steps directly. |
+| `diataxis` | `skill-loader` | Update operator how-to section | Kept the `/arp-review` README section actionable and aligned with the manual recovery guide. |
+
 ## Decision source
 No `design.md` exists. `AGENTS.md` permits starting at `/plan` when the design is clear. Decisions marked "user-confirmed" come from the operator's answers in the `/plan` conversation on 2026-11-24 and in the `/systematic-review` follow-up on the same branch.
 
@@ -235,16 +247,17 @@ The runner SHALL invoke `arp-fix` with the `/pr-address-feedback` adjudication p
 - [x] Commit with `refactor(pi): share ARP fix acceptance and add adjudication prompt`.
 
 ### Task 4: Add the fix, push, settle, and re-review loop
+**Execution:** Writer: `google/gemini-4-neon`. All 5 new integration scenarios (`fix-clean`, `needs-operator-single`, `needs-operator-mixed`, `fix-range`, `max-heads-cap`) failed against the Slice 1 initial-review-only stop before implementation. After implementing the loop in `_arp-review.ts` and updating `README.md`, all 131 scenarios in `_integration.test.ts`, `npm test` (522 passed, 4 skipped; 46 skills validated), and `npm run typecheck` passed. Operator-required details are attached via `failure()` detail rather than the 500-character-truncated error string so all `needs-operator` reasons remain intact.
 **Delivers:** The full `/arp-review` loop up to `maxHeads`.
 **Blocked by:** Task 3
 **Traces to:** Requirement "Loop review, triage/fix, push, and settlement until clean".
 **Files:** `dot_pi/agent/exact_extensions/stage-runner/_arp-review.ts`, `dot_pi/agent/exact_extensions/stage-runner/_fixtures/pi.mjs`, `dot_pi/agent/exact_extensions/stage-runner/_integration.test.ts`, `dot_pi/agent/exact_extensions/stage-runner/README.md`
 
-- [ ] Add focused failing integration scenarios for one fix round to a clean review (assert the recorded settlement `reason` starts with `Author-tested fix:`), single and mixed `needs-operator`, `fixSha` outside the range, and the `maxHeads` cap. Extend `_fixtures/pi.mjs` for mixed `needs-operator` dispositions.
-- [ ] Replace the Slice 1 stop on open findings with the loop: `attempt("arp-fix")`, `partitionFindingFixes()`, `acceptFixes()`, `publication.publish()`, and `reviewPublished()` with `fixes` and `settlementReason: "Author-tested fix"`. Keep the head-cap stop; the Slice 1 `--max-heads 1` scenario must pass unchanged. Use `head N of <maxHeads>` in messages.
-- [ ] Add a README recovery note: after a stop between a confirmed push and settlement, settle the reported finding IDs manually per `## Review or fix a finding manually in the work profile` before the next `/arp-review` run.
-- [ ] Run `cd dot_pi/agent && node --test exact_extensions/stage-runner/_integration.test.ts && npm test && npm run typecheck`.
-- [ ] Commit with `feat(pi): fix and settle ARP findings in /arp-review`.
+- [x] Add focused failing integration scenarios for one fix round to a clean review (assert the recorded settlement `reason` starts with `Author-tested fix:`), single and mixed `needs-operator`, `fixSha` outside the range, and the `maxHeads` cap. Extend `_fixtures/pi.mjs` for mixed `needs-operator` dispositions.
+- [x] Replace the Slice 1 stop on open findings with the loop: `attempt("arp-fix")`, `partitionFindingFixes()`, `acceptFixes()`, `publication.publish()`, and `reviewPublished()` with `fixes` and `settlementReason: "Author-tested fix"`. Keep the head-cap stop; the Slice 1 `--max-heads 1` scenario must pass unchanged. Use `head N of <maxHeads>` in messages.
+- [x] Add a README recovery note: after a stop between a confirmed push and settlement, settle the reported finding IDs manually per `## Review or fix a finding manually in the work profile` before the next `/arp-review` run.
+- [x] Run `cd dot_pi/agent && node --test exact_extensions/stage-runner/_integration.test.ts && npm test && npm run typecheck`.
+- [x] Commit with `feat(pi): fix and settle ARP findings in /arp-review`.
 
 ### Task 5: Final verification
 **Delivers:** Evidence that the full suites pass before independent `/verify`.

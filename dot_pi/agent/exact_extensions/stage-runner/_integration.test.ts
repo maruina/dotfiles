@@ -117,6 +117,144 @@ for (const [scenario, error] of Object.entries({
   if (fs.existsSync(root)) assert.ok(!fs.readdirSync(root).some(name => name.startsWith("lock-")));
 });
 
+for (const scenario of ["fix-clean", "needs-operator-single", "needs-operator-mixed", "fix-range", "max-heads-cap"] as const)
+test(`standalone ARP review loop: ${scenario}`, async (t) => {
+  const { runArpReview } = await import("./_arp-review.ts");
+  const temp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "arp-review-loop-test-")));
+  t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
+  const cwd = path.join(temp, "work"), bare = path.join(temp, "bare"), bin = path.join(temp, "bin"), root = path.join(temp, "state");
+  for (const dir of [cwd, bin]) fs.mkdirSync(dir);
+  const failMap: Record<typeof scenario, string> = {
+    "fix-clean": "",
+    "needs-operator-single": "arp-review-needs-operator",
+    "needs-operator-mixed": "arp-review-mixed",
+    "fix-range": "arp-fix-range",
+    "max-heads-cap": "",
+  };
+  const env = {
+    ...process.env, HOME: temp, PATH: bin + path.delimiter + process.env.PATH,
+    GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null", PI_STAGE_RUNNER_CHILD: "", REPO_OWNER: "ddoghq",
+    BARE: bare, FAIL: failMap[scenario], ARGV_LOG: path.join(temp, "argv"),
+    GH_TOKEN: "not-for-git", GITHUB_TOKEN: "not-for-git", PI_PROFILE: "work",
+  };
+  const git = (...args: string[]) => execFileSync("git", args, { cwd, env, encoding: "utf8", stdio: "pipe" }).trim();
+  git("init", "-b", "main");
+  git("config", "core.hooksPath", "/dev/null");
+  git("config", "user.name", "Fixture");
+  git("config", "user.email", "fixture@example.org");
+  git("config", "commit.gpgsign", "false");
+  git("commit", "--allow-empty", "-qm", "base");
+  const base = git("rev-parse", "HEAD");
+  git("checkout", "-qb", "feature");
+  fs.writeFileSync(path.join(cwd, "example.ts"), "export const x = 1;\n");
+  git("add", "example.ts");
+  git("commit", "-qm", "feature");
+  const head1 = git("rev-parse", "HEAD");
+  git("clone", "--bare", cwd, bare);
+  git("remote", "add", "origin", "git@github.com:ddoghq/demo.git");
+  git("update-ref", "refs/remotes/origin/main", base);
+  git("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main");
+  fs.writeFileSync(bare + ".pr", "1");
+  for (const name of ["ssh", "gh"]) {
+    fs.writeFileSync(path.join(bin, name), fs.readFileSync(path.join(import.meta.dirname, "_fixtures", name + ".mjs")), { mode: 0o700 });
+  }
+  const phases: string[] = [], messages: string[] = [];
+  const settlements: Array<Record<string, unknown>> = [];
+  const findingsById = new Map<number, { finding_id: number; reviewed_sha: string; file_path: string; start_line: number; end_line: number; body: string; status: string; settlement?: Record<string, unknown> }>();
+  const initialIds = scenario === "needs-operator-mixed" ? [42, 43, 44] : [42];
+  for (const id of initialIds) {
+    findingsById.set(id, { finding_id: id, reviewed_sha: head1, file_path: "example.ts", start_line: 1, end_line: 1, body: `Fixture finding ${id}`, status: "open" });
+  }
+  const maxHeads = scenario === "max-heads-cap" ? 2 : 5;
+  const controller = new AbortController();
+  const review = runArpReview({
+    cwd, root, env, signal: controller.signal,
+    models: { execute: { provider: "p", id: "a", thinking: "off" } },
+    maxHeads,
+    executable: process.execPath,
+    prefix: [path.join(import.meta.dirname, "_fixtures/pi.mjs")],
+    confirm: async () => true,
+    onEvent: event => {
+      if (event.type === "phase") phases.push(event.phase);
+      if (event.type === "message") messages.push(event.message);
+    },
+    arpCall: async ({ name, input, head: reviewedHead }) => {
+      const target = { owner: "ddoghq", repo: "demo", pull_number: 1 };
+      if (name.endsWith("resolve_finding")) {
+        settlements.push(input);
+        const existing = findingsById.get(Number(input.finding_id))!;
+        existing.status = "addressed";
+        existing.settlement = { resolution: input.resolution, fix_commit_sha: input.fix_commit_sha };
+        return { ...target, finding: existing };
+      }
+      if (name.endsWith("get_status")) {
+        return { ...target, status: "REVIEW_STATUS_COMPLETED_NO_POST", head_sha: reviewedHead };
+      }
+      if (input.status === "all") {
+        const all = [...findingsById.values()];
+        return { ...target, scope: "pull_request", status_filter: "all", findings: all, finding_count: all.length };
+      }
+      if (reviewedHead === head1) {
+        const open = [...findingsById.values()].filter(f => f.status === "open");
+        return { ...target, reviewed_sha: reviewedHead, review_in_progress: false, findings: open, finding_count: open.length };
+      }
+      if (scenario === "max-heads-cap") {
+        const next = { finding_id: 99, reviewed_sha: reviewedHead, file_path: "example.ts", start_line: 1, end_line: 1, body: "Second-head finding", status: "open" };
+        findingsById.set(99, next);
+        return { ...target, reviewed_sha: reviewedHead, review_in_progress: false, findings: [next], finding_count: 1 };
+      }
+      return { ...target, reviewed_sha: reviewedHead, review_in_progress: false, findings: [], finding_count: 0 };
+    },
+  });
+  if (scenario === "fix-clean") {
+    const dir = await review;
+    const head2 = git("rev-parse", "HEAD");
+    assert.notEqual(head2, head1);
+    assert.equal(fs.readFileSync(path.join(dir, "completed"), "utf8"), "ARP complete");
+    assert.equal(git("--git-dir=" + bare, "rev-parse", "feature"), head2);
+    assert.equal(fs.readFileSync(bare + ".pushes", "utf8").trim(), head2);
+    assert.equal(fs.existsSync(bare + ".pr.creates"), false);
+    assert.equal(settlements.length, 1);
+    assert.equal(settlements[0]!.resolution, "addressed");
+    assert.equal(settlements[0]!.fix_commit_sha, head2);
+    assert.match(String(settlements[0]!.reason), /^Author-tested fix:/);
+    const request = JSON.parse(fs.readFileSync(path.join(dir, "arp-head-2", "arp-settlement-42-request.json"), "utf8"));
+    assert.match(request.input.reason, /^Author-tested fix:/);
+    assert.deepEqual(phases, ["review", "fix", "publish", "review"]);
+    assert.ok(messages.some(m => m.includes("head 1 of 5")));
+    assert.ok(messages.some(m => m.includes("head 2 of 5")));
+  } else if (scenario === "needs-operator-single") {
+    await assert.rejects(review, /42.*Finding 42 needs operator review/);
+    assert.equal(fs.existsSync(bare + ".pushes"), false);
+    assert.equal(settlements.length, 0);
+    assert.equal(git("--git-dir=" + bare, "rev-parse", "feature"), head1);
+    assert.equal(git("rev-parse", "HEAD"), head1);
+  } else if (scenario === "needs-operator-mixed") {
+    await assert.rejects(review, (err: Error) => {
+      assert.match(err.message, /43.*Finding 43 requires an alternative approach/);
+      assert.match(err.message, /44.*Finding 44 requires an alternative approach/);
+      assert.ok(err.message.includes(git("rev-parse", "HEAD")));
+      return true;
+    });
+    assert.equal(fs.existsSync(bare + ".pushes"), false);
+    assert.equal(settlements.length, 0);
+    assert.equal(git("--git-dir=" + bare, "rev-parse", "feature"), head1);
+  } else if (scenario === "fix-range") {
+    await assert.rejects(review, /outside the fix range/i);
+    assert.equal(fs.existsSync(bare + ".pushes"), false);
+    assert.equal(settlements.length, 0);
+    assert.equal(git("--git-dir=" + bare, "rev-parse", "feature"), head1);
+  } else if (scenario === "max-heads-cap") {
+    await assert.rejects(review, /head 2 of 2.*head limit.*99/i);
+    const head2 = git("rev-parse", "HEAD");
+    assert.equal(fs.readFileSync(bare + ".pushes", "utf8").trim(), head2);
+    assert.equal(settlements.length, 1);
+    assert.equal(fs.readFileSync(env.ARGV_LOG, "utf8").trim().split("\n").length, 1);
+    assert.deepEqual(phases, ["review", "fix", "publish", "review"]);
+  }
+  if (fs.existsSync(root)) assert.ok(!fs.readdirSync(root).some(name => name.startsWith("lock-")));
+});
+
 for (const [failure, error] of Object.entries({ blocker: "needs-human", "blocker-cancel": "abort", "blocker-uncertain": "uncertain recovery", "blocker-session": "identity mismatch", "pane-close": "Cannot confirm recovery exit", "cancel-after-exit": "abort", "wait-failure-running": "Cannot confirm recovery exit; lock retained: Rex wait returned invalid exit JSON", corrected: "", "corrected-stale": "Design changed", "corrected-other": "Design changed", "corrected-header": "Draft header", "": "", early: "handoff", header: "Draft header", path: "artifact path", overlap: "author model", stale: "Design changed", invalid: "pi --session", "no-plan": "handoff", reverted: "unrelated path", dirty: "dirty", switch: "Author used reviewer", "pre-check": "Design changed", "approval-race": "expected parent [a-f0-9]+, observed [a-f0-9]+" }))
  test((failure.startsWith("blocker") ? "design blocker: " : failure.startsWith("corrected") ? "corrected design: " : "clean design: ") + (failure || "committed plan without publication"), async (t) => {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), "design-test-"));

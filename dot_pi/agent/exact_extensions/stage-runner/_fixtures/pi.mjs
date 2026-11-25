@@ -71,13 +71,19 @@ if (prompt.startsWith("ARP fix.")) {
   if (!option("--exclude-tools").split(",").includes("mcp__*") || option("--model") !== "a") throw Error("Fix child not restricted");
   const published = headAt("--git-dir=" + process.env.BARE);
   const findings = JSON.parse(prompt.match(/^Findings: (.+)$/m)[1]);
-  fs.appendFileSync("fix.txt", published + "\n");
-  execFileSync("git", ["add", "fix.txt"]);
-  if (fail === "arp-fix-plan") fs.appendFileSync("plans/demo/plan.md", "edited\n");
-  execFileSync("git", ["commit", "-qam", "fix findings"]);
+  if (fail !== "arp-review-needs-operator") {
+    fs.appendFileSync("fix.txt", published + "\n");
+    execFileSync("git", ["add", "fix.txt"]);
+    if (fail === "arp-fix-plan") fs.appendFileSync("plans/demo/plan.md", "edited\n");
+    execFileSync("git", ["commit", "-qam", "fix findings"]);
+  }
   const sha = headAt();
   timeline("fix", { head: sha, published });
-  const fixed = findings.map(({ id }) => ({ id, disposition: "fixed", fixSha: fail === "arp-fix-range" ? published : sha, changeSummary: "Correct the fixture" }));
+  const fixed = findings.map(({ id }, index) => {
+    if (fail === "arp-review-needs-operator") return { id, disposition: "needs-operator", reason: `Finding ${id} needs operator review` };
+    if (fail === "arp-review-mixed" && index > 0) return { id, disposition: "needs-operator", reason: `Finding ${id} requires an alternative approach` };
+    return { id, disposition: "fixed", fixSha: fail === "arp-fix-range" ? published : sha, changeSummary: "Correct the fixture" };
+  });
   if (fail === "arp-findings") fixed[0] = { id: fixed[0].id, disposition: "needs-operator", reason: "Fixture cannot substantiate the finding" };
   if (fail === "arp-fix-missing") fixed.pop();
   if (fail === "arp-fix-duplicate") fixed.push(fixed[0]);

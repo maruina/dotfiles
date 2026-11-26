@@ -133,6 +133,76 @@ export function validateFeatureBranchName(cwd: string, branch: string, defaultBr
   return trimmed;
 }
 
+const STOP_WORDS = new Set([
+  "a", "about", "an", "and", "are", "as", "at", "be", "can", "do", "for", "from", "have",
+  "how", "i", "if", "in", "into", "is", "it", "me", "my", "need", "of", "on", "or", "our",
+  "please", "should", "that", "the", "this", "to", "want", "we", "what", "when", "with", "you",
+]);
+
+function firstConversationSource(brief: string): string {
+  const userMatch = /(?:^|\n)User:\n([^\n]+)/.exec(brief);
+  if (userMatch?.[1]?.trim()) return userMatch[1].trim();
+  for (const line of brief.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || /^(?:Focus:|Conversation context:|Summary of earlier conversation:|User:|Assistant:|\[Earlier conversation omitted)/.test(trimmed)) {
+      continue;
+    }
+    return trimmed;
+  }
+  return "";
+}
+
+function slugifyBranchText(text: string): string {
+  const cleaned = text
+    .replace(/https?:\/\/\S+/g, " ")
+    .replace(/`[^`]*`/g, (m) => m.slice(1, -1))
+    .toLowerCase();
+  const words = cleaned.match(/[a-z0-9]+/g) ?? [];
+  const meaningful = words.filter((w) => !STOP_WORDS.has(w));
+  const chosen = (meaningful.length ? meaningful : words).slice(0, 5);
+  return chosen.join("-").slice(0, 40).replace(/-+$/, "");
+}
+
+function branchExists(cwd: string, branch: string, env?: NodeJS.ProcessEnv): boolean {
+  try {
+    execFileSync("git", ["show-ref", "--verify", "--quiet", "refs/heads/" + branch], {
+      cwd,
+      env,
+      timeout: 10000,
+      stdio: "ignore",
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function deriveDesignBranch(
+  cwd: string,
+  arg: string,
+  brief: string,
+  sessionName: string | undefined,
+  defaultBranch: string,
+  env?: NodeJS.ProcessEnv,
+): string {
+  const jiraMatch =
+    /\b([A-Z]{2,10}-\d+)\b/.exec(arg) ??
+    /\b([A-Z]{2,10}-\d+)\b/.exec(sessionName ?? "") ??
+    /\b([A-Z]{2,10}-\d+)\b/.exec(brief);
+  let slug = jiraMatch ? jiraMatch[1].toLowerCase() : "";
+  if (!slug) {
+    const source = arg.trim() || sessionName?.trim() || firstConversationSource(brief);
+    slug = slugifyBranchText(source) || `design-${Date.now()}`;
+  }
+  const base = "maruina/" + slug;
+  let candidate = base;
+  for (let suffix = 2; suffix <= 99 && branchExists(cwd, candidate, env); suffix++) {
+    candidate = `${base}-${suffix}`;
+  }
+  if (branchExists(cwd, candidate, env)) candidate = `${base}-${Date.now()}`;
+  return validateFeatureBranchName(cwd, candidate, defaultBranch, env);
+}
+
 export function createDesignWorktree(
   cwd: string,
   branch: string,

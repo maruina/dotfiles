@@ -5,7 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { buildDesignBrief, createDesignWorktree, inspectDesignBranch, validateFeatureBranchName } from "./_design.ts";
+import { buildDesignBrief, createDesignWorktree, deriveDesignBranch, inspectDesignBranch, validateFeatureBranchName } from "./_design.ts";
 import stageRunner, { trackPublishedPr } from "./index.ts";
 
 test("registers /arp-review and rejects invalid arguments before model selection", async (t) => {
@@ -198,6 +198,17 @@ process.stdout.write(JSON.stringify({ path: target, branch }));
   assert.equal(created, fs.realpathSync(wtPath));
   assert.equal(git("symbolic-ref", "--short", "HEAD"), "main");
   assert.equal(execFileSync("git", ["symbolic-ref", "--short", "HEAD"], { cwd: created, encoding: "utf8" }).trim(), "maruina/demo");
+
+  assert.equal(deriveDesignBranch(repo, "Fix COMP-4210 footer PR tracking", "", undefined, "main"), "maruina/comp-4210");
+  assert.equal(
+    deriveDesignBranch(repo, "", "Conversation context:\n\nUser:\nTrack session PRs in the Pi footer", undefined, "main"),
+    "maruina/track-session-prs-pi-footer",
+  );
+  assert.equal(
+    deriveDesignBranch(repo, "", "Conversation context:\n\nUser:\nIgnored", "see-only-prs", "main"),
+    "maruina/see-only-prs",
+  );
+  assert.equal(deriveDesignBranch(repo, "demo", "", undefined, "main"), "maruina/demo-2");
 });
 
 test("/stage-runner-design requires either a brief or existing conversation context", async (t) => {

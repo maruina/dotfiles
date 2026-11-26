@@ -8,7 +8,7 @@ import { parsePullRequestUrl } from "../_shared/github.ts";
 import { qualifiedId } from "../_shared/model.ts";
 import stageRunnerHandoff from "./_handoff.ts";
 import { parseArpReviewArgs, runArpReview } from "./_arp-review.ts";
-import { buildDesignBrief, createDesignWorktree, inspectDesignBranch, validateFeatureBranchName } from "./_design.ts";
+import { buildDesignBrief, createDesignWorktree, deriveDesignBranch, inspectDesignBranch } from "./_design.ts";
 import { handoff, run, runDesign, type Choice, type Phase, type RunnerEvent } from "./_runner.ts";
 
 export function trackPublishedPr(pi: ExtensionAPI, event: RunnerEvent) {
@@ -270,15 +270,7 @@ export default function stageRunner(pi: ExtensionAPI) {
           terminal = tui.terminal;
           return { render: () => [], invalidate() {} };
         });
-        let requestedBranch: string | undefined;
-        if (design) {
-          const branchInfo = inspectDesignBranch(ctx.cwd);
-          if (branchInfo.onDefault) {
-            const entered = await ctx.ui.input("Feature branch name", "maruina/<feature>", { signal: controller.signal });
-            if (!entered?.trim()) return;
-            requestedBranch = validateFeatureBranchName(branchInfo.root, entered, branchInfo.defaultBranch);
-          }
-        }
+        const branchInfo = design ? inspectDesignBranch(ctx.cwd) : undefined;
         const models = {} as Record<"execute" | "simplify" | "verify", Choice>;
         for (const stage of ["execute", "simplify", "verify"] as const) {
           if ((design && stage === "simplify") || (arp && stage !== "execute")) continue;
@@ -323,9 +315,10 @@ export default function stageRunner(pi: ExtensionAPI) {
             progress(message);
           };
           let designCwd = ctx.cwd;
-          if (requestedBranch) {
-            designProgress("Creating feature worktree " + requestedBranch);
-            designCwd = createDesignWorktree(ctx.cwd, requestedBranch);
+          if (branchInfo?.onDefault) {
+            const branchName = deriveDesignBranch(branchInfo.root, arg, designBrief, pi.getSessionName?.(), branchInfo.defaultBranch);
+            designProgress("Creating feature worktree " + branchName);
+            designCwd = createDesignWorktree(ctx.cwd, branchName);
             designProgress("Using feature worktree " + designCwd);
           }
           designProgress("Run started.");

@@ -21,6 +21,169 @@ function ensure(ok: boolean, reason: string): asserts ok {
   if (!ok) throw Error(reason);
 }
 
+function extractMessageText(content: unknown): string {
+  if (typeof content === "string") return content.trim();
+  if (!Array.isArray(content)) return "";
+  const parts: string[] = [];
+  for (const item of content) {
+    if (item && typeof item === "object" && (item as { type?: unknown }).type === "text") {
+      const text = (item as { text?: unknown }).text;
+      if (typeof text === "string" && text.trim()) parts.push(text.trim());
+    }
+  }
+  return parts.join("\n").trim();
+}
+
+function trimTailToJsonLimit(prefix: string, body: string, maxJsonBytes: number): string {
+  if (Buffer.byteLength(JSON.stringify(prefix + body)) <= maxJsonBytes) return prefix + body;
+  const chars = Array.from(body);
+  let lo = 0,
+    hi = chars.length;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    const candidate = prefix + chars.slice(chars.length - mid).join("");
+    if (Buffer.byteLength(JSON.stringify(candidate)) <= maxJsonBytes) lo = mid;
+    else hi = mid - 1;
+  }
+  return prefix + chars.slice(chars.length - lo).join("");
+}
+
+export function buildDesignBrief(arg: string, entries: readonly unknown[], maxJsonBytes = 65536): string {
+  const focus = arg.trim();
+  const turns: string[] = [];
+  for (const entry of entries) {
+    if (!entry || typeof entry !== "object") continue;
+    const record = entry as { type?: unknown; summary?: unknown; message?: { role?: unknown; content?: unknown } };
+    if (record.type === "compaction" && typeof record.summary === "string" && record.summary.trim()) {
+      turns.push("Summary of earlier conversation:\n" + record.summary.trim());
+      continue;
+    }
+    if (record.type !== "message" || !record.message || typeof record.message !== "object") continue;
+    const role = record.message.role;
+    if (role !== "user" && role !== "assistant") continue;
+    const text = extractMessageText(record.message.content);
+    if (text) turns.push((role === "user" ? "User:\n" : "Assistant:\n") + text);
+  }
+  if (!focus && !turns.length) return "";
+  if (focus && !turns.length) return focus;
+  const prefix = focus ? `Focus:\n${focus}\n\nConversation context:\n\n` : "Conversation context:\n\n";
+  const full = prefix + turns.join("\n\n");
+  if (Buffer.byteLength(JSON.stringify(full)) <= maxJsonBytes) return full;
+  if (Buffer.byteLength(JSON.stringify(prefix)) > maxJsonBytes) return focus;
+  const omittedPrefix = prefix + "[Earlier conversation omitted for length]\n\n";
+  if (Buffer.byteLength(JSON.stringify(omittedPrefix)) > maxJsonBytes) return focus;
+  const kept: string[] = [];
+  for (let i = turns.length - 1; i >= 0; i--) {
+    const next = [turns[i], ...kept];
+    if (Buffer.byteLength(JSON.stringify(omittedPrefix + next.join("\n\n"))) <= maxJsonBytes) kept.unshift(turns[i]);
+    else break;
+  }
+  if (kept.length) return omittedPrefix + kept.join("\n\n");
+  return trimTailToJsonLimit(omittedPrefix, turns[turns.length - 1], maxJsonBytes);
+}
+
+export function inspectDesignBranch(cwd: string, env?: NodeJS.ProcessEnv) {
+  const git = (...args: string[]) =>
+    execFileSync("git", args, {
+      cwd,
+      env,
+      encoding: "utf8",
+      timeout: 10000,
+      maxBuffer: 4 * 1024 * 1024,
+      stdio: ["ignore", "pipe", "pipe"],
+    }).trimEnd();
+  const root = fs.realpathSync(git("rev-parse", "--show-toplevel"));
+  const branch = git("symbolic-ref", "--short", "HEAD");
+  let hasOrigin = false;
+  try {
+    hasOrigin = git("remote").split("\n").includes("origin");
+  } catch {
+    /* ignore */
+  }
+  let defaultBranch = "";
+  try {
+    defaultBranch = git("symbolic-ref", "--short", "refs/remotes/origin/HEAD").replace(/^origin\//, "");
+  } catch {
+    if (hasOrigin) throw Error("Cannot establish origin default branch");
+  }
+  return {
+    root,
+    branch,
+    defaultBranch,
+    hasOrigin,
+    onDefault: ["main", "master", defaultBranch].includes(branch),
+  };
+}
+
+export function validateFeatureBranchName(cwd: string, branch: string, defaultBranch: string, env?: NodeJS.ProcessEnv): string {
+  const trimmed = branch.trim();
+  ensure(trimmed.length > 0 && !/[\s\x00-\x1f\x7f]/.test(trimmed), "Invalid feature branch name");
+  ensure(!["main", "master", defaultBranch].includes(trimmed), "Choose a feature branch");
+  try {
+    execFileSync("git", ["check-ref-format", "--branch", trimmed], {
+      cwd,
+      env,
+      encoding: "utf8",
+      timeout: 10000,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  } catch {
+    throw Error("Invalid feature branch name");
+  }
+  return trimmed;
+}
+
+export function createDesignWorktree(
+  cwd: string,
+  branch: string,
+  env?: NodeJS.ProcessEnv,
+  wtCommand?: string[],
+): string {
+  const info = inspectDesignBranch(cwd, env);
+  const validBranch = validateFeatureBranchName(info.root, branch, info.defaultBranch, env);
+  const gitIn = (dir: string, ...args: string[]) =>
+    execFileSync("git", args, {
+      cwd: dir,
+      env,
+      encoding: "utf8",
+      timeout: 30000,
+      maxBuffer: 4 * 1024 * 1024,
+      stdio: ["ignore", "pipe", "pipe"],
+    }).trimEnd();
+  const baseHead = gitIn(info.root, "rev-parse", "HEAD");
+  let baseRef = baseHead;
+  if (info.hasOrigin && info.defaultBranch) {
+    gitIn(info.root, "fetch", "origin");
+    baseRef = "origin/" + info.defaultBranch;
+  }
+  const [wtExe, ...wtPrefix] = wtCommand ?? ["wt"];
+  const raw = execFileSync(
+    wtExe,
+    [...wtPrefix, "switch", "--create", validBranch, "--base", baseRef, "--no-cd", "--format=json", "--yes"],
+    {
+      cwd: info.root,
+      env,
+      encoding: "utf8",
+      timeout: 60000,
+      maxBuffer: 4 * 1024 * 1024,
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  ).trim();
+  const parsed = JSON.parse(raw) as { path?: unknown };
+  ensure(typeof parsed.path === "string" && parsed.path.trim().length > 0, "Worktrunk did not return a worktree path");
+  const worktreePath = fs.realpathSync(parsed.path);
+  ensure(
+    gitIn(info.root, "symbolic-ref", "--short", "HEAD") === info.branch && gitIn(info.root, "rev-parse", "HEAD") === baseHead,
+    "Base checkout changed while creating feature worktree",
+  );
+  ensure(
+    gitIn(worktreePath, "symbolic-ref", "--short", "HEAD") === validBranch &&
+      !gitIn(worktreePath, "status", "--porcelain=v1", "--untracked-files=all"),
+    "Created worktree is not clean on " + validBranch,
+  );
+  return worktreePath;
+}
+
 function validateArtifact(cwd: string, git: GitRunner, commit: string, rel: string): string {
   ensure(
     /^(?:[\w.-]+\/)*plans\/[\w.-]+\/(?:design|plan)\.md$/.test(rel) &&

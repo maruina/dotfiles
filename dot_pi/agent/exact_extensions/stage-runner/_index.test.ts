@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import test from "node:test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { buildDesignBrief, createDesignWorktree, inspectDesignBranch, validateFeatureBranchName } from "./_design.ts";
 import stageRunner, { trackPublishedPr } from "./index.ts";
 
 test("registers /arp-review and rejects invalid arguments before model selection", async (t) => {
@@ -106,4 +108,123 @@ test("only a settled managed child with its own valid handoff shuts down", (t) =
     fs.writeFileSync(file, JSON.stringify({ schemaVersion:1, stage:"design-plan", summary:"done", planPath:"plans/a/plan.md", planCommit:"a".repeat(40) }));
     settled(); assert.equal(count, managed ? 1 : 0);
   }
+});
+
+test("buildDesignBrief handles empty input, explicit briefs, conversation seed, and truncation", () => {
+  assert.equal(buildDesignBrief("   ", []), "");
+  assert.equal(buildDesignBrief("  my brief  ", []), "my brief");
+
+  const entries = [
+    { type: "compaction", summary: "Earlier summary." },
+    { type: "message", message: { role: "user", content: "First question" } },
+    {
+      type: "message",
+      message: {
+        role: "assistant",
+        content: [
+          { type: "thinking", thinking: "secret reasoning" },
+          { type: "text", text: "First answer" },
+          { type: "toolCall", name: "bash" },
+        ],
+      },
+    },
+    { type: "message", message: { role: "toolResult", content: [{ type: "text", text: "noisy tool output" }] } },
+    { type: "message", message: { role: "user", content: [{ type: "text", text: "Follow-up" }] } },
+  ];
+
+  const fromChat = buildDesignBrief("", entries);
+  assert.match(fromChat, /^Conversation context:\n\n/);
+  assert.match(fromChat, /Summary of earlier conversation:\nEarlier summary\./);
+  assert.match(fromChat, /User:\nFirst question/);
+  assert.match(fromChat, /Assistant:\nFirst answer/);
+  assert.match(fromChat, /User:\nFollow-up/);
+  assert.doesNotMatch(fromChat, /secret reasoning|noisy tool output/);
+
+  const combined = buildDesignBrief("Focus on hooks", entries);
+  assert.match(combined, /^Focus:\nFocus on hooks\n\nConversation context:\n\n/);
+  assert.match(combined, /Follow-up/);
+
+  const longEntries = Array.from({ length: 20 }, (_, i) => ({
+    type: "message",
+    message: { role: i % 2 === 0 ? "user" : "assistant", content: `turn-${i} ` + "x".repeat(60) },
+  }));
+  const truncated = buildDesignBrief("", longEntries, 300);
+  assert.ok(Buffer.byteLength(JSON.stringify(truncated)) <= 300);
+  assert.match(truncated, /\[Earlier conversation omitted for length\]/);
+  assert.match(truncated, /turn-19/);
+
+  const giant = buildDesignBrief("", [{ type: "message", message: { role: "user", content: "a".repeat(500) + "END" } }], 200);
+  assert.ok(Buffer.byteLength(JSON.stringify(giant)) <= 200);
+  assert.match(giant, /END$/);
+});
+
+test("inspectDesignBranch, validateFeatureBranchName, and createDesignWorktree create a clean worktree from main", (t) => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "design-wt-"));
+  t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+  const repo = path.join(tmp, "repo");
+  const wtPath = path.join(tmp, "wt-feature");
+  fs.mkdirSync(repo);
+  const git = (...args: string[]) => execFileSync("git", args, { cwd: repo, encoding: "utf8" }).trim();
+  git("init", "-b", "main");
+  git("config", "user.email", "test@example.com");
+  git("config", "user.name", "Test");
+  fs.writeFileSync(path.join(repo, "README.md"), "hello\n");
+  git("add", "README.md");
+  git("commit", "-m", "init");
+
+  const info = inspectDesignBranch(repo);
+  assert.equal(info.branch, "main");
+  assert.equal(info.onDefault, true);
+
+  assert.throws(() => validateFeatureBranchName(repo, "", "main"), /Invalid feature branch name/);
+  assert.throws(() => validateFeatureBranchName(repo, "main", "main"), /Choose a feature branch/);
+  assert.throws(() => validateFeatureBranchName(repo, "bad branch", "main"), /Invalid feature branch name/);
+  assert.equal(validateFeatureBranchName(repo, " maruina/demo ", "main"), "maruina/demo");
+
+  const fakeWt = path.join(tmp, "fake-wt.mjs");
+  fs.writeFileSync(
+    fakeWt,
+    `import { execFileSync } from "node:child_process";
+const args = process.argv.slice(2);
+const branch = args[args.indexOf("--create") + 1];
+const base = args[args.indexOf("--base") + 1];
+const target = ${JSON.stringify(wtPath)};
+execFileSync("git", ["worktree", "add", "-b", branch, target, base], { stdio: "ignore" });
+process.stdout.write(JSON.stringify({ path: target, branch }));
+`,
+  );
+
+  const created = createDesignWorktree(repo, "maruina/demo", process.env, [process.execPath, fakeWt]);
+  assert.equal(created, fs.realpathSync(wtPath));
+  assert.equal(git("symbolic-ref", "--short", "HEAD"), "main");
+  assert.equal(execFileSync("git", ["symbolic-ref", "--short", "HEAD"], { cwd: created, encoding: "utf8" }).trim(), "maruina/demo");
+});
+
+test("/stage-runner-design requires either a brief or existing conversation context", async (t) => {
+  const savedChild = process.env.PI_STAGE_RUNNER_CHILD;
+  delete process.env.PI_STAGE_RUNNER_CHILD;
+  t.after(() => {
+    if (savedChild === undefined) delete process.env.PI_STAGE_RUNNER_CHILD;
+    else process.env.PI_STAGE_RUNNER_CHILD = savedChild;
+  });
+  type Command = Parameters<ExtensionAPI["registerCommand"]>[1];
+  const commands = new Map<string, Command>();
+  stageRunner({
+    registerEntryRenderer() {},
+    registerCommand(name: string, command: Command) { commands.set(name, command); },
+    appendEntry() {},
+    on() {},
+  } as unknown as ExtensionAPI);
+  const command = commands.get("stage-runner-design");
+  assert.ok(command);
+  const messages: string[] = [];
+  await command.handler("", {
+    hasUI: true,
+    sessionManager: { getBranch: () => [] },
+    ui: {
+      notify: (message: string) => messages.push(message),
+      select: () => assert.fail("Empty brief and empty conversation must not select a model"),
+    },
+  } as unknown as Parameters<Command["handler"]>[1]);
+  assert.deepEqual(messages, ["Provide a brief or start /stage-runner-design from an existing conversation"]);
 });

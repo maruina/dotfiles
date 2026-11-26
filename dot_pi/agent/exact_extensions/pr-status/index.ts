@@ -46,11 +46,71 @@ const startTimer: SetTimer = (callback, delayMs) => {
   return () => clearTimeout(timer);
 };
 
+function stripShellLiterals(command: string): string {
+  // deliberate: Ignore quoted shell text (while keeping $(...) command substitutions
+  // inside double quotes) and stop at an unquoted here-document. Use a shell parser
+  // if tracking needs to recognize commands after a here-document body.
+  let out = "";
+  const stack: Array<{ kind: "dq" } | { kind: "subst"; depth: number }> = [];
+  for (let i = 0; i < command.length; i++) {
+    const ch = command[i];
+    const top = stack[stack.length - 1];
+    if (top?.kind === "dq") {
+      if (ch === "\\") {
+        i++;
+      } else if (ch === "\"") {
+        stack.pop();
+        out += "_";
+      } else if (ch === "$" && command[i + 1] === "(") {
+        stack.push({ kind: "subst", depth: 1 });
+        out += "(";
+        i++;
+      }
+      continue;
+    }
+    if (ch === "\\") {
+      out += "_";
+      i++;
+    } else if (ch === "'") {
+      const end = command.indexOf("'", i + 1);
+      out += "_";
+      if (end === -1) break;
+      i = end;
+    } else if (ch === "\"") {
+      stack.push({ kind: "dq" });
+    } else if (ch === "`") {
+      out += "_";
+      i++;
+      while (i < command.length && command[i] !== "`") {
+        if (command[i] === "\\") i++;
+        i++;
+      }
+    } else if (ch === "#" && (i === 0 || /[\s;&|()]/.test(command[i - 1]))) {
+      const end = command.indexOf("\n", i + 1);
+      out += "_";
+      if (end === -1) break;
+      i = end - 1;
+    } else if (ch === "<" && command[i + 1] === "<") {
+      out += "_";
+      break;
+    } else if (ch === "(") {
+      if (top?.kind === "subst") top.depth++;
+      out += "(";
+    } else if (ch === ")") {
+      if (top?.kind === "subst") {
+        top.depth--;
+        if (top.depth === 0) stack.pop();
+      }
+      out += ")";
+    } else {
+      out += ch;
+    }
+  }
+  return out;
+}
+
 function isTrackedGhPrCommand(command: string): boolean {
-  // deliberate: Ignore quoted shell text and stop at an unquoted here-document.
-  // Use a shell parser if tracking needs to recognize commands after its body.
-  const shellLiterals = /'(?:[^']*)(?:'|$)|"(?:\\[\s\S]|[^"\\])*(?:"|$)|`(?:\\[\s\S]|[^`\\])*(?:`|$)|\\[\s\S]|(?<![^\s;&|()])#[^\n]*|<<[\s\S]*/g;
-  return GH_PR_WRITE_COMMAND.test(command.replace(shellLiterals, "_"));
+  return GH_PR_WRITE_COMMAND.test(stripShellLiterals(command));
 }
 
 function parsePrRef(value: string): PrRef | null {
@@ -62,24 +122,36 @@ function parsePrRef(value: string): PrRef | null {
   }
 }
 
-function extractFirstPrUrl(text: string): PrRef | null {
+function extractPrUrls(text: string): PrRef[] {
+  const prs: PrRef[] = [];
+  const seen = new Set<string>();
   for (const match of text.matchAll(PR_URL_CANDIDATE)) {
     const pr = parsePrRef(match[0]);
-    if (pr) return pr;
+    if (!pr) continue;
+    const key = prKey(pr);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    prs.push(pr);
   }
-  return null;
+  return prs;
 }
 
-function extractPrFromBashResult(command: unknown, content: readonly unknown[]): PrRef | null {
-  if (typeof command !== "string" || !isTrackedGhPrCommand(command)) return null;
+function extractPrsFromBashResult(command: unknown, content: readonly unknown[]): PrRef[] {
+  if (typeof command !== "string" || !isTrackedGhPrCommand(command)) return [];
+  const prs: PrRef[] = [];
+  const seen = new Set<string>();
   for (const block of content) {
     if (!block || typeof block !== "object") continue;
     const { type, text } = block as { type?: unknown; text?: unknown };
     if (type !== "text" || typeof text !== "string") continue;
-    const pr = extractFirstPrUrl(text);
-    if (pr) return pr;
+    for (const pr of extractPrUrls(text)) {
+      const key = prKey(pr);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      prs.push(pr);
+    }
   }
-  return null;
+  return prs;
 }
 
 function extractPrFromInput(text: string): PrRef | null {
@@ -150,8 +222,9 @@ function backfillTrackedPrs(entries: SessionEntries): PrRef[] {
       const command = commands.get(message.toolCallId);
       commands.delete(message.toolCallId);
       if (message.isError) continue;
-      const ref = extractPrFromBashResult(command, message.content);
-      if (ref) addTrackedPr(prs, ref);
+      for (const ref of extractPrsFromBashResult(command, message.content)) {
+        addTrackedPr(prs, ref);
+      }
     }
   }
   return prs;
@@ -209,12 +282,17 @@ export function createPrStatusExtension({
       pi.appendEntry?.(STATUS, { prs: [...trackedPrs] });
     }
 
-    function trackPr(ref: PrRef) {
-      const oldest = trackedPrs[0];
-      if (addTrackedPr(trackedPrs, ref)) {
-        if (oldest && oldest !== trackedPrs[0]) lastKnownTracked.delete(prKey(oldest));
-        persistTrackedPrs();
+    function trackPrs(refs: readonly PrRef[]) {
+      if (refs.length === 0) return;
+      let changed = false;
+      for (const ref of refs) {
+        const oldest = trackedPrs[0];
+        if (addTrackedPr(trackedPrs, ref)) {
+          if (oldest && oldest !== trackedPrs[0]) lastKnownTracked.delete(prKey(oldest));
+          changed = true;
+        }
       }
+      if (changed) persistTrackedPrs();
       triggerRefresh();
     }
 
@@ -395,19 +473,18 @@ export function createPrStatusExtension({
       unsubscribeTrack = pi.events?.on(TRACK_EVENT, (data) => {
         if (!active || !data || typeof data !== "object" || !("url" in data) || typeof data.url !== "string") return;
         const pr = parsePrRef(data.url);
-        if (pr) trackPr(pr);
+        if (pr) trackPrs([pr]);
       });
       void refresh(ctx);
     });
     pi.on("tool_result", (event) => {
       if (!active || event.toolName !== "bash" || event.isError) return;
-      const pr = extractPrFromBashResult(event.input?.command, event.content);
-      if (pr) trackPr(pr);
+      trackPrs(extractPrsFromBashResult(event.input?.command, event.content));
     });
     pi.on("input", (event) => {
       if (!active) return;
       const pr = extractPrFromInput(event.text);
-      if (pr) trackPr(pr);
+      if (pr) trackPrs([pr]);
     });
     pi.on("agent_end", (_event, ctx) => {
       if (!retryMs) void refresh(ctx);

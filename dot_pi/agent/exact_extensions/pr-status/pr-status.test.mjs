@@ -453,8 +453,11 @@ test("input tracks /pr-address-feedback URLs and ignores read-only commands, fai
   };
   await s.emit("session_start");
 
-  // Negative cases: read-only bash, failed gh pr create, invalid URL, non-allowlisted prompt
+  // Negative cases: read-only bash, failed gh pr create, invalid URL, non-allowlisted prompt, quoted literals
   await s.emit("tool_result", bashResult("printf '%s' 'https://github.com/ddoghq/compute/pull/2'; : 'note; gh pr edit 2'", "https://github.com/ddoghq/compute/pull/2"));
+  await s.emit("tool_result", bashResult("echo 'hello $(gh pr create)'", "https://github.com/ddoghq/compute/pull/2"));
+  await s.emit("tool_result", bashResult("echo \"note; gh pr edit 2\"", "https://github.com/ddoghq/compute/pull/2"));
+  await s.emit("tool_result", bashResult("echo \"text $(date) ; gh pr edit 2\"", "https://github.com/ddoghq/compute/pull/2"));
   await s.emit("tool_result", bashResult("gh pr view 1", "https://github.com/ddoghq/compute/pull/1"));
   await s.emit("tool_result", bashResult("cat README.md", "https://github.com/ddoghq/compute/pull/2"));
   await s.emit("tool_result", bashResult("gh pr create --fill", "https://github.com/ddoghq/compute/pull/3", true));
@@ -466,6 +469,29 @@ test("input tracks /pr-address-feedback URLs and ignores read-only commands, fai
   await s.emit("input", { text: "/pr-address-feedback https://github.com/ddoghq/compute/pull/42#discussion_r99" });
   assert.equal(s.statuses.length, 1);
   assert.match(s.statuses[0][1], /#42 PR 42/);
+});
+
+test("double-quoted command substitutions track multiple PRs in one bash result and preserve outer quote balance", async () => {
+  const entries = [];
+  const s = session({ checkout: "main", origin: remote, entries });
+  s.state.graphql = (_signal, args) => {
+    const { owner, repo, number } = byNumberArgs(args);
+    return byNumberResponse(makePr(owner, repo, number));
+  };
+
+  await s.emit("session_start");
+  await s.emit("tool_result", bashResult(
+    `set -e; test "$(gh auth status --json hosts --jq '.hosts["github.com"][] | select(.active).login')" = matteo-ruina_ddog; gh pr create --fill`,
+    "https://github.com/ddoghq/compute/pull/5194",
+  ));
+  await s.emit("tool_result", bashResult(
+    `PR1_URL="$(gh pr create --title "first" --body "$(cat <<'EOF'\nbody 1\nEOF\n)")" && echo "PR1: \${PR1_URL}" && PR2_URL="$(gh pr create --title "second")" && echo "PR2: \${PR2_URL}"`,
+    "hint: gh event listen --resource https://github.com/ddoghq/compute/pull/5210\nPR1: https://github.com/ddoghq/compute/pull/5210\nPR2: https://github.com/ddoghq/compute/pull/5211",
+  ));
+
+  const lines = s.statuses.at(-1)?.[1]?.split("\n") ?? [];
+  assert.deepEqual(lines.map((line) => line.match(/#\d+/)?.[0]), ["#5194", "#5210", "#5211"]);
+  assert.deepEqual(entries.at(-1), customEntry([ref(5194), ref(5210), ref(5211)]));
 });
 
 test("PR added while a refresh is in flight triggers an immediate follow-up refresh and resets backoff", async () => {

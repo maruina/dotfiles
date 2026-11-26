@@ -23,11 +23,15 @@ test("learn replaces compound and supports plain and contextual evidence discove
   const text = prompt("learn.md");
 
   requireMarkers(text, [
-    /argument-hint: "\[<PR URL \| plan\/design path \| context>\]"/,
-    /contextual mode/,
+    /argument-hint: "\[--days <N>\] \[<PR URL \| plan\/design path \| context>\]"/,
+    /Repository retro mode/i,
+    /contextual mode/i,
+    /trajectory_schema/,
+    /trajectory_query/,
+    /get_session_trajectory/,
     /sessions-search/,
     /session-context/,
-    /account routing and capture\/restore rule in `AGENTS\.md`/,
+    /account-routing and login capture\/restore rule|account routing and capture\/restore rule in `AGENTS\.md`/,
     /gh auth status --show-token/,
   ]);
 
@@ -79,34 +83,39 @@ test("learn uses a transactional, privacy-preserving vault write", () => {
   ]);
 });
 
-test("learn resolves plain mode through branch-correlated plan discovery", () => {
+test("learn runs a 30-day repository retro with Trajectory first and learn-evidence fallback", () => {
   const text = prompt("learn.md");
   assert.match(text, /lifecycle-git\.mjs.*discover-plan/);
 
   requireMarkers(text, [
-    /plain mode/i,
-    /current branch/i,
-    /branch.*slug/is,
-    /current worktree/i,
+    /--days <N>.*default `30`/is,
+    /git rev-parse --show-toplevel/,
+    /git worktree list --porcelain/,
+    /Trajectory first/i,
+    /sessions\.project_dir/,
+    /test-failed/,
+    /user_interrupted/,
+    /Fallback when Trajectory is unavailable/i,
+    /learn-evidence\.mjs/,
     /resolve-worktree/,
-    /\*\*\/plans\/\*\/plan\.md/,
-    /preflight/i,
-    /stop.*suggest/is,
-    /suggest.*explicit context/is,
-    /zero.*multiple|multiple.*zero/is,
     /--state all/,
-    /--limit/,
+    /--limit 20/,
     /## Learning candidates/,
   ]);
 });
 
-test("learn rejects derivable candidates and routes agent-behavior guidance to proposals", () => {
+test("learn routes mechanical gates first and prunes vault entries promoted to mechanical gates", () => {
   const text = prompt("learn.md");
 
   requireMarkers(text, [
     /non-derivab/i,
     /fresh model/i,
+    /Evaluate mechanical enforceability first/i,
+    /Mechanical gate proposal/i,
+    /depguard|ast-grep/i,
+    /negative test case/i,
     /improvement proposal/i,
+    /mechanically enforced by a linter, schema check, or CI gate/i,
   ]);
 });
 

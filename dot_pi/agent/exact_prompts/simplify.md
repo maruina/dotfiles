@@ -41,8 +41,8 @@ Use `skill-loader` to select and load skills for touched files; follow their gui
 Read changed code and relevant tests in bounded sections. If a tool response is truncated, retrieve the missing sections before drawing conclusions; if unavailable, report the evidence gap and stop.
 
 Complete two bounded review passes before editing or concluding no simplification is needed:
-1. **Production code:** inspect state, control flow, ownership, and repeated work.
-2. **Tests:** inspect distinct contracts, overlapping cases, independent dimensions, repeated setup, and expensive scenarios. Sharing a helper does not establish that test execution or coverage is nonredundant.
+1. **Production code:** inspect state, control flow, ownership, and repeated work. Remove belt-and-suspenders checks that re-verify established facts (readbacks of own writes, re-validating invariants guaranteed by a type or upstream boundary, repeated parsing or hashing, and production branches or hooks added only so a test can inject a failure). Check whether async boundaries serialize independent work at a shared owner, and flag invented timers, sleeps, or arbitrary bounds that lack a contract or resource budget.
+2. **Tests:** inspect distinct contracts, overlapping cases, independent dimensions, repeated setup, and expensive scenarios. Flag tests that sleep or poll on real wall-clock timers, or reach unit behavior through slow external processes or builds when a narrower production boundary exists. Sharing a helper does not establish that test execution or coverage is nonredundant.
 
 For a pass with no applicable files, record it as inapplicable. Keep reviews in scope and use loaded language skills. For each removed or merged test, name the contract it covered, the retained test that covers it, and why the removed combination adds no distinct interaction coverage. Fewer cases and unchanged statement coverage do not prove equivalent protection; retain interaction cases unless redundancy is established.
 

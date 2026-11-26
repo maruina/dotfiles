@@ -1,6 +1,6 @@
 ---
-description: Derive evidence-backed behavioral learnings from Pi sessions and pull requests
-argument-hint: "[<PR URL | plan/design path | context>]"
+description: Derive evidence-backed learnings and mechanical-gate proposals from Pi sessions and pull requests
+argument-hint: "[--days <N>] [<PR URL | plan/design path | context>]"
 ---
 # Learn
 Context:
@@ -16,19 +16,20 @@ Do not modify repository files, Git state, branches, or managed targets. Do not 
 Load the `obsidian-cli` and `obsidian-markdown` skills before vault operations. Do not use another model or external service to analyze session or vault content.
 
 ## Modes
-Mode is determined by `$ARGUMENTS`:
-- **Plain mode:** With empty arguments, resolve the current work's plan and its recorded `## Learning candidates` as described under "Plain mode resolution" below.
-- **Contextual mode:** With any context, analyze the current conversation plus supplied pull request URL/number, review or conversation-comment URL, design/plan path, described wrong turn, or free-form guidance. A referenced pull request may be open in contextual mode.
+Parse optional `--days <N>` (positive integer, default `30`). Mode is determined by the remaining arguments:
+- **Repository retro mode:** With no remaining arguments, mine the last `<N>` days of sessions for the current repository and its worktrees for recurring failures, corrections, and workflow friction.
+- **Contextual mode:** With any remaining context, analyze the current conversation plus supplied pull request URL/number, review or conversation-comment URL, design/plan path, described wrong turn, or free-form guidance. A referenced pull request may be open in contextual mode.
 
-## Plain mode resolution
-1. Run `node "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/scripts/lifecycle-git.mjs" discover-plan`. Read the current branch and slug from the result. Filter `matching` to the current worktree for `**/plans/<branch-slug>/plan.md`; the helper removes the first `<owner>/` prefix when present.
-2. Resolve exactly one match as an explicit path through the `resolve-worktree` skill. If multiple local matches exist, present them and ask which to resolve; never select silently.
-3. If none exists, use the helper's `plans` to preflight every worktree for `**/plans/*/plan.md` and invoke `resolve-worktree` with that `$GLOB` only when candidates exist; repeat the same preflight with `designs` and fallback for `**/plans/*/design.md` when no plan resolves.
-4. If neither artifact exists anywhere, stop and suggest explicit context — a plan/design path, PR URL, or described guidance — and never invoke the resolver's generic no-match path.
-5. Resolution and reading are permitted: the HARD-GATE forbids repository and vault mutation, not context resolution.
-6. Read the selected plan completely, including its `## Learning candidates` section, and read its sibling `design.md` when present.
-
-Plain-mode evidence adds the ledger candidates, the sibling design, the current conversation, and the branch's PR via `gh pr list --head <branch> --state all --limit 20` with explicit reporting when zero or multiple PRs match, under the existing account-routing and login capture/restore contract; `sessions-search` recurrence adjudication applies as in contextual mode.
+## Repository retro discovery
+1. Resolve the current repository root (`git rev-parse --show-toplevel`) and all worktree paths (`git worktree list --porcelain`). If not inside a Git repository, stop and suggest contextual mode with explicit context.
+2. **Trajectory first (when available):** Call `trajectory_schema` (`include_row_counts: false`) once, then run bounded read-only `trajectory_query` queries over the last `<N>` days (`started_at >= date('now', '-<N> days')`) where `sessions.project_dir` matches the repository root or any of its worktree paths. Look for recurring friction across:
+   - `markers` (such as `test-failed` and repeated `pr-interaction` clusters);
+   - `tool_calls` (`success = 0`, `denied = 1`, or repeated `error_text`);
+   - `turns` (`user_interrupted = 1`);
+   - `trajectory_search` for targeted error strings, commands, or file paths.
+   Inspect only the relevant turns with `get_session_trajectory` (`depth: "detailed"`, bounded `max_turns` and `offset`). Do not dump raw sessions into the conversation.
+3. **Fallback when Trajectory is unavailable (for example, on the personal profile):** Use `learn-evidence.mjs` (`sessions-search` and `session-context`) against retained Pi JSONL sessions, and run `node "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/scripts/lifecycle-git.mjs" discover-plan` to inspect any branch-matching plan (`**/plans/<branch-slug>/plan.md` via `resolve-worktree`) and its `## Learning candidates` ledger.
+4. In both paths, also inspect recent repository PRs via `gh pr list --state all --limit 20` under the `AGENTS.md` GitHub account-routing and login capture/restore rule (never use `gh auth status --show-token`), and inspect any current-branch plan's `## Learning candidates` ledger when present.
 
 Use this helper path in the source worktree: `dot_pi/agent/exact_scripts/learn-evidence.mjs`. In rendered use, resolve `${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/scripts/learn-evidence.mjs`. Run its `--help` before relying on an unfamiliar invocation. Its stdout is versioned JSON; keep it local and do not paste broad raw session output into the conversation.
 
@@ -62,10 +63,10 @@ Reject routine dependency bumps, changelog facts, mechanical edits, obvious docu
 Apply the non-derivability test to every prospective candidate: would a fresh model reliably produce and apply this guidance unaided at the moment it matters? If yes, reject it even when the mistake repeated. A qualifying candidate must encode at least one non-derivable element — an environment fact, tool quirk, semantic trap, or demonstrated model blind spot. Independent recurrence (qualification path 1) is evidence of non-derivability in practice; the test sharpens the paths rather than replacing them.
 
 ## Route accepted candidates
-Each qualifying candidate gets exactly one primary target:
-- Domain or technical guidance — an environment fact, tool quirk, or semantic trap about the work itself — is written to `Datadog/Learnings.md` through the existing transaction.
-- Agent-behavior guidance — a skill's or prompt's guidance is wrong or missing — becomes a concrete improvement proposal in the report. It never enters the vault and is never auto-applied; the proposal enters the normal lifecycle.
-- A dual candidate splits: the domain part becomes the vault entry; the skill or prompt part becomes the proposal.
+Evaluate mechanical enforceability first. Each qualifying candidate gets one primary target (or splits when distinct parts belong to different targets):
+- **Mechanical gate proposal (check first):** When a recurring mistake or invariant can be enforced deterministically in the owning repository (for example, `golangci-lint` `depguard`/`forbidigo`, an `ast-grep` rule with a negative fixture, a CRD CEL rule, or a Makefile/CI check), emit a concrete mechanical-gate proposal in the report naming the owning repository, check mechanism, rule scope, and negative test case. It never enters the vault and is never auto-applied; it enters the normal lifecycle. Fall back to `Datadog/Learnings.md` only when the owning repository is external or high-friction to add a linter to.
+- **Agent-behavior guidance:** When a skill's or prompt's guidance is wrong or missing, emit a concrete improvement proposal in the report. It never enters the vault and is never auto-applied; the proposal enters the normal lifecycle.
+- **Domain or technical guidance:** Non-mechanical, non-derivable environment facts, tool quirks, or semantic traps about the work itself go to `Datadog/Learnings.md` through the existing transaction.
 
 ## Build the exact preview
 Use `Datadog/Learnings.md` as one global store. Search its complete content for overlapping title, tags, repository metadata, evidence URLs, and body guidance. Update an overlapping section instead of creating a near-duplicate.
@@ -98,7 +99,7 @@ Before asking for approval, show every addition and update in final form:
 <exact final H2 section>
 ```
 
-Every mode that stages a rewrite runs the staleness maintenance pass: while preparing the staged final document, re-adjudicate every section whose date line is strictly earlier than the local calendar date shifted back six calendar months against current source, tools, documentation, and recorded consumption-time corrections. A date exactly on the threshold is not older; a missing or malformed date requires re-adjudication and explicit reporting. Apply the normal qualification and routing rules to corrected guidance: update a contradicted section only when a non-derivable corrected intervention remains; otherwise remove it. Preview each removal as `### Removal: <title>` with its reason; removals share the same one-approval transaction. Surviving sections' date lines bump to last-validated.
+Every mode that stages a rewrite runs the staleness maintenance pass: while preparing the staged final document, re-adjudicate every section whose date line is strictly earlier than the local calendar date shifted back six calendar months against current source, tools, documentation, and recorded consumption-time corrections. A date exactly on the threshold is not older; a missing or malformed date requires re-adjudication and explicit reporting. Apply the normal qualification and routing rules to corrected guidance: update a contradicted section only when a non-derivable corrected intervention remains; otherwise remove it. Also remove any section that is now mechanically enforced by a linter, schema check, or CI gate in its owning repository. Preview each removal as `### Removal: <title>` with its reason; removals share the same one-approval transaction. Surviving sections' date lines bump to last-validated.
 
 Also adjudicate `Datadog/Compound/dotfiles-chezmoi-execute-template-profile.md` through this same process and PR #22 evidence. Preview its exact deletion in all migration outcomes, including when no replacement qualifies. The deletion is the sole exception to the no-candidate rule.
 

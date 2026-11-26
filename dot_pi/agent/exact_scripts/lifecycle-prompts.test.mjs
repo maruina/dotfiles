@@ -1265,3 +1265,42 @@ test("stage runner operator guide separates verified publication from the manual
     /## Run without publishing[^\n]*\n[^\n]*`\/execute`[^\n]*`\/simplify`[^\n]*`\/verify`[^\n]*publication explicitly excluded/,
   ]);
 });
+
+test("optimize prompt enforces measurement-first scientific-method loop and skill loading", () => {
+  const text = prompt("optimize.md");
+  requireMarkers(text, [
+    /`skill-loader` skill/,
+    provenanceReference,
+    /`feature-worktree` skill/,
+    /Do not edit production code before you run a repeatable measurement harness/i,
+    /3 to 5 concrete hypotheses/i,
+    /gap to the goal closed/i,
+    /kept.*reverted|Keep or revert/is,
+    /scratch hypothesis ledger/i,
+    /Do not push or open a PR from `\/optimize`/i,
+    /`\/simplify`.*`\/verify`/is,
+  ]);
+});
+
+test("simplify, verify, and AGENTS.md enforce anti-belt-and-suspenders, oracle adequacy, and doc freshness", () => {
+  requireMarkers(prompt("simplify.md"), [
+    /belt-and-suspenders/i,
+    /serialize independent work/i,
+    /invented timers, sleeps, or arbitrary bounds/i,
+    /real wall-clock timers/i,
+  ]);
+
+  requireMarkers(prompt("verify.md"), [
+    /fakes that supply the behavior under test/i,
+    /property-test generators whose preconditions filter out or never reach failure states/i,
+    /defect repairs.*focused regression test fails on the concrete fault/is,
+    /affected documentation, READMEs, runbooks, skills, and `AGENTS\.md` were updated/i,
+  ]);
+
+  const agents = readFileSync(path.join(agentDir, "AGENTS.md"), "utf8");
+  requireMarkers(agents, [
+    /Do not refactor, clean up, or delete unrelated code/i,
+    /Update affected documentation, READMEs, runbooks, skills, and `AGENTS\.md` in the same change/i,
+    /`\/optimize`/,
+  ]);
+});

@@ -438,7 +438,7 @@ test("lifecycle prompts stay within prompt context budgets", () => {
     ["plan.md", 18_225],
     ["systematic-review.md", 13_400],
     ["execute.md", 15_125],
-    ["verify.md", 13_700],
+    ["verify.md", 14_700],
     ["simplify.md", 9_500],
     ["pr-validate.md", 25_250],
   ]);
@@ -1216,12 +1216,17 @@ test("execute offers simplify and direct verify handoffs with stable writer iden
 
   const verify = prompt("verify.md");
   requireMarkers(verify, [
+    /argument-hint:.*--pr <pr-url>/,
     /require at least one `--implemented-by`/i,
     /repeatable `--implemented-by <id>`/i,
-    /accept optional `--simplified-by`/i,
+    /optional `--simplified-by`/i,
+    /optional `--pr <pr-url>`/i,
     /any writer ID matches the verifier.*`BLOCKED`/is,
     /`--task`.*remaining.*original task/is,
-    /use exactly one requirements source.*a plan path or `--task`/is,
+    /use exactly one requirements source.*a plan path, `--pr`, or `--task`/is,
+    /`--pr <pr-url>`.*`feature-worktree`.*`gh pr view`/is,
+    /PR title and body.*requirements.*no clear requirements.*`BLOCKED`/is,
+    /fork \(`isCrossRepository`\).*do not run PR code.*`BLOCKED`/is,
     /manual review.*fresh `\/new` session.*stage-runner review.*newly created child session.*no preceding stage transcript.*do not require a literal manual `\/new`/is,
     /differs from every supplied writer model/is,
   ]);

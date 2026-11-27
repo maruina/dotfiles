@@ -50,13 +50,35 @@ test("parseLifecycleCommand parses repeatable flags, quoted paths, and literal -
     task: "'Fix --base foo --implemented-by bar --simplified-by baz'",
     errors: [],
   });
+  const prCmd = parseLifecycleCommand(
+    "/verify --pr https://github.com/ddoghq/computecla-controllers/pull/73 --implemented-by google/gemini-4-neon --simplified-by anthropic/claude-opus-5-5",
+  );
+  assert.deepEqual(prCmd, {
+    command: "verify",
+    positionals: [],
+    implementedBy: ["google/gemini-4-neon"],
+    simplifiedBy: ["anthropic/claude-opus-5-5"],
+    pr: "https://github.com/ddoghq/computecla-controllers/pull/73",
+    hasTask: false,
+    errors: [],
+  });
 });
 
-test("parseLifecycleCommand reports missing flag values", () => {
+test("parseLifecycleCommand reports missing flag values and duplicate --pr", () => {
   const missingImpl = parseLifecycleCommand("/verify plan.md --implemented-by --simplified-by openai/gpt-5.4");
   assert.equal(missingImpl.errors.length, 1);
   assert.match(missingImpl.errors[0], /Missing value for --implemented-by/);
   assert.deepEqual(missingImpl.simplifiedBy, ["openai/gpt-5.4"]);
+
+  const missingPr = parseLifecycleCommand("/verify --pr --implemented-by anthropic/claude-opus-4-6");
+  assert.equal(missingPr.errors.length, 1);
+  assert.match(missingPr.errors[0], /Missing value for --pr/);
+
+  const dupPr = parseLifecycleCommand(
+    "/verify --pr https://github.com/ddoghq/repo/pull/1 --pr https://github.com/ddoghq/repo/pull/2 --implemented-by anthropic/claude-opus-4-6",
+  );
+  assert.equal(dupPr.errors.length, 1);
+  assert.match(dupPr.errors[0], /Duplicate --pr/);
 
   const missingTask = parseLifecycleCommand("/verify --implemented-by anthropic/claude-opus-4-6 --task   ");
   assert.equal(missingTask.errors.length, 1);
@@ -89,6 +111,55 @@ test("validateLifecyclePreflight enforces /verify requirements and model separat
     { ok: true },
   );
 
+  // --pr does not require --simplified-by, and accepts optional --simplified-by.
+  assert.deepEqual(
+    validateLifecyclePreflight(
+      parseLifecycleCommand(
+        "/verify --pr https://github.com/ddoghq/computecla-controllers/pull/73 --implemented-by anthropic/claude-opus-4-6",
+      ),
+      verifier,
+    ),
+    { ok: true },
+  );
+  assert.deepEqual(
+    validateLifecyclePreflight(
+      parseLifecycleCommand(
+        "/verify --pr https://github.com/ddoghq/computecla-controllers/pull/73 --implemented-by anthropic/claude-opus-4-6 --simplified-by openai/gpt-5.4",
+      ),
+      verifier,
+    ),
+    { ok: true },
+  );
+
+  // Invalid --pr URL blocks.
+  const badPr = validateLifecyclePreflight(
+    parseLifecycleCommand("/verify --pr https://github.com/ddoghq/repo/issues/73 --implemented-by anthropic/claude-opus-4-6"),
+    verifier,
+  );
+  assert.equal(badPr.ok, false);
+  assert.match(badPr.error, /--pr must be a valid GitHub PR URL/);
+
+  // Bare PR URL in --task blocks with a hint to use --pr.
+  const prInTask = validateLifecyclePreflight(
+    parseLifecycleCommand(
+      "/verify --implemented-by anthropic/claude-opus-4-6 --task 'https://github.com/ddoghq/computecla-controllers/pull/73'",
+    ),
+    verifier,
+  );
+  assert.equal(prInTask.ok, false);
+  assert.match(prInTask.error, /use --pr/);
+
+  // Prose --task mentioning a PR URL is still allowed.
+  assert.deepEqual(
+    validateLifecyclePreflight(
+      parseLifecycleCommand(
+        "/verify --implemented-by anthropic/claude-opus-4-6 --task 'Fix regression from https://github.com/ddoghq/repo/pull/73'",
+      ),
+      verifier,
+    ),
+    { ok: true },
+  );
+
   // Missing --implemented-by blocks.
   const noImpl = validateLifecyclePreflight(
     parseLifecycleCommand("/verify plans/x/plan.md --simplified-by openai/gpt-5.4"),
@@ -103,15 +174,33 @@ test("validateLifecyclePreflight enforces /verify requirements and model separat
     verifier,
   );
   assert.equal(noSource.ok, false);
-  assert.match(noSource.error, /plan path or --task/);
+  assert.match(noSource.error, /plan path, --pr <pr-url>, or --task/);
 
-  // Both plan path and --task blocks.
+  // Multiple requirements sources block.
   const bothSources = validateLifecyclePreflight(
     parseLifecycleCommand("/verify plans/x/plan.md --implemented-by anthropic/claude-opus-4-6 --simplified-by openai/gpt-5.4 --task 'dup'"),
     verifier,
   );
   assert.equal(bothSources.ok, false);
-  assert.match(bothSources.error, /not both/);
+  assert.match(bothSources.error, /not multiple/);
+
+  const prAndTask = validateLifecyclePreflight(
+    parseLifecycleCommand(
+      "/verify --pr https://github.com/ddoghq/repo/pull/73 --implemented-by anthropic/claude-opus-4-6 --task 'extra'",
+    ),
+    verifier,
+  );
+  assert.equal(prAndTask.ok, false);
+  assert.match(prAndTask.error, /not multiple/);
+
+  const planAndPr = validateLifecyclePreflight(
+    parseLifecycleCommand(
+      "/verify plans/x/plan.md --pr https://github.com/ddoghq/repo/pull/73 --implemented-by anthropic/claude-opus-4-6 --simplified-by openai/gpt-5.4",
+    ),
+    verifier,
+  );
+  assert.equal(planAndPr.ok, false);
+  assert.match(planAndPr.error, /not multiple/);
 
   // Plan path without --simplified-by blocks.
   const noSimp = validateLifecyclePreflight(

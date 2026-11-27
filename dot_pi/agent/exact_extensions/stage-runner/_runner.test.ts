@@ -172,7 +172,7 @@ test("cancellation clears the runner child record and removes its widget", async
     registerEntryRenderer() {}, appendEntry() {},
     registerCommand(name: string, command: { handler: typeof start }) { if (name === "stage-runner") start = command.handler; },
     on(_event: string, handler: typeof shutdown) { shutdown = handler; },
-    exec: async () => ({ code: 0, stdout: JSON.stringify({ endpoint, principal: { kind: "peer", transport: "unix", uid: process.getuid!() }, session_id: "session:test", block_id: overrides.REX_BLOCK }) }),
+    exec: async () => ({ code: 0, stdout: JSON.stringify({ endpoint, principal: { kind: "peer", transport: "unix", uid: process.getuid!() }, session_id: "session:test", block_id: overrides.REX_BLOCK, api_revision: 18 }) }),
   } as unknown as ExtensionAPI);
   await start("plan.md", { hasUI: true, scopedModels: [{ model: { provider: "p", id: "m" } }], ui: {
     select: async () => undefined, notify() {},

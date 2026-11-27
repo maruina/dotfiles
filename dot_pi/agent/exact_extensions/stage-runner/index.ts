@@ -42,6 +42,7 @@ async function checkRex(pi: ExtensionAPI) {
   verifyLocalRexPeer(peer, endpoint, {
     session: process.env.REX_SESSION || undefined,
     block: process.env.REX_BLOCK ?? "",
+    minApiRevision: 18,
   });
 }
 

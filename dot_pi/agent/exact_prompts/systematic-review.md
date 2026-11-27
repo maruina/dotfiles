@@ -121,4 +121,4 @@ Use one exact command per standalone `md` fenced block. Quote paths with spaces.
   - Started plan (checked box, `**In progress**`, or `**Execution writer**`): only `/execute <absolute-path-to-plan.md>`.
 - With blocking findings, fix and rerun `/systematic-review <absolute-path-to-plan.md>` or revise via `/plan`. Do not offer `/stage-runner` or `/execute`.
 - After confirmed `plan.md` fixes, commit per `## Fix findings` and use the applicable handoff above.
-- For code without a plan, recommend the next action and offer to apply fixes. After applying confirmed fixes, show `/verify <absolute-worktree-path> --implemented-by <current-model-id> --task '<quoted-fix-summary>'` (escape `'` as `\'`) and note to switch models with `/model` and run `/new`.
+- For code without a plan, recommend the next action and offer to apply fixes. After applying confirmed fixes, state the target worktree in prose, show `/verify --implemented-by <current-model-id> --task '<quoted-fix-summary>'` (escape `'` as `\'`), and note to switch models with `/model` and run `/new`.

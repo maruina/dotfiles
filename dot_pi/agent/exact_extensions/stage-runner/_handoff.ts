@@ -8,6 +8,7 @@ export type HandoffStage =
   | "verify"
   | "startup-check"
   | "arp-fix"
+  | "pr-draft"
   | "design-draft"
   | "design-review"
   | "design-plan";
@@ -18,6 +19,7 @@ const VALID_STAGES = new Set<string>([
   "verify",
   "startup-check",
   "arp-fix",
+  "pr-draft",
   "design-draft",
   "design-review",
   "design-plan",
@@ -64,6 +66,31 @@ export function validateHandoffPayload(raw: unknown, stage: HandoffStage): Recor
       })
     ) {
       throw Error("Invalid arp-fix findings");
+    }
+    return raw;
+  }
+  if (stage === "pr-draft") {
+    if (typeof raw.blocked === "string") {
+      if (
+        !nonblank(raw.blocked) ||
+        raw.blocked.includes("\0") ||
+        Buffer.byteLength(raw.blocked.replace(/[\r\n]+/g, " ").trim(), "utf8") > 512 ||
+        raw.title !== undefined ||
+        raw.body !== undefined
+      ) {
+        throw Error("Invalid pr-draft blocked payload");
+      }
+      return raw;
+    }
+    if (
+      !nonblank(raw.title) ||
+      !nonblank(raw.body) ||
+      /[\r\n\0]/.test(raw.title) ||
+      raw.body.includes("\0") ||
+      Buffer.byteLength(raw.title, "utf8") > 256 ||
+      Buffer.byteLength(raw.body, "utf8") > 32768
+    ) {
+      throw Error("Invalid pr-draft title or body");
     }
     return raw;
   }
@@ -119,6 +146,9 @@ export default function stageRunnerHandoff(pi: ExtensionAPI): void {
       draftCommit: Type.Optional(Type.String()),
       planPath: Type.Optional(Type.String()),
       planCommit: Type.Optional(Type.String()),
+      title: Type.Optional(Type.String()),
+      body: Type.Optional(Type.String()),
+      blocked: Type.Optional(Type.String()),
     }),
     async execute(_toolCallId, params) {
       const payload: Record<string, unknown> = {

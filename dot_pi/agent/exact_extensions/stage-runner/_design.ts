@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import * as fs from "node:fs";
 import path from "node:path";
 
+import { createGitRunner, resolveOriginDefaultBranch, type GitRunner } from "./_git.ts";
 import { recovery, sessionInfo } from "./_recovery.ts";
 import { attempt, decode, handoff, id, paneArgv, privateFile, prune, type Choice, type Options } from "./_runner.ts";
 
@@ -14,8 +15,6 @@ export type DesignOptions = Pick<
   reviewer: Choice;
   progress: (message: string) => void;
 };
-
-type GitRunner = (...args: string[]) => string;
 
 function ensure(ok: boolean, reason: string): asserts ok {
   if (!ok) throw Error(reason);
@@ -83,15 +82,7 @@ export function buildDesignBrief(arg: string, entries: readonly unknown[], maxJs
 }
 
 export function inspectDesignBranch(cwd: string, env?: NodeJS.ProcessEnv) {
-  const git = (...args: string[]) =>
-    execFileSync("git", args, {
-      cwd,
-      env,
-      encoding: "utf8",
-      timeout: 10000,
-      maxBuffer: 4 * 1024 * 1024,
-      stdio: ["ignore", "pipe", "pipe"],
-    }).trimEnd();
+  const git = createGitRunner(cwd, env);
   const root = fs.realpathSync(git("rev-parse", "--show-toplevel"));
   const branch = git("symbolic-ref", "--short", "HEAD");
   let hasOrigin = false;
@@ -100,12 +91,7 @@ export function inspectDesignBranch(cwd: string, env?: NodeJS.ProcessEnv) {
   } catch {
     /* ignore */
   }
-  let defaultBranch = "";
-  try {
-    defaultBranch = git("symbolic-ref", "--short", "refs/remotes/origin/HEAD").replace(/^origin\//, "");
-  } catch {
-    if (hasOrigin) throw Error("Cannot establish origin default branch");
-  }
+  const defaultBranch = resolveOriginDefaultBranch(git);
   return {
     root,
     branch,

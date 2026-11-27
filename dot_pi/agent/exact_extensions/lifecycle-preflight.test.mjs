@@ -290,3 +290,48 @@ test("input handler blocks invalid /verify in TUI and skips non-TUI or stage-run
     else process.env.PI_STAGE_RUNNER_CHILD = prev;
   }
 });
+
+test("validateLifecyclePreflight validates /simplify --pr, /pr-validate, /pr-address-feedback, and /learn", () => {
+  const simplifyPr = validateLifecyclePreflight(
+    parseLifecycleCommand("/simplify --pr https://github.com/org/repo/pull/1"),
+  );
+  assert.equal(simplifyPr.ok, false);
+  assert.match(simplifyPr.error, /positional/i);
+
+  assert.equal(
+    validateLifecyclePreflight(parseLifecycleCommand("/pr-validate https://github.com/DataDog/dd-source/pull/123 extra context")).ok,
+    true,
+  );
+  assert.equal(
+    validateLifecyclePreflight(parseLifecycleCommand("/pr-validate https://github.com/DataDog/dd-source/pull/123?w=1#files")).ok,
+    true,
+  );
+  assert.equal(
+    validateLifecyclePreflight(parseLifecycleCommand("/pr-validate not-a-url")).ok,
+    false,
+  );
+  assert.equal(
+    validateLifecyclePreflight(parseLifecycleCommand("/pr-validate")).ok,
+    false,
+  );
+
+  assert.equal(
+    validateLifecyclePreflight(parseLifecycleCommand("/pr-address-feedback https://github.com/org/repo/pull/9#discussion_r12345")).ok,
+    true,
+  );
+  assert.equal(
+    validateLifecyclePreflight(parseLifecycleCommand("/pr-address-feedback https://github.com/org/repo/pull/9#issuecomment-42")).ok,
+    true,
+  );
+  assert.equal(
+    validateLifecyclePreflight(parseLifecycleCommand("/pr-address-feedback https://github.com/org/repo/pull/9#invalid")).ok,
+    false,
+  );
+
+  assert.equal(validateLifecyclePreflight(parseLifecycleCommand("/learn")).ok, true);
+  assert.equal(validateLifecyclePreflight(parseLifecycleCommand("/learn --days 14")).ok, true);
+  assert.equal(validateLifecyclePreflight(parseLifecycleCommand("/learn --days=30 some context")).ok, true);
+  assert.equal(validateLifecyclePreflight(parseLifecycleCommand("/learn --days 0")).ok, false);
+  assert.equal(validateLifecyclePreflight(parseLifecycleCommand("/learn --days abc")).ok, false);
+  assert.equal(validateLifecyclePreflight(parseLifecycleCommand("/learn --days")).ok, false);
+});

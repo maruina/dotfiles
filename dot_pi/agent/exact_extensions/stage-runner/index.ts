@@ -141,7 +141,7 @@ function encodeOsc7501Text(value: string, maxBytes: number): string {
 }
 
 function formatStageRunnerStatus(status: {
-  state: "idle" | "working" | "done" | "blocked" | "error" | "clear";
+  state: "working" | "done" | "blocked" | "error" | "clear";
   kind?: "permission" | "question" | "auth";
   progress?: number;
   message?: string;
@@ -190,7 +190,7 @@ export function rexActivity(write: (sequence: string) => void) {
       report({ state: "working", message, progress }),
     recovery: (message: string) => report({ state: "blocked", kind: "question", message }),
     permission: (message: string) => report({ state: "blocked", kind: "permission", message }),
-    end: (state: "done" | "error" | "idle" | "clear", message?: string) =>
+    end: (state: "done" | "error" | "clear", message?: string) =>
       report({ state, ...(message && (state === "done" || state === "error") ? { message } : {}) }),
   };
 }

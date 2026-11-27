@@ -99,3 +99,12 @@ test("validateHandoffPayload validates arp-fix findings entries", () => {
     ),
   );
 });
+
+test("validateHandoffPayload validates pr-draft title/body and blocked payloads", () => {
+  const base = { schemaVersion: 1, stage: "pr-draft", summary: "Prepared PR draft" };
+  assert.throws(() => validateHandoffPayload(base, "pr-draft"), /Invalid pr-draft title or body/);
+  assert.throws(() => validateHandoffPayload({ ...base, title: "line1\nline2", body: "ok" }, "pr-draft"), /Invalid pr-draft title or body/);
+  assert.throws(() => validateHandoffPayload({ ...base, blocked: "missing diff", title: "x", body: "y" }, "pr-draft"), /Invalid pr-draft blocked payload/);
+  assert.doesNotThrow(() => validateHandoffPayload({ ...base, title: "feat: add foo", body: "## Summary\nDone." }, "pr-draft"));
+  assert.doesNotThrow(() => validateHandoffPayload({ ...base, blocked: "Missing verification evidence" }, "pr-draft"));
+});

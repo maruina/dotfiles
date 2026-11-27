@@ -5,6 +5,7 @@ import path from "node:path";
 import { isWorkGitHubOrg, parseGitHubOwnerRepo, parsePullRequestUrl, scrubbedGhEnv, selectGitHubLogin } from "../_shared/github.ts";
 import { getProfile } from "../_shared/profile.ts";
 import { arpReviewFixPrompt, createDirectArpCaller, partitionFindingFixes, reviewPublished, type FindingFix } from "./_arp.ts";
+import { assertCleanBranch, createGitRunner, resolveOriginDefaultBranch, runGit } from "./_git.ts";
 import { publisher } from "./_publish.ts";
 import { acceptFixes, acquireRun, anchorFinding, attempt, handoff, privateFile, type Options, type Phase } from "./_runner.ts";
 
@@ -44,13 +45,6 @@ type ArpReviewOptions = Omit<Options, "plan" | "models" | "approve" | "rexComman
   maxHeads: number;
   prUrl?: string;
 };
-
-function runGit(cwd: string, env: NodeJS.ProcessEnv, ...args: string[]) {
-  return execFileSync("git", args, {
-    cwd, env, encoding: "utf8", timeout: 10000, maxBuffer: 4 * 1024 * 1024,
-    stdio: ["ignore", "pipe", "pipe"],
-  }).trimEnd();
-}
 
 function resolvePrWorktree({ owner, repo, branch, cwd, env }: {
   owner: string; repo: string; branch: string; cwd: string; env: NodeJS.ProcessEnv;
@@ -143,18 +137,10 @@ export async function runArpReview(o: ArpReviewOptions) {
     branch = runGit(cwd, env, "symbolic-ref", "--short", "HEAD");
     if (["main", "master"].includes(branch)) throw Error("Choose a feature branch or pass /arp-review <pr-url>");
   }
-  const git = (...args: string[]) => runGit(cwd, env, ...args);
-  let defaultBranch: string;
-  try {
-    defaultBranch = git("symbolic-ref", "--short", "refs/remotes/origin/HEAD").replace(/^origin\//, "");
-  } catch {
-    throw Error("Cannot establish origin default branch from refs/remotes/origin/HEAD");
-  }
+  const git = createGitRunner(cwd, env);
+  const defaultBranch = resolveOriginDefaultBranch(git, { requireOrigin: true });
   if (branch === defaultBranch) throw Error("Choose a feature branch or pass /arp-review <pr-url>");
-  const clean = () => {
-    if (git("status", "--porcelain=v1", "--untracked-files=all") || git("symbolic-ref", "--short", "HEAD") !== branch)
-      throw Error("Worktree is dirty or branch changed");
-  };
+  const clean = () => assertCleanBranch(git, branch);
   clean();
   const { dir, signal, ownsLock, complete, failure, release } = acquireRun({ ...o, cwd });
   let head: string | undefined, prUrl: string | undefined;

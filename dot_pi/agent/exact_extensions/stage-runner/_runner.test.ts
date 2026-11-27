@@ -5,7 +5,8 @@ import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { activeSlice, events, validate, preflight, prepareDraft, prune, runDesign } from "./_runner.ts";
+import { activeSlice, completedTasks, events, validate, preflight, prepareDraft, prune, runDesign } from "./_runner.ts";
+import { stripOuterJsonFence } from "./_draft.ts";
 import { getProfile } from "../_shared/profile.ts";
 
 import { createServer } from "node:net";
@@ -668,4 +669,27 @@ test("getProfile validates an explicit profilePath strictly", (t) => {
   assert.equal(getProfile({ PI_PROFILE: "work" }, personalPath), "personal");
   assert.throws(() => getProfile({}, invalidPath), /Unknown publication profile/);
   assert.throws(() => getProfile({}, path.join(tmp, "missing.json")));
+});
+
+test("completedTasks subtracts duplicate checkbox text by count", () => {
+  const before = [
+    "- [ ] Add failing test",
+    "- [ ] Implement change",
+    "- [ ] Add failing test",
+    "- [ ] Implement change",
+  ];
+  const after = [
+    "- [ ] Add failing test",
+    "- [ ] Implement change",
+  ];
+  assert.deepEqual(completedTasks(before, after), [
+    "- [ ] Add failing test",
+    "- [ ] Implement change",
+  ]);
+});
+
+test("stripOuterJsonFence unwraps fenced JSON without altering raw JSON", () => {
+  assert.equal(stripOuterJsonFence('{"title":"t","body":"b"}'), '{"title":"t","body":"b"}');
+  assert.equal(stripOuterJsonFence('```json\n{"title":"t","body":"b"}\n```'), '{"title":"t","body":"b"}');
+  assert.equal(stripOuterJsonFence('```\n{"blocked":"missing"}\n```'), '{"blocked":"missing"}');
 });

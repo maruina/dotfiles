@@ -211,24 +211,7 @@ const ALLOWED_DDTOOL_AUTH = new Set(["auth gitlab project-token"]);
 const PI_DEPS_CLEANUP = /^rm[ \t]+-rf[ \t]+(["']?)(?:\.\/|\/(?:(?!\.{1,2}\/)[A-Za-z0-9_.-]+\/)*)?dot_pi\/agent\/node_modules\1$/;
 
 function isAllowedRm(segment: string): boolean {
-  if (PI_DEPS_CLEANUP.test(segment)) return true;
-
-  const rawTokens = tokenize(segment);
-
-  // Allow /pr-validate scratch directory cleanup:
-  // e.g. rm -rf "$SCRATCH_DIR", rm -rf "${SCRATCH_DIR}", or rm -rf /tmp/pr-validate-<repo>-<pr>
-  if (rawTokens.length === 3 && rawTokens[0] === "rm" && (rawTokens[1] === "-rf" || rawTokens[1] === "-fr")) {
-    const target = rawTokens[2];
-    if (
-      (target === "$SCRATCH_DIR" ||
-        target === "${SCRATCH_DIR}" ||
-        /^(?:\/tmp|\${TMPDIR:-\/tmp})\/pr-validate-[A-Za-z0-9_.-]+(?:\/)?$/.test(target)) &&
-      !target.includes("..")
-    ) {
-      return true;
-    }
-  }
-  return false;
+  return PI_DEPS_CLEANUP.test(segment);
 }
 const READ_ONLY_AWS_PREFIXES = ["describe", "get", "list"];
 const READ_ONLY_AWS_EXACT = new Set(["filter-log-events", "lookup-events", "query", "scan"]);
@@ -649,7 +632,6 @@ function checkSegment(segment: string, depth: number): DenyRecord | null {
   const tool = basename(tokens[0]);
   if (tool === "rm" && RM_RECURSIVE.test(segment)) {
     // The /verify cleanup rule in dot_pi AGENTS.md removes dot_pi/agent/node_modules.
-    // The /pr-validate prompt removes its scratch directory "$SCRATCH_DIR" (/tmp/pr-validate-*).
     if (isAllowedRm(segment)) return null;
     return { tool: "rm", sub: [], reason: "recursive filesystem delete" };
   }

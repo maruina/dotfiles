@@ -1,4 +1,5 @@
 import type { ExtensionAPI, InputEventResult } from "@earendil-works/pi-coding-agent";
+import { parsePullRequestUrl } from "./_shared/github.ts";
 import { qualifiedId } from "./_shared/model.ts";
 
 export type LifecycleCommandName = "verify" | "simplify";
@@ -8,6 +9,7 @@ export interface ParsedLifecycleCommand {
   positionals: string[];
   implementedBy: string[];
   simplifiedBy: string[];
+  pr?: string;
   base?: string;
   task?: string;
   hasTask: boolean;
@@ -23,7 +25,7 @@ export type PreflightResult =
   | { ok: true }
   | { ok: false; error: string };
 
-const KNOWN_VALUE_FLAGS = new Set(["--implemented-by", "--simplified-by", "--base"]);
+const KNOWN_VALUE_FLAGS = new Set(["--implemented-by", "--simplified-by", "--base", "--pr"]);
 
 function isKnownFlagToken(token: string): boolean {
   if (token === "--task" || token.startsWith("--task=")) return true;
@@ -91,6 +93,29 @@ function readNextToken(input: string, startIndex: number): RawToken | null {
 
 function isEmptyTaskLiteral(raw: string): boolean {
   return raw === "" || raw === "''" || raw === '""';
+}
+
+function unquoteSingleToken(raw: string): string {
+  const trimmed = raw.trim();
+  if (
+    (trimmed.startsWith("'") && trimmed.endsWith("'") && trimmed.length >= 2) ||
+    (trimmed.startsWith('"') && trimmed.endsWith('"') && trimmed.length >= 2)
+  ) {
+    return trimmed.slice(1, -1).trim();
+  }
+  return trimmed;
+}
+
+function isBarePullRequestUrl(raw?: string): boolean {
+  if (!raw) return false;
+  const candidate = unquoteSingleToken(raw);
+  if (/\s/.test(candidate)) return false;
+  try {
+    parsePullRequestUrl(candidate);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function parseLifecycleCommand(input: string): ParsedLifecycleCommand | null {
@@ -167,6 +192,10 @@ export function parseLifecycleCommand(input: string): ParsedLifecycleCommand | n
         if (matchedFlag === "--implemented-by") parsed.implementedBy.push(flagValue);
         else if (matchedFlag === "--simplified-by") parsed.simplifiedBy.push(flagValue);
         else if (matchedFlag === "--base") parsed.base = flagValue;
+        else if (matchedFlag === "--pr") {
+          if (parsed.pr !== undefined) parsed.errors.push("Duplicate --pr flag.");
+          else parsed.pr = flagValue;
+        }
         continue;
       }
 
@@ -208,23 +237,43 @@ export function validateLifecyclePreflight(
   }
 
   const hasPlan = parsed.positionals.length === 1;
+  const hasPr = parsed.pr !== undefined;
   const hasTask = parsed.hasTask;
+  const sourceCount = Number(hasPlan) + Number(hasPr) + Number(hasTask);
 
-  if (hasPlan && hasTask) {
+  if (sourceCount > 1) {
     return {
       ok: false,
-      error: "/verify preflight blocked: provide either a positional plan path or --task, not both.",
+      error: "/verify preflight blocked: provide exactly one of a positional plan path, --pr <pr-url>, or --task, not multiple.",
     };
   }
 
-  if (!hasPlan && !hasTask) {
+  if (sourceCount === 0) {
     return {
       ok: false,
-      error: "/verify preflight blocked: provide either a positional plan path or --task <requirements>.",
+      error: "/verify preflight blocked: provide a positional plan path, --pr <pr-url>, or --task <requirements>.",
     };
   }
 
-  if (hasPlan && !hasTask && parsed.simplifiedBy.length === 0) {
+  if (hasPr) {
+    try {
+      parsePullRequestUrl(parsed.pr!);
+    } catch {
+      return {
+        ok: false,
+        error: "/verify preflight blocked: --pr must be a valid GitHub PR URL (https://github.com/ORG/REPO/pull/NUMBER).",
+      };
+    }
+  }
+
+  if (hasTask && isBarePullRequestUrl(parsed.task)) {
+    return {
+      ok: false,
+      error: "/verify preflight blocked: --task contains only a GitHub PR URL; use --pr <url> instead.",
+    };
+  }
+
+  if (hasPlan && parsed.simplifiedBy.length === 0) {
     return {
       ok: false,
       error: "/verify preflight blocked: plan-backed verification requires --simplified-by <provider/model-id>.",

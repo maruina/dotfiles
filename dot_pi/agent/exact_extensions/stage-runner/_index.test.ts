@@ -158,7 +158,7 @@ test("buildDesignBrief handles empty input, explicit briefs, conversation seed, 
   assert.match(giant, /END$/);
 });
 
-test("inspectDesignBranch, validateFeatureBranchName, and createDesignWorktree create a clean worktree from main", (t) => {
+test("inspectDesignBranch, validateFeatureBranchName, and createDesignWorktree create a clean worktree from main", async (t) => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "design-wt-"));
   t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
   const repo = path.join(tmp, "repo");
@@ -194,7 +194,7 @@ process.stdout.write(JSON.stringify({ path: target, branch }));
 `,
   );
 
-  const created = createDesignWorktree(repo, "maruina/demo", process.env, [process.execPath, fakeWt]);
+  const created = await createDesignWorktree(repo, "maruina/demo", process.env, [process.execPath, fakeWt]);
   assert.equal(created, fs.realpathSync(wtPath));
   assert.equal(git("symbolic-ref", "--short", "HEAD"), "main");
   assert.equal(execFileSync("git", ["symbolic-ref", "--short", "HEAD"], { cwd: created, encoding: "utf8" }).trim(), "maruina/demo");

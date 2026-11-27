@@ -1,8 +1,11 @@
-import { execFileSync } from "node:child_process";
+import { execFile } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { isWorkGitHubOrg, parseGitHubOwnerRepo, parsePullRequestUrl, scrubbedGhEnv, selectGitHubLogin } from "../_shared/github.ts";
+import { promisify } from "node:util";
+import { isWorkGitHubOrg, parseGitHubOwnerRepo, parsePullRequestUrl, routedGhEnv, scrubbedGhEnv } from "../_shared/github.ts";
+
+const execFileAsync = promisify(execFile);
 import { getProfile } from "../_shared/profile.ts";
 import { arpReviewFixPrompt, createDirectArpCaller, partitionFindingFixes, reviewPublished, type FindingFix } from "./_arp.ts";
 import { assertCleanBranch, createGitRunner, resolveOriginDefaultBranch, runGit } from "./_git.ts";
@@ -107,22 +110,41 @@ export async function runArpReview(o: ArpReviewOptions) {
   let branch: string;
   let requestedPrUrl: string | undefined;
   if (o.prUrl) {
+    o.signal.throwIfAborted();
     const parsedPr = parsePullRequestUrl(o.prUrl);
     requestedPrUrl = parsedPr.url;
     if (getProfile(env, o.profilePath) !== "work") throw Error("/arp-review requires the work profile");
     if (!isWorkGitHubOrg(parsedPr.owner)) throw Error("/arp-review requires a ddoghq/* or ddoghq-sandbox/* repository");
-    const login = selectGitHubLogin(parsedPr.owner);
-    const token = execFileSync("gh", ["auth", "token", "--hostname", "github.com", "--user", login], {
-      cwd: o.cwd, env, encoding: "utf8", timeout: 10000, stdio: ["ignore", "pipe", "pipe"],
-    }).trim();
-    if (!token) throw Error("Missing GitHub API credential");
-    const ghEnv = { ...env, GH_TOKEN: token };
-    const prView = JSON.parse(execFileSync("gh", [
+    const runGhAsync = async (command: string, args: string[], runCwd: string, timeout: number, runEnv: NodeJS.ProcessEnv) => {
+      try {
+        const { stdout } = await execFileAsync(command, args, {
+          cwd: runCwd,
+          env: runEnv,
+          encoding: "utf8",
+          timeout,
+          maxBuffer: 1024 * 1024,
+          signal: o.signal,
+          killSignal: "SIGKILL",
+        });
+        return stdout.trim() || null;
+      } catch (error) {
+        if (o.signal.aborted) throw error;
+        return null;
+      }
+    };
+    const ghEnv = await routedGhEnv(parsedPr.owner, "work", runGhAsync, {
+      cwd: o.cwd,
+      timeoutMs: 10000,
+      baseEnv: env,
+    });
+    if (!ghEnv) throw Error("Missing GitHub API credential");
+    const { stdout: prViewRaw } = await execFileAsync("gh", [
       "pr", "view", String(parsedPr.number), "--repo", `${parsedPr.owner}/${parsedPr.repo}`,
       "--json", "number,url,state,headRefOid,headRefName,baseRefName,headRepository,headRepositoryOwner,isCrossRepository",
     ], {
-      cwd: o.cwd, env: ghEnv, encoding: "utf8", timeout: 30000, maxBuffer: 1024 * 1024, stdio: ["ignore", "pipe", "pipe"],
-    }));
+      cwd: o.cwd, env: ghEnv, encoding: "utf8", timeout: 30000, maxBuffer: 1024 * 1024, signal: o.signal, killSignal: "SIGKILL",
+    });
+    const prView = JSON.parse(prViewRaw);
     if (prView.state !== "OPEN") throw Error(`No open PR for ${parsedPr.url} (state: ${prView.state ?? "unknown"})`);
     if (
       prView.isCrossRepository !== false ||

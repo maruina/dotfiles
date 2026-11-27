@@ -336,7 +336,7 @@ export default function stageRunner(pi: ExtensionAPI) {
           if (branchInfo?.onDefault) {
             const branchName = deriveDesignBranch(branchInfo.root, arg, designBrief, pi.getSessionName?.(), branchInfo.defaultBranch);
             designProgress("Creating feature worktree " + branchName);
-            designCwd = createDesignWorktree(ctx.cwd, branchName);
+            designCwd = await createDesignWorktree(ctx.cwd, branchName, undefined, undefined, controller.signal);
             designProgress("Using feature worktree " + designCwd);
           }
           designProgress("Run started.");

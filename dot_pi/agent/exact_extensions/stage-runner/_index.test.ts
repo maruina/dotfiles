@@ -239,3 +239,36 @@ test("/stage-runner-design requires either a brief or existing conversation cont
   } as unknown as Parameters<Command["handler"]>[1]);
   assert.deepEqual(messages, ["Provide a brief or start /stage-runner-design from an existing conversation"]);
 });
+
+test("registers /stage-runner-doctor and rejects child or non-UI sessions", async (t) => {
+  const savedChild = process.env.PI_STAGE_RUNNER_CHILD;
+  t.after(() => {
+    if (savedChild === undefined) delete process.env.PI_STAGE_RUNNER_CHILD;
+    else process.env.PI_STAGE_RUNNER_CHILD = savedChild;
+  });
+  type Command = Parameters<ExtensionAPI["registerCommand"]>[1];
+  const commands = new Map<string, Command>();
+  stageRunner({
+    registerEntryRenderer() {},
+    registerCommand(name: string, command: Command) { commands.set(name, command); },
+    appendEntry() {},
+    on() {},
+  } as unknown as ExtensionAPI);
+  const doctor = commands.get("stage-runner-doctor");
+  assert.ok(doctor);
+  const messages: Array<[string, string | undefined]> = [];
+  delete process.env.PI_STAGE_RUNNER_CHILD;
+  await doctor.handler("", {
+    hasUI: false,
+    ui: { notify: (message: string, level?: string) => messages.push([message, level]) },
+  } as unknown as Parameters<Command["handler"]>[1]);
+  process.env.PI_STAGE_RUNNER_CHILD = "1";
+  await doctor.handler("", {
+    hasUI: true,
+    ui: { notify: (message: string, level?: string) => messages.push([message, level]) },
+  } as unknown as Parameters<Command["handler"]>[1]);
+  assert.deepEqual(messages, [
+    ["Use /stage-runner-doctor in an interactive parent session", "error"],
+    ["Use /stage-runner-doctor in an interactive parent session", "error"],
+  ]);
+});

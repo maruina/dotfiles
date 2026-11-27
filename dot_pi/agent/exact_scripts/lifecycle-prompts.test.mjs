@@ -436,7 +436,7 @@ test("lifecycle prompts stay within prompt context budgets", () => {
   const budgets = new Map([
     ["brainstorm.md", 14_000],
     ["plan.md", 18_225],
-    ["systematic-review.md", 13_225],
+    ["systematic-review.md", 13_400],
     ["execute.md", 15_125],
     ["verify.md", 13_700],
     ["simplify.md", 9_500],
@@ -1273,12 +1273,26 @@ test("optimize prompt enforces measurement-first scientific-method loop and skil
     provenanceReference,
     /`feature-worktree` skill/,
     /Do not edit production code before you run a repeatable measurement harness/i,
+    /Do not modify the benchmark harness or workload to score a win/i,
+    /noise\/variance bounds/i,
+    /2 consecutive non-trivial hypotheses each improving by less than 2%/i,
     /3 to 5 concrete hypotheses/i,
     /gap to the goal closed/i,
     /kept.*reverted|Keep or revert/is,
     /scratch hypothesis ledger/i,
     /Do not push or open a PR from `\/optimize`/i,
     /`\/simplify`.*`\/verify`/is,
+  ]);
+});
+
+test("verify and systematic-review enforce blind invariant checklists and benchmark reproduction", () => {
+  requireMarkers(prompt("verify.md"), [
+    /Before inspecting the diff, read the requirements and pre-edit interfaces/i,
+    /list the invariants, boundary cases, and failure modes/i,
+    /re-run the locked benchmark on both the base and candidate from scratch/i,
+  ]);
+  requireMarkers(prompt("systematic-review.md"), [
+    /list expected invariants and failure modes from the goal and pre-change interfaces before reading the full diff/i,
   ]);
 });
 

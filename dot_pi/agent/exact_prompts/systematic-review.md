@@ -83,7 +83,7 @@ Challenge scope against the smallest user-feedback slice, not only against the d
 1. Use `codebase-research` to locate the target, trace behavior, and find patterns. Read in bounded sections; if a tool response is truncated, retrieve the missing sections before drawing conclusions.
 2. Use `skill-loader` to load target-specific language/domain skills and references before evaluating findings; record provenance per its `## Provenance record` section.
 3. Identify languages, package boundaries, test/build commands, entry points, and guidance files.
-4. Map core files, tests, dependencies, callers, and ownership. For plans, read the sibling `design.md`.
+4. Map core files, tests, dependencies, callers, and ownership. For plans, read the sibling `design.md`. For behavior-bearing code or PRs, list expected invariants and failure modes from the goal and pre-change interfaces before reading the full diff.
 5. Check correctness, concurrency, security, performance, API/UX, tests, and maintainability.
 6. Prefer structural findings over nits.
 7. Validate findings with code references, tests, types, or command output where practical.

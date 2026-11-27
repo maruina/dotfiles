@@ -62,8 +62,8 @@ export async function recovery(o: {
   owner: (state: Ownership | null) => void;
   manual: (command: string, display: boolean) => void;
 }) {
-  const { REX_SERVER, REX_SESSION: session, REX_BLOCK: anchor } = o.env;
-  if (!REX_SERVER || !session || !anchor) throw Error("Missing local Rex IDs");
+  const { REX_SERVER, REX_SESSION: envSession, REX_BLOCK: anchor } = o.env;
+  if (!REX_SERVER || !anchor) throw Error("Missing local Rex IDs");
   const endpoint = verifyLocalRexEndpoint(REX_SERVER);
   const [exe, ...prefix] = o.rex ?? ["rex"];
   const rexArgs = [...prefix, ...buildRexArgs([], { endpoint, validateEndpoint: false })];
@@ -72,14 +72,19 @@ export async function recovery(o: {
   const rex = async (...args: string[]) =>
     (await runRex(exe, [...rexArgs, ...args], { ...rexOptions, timeout: 5000 })).stdout;
   const command = o.argv.map((s) => "'" + s.replaceAll("'", "'\\''") + "'").join(" ");
-  const instructions = "Recovery command in " + o.cwd + " (Rex " + session + " / " + anchor + "):\n" + command;
-  o.manual(instructions, false);
+  let session: string;
   try {
-    verifyLocalRexPeer(JSON.parse(await rex("whoami", "--json")), endpoint, { session, block: anchor });
+    const peer = verifyLocalRexPeer(JSON.parse(await rex("whoami", "--json")), endpoint, {
+      session: envSession || undefined,
+      block: anchor,
+    });
+    session = peer.session_id;
   } catch {
-    o.manual(instructions, true);
+    o.manual("Recovery command in " + o.cwd + " (Rex " + (envSession || anchor) + " / " + anchor + "):\n" + command, true);
     throw Error("Rex peer or anchor mismatch");
   }
+  const instructions = "Recovery command in " + o.cwd + " (Rex " + session + " / " + anchor + "):\n" + command;
+  o.manual(instructions, false);
   const split = [
     "split",
     "--shell=none",

@@ -108,9 +108,9 @@ function classifyPane(pane, process, rows, records, who) {
   return { fg, known, unknown: unknownPi || ambiguousFish, busy: fg.name !== 'fish' || group.length > 1 };
 }
 export function checkpoint({ dir = stateDir(), file, cwd, pid = process.pid, env = process.env, rex = callRex, processTable = readProcessTable }) {
-  if (!env.REX_SESSION || !env.REX_BLOCK || !file) return;
+  if (!env.REX_BLOCK || !file) return;
   const who = rex(['whoami']);
-  if (who.session_id !== env.REX_SESSION || who.block_id !== env.REX_BLOCK || !who.endpoint?.startsWith('unix://')) {
+  if (!who.session_id || (env.REX_SESSION && who.session_id !== env.REX_SESSION) || who.block_id !== env.REX_BLOCK || !who.endpoint?.startsWith('unix://')) {
     throw Error('Rex identity does not match the inherited pane');
   }
   const view = rex(['session', 'inspect', who.session_id]);

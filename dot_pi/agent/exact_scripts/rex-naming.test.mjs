@@ -37,7 +37,7 @@ if (a[1] === 'inspect') {
 } else process.exit(2);
 `, { mode: 0o755 });
     const result = spawnSync("fish", ["--no-config", "-c", `source '${functions}rex-name-session.fish'; source '${functions}rex-name-task.fish'; ${command}`], {
-      cwd: dir, encoding: "utf8", env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, STATE: state, REX_SESSION: missingEnv ? "" : "s", REX_BLOCK: "b", FAIL: String(fail), IGNORE_RENAME: String(ignoreRename) },
+      cwd: dir, encoding: "utf8", env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, STATE: state, REX_SESSION: "", REX_BLOCK: missingEnv ? "" : "b", FAIL: String(fail), IGNORE_RENAME: String(ignoreRename) },
     });
     return { ...result, state: JSON.parse(readFileSync(state)), basename: path.basename(dir) };
   } finally {

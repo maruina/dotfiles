@@ -154,7 +154,10 @@ test("cancellation clears the runner child record and removes its widget", async
   await new Promise<void>((resolve, reject) => server.once("error", reject).listen(socket, resolve));
   t.after(() => { server.close(); fs.rmSync(dir, { recursive: true, force: true }); });
   const endpoint = "unix://" + socket;
-  const overrides = { REX_SERVER: endpoint, REX_SESSION: "session:test", REX_BLOCK: "block:test", PI_STAGE_RUNNER_CHILD: "0", PI_PROGRAM_STATUS: "1" };
+  const overrides = { REX_SERVER: endpoint, REX_BLOCK: "block:test", PI_STAGE_RUNNER_CHILD: "0", PI_PROGRAM_STATUS: "1" };
+  const prevSession = process.env.REX_SESSION;
+  delete process.env.REX_SESSION;
+  t.after(() => { if (prevSession !== undefined) process.env.REX_SESSION = prevSession; });
   for (const [name, value] of Object.entries(overrides)) {
     const previous = process.env[name];
     process.env[name] = value;
@@ -168,7 +171,7 @@ test("cancellation clears the runner child record and removes its widget", async
     registerEntryRenderer() {}, appendEntry() {},
     registerCommand(name: string, command: { handler: typeof start }) { if (name === "stage-runner") start = command.handler; },
     on(_event: string, handler: typeof shutdown) { shutdown = handler; },
-    exec: async () => ({ code: 0, stdout: JSON.stringify({ endpoint, principal: { kind: "peer", transport: "unix", uid: process.getuid!() }, session_id: overrides.REX_SESSION, block_id: overrides.REX_BLOCK }) }),
+    exec: async () => ({ code: 0, stdout: JSON.stringify({ endpoint, principal: { kind: "peer", transport: "unix", uid: process.getuid!() }, session_id: "session:test", block_id: overrides.REX_BLOCK }) }),
   } as unknown as ExtensionAPI);
   await start("plan.md", { hasUI: true, scopedModels: [{ model: { provider: "p", id: "m" } }], ui: {
     select: async () => undefined, notify() {},

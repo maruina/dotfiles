@@ -151,14 +151,15 @@ async function tabFixture(run, mode = "success") {
   const savedEnv = { ...process.env };
   const savedArgv = process.argv;
   try {
-    Object.assign(process.env, { REX_SERVER: `unix://${socket}`, REX_SESSION: "session:aaaa", REX_BLOCK: "block:aaaa", PI_CODING_AGENT_DIR: root });
+    delete process.env.REX_SESSION;
+    Object.assign(process.env, { REX_SERVER: `unix://${socket}`, REX_BLOCK: "block:aaaa", PI_CODING_AGENT_DIR: root });
     process.argv = [process.execPath, fileURLToPath(new URL("./cli.js", import.meta.resolve("@earendil-works/pi-coding-agent")))];
     const source = SessionManager.create(root, root);
     source.appendMessage({ role: "user", content: "persisted", timestamp: Date.now() });
     const sourceBytes = readFileSync(source.getSessionFile());
     const calls = [];
     let payload;
-    const peer = { endpoint: process.env.REX_SERVER, instance_id: "instance", host_id: "host", session_id: process.env.REX_SESSION,
+    const peer = { endpoint: process.env.REX_SERVER, instance_id: "instance", host_id: "host", session_id: "session:aaaa",
       block_id: process.env.REX_BLOCK, pid: process.pid, principal: { kind: "peer", transport: "unix", uid: process.getuid() } };
     const app = extension(async (program, args) => {
       calls.push([program, args]);

@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 const args = process.argv.slice(2),
-  session = process.env.REX_SESSION,
+  session = process.env.REX_SESSION || "session:fixture",
   anchor = process.env.REX_BLOCK,
   block = "block:fixture-recovery",
   file = process.env.ARGV_LOG + ".pid",

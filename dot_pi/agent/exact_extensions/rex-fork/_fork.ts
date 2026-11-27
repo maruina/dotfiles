@@ -156,7 +156,7 @@ export async function runTabFork(api: ExtensionAPI, ctx: ExtensionContext, curre
   } };
   const endpoint = verifyLocalRexEndpoint();
   const peer = await identity(pi, endpoint);
-  if (peer.session_id !== process.env.REX_SESSION || peer.block_id !== process.env.REX_BLOCK) throw new Error("Inherited Rex IDs do not match the invoking pane.");
+  if ((process.env.REX_SESSION && peer.session_id !== process.env.REX_SESSION) || peer.block_id !== process.env.REX_BLOCK) throw new Error("Inherited Rex IDs do not match the invoking pane.");
   await inspectOwnPane(pi, peer, ctx.cwd);
   const command = launcher();
   const fish = await pi.exec("/usr/bin/which", ["fish"], { timeout: 7000 });

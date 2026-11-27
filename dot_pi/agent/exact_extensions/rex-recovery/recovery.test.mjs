@@ -28,7 +28,7 @@ function fixture(t) {
     }
     return {};
   };
-  const env = { REX_SESSION: who.session_id, REX_BLOCK: who.block_id };
+  const env = { REX_BLOCK: who.block_id };
   const row = (pid, command) => ({ pid, ppid: 1, pgid: pid, tpgid: pid, uid: process.getuid(), startTime: '2020-01-01T00:00:00.000Z', command });
   const processTable = () => [...processes.values()].map(({ foreground }) => row(foreground.pid, foreground.argv0 || foreground.name));
   const save = () => checkpoint({ dir: join(dir, 'records'), file, cwd: dir, pid: 10, env, rex, processTable: () => [row(10, 'pi')] });

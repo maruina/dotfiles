@@ -287,14 +287,15 @@ function rexArgs(env: NodeJS.ProcessEnv, args: string[], timeoutSec = 3): string
 }
 
 // rex __internal session-start prints the Rex guidance block and exits 0
-// with no output when REX_SESSION is unset, so it is safe outside Rex.
+// with no output outside Rex, so gating on REX_BLOCK/REX_SESSION avoids spawning rex outside Rex.
 export async function loadRexLines(env: NodeJS.ProcessEnv, run: AsyncRunner): Promise<string[] | null> {
-  if (!env.REX_SESSION) return null;
+  if (!env.REX_BLOCK && !env.REX_SESSION) return null;
   const output = await run("rex", rexArgs(env, ["__internal", "session-start", "--agent", "pi", "--feature-session-naming=false"]), undefined, 3000);
   return output ? formatRexContext(output) : null;
 }
 
 type RexSessionSnapshot = {
+  session_id?: string;
   label?: string;
   windows?: Array<{
     window_id?: string;
@@ -309,11 +310,11 @@ function repoNameFromRemote(remote: string): string {
 
 async function applyRexSessionName(
   snapshot: RexSessionSnapshot,
+  session: string,
   cwd: string,
   env: NodeJS.ProcessEnv,
   run: AsyncRunner,
 ): Promise<void> {
-  const session = env.REX_SESSION;
   const block = env.REX_BLOCK;
   if (!session || !block) return;
   const label = snapshot.label ?? "";
@@ -341,11 +342,11 @@ async function applyRexSessionName(
 
 async function applyRexTaskLabel(
   snapshot: RexSessionSnapshot,
+  session: string,
   label: string,
   env: NodeJS.ProcessEnv,
   run: AsyncRunner,
 ): Promise<void> {
-  const session = env.REX_SESSION;
   const block = env.REX_BLOCK;
   if (!session || !block || !TASK_LABEL_RE.test(label)) return;
   const containing = (snapshot.windows ?? []).find((w) =>
@@ -365,12 +366,12 @@ export async function nameRexSessionAndTask(
   env: NodeJS.ProcessEnv,
   run: AsyncRunner = runAsync,
 ): Promise<void> {
-  const session = env.REX_SESSION;
   const block = env.REX_BLOCK;
+  const sessionRef = env.REX_SESSION || block;
   const wantSession = Boolean(options.sessionCwd);
   const wantTask = Boolean(options.taskLabel && TASK_LABEL_RE.test(options.taskLabel));
-  if (!session || !block || (!wantSession && !wantTask)) return;
-  const raw = await run("rex", rexArgs(env, ["session", "inspect", session, "--json"]), options.sessionCwd, 3000);
+  if (!sessionRef || !block || (!wantSession && !wantTask)) return;
+  const raw = await run("rex", rexArgs(env, ["session", "inspect", sessionRef, "--json"]), options.sessionCwd, 3000);
   if (!raw) return;
   let snapshot: RexSessionSnapshot;
   try {
@@ -378,9 +379,10 @@ export async function nameRexSessionAndTask(
   } catch {
     return;
   }
+  const session = snapshot.session_id || sessionRef;
   const tasks: Promise<void>[] = [];
-  if (wantSession && options.sessionCwd) tasks.push(applyRexSessionName(snapshot, options.sessionCwd, env, run));
-  if (wantTask && options.taskLabel) tasks.push(applyRexTaskLabel(snapshot, options.taskLabel, env, run));
+  if (wantSession && options.sessionCwd) tasks.push(applyRexSessionName(snapshot, session, options.sessionCwd, env, run));
+  if (wantTask && options.taskLabel) tasks.push(applyRexTaskLabel(snapshot, session, options.taskLabel, env, run));
   await Promise.all(tasks);
 }
 
@@ -440,7 +442,7 @@ export default function (pi: ExtensionAPI) {
   pi.on("before_agent_start", async (event, ctx) => {
     const profile = getProfile();
     const stageRunnerChild = process.env.PI_STAGE_RUNNER_CHILD === "1";
-    const inInteractiveRex = !stageRunnerChild && ctx.mode === "tui" && Boolean(process.env.REX_SESSION) && Boolean(process.env.REX_BLOCK);
+    const inInteractiveRex = !stageRunnerChild && ctx.mode === "tui" && Boolean(process.env.REX_BLOCK);
     if (inInteractiveRex) {
       const sessionCwd = !rexNamingState.attempted ? rexNamingState.startupCwd : undefined;
       if (sessionCwd) rexNamingState.attempted = true;

@@ -78,30 +78,30 @@ test("formatCurrentModel emits a provider-qualified model ID and omits missing I
   assert.deepEqual(formatCurrentModel({ name: "GPT-5" }), []);
 });
 
-test("loadRexLines returns nothing without REX_SESSION and never runs rex", async () => {
+test("loadRexLines returns nothing without REX_BLOCK or REX_SESSION and never runs rex", async () => {
   assert.equal(await loadRexLines({}, neverRun), null);
   assert.equal(await loadRexLines({ REX_SERVER: "unix:///tmp/rex.sock" }, neverRun), null);
 });
 
 test("loadRexLines returns nothing when rex is missing or unusable", async () => {
   const run = async () => null;
-  assert.equal(await loadRexLines({ REX_SESSION: "session:x" }, run), null);
+  assert.equal(await loadRexLines({ REX_BLOCK: "block:x" }, run), null);
 });
 
 test("loadRexLines passes --autostart=false and --server when set, and disables built-in naming", async () => {
   const calls = [];
   const run = async (...args) => {
     calls.push(args);
-    return "You're running in a Rex terminal.\n\nREX_SESSION=session:x";
+    return "You're running in a Rex terminal.\n\nREX_BLOCK=block:x";
   };
-  const lines = await loadRexLines({ REX_SESSION: "session:x", REX_SERVER: "unix:///tmp/rex.sock" }, run);
+  const lines = await loadRexLines({ REX_BLOCK: "block:x", REX_SERVER: "unix:///tmp/rex.sock" }, run);
   assert.deepEqual(calls, [["rex", ["--autostart=false", "--timeout", "3s", "--server", "unix:///tmp/rex.sock", "__internal", "session-start", "--agent", "pi", "--feature-session-naming=false"], undefined, 3000]]);
   assert.deepEqual(lines, [
     "## Rex",
     "",
     "You're running in a Rex terminal.",
     "",
-    "REX_SESSION=session:x",
+    "REX_BLOCK=block:x",
   ]);
 });
 
@@ -110,30 +110,31 @@ test("nameRexSession renames single-pane sessions directly via rex without fish 
   const run = async (cmd, args) => {
     calls.push([cmd, args]);
     if (cmd === "rex" && args.includes("inspect")) {
-      return JSON.stringify({ label: "old", windows: [{ window_id: "window:1", layers: [{ blocks: [{ block_id: "block:x" }] }] }] });
+      return JSON.stringify({ session_id: "session:x", label: "old", windows: [{ window_id: "window:1", layers: [{ blocks: [{ block_id: "block:x" }] }] }] });
     }
     if (cmd === "git" && args[0] === "rev-parse") return "/tmp/repo";
     if (cmd === "git" && args[0] === "remote") return "git@github.com:maruina/dotfiles.git";
     return "";
   };
-  await nameRexSession("/tmp/repo", { REX_SESSION: "session:x", REX_BLOCK: "block:x", REX_SERVER: "unix:///tmp/rex.sock" }, run);
+  await nameRexSession("/tmp/repo", { REX_BLOCK: "block:x", REX_SERVER: "unix:///tmp/rex.sock" }, run);
+  assert.deepEqual(calls[0], ["rex", ["--autostart=false", "--timeout", "3s", "--server", "unix:///tmp/rex.sock", "session", "inspect", "block:x", "--json"]]);
   assert.deepEqual(calls.at(-1), ["rex", ["--autostart=false", "--timeout", "3s", "--server", "unix:///tmp/rex.sock", "session", "rename", "session:x", "dotfiles"]]);
 
   const keepCalls = [];
-  await nameRexSession("/tmp/repo", { REX_SESSION: "session:x", REX_BLOCK: "block:x" }, async (cmd, args) => {
+  await nameRexSession("/tmp/repo", { REX_BLOCK: "block:x" }, async (cmd, args) => {
     keepCalls.push([cmd, args]);
-    return JSON.stringify({ label: "keep:pinned", windows: [{ window_id: "window:1", layers: [{ blocks: [{ block_id: "block:x" }] }] }] });
+    return JSON.stringify({ session_id: "session:x", label: "keep:pinned", windows: [{ window_id: "window:1", layers: [{ blocks: [{ block_id: "block:x" }] }] }] });
   });
   assert.equal(keepCalls.length, 1);
 });
 
 test("nameRexTask labels the containing window for single-pane tabs and the block for split tabs", async () => {
   const calls = [];
-  const env = { REX_SESSION: "session:x", REX_BLOCK: "block:x" };
+  const env = { REX_BLOCK: "block:x" };
   await nameRexTask("π-analyze-pi-extensions", env, async (cmd, args) => {
     calls.push([cmd, args]);
     if (args.includes("inspect")) {
-      return JSON.stringify({ windows: [{ window_id: "window:1", layers: [{ blocks: [{ block_id: "block:x" }] }] }] });
+      return JSON.stringify({ session_id: "session:x", windows: [{ window_id: "window:1", layers: [{ blocks: [{ block_id: "block:x" }] }] }] });
     }
     return "";
   });
@@ -143,14 +144,14 @@ test("nameRexTask labels the containing window for single-pane tabs and the bloc
   await nameRexTask("π-analyze-pi-extensions", env, async (cmd, args) => {
     splitCalls.push([cmd, args]);
     if (args.includes("inspect")) {
-      return JSON.stringify({ windows: [{ window_id: "window:1", layers: [{ blocks: [{ block_id: "block:x" }, { block_id: "block:y" }] }] }] });
+      return JSON.stringify({ session_id: "session:x", windows: [{ window_id: "window:1", layers: [{ blocks: [{ block_id: "block:x" }, { block_id: "block:y" }] }] }] });
     }
     return "";
   });
   assert.deepEqual(splitCalls.at(-1), ["rex", ["--autostart=false", "--timeout", "3s", "block", "rename", "-s", "session:x", "block:x", "π-analyze-pi-extensions"]]);
 });
 
-function runHookScenario({ mode = "tui", session = "session:x", block = "block:x", fail = false, reload = false } = {}) {
+function runHookScenario({ mode = "tui", session = "", block = "block:x", fail = false, reload = false } = {}) {
   const dir = mkdtempSync(path.join(os.tmpdir(), "user-context-hook-"));
   try {
     const startup = path.join(dir, "startup");
@@ -195,7 +196,7 @@ if (args.includes('inspect')) {
       const secondResult = await first(event, ctx);
       if (process.env.RELOAD === 'true') await (await register('?reload'))(event, ctx);
       let alive = false;
-      if (process.env.MODE === 'tui' && process.env.REX_SESSION && process.env.REX_BLOCK && process.env.FAIL !== 'true') {
+      if (process.env.MODE === 'tui' && process.env.REX_BLOCK && process.env.FAIL !== 'true') {
         for (let i = 0; i < 100 && !existsSync(process.env.CALLS); i++) await new Promise(r => setTimeout(r, 10));
         if (existsSync(process.env.CALLS)) {
           const { pid } = JSON.parse(readFileSync(process.env.CALLS, 'utf8').split('\\n')[0]);
@@ -224,7 +225,7 @@ test("registered hook names once in the startup directory without waiting, inclu
   assert.equal(alive, true, "the hook returned before rex exited");
   const inspects = recorded.filter((c) => c.args.includes("inspect"));
   assert.equal(inspects.length, 1);
-  assert.deepEqual({ cwd: inspects[0].cwd, args: inspects[0].args }, { cwd: startup, args: ["--autostart=false", "--timeout", "3s", "session", "inspect", "session:x", "--json"] });
+  assert.deepEqual({ cwd: inspects[0].cwd, args: inspects[0].args }, { cwd: startup, args: ["--autostart=false", "--timeout", "3s", "session", "inspect", "block:x", "--json"] });
   assert.doesNotMatch(output.message.content, /rex-name-task/);
   assert.doesNotMatch(output.message.content, /rex-name-session/);
   assert.equal(output.systemPrompt, undefined);
@@ -232,7 +233,7 @@ test("registered hook names once in the startup directory without waiting, inclu
 });
 
 test("registered hook excludes RPC and missing Rex identifiers", () => {
-  for (const options of [{ mode: "rpc" }, { session: "" }, { block: "" }]) {
+  for (const options of [{ mode: "rpc" }, { block: "" }]) {
     assert.deepEqual(runHookScenario(options).recorded, []);
   }
 });
@@ -304,7 +305,7 @@ test("nameRexSessionAndTask inspects Rex once when naming both session and task"
   };
   await nameRexSessionAndTask(
     { sessionCwd: "/tmp/dotfiles", taskLabel: "π-fix-tests" },
-    { REX_SESSION: "session:1", REX_BLOCK: "block:1" },
+    { REX_BLOCK: "block:1" },
     run,
   );
   const inspects = calls.filter((c) => c.cmd === "rex" && c.args.includes("inspect"));

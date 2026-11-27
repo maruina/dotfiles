@@ -40,8 +40,8 @@ async function checkRex(pi: ExtensionAPI) {
     errorMessage: "Cannot verify Rex identity",
   });
   verifyLocalRexPeer(peer, endpoint, {
-    session: process.env.REX_SESSION,
-    block: process.env.REX_BLOCK,
+    session: process.env.REX_SESSION || undefined,
+    block: process.env.REX_BLOCK ?? "",
   });
 }
 

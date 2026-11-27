@@ -3,12 +3,16 @@ function rex-name-session --description 'Name a single-pane Rex session after th
         echo 'Usage: rex-name-session' >&2
         return 2
     end
-    if test -z "$REX_SESSION"; or test -z "$REX_BLOCK"
-        echo 'rex-name-session: REX_SESSION and REX_BLOCK are required' >&2
+    if test -z "$REX_BLOCK"
+        echo 'rex-name-session: REX_BLOCK is required' >&2
         return 1
     end
+    set -l session_ref "$REX_SESSION"
+    if test -z "$session_ref"
+        set session_ref "$REX_BLOCK"
+    end
 
-    set -l snapshot (rex session inspect "$REX_SESSION" --json | string collect)
+    set -l snapshot (rex session inspect "$session_ref" --json | string collect)
     or return 1
     set -l label (printf '%s' "$snapshot" | jq -er '.label')
     or return 1
@@ -44,10 +48,10 @@ function rex-name-session --description 'Name a single-pane Rex session after th
         return 1
     end
     if test "$label" != "$name"
-        rex session rename "$REX_SESSION" "$name"
+        rex session rename "$session_ref" "$name"
         or return 1
     end
-    rex session inspect "$REX_SESSION" --json | jq -e --arg name "$name" '.label == $name' >/dev/null
+    rex session inspect "$session_ref" --json | jq -e --arg name "$name" '.label == $name' >/dev/null
     or begin
         echo 'rex-name-session: could not verify the session name' >&2
         return 1

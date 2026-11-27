@@ -8,7 +8,7 @@ Execution input:
 > $ARGUMENTS
 
 ## Stage runner
-For a `/stage-runner` attempt, submit the private JSON handoff outside Git via `submit_stage_handoff` (or supplied path/schema). Do not push, publish, apply, or create a PR. Verify baseline, plan blob, and candidate; use the pinned plan for requirements and current plan as ledger, and stop on mismatch. Treat every stop-and-ask rule below as a `blocked` handoff (`blocker`: `step`, `reason`, `evidence`, `nextAction`), never prose-only. Commit each completed slice with a Conventional Commit and leave a clean tree.
+For a `/stage-runner` attempt, submit the private JSON handoff outside Git via `submit_stage_handoff` (or supplied path/schema). Do not push, publish, apply, or create a PR. Skip `resolve-worktree`, `feature-worktree`, and manual baseline/blob shell checks because `stage-runner` locks the canonical worktree and enforces those invariants deterministically; use the pinned plan for requirements and current plan as ledger. Treat every stop-and-ask rule below as a `blocked` handoff (`blocker`: `step`, `reason`, `evidence`, `nextAction`), never prose-only. Commit each completed slice with a Conventional Commit and leave a clean tree.
 
 Execute a committed implementation plan. For trivial low-risk work, `/execute` may also execute directly from a bare prompt after complexity triage.
 

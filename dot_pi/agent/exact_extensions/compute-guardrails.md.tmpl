@@ -241,6 +241,4 @@ Command text that does not run is not blocked. Heredoc bodies are data: their li
 | `rm -r` / `rm -rf` | recursive filesystem delete |
 
 For `/verify` and local cleanup, `rm -rf` accepts one literal `dot_pi/agent/node_modules` path. Use the repo-relative path (with or without `./`) or an absolute path such as `/work/chezmoi/dot_pi/agent/node_modules`. This exception does not allow globs, variable expansion, `..` path components, or extra arguments. It does not match the runtime directory `~/.pi/agent/node_modules`.
-
-For `/pr-validate`, the guardrail also allows `rm -rf "$SCRATCH_DIR"` or `rm -rf` with a literal `/tmp/pr-validate-` scratch path.
 {{- end }}

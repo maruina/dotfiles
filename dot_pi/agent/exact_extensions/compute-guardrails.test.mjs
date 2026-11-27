@@ -82,13 +82,18 @@ const allowedCases = [
   "rm -rf ./dot_pi/agent/node_modules",
   "rm -rf /work/.worktrees/chezmoi/topic/dot_pi/agent/node_modules",
   'rm -rf "/work/.worktrees/chezmoi/topic/dot_pi/agent/node_modules"',
-  'rm -rf "$SCRATCH_DIR"',
-  'rm -rf "${SCRATCH_DIR}"',
-  "rm -rf $SCRATCH_DIR",
-  "rm -rf /tmp/pr-validate-computecla-controllers-2",
-  'rm -rf "${TMPDIR:-/tmp}/pr-validate-computecla-controllers-2"',
-  "rm -rf /tmp/pr-validate-repo-123/",
 ];
+
+test("compute guardrails block variable-indirected recursive rm", () => {
+  for (const command of [
+    'rm -rf "$SCRATCH_DIR"',
+    'rm -rf "${SCRATCH_DIR}"',
+    'SCRATCH_DIR=/tmp/anything && rm -rf "$SCRATCH_DIR"',
+    "rm -rf /tmp/pr-validate-repo-123",
+  ]) {
+    assert.equal(blocked(command), true, command);
+  }
+});
 
 test("compute guardrails block mutating protected commands", () => {
   for (const command of blockedCases) {

@@ -11,6 +11,7 @@ import { qualifiedId } from "../_shared/model.ts";
 import { recovery, sessionInfo } from "./_recovery.ts";
 import { designStages, type DesignOptions } from "./_design.ts";
 import { DraftError, prepareDraft } from "./_draft.ts";
+import { assertCleanBranch, createGitRunner, resolveOriginDefaultBranch } from "./_git.ts";
 import { runStartupRebase } from "./_startup.ts";
 
 export { prepareDraft };
@@ -73,6 +74,17 @@ function unfencedLines(plan: string): string[] {
 }
 
 const unchecked = (s: string): string[] => unfencedLines(s).filter((line) => /^\s*- \[ \] .+$/.test(line));
+export function completedTasks(before: readonly string[], after: readonly string[]): string[] {
+  const counts = new Map<string, number>();
+  for (const task of after) counts.set(task, (counts.get(task) ?? 0) + 1);
+  const done: string[] = [];
+  for (const task of before) {
+    const left = counts.get(task) ?? 0;
+    if (left > 0) counts.set(task, left - 1);
+    else done.push(task);
+  }
+  return done;
+}
 export function id(m: Choice): string {
   return qualifiedId(m.provider, m.id);
 }
@@ -116,6 +128,8 @@ export function stageChildExtensions(
     ...workExtensions(env, true),
     path.resolve(import.meta.dirname, "./_handoff.ts"),
   ];
+  // deliberate: arp-fix is work-profile-only so core work extensions stay required unconditionally,
+  // whereas multi-profile stages filter optional work extensions by presence on disk.
   const resolvedCore = stage === "arp-fix" ? core : core.filter((file) => fs.existsSync(file));
   return [...resolvedCore, ...optionalChildExtensions(stage)];
 }
@@ -249,6 +263,10 @@ export async function attempt(o: Pick<Options, "models" | "env" | "executable" |
   if (drafting) {
     for (const key of Object.keys(env)) {
       if (!/^(HOME|USER|LOGNAME|PATH|TMPDIR|SHELL|LANG|LC_[A-Z_]+|PI_CODING_AGENT_DIR|PI_STAGE_RUNNER_CHILD|OPENAI_API_KEY|ANTHROPIC_API_KEY|GEMINI_API_KEY|GOOGLE_API_KEY)$/.test(key)) delete env[key];
+    }
+    if (handoffOut) {
+      env.PI_STAGE_RUNNER_HANDOFF = handoffOut;
+      env.PI_STAGE_RUNNER_STAGE = "pr-draft";
     }
     extra.push("--no-extensions", "--no-approve", "--no-skills", "--no-prompt-templates", "--no-context-files",
       "--tools", "read", ...drafting.extensions.flatMap(file => ["--extension", file]));
@@ -452,15 +470,7 @@ export const run = (o: Options) => supervise(o);
 export const runDesign = (o: DesignOptions) => supervise(o);
 
 async function supervise(o: Options | DesignOptions) {
-  const git = (...args: string[]) =>
-    execFileSync("git", args, {
-      cwd: o.cwd,
-      env: o.env,
-      encoding: "utf8",
-      timeout: 10000,
-      maxBuffer: 4 * 1024 * 1024,
-      stdio: ["ignore", "pipe", "pipe"],
-    }).trimEnd();
+  const git = createGitRunner(o.cwd, o.env);
   const cwd = fs.realpathSync(git("rev-parse", "--show-toplevel")),
     plan = "plan" in o ? fs.realpathSync(path.resolve(o.cwd, o.plan)) : cwd,
     rel = path.relative(cwd, plan);
@@ -471,17 +481,9 @@ async function supervise(o: Options | DesignOptions) {
   if ("plan" in o && (rel.startsWith("../") || !/(^|\/)plans\/[^/]+\/plan\.md$/.test(rel) || /[\r\n\0]/.test(plan)))
     throw Error("Expected a committed plan inside the worktree");
   const branch = git("symbolic-ref", "--short", "HEAD");
-  let defaultBranch = "";
-  try {
-    defaultBranch = git("symbolic-ref", "--short", "refs/remotes/origin/HEAD").replace(/^origin\//, "");
-  } catch {
-    if (git("remote").split("\n").includes("origin")) throw Error("Cannot establish origin default branch");
-  }
+  const defaultBranch = resolveOriginDefaultBranch(git);
   if (["main", "master", defaultBranch].includes(branch)) throw Error("Choose a feature branch");
-  function clean() {
-    if (git("status", "--porcelain=v1", "--untracked-files=all") || git("symbolic-ref", "--short", "HEAD") !== branch)
-      throw Error("Worktree is dirty or branch changed");
-  }
+  const clean = () => assertCleanBranch(git, branch);
   clean();
   const originalHead = git("rev-parse", "HEAD"),
     blob = "plan" in o ? git("rev-parse", originalHead + ":" + rel) : "",
@@ -626,6 +628,14 @@ async function supervise(o: Options | DesignOptions) {
       let verificationEvidence: string | undefined;
       try {
         try {
+          if (stage === "verify") {
+            try {
+              git("diff", "--check", `${base}..${prev}`);
+            } catch (e) {
+              const detail = (e as { stdout?: Buffer | string }).stdout?.toString("utf8").trim();
+              throw Error("git diff --check failed" + (detail ? ": " + safe(detail) : ""));
+            }
+          }
           const lastMessage = await attempt(o, stage, folder, prompt, signal, undefined, out);
           let h: Record<string, unknown>;
           try {
@@ -651,6 +661,8 @@ async function supervise(o: Options | DesignOptions) {
         signal.throwIfAborted();
         const fresh = stage === "verify";
         if (fresh) {
+          // ARP-fix verification fails fast without recovery because a new recovery commit would
+          // invalidate pending.head and the finding -> fixSha settlement mapping.
           if (pending || !snapshotChecked || verifies === 3) throw error;
           clean();
           if (git("rev-parse", "HEAD") !== prev) throw Error("Verifier snapshot unavailable or changed");
@@ -731,7 +743,7 @@ async function supervise(o: Options | DesignOptions) {
           " -> " +
           head +
           "; completed: " +
-          safe(before.filter((task) => !remaining.includes(task)).join("; ") || "none");
+          safe(completedTasks(before, remaining).join("; ") || "none");
         if (!(await o.approve?.(changes, signal))) throw Error("Recovered writer not accepted");
         signal.throwIfAborted();
         clean();

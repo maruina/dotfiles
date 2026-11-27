@@ -2,7 +2,7 @@ import type { ExtensionAPI, InputEventResult } from "@earendil-works/pi-coding-a
 import { parsePullRequestUrl } from "./_shared/github.ts";
 import { qualifiedId } from "./_shared/model.ts";
 
-export type LifecycleCommandName = "verify" | "simplify";
+export type LifecycleCommandName = "verify" | "simplify" | "pr-validate" | "pr-address-feedback" | "learn";
 
 export interface ParsedLifecycleCommand {
   command: LifecycleCommandName;
@@ -12,6 +12,7 @@ export interface ParsedLifecycleCommand {
   pr?: string;
   base?: string;
   task?: string;
+  days?: string;
   hasTask: boolean;
   errors: string[];
 }
@@ -118,9 +119,29 @@ function isBarePullRequestUrl(raw?: string): boolean {
   }
 }
 
+function isValidPullRequestLink(raw: string, allowCommentFragment: boolean): boolean {
+  const candidate = unquoteSingleToken(raw);
+  if (!candidate || /\s/.test(candidate)) return false;
+  let url: URL;
+  try {
+    url = new URL(candidate);
+  } catch {
+    return false;
+  }
+  if (allowCommentFragment && url.hash && !/^#(?:discussion_r\d+|issuecomment-\d+)$/.test(url.hash)) {
+    return false;
+  }
+  try {
+    parsePullRequestUrl(`${url.origin}${url.pathname}`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function parseLifecycleCommand(input: string): ParsedLifecycleCommand | null {
   const trimmed = input.trimStart();
-  const match = /^\/(verify|simplify)(?:$|\s([\s\S]*))$/.exec(trimmed);
+  const match = /^\/(verify|simplify|pr-validate|pr-address-feedback|learn)(?:$|\s([\s\S]*))$/.exec(trimmed);
   if (!match) return null;
 
   const command = match[1] as LifecycleCommandName;
@@ -134,6 +155,43 @@ export function parseLifecycleCommand(input: string): ParsedLifecycleCommand | n
     hasTask: false,
     errors: [],
   };
+
+  if (command === "pr-validate" || command === "pr-address-feedback") {
+    const first = readNextToken(rest, 0);
+    if (first) parsed.positionals.push(first.value);
+    return parsed;
+  }
+
+  if (command === "learn") {
+    let cursor = 0;
+    while (cursor < rest.length) {
+      const token = readNextToken(rest, cursor);
+      if (!token) break;
+      cursor = token.end;
+      if (!token.quoted && (token.value === "--days" || token.value.startsWith("--days="))) {
+        let value: string | undefined;
+        if (token.value === "--days") {
+          const next = readNextToken(rest, cursor);
+          if (!next) {
+            parsed.errors.push("Missing value for --days.");
+            continue;
+          }
+          cursor = next.end;
+          value = next.value.trim();
+        } else {
+          value = token.value.slice("--days=".length).trim();
+        }
+        if (!value || !/^[1-9]\d*$/.test(value)) {
+          parsed.errors.push("--days must be a positive integer.");
+        } else {
+          parsed.days = value;
+        }
+        continue;
+      }
+      parsed.positionals.push(token.value);
+    }
+    return parsed;
+  }
 
   let cursor = 0;
   while (cursor < rest.length) {
@@ -218,7 +276,39 @@ export function validateLifecyclePreflight(
     return { ok: false, error: `/${parsed.command} preflight blocked: ${parsed.errors[0]}` };
   }
 
+  if (parsed.command === "learn") {
+    return { ok: true };
+  }
+
+  if (parsed.command === "pr-validate") {
+    const url = parsed.positionals[0];
+    if (!url || !isValidPullRequestLink(url, false)) {
+      return {
+        ok: false,
+        error: "/pr-validate preflight blocked: first argument must be a valid GitHub PR URL (https://github.com/ORG/REPO/pull/NUMBER).",
+      };
+    }
+    return { ok: true };
+  }
+
+  if (parsed.command === "pr-address-feedback") {
+    const url = parsed.positionals[0];
+    if (!url || !isValidPullRequestLink(url, true)) {
+      return {
+        ok: false,
+        error: "/pr-address-feedback preflight blocked: first argument must be a valid GitHub PR URL or review comment link.",
+      };
+    }
+    return { ok: true };
+  }
+
   if (parsed.command === "simplify") {
+    if (parsed.pr !== undefined) {
+      return {
+        ok: false,
+        error: "/simplify preflight blocked: pass a GitHub PR URL as a positional argument, not with --pr.",
+      };
+    }
     return { ok: true };
   }
 

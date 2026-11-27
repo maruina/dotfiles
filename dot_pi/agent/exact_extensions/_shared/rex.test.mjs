@@ -39,8 +39,11 @@ test("verifyLocalRexPeer validates peer principal, metadata, and expected IDs", 
     instance_id: "inst-1",
     host_id: "host-1",
     pid: 1234,
+    api_revision: 18,
   };
-  assert.equal(verifyLocalRexPeer(base, base.endpoint, { session: "session:01a1", block: "block:02b2", requireMetadata: true }).pid, 1234);
+  assert.equal(verifyLocalRexPeer(base, base.endpoint, { session: "session:01a1", block: "block:02b2", requireMetadata: true, minApiRevision: 18 }).pid, 1234);
+  assert.throws(() => verifyLocalRexPeer({ ...base, api_revision: 17 }, base.endpoint, { minApiRevision: 18 }), /API revision 17/);
+  assert.throws(() => verifyLocalRexPeer({ ...base, api_revision: undefined }, base.endpoint, { minApiRevision: 18 }), /API revision unknown/);
   assert.throws(() => verifyLocalRexPeer({ ...base, session_id: "session:other" }, base.endpoint, { session: "session:01a1" }));
   assert.throws(() => verifyLocalRexPeer({ ...base, principal: { kind: "tcp", transport: "unix", uid } }, base.endpoint));
 });

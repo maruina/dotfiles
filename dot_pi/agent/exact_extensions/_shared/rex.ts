@@ -8,6 +8,7 @@ export type RexPeerIdentity = {
   session_id: string;
   block_id: string;
   pid?: number;
+  api_revision?: number;
   principal?: { kind?: string; transport?: string; uid?: number };
 };
 
@@ -50,7 +51,7 @@ export function buildRexArgs(
 export function verifyLocalRexPeer(
   raw: unknown,
   endpoint: string,
-  expected?: { session?: string; block?: string; requireMetadata?: boolean },
+  expected?: { session?: string; block?: string; requireMetadata?: boolean; minApiRevision?: number },
 ): RexPeerIdentity {
   const peer = raw as RexPeerIdentity | null | undefined;
   const uid = process.getuid?.();
@@ -82,6 +83,17 @@ export function verifyLocalRexPeer(
     (expected?.block !== undefined && peer.block_id !== expected.block)
   ) {
     throw new Error("Rex identity does not match the invoking pane.");
+  }
+  if (expected?.minApiRevision !== undefined) {
+    if (
+      typeof peer.api_revision !== "number" ||
+      !Number.isSafeInteger(peer.api_revision) ||
+      peer.api_revision < expected.minApiRevision
+    ) {
+      throw new Error(
+        `Rex API revision ${String(peer.api_revision ?? "unknown")} is below required minimum ${expected.minApiRevision}.`,
+      );
+    }
   }
   return peer;
 }

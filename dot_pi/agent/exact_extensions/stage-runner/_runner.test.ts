@@ -5,7 +5,8 @@ import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { activeSlice, events, validate, preflight, prepareDraft, prune, runDesign } from "./_runner.ts";
+import { activeSlice, completedTasks, events, validate, preflight, prepareDraft, prune, runDesign } from "./_runner.ts";
+import { stripOuterJsonFence } from "./_draft.ts";
 import { getProfile } from "../_shared/profile.ts";
 
 import { createServer } from "node:net";
@@ -171,7 +172,7 @@ test("cancellation clears the runner child record and removes its widget", async
     registerEntryRenderer() {}, appendEntry() {},
     registerCommand(name: string, command: { handler: typeof start }) { if (name === "stage-runner") start = command.handler; },
     on(_event: string, handler: typeof shutdown) { shutdown = handler; },
-    exec: async () => ({ code: 0, stdout: JSON.stringify({ endpoint, principal: { kind: "peer", transport: "unix", uid: process.getuid!() }, session_id: "session:test", block_id: overrides.REX_BLOCK }) }),
+    exec: async () => ({ code: 0, stdout: JSON.stringify({ endpoint, principal: { kind: "peer", transport: "unix", uid: process.getuid!() }, session_id: "session:test", block_id: overrides.REX_BLOCK, api_revision: 18 }) }),
   } as unknown as ExtensionAPI);
   await start("plan.md", { hasUI: true, scopedModels: [{ model: { provider: "p", id: "m" } }], ui: {
     select: async () => undefined, notify() {},
@@ -668,4 +669,27 @@ test("getProfile validates an explicit profilePath strictly", (t) => {
   assert.equal(getProfile({ PI_PROFILE: "work" }, personalPath), "personal");
   assert.throws(() => getProfile({}, invalidPath), /Unknown publication profile/);
   assert.throws(() => getProfile({}, path.join(tmp, "missing.json")));
+});
+
+test("completedTasks subtracts duplicate checkbox text by count", () => {
+  const before = [
+    "- [ ] Add failing test",
+    "- [ ] Implement change",
+    "- [ ] Add failing test",
+    "- [ ] Implement change",
+  ];
+  const after = [
+    "- [ ] Add failing test",
+    "- [ ] Implement change",
+  ];
+  assert.deepEqual(completedTasks(before, after), [
+    "- [ ] Add failing test",
+    "- [ ] Implement change",
+  ]);
+});
+
+test("stripOuterJsonFence unwraps fenced JSON without altering raw JSON", () => {
+  assert.equal(stripOuterJsonFence('{"title":"t","body":"b"}'), '{"title":"t","body":"b"}');
+  assert.equal(stripOuterJsonFence('```json\n{"title":"t","body":"b"}\n```'), '{"title":"t","body":"b"}');
+  assert.equal(stripOuterJsonFence('```\n{"blocked":"missing"}\n```'), '{"blocked":"missing"}');
 });

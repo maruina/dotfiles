@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
+import path from "node:path";
 import test from "node:test";
-import { isWorkGitHubOrg, parseGitHubOwnerRepo, routedGhEnv, scrubbedGhEnv, selectGitHubLogin } from "./github.ts";
+import { pathToFileURL } from "node:url";
+import { mapBounded } from "./async.ts";
+import { isWorkGitHubOrg, parseGitHubOwnerRepo, parsePullRequestUrl, routedGhEnv, scrubbedGhEnv, selectGitHubLogin } from "./github.ts";
 
 test("parseGitHubOwnerRepo parses HTTPS, SCP, and SSH GitHub remotes and rejects traversal", () => {
   assert.deepEqual(parseGitHubOwnerRepo("git@github.com:maruina/dotfiles.git"), { owner: "maruina", repo: "dotfiles" });
@@ -52,4 +56,45 @@ test("routedGhEnv skips personal auth and returns no env when work auth fails", 
     assert.equal(timeout, 10000);
     return null;
   }, opts), undefined);
+});
+
+test("_shared/github.ts stays in parity with exact_scripts/_github.mjs", async () => {
+  const agentRoot = path.resolve(import.meta.dirname, "../..");
+  const scriptsHelper = ["exact_scripts", "scripts"]
+    .map((dir) => path.join(agentRoot, dir, "_github.mjs"))
+    .find((file) => existsSync(file));
+  assert.ok(scriptsHelper, "Expected _github.mjs helper");
+  const scriptMod = await import(pathToFileURL(scriptsHelper).href);
+
+  for (const remote of [
+    "git@GITHUB.COM:DataDog/dd-source.git",
+    "https://github.com/ddoghq/compute",
+    "https://github.com/../repo",
+    "not-a-url",
+  ]) {
+    assert.deepEqual(parseGitHubOwnerRepo(remote), scriptMod.parseGitHubOwnerRepo(remote), remote);
+  }
+
+  for (const pr of [
+    "https://github.com/DataDog/dd-source/pull/42",
+    "https://github.com/ddoghq/compute/pull/7/",
+  ]) {
+    assert.deepEqual(parsePullRequestUrl(pr), scriptMod.parsePullRequestUrl(pr), pr);
+  }
+
+  for (const badPr of [
+    "https://github.com/../repo/pull/1",
+    "https://github.com/org/../pull/1",
+    "https://github.com/org/repo/pull/0",
+    "http://github.com/org/repo/pull/1",
+  ]) {
+    assert.throws(() => parsePullRequestUrl(badPr), badPr);
+    assert.throws(() => scriptMod.parsePullRequestUrl(badPr), badPr);
+  }
+});
+
+test("mapBounded clamps non-positive limits to 1 and handles empty arrays", async () => {
+  assert.deepEqual(await mapBounded([], 0, async (x) => x * 2), []);
+  assert.deepEqual(await mapBounded([1, 2, 3], 0, async (x) => x * 2), [2, 4, 6]);
+  assert.deepEqual(await mapBounded([1, 2], -5, async (x) => x + 1), [2, 3]);
 });

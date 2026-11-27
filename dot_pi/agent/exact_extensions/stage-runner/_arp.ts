@@ -335,21 +335,10 @@ export function partitionFindingFixes(value: unknown, findings: OpenFinding[]) {
 }
 
 export function findingFixes(value: unknown, findings: OpenFinding[]): FindingFix[] {
-  if (!Array.isArray(value)) throw Error("Invalid fix findings handoff");
-  const ids = new Map(findings.map((f) => [f.id, f.reviewedSha]));
-  const seen = new Set<number>();
-  const fixes: FindingFix[] = [];
-  for (const entry of value) {
-    const f = record(entry);
-    if (!positive(f?.id) || !ids.has(f.id)) throw Error("Unknown finding ID in fix handoff");
-    if (seen.has(f.id)) throw Error(`Duplicate finding ${f.id} in fix handoff`);
-    seen.add(f.id);
-    if (f.disposition === "needs-operator" && text(f.reason)) throw Error(`Finding ${f.id} needs the operator: ${f.reason}`);
-    if (f.disposition !== "fixed" || typeof f.fixSha !== "string" || !fullSha(f.fixSha) ||
-        !text(f.changeSummary) || f.changeSummary.length > 1024) throw Error(`Invalid fix evidence for finding ${f.id}`);
-    fixes.push({ id: f.id, reviewedSha: ids.get(f.id)!, fixSha: f.fixSha, changeSummary: f.changeSummary.trim() });
+  const { fixes, needsOperator } = partitionFindingFixes(value, findings);
+  if (needsOperator.length) {
+    throw Error(`Finding ${needsOperator[0].id} needs the operator: ${needsOperator[0].reason}`);
   }
-  if (seen.size !== ids.size) throw Error("Missing finding IDs in fix handoff: " + [...ids.keys()].filter((id) => !seen.has(id)).join(", "));
   return fixes;
 }
 

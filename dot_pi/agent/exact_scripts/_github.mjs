@@ -41,10 +41,11 @@ export function parsePullRequestUrl(value) {
 
   const match = /^\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)\/pull\/([0-9]+)\/?$/.exec(url.pathname);
   if (!match) throw new Error("invalid_url");
-  const number = Number(match[3]);
+  const [, owner, repo, rawNumber] = match;
+  if (owner === "." || owner === ".." || repo === "." || repo === "..") throw new Error("invalid_url");
+  const number = Number(rawNumber);
   if (!Number.isSafeInteger(number) || number < 1) throw new Error("invalid_url");
 
-  const [, owner, repo] = match;
   return { owner, repo, number, url: `https://github.com/${owner}/${repo}/pull/${number}` };
 }
 

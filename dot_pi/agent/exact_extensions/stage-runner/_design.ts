@@ -1,7 +1,11 @@
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import * as fs from "node:fs";
 import path from "node:path";
+import { promisify } from "node:util";
 
+const execFileAsync = promisify(execFile);
+
+import { createGitRunner, resolveOriginDefaultBranch, type GitRunner } from "./_git.ts";
 import { recovery, sessionInfo } from "./_recovery.ts";
 import { attempt, decode, handoff, id, paneArgv, privateFile, prune, type Choice, type Options } from "./_runner.ts";
 
@@ -14,8 +18,6 @@ export type DesignOptions = Pick<
   reviewer: Choice;
   progress: (message: string) => void;
 };
-
-type GitRunner = (...args: string[]) => string;
 
 function ensure(ok: boolean, reason: string): asserts ok {
   if (!ok) throw Error(reason);
@@ -83,15 +85,7 @@ export function buildDesignBrief(arg: string, entries: readonly unknown[], maxJs
 }
 
 export function inspectDesignBranch(cwd: string, env?: NodeJS.ProcessEnv) {
-  const git = (...args: string[]) =>
-    execFileSync("git", args, {
-      cwd,
-      env,
-      encoding: "utf8",
-      timeout: 10000,
-      maxBuffer: 4 * 1024 * 1024,
-      stdio: ["ignore", "pipe", "pipe"],
-    }).trimEnd();
+  const git = createGitRunner(cwd, env);
   const root = fs.realpathSync(git("rev-parse", "--show-toplevel"));
   const branch = git("symbolic-ref", "--short", "HEAD");
   let hasOrigin = false;
@@ -100,12 +94,7 @@ export function inspectDesignBranch(cwd: string, env?: NodeJS.ProcessEnv) {
   } catch {
     /* ignore */
   }
-  let defaultBranch = "";
-  try {
-    defaultBranch = git("symbolic-ref", "--short", "refs/remotes/origin/HEAD").replace(/^origin\//, "");
-  } catch {
-    if (hasOrigin) throw Error("Cannot establish origin default branch");
-  }
+  const defaultBranch = resolveOriginDefaultBranch(git);
   return {
     root,
     branch,
@@ -203,31 +192,36 @@ export function deriveDesignBranch(
   return validateFeatureBranchName(cwd, candidate, defaultBranch, env);
 }
 
-export function createDesignWorktree(
+export async function createDesignWorktree(
   cwd: string,
   branch: string,
   env?: NodeJS.ProcessEnv,
   wtCommand?: string[],
-): string {
+  signal?: AbortSignal,
+): Promise<string> {
+  signal?.throwIfAborted();
   const info = inspectDesignBranch(cwd, env);
   const validBranch = validateFeatureBranchName(info.root, branch, info.defaultBranch, env);
-  const gitIn = (dir: string, ...args: string[]) =>
-    execFileSync("git", args, {
+  const gitIn = async (dir: string, ...args: string[]) => {
+    const { stdout } = await execFileAsync("git", args, {
       cwd: dir,
       env,
       encoding: "utf8",
       timeout: 30000,
       maxBuffer: 4 * 1024 * 1024,
-      stdio: ["ignore", "pipe", "pipe"],
-    }).trimEnd();
-  const baseHead = gitIn(info.root, "rev-parse", "HEAD");
+      signal,
+      killSignal: "SIGKILL",
+    });
+    return stdout.trimEnd();
+  };
+  const baseHead = await gitIn(info.root, "rev-parse", "HEAD");
   let baseRef = baseHead;
   if (info.hasOrigin && info.defaultBranch) {
-    gitIn(info.root, "fetch", "origin");
+    await gitIn(info.root, "fetch", "origin");
     baseRef = "origin/" + info.defaultBranch;
   }
   const [wtExe, ...wtPrefix] = wtCommand ?? ["wt"];
-  const raw = execFileSync(
+  const { stdout } = await execFileAsync(
     wtExe,
     [...wtPrefix, "switch", "--create", validBranch, "--base", baseRef, "--no-cd", "--format=json", "--yes"],
     {
@@ -236,19 +230,21 @@ export function createDesignWorktree(
       encoding: "utf8",
       timeout: 60000,
       maxBuffer: 4 * 1024 * 1024,
-      stdio: ["ignore", "pipe", "pipe"],
+      signal,
+      killSignal: "SIGKILL",
     },
-  ).trim();
-  const parsed = JSON.parse(raw) as { path?: unknown };
+  );
+  const parsed = JSON.parse(stdout.trim()) as { path?: unknown };
   ensure(typeof parsed.path === "string" && parsed.path.trim().length > 0, "Worktrunk did not return a worktree path");
   const worktreePath = fs.realpathSync(parsed.path);
   ensure(
-    gitIn(info.root, "symbolic-ref", "--short", "HEAD") === info.branch && gitIn(info.root, "rev-parse", "HEAD") === baseHead,
+    (await gitIn(info.root, "symbolic-ref", "--short", "HEAD")) === info.branch &&
+      (await gitIn(info.root, "rev-parse", "HEAD")) === baseHead,
     "Base checkout changed while creating feature worktree",
   );
   ensure(
-    gitIn(worktreePath, "symbolic-ref", "--short", "HEAD") === validBranch &&
-      !gitIn(worktreePath, "status", "--porcelain=v1", "--untracked-files=all"),
+    (await gitIn(worktreePath, "symbolic-ref", "--short", "HEAD")) === validBranch &&
+      !(await gitIn(worktreePath, "status", "--porcelain=v1", "--untracked-files=all")),
     "Created worktree is not clean on " + validBranch,
   );
   return worktreePath;

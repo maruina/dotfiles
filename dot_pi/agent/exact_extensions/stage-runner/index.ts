@@ -42,6 +42,7 @@ async function checkRex(pi: ExtensionAPI) {
   verifyLocalRexPeer(peer, endpoint, {
     session: process.env.REX_SESSION || undefined,
     block: process.env.REX_BLOCK ?? "",
+    minApiRevision: 18,
   });
 }
 
@@ -141,7 +142,7 @@ function encodeOsc7501Text(value: string, maxBytes: number): string {
 }
 
 function formatStageRunnerStatus(status: {
-  state: "idle" | "working" | "done" | "blocked" | "error" | "clear";
+  state: "working" | "done" | "blocked" | "error" | "clear";
   kind?: "permission" | "question" | "auth";
   progress?: number;
   message?: string;
@@ -190,7 +191,7 @@ export function rexActivity(write: (sequence: string) => void) {
       report({ state: "working", message, progress }),
     recovery: (message: string) => report({ state: "blocked", kind: "question", message }),
     permission: (message: string) => report({ state: "blocked", kind: "permission", message }),
-    end: (state: "done" | "error" | "idle" | "clear", message?: string) =>
+    end: (state: "done" | "error" | "clear", message?: string) =>
       report({ state, ...(message && (state === "done" || state === "error") ? { message } : {}) }),
   };
 }
@@ -336,7 +337,7 @@ export default function stageRunner(pi: ExtensionAPI) {
           if (branchInfo?.onDefault) {
             const branchName = deriveDesignBranch(branchInfo.root, arg, designBrief, pi.getSessionName?.(), branchInfo.defaultBranch);
             designProgress("Creating feature worktree " + branchName);
-            designCwd = createDesignWorktree(ctx.cwd, branchName);
+            designCwd = await createDesignWorktree(ctx.cwd, branchName, undefined, undefined, controller.signal);
             designProgress("Using feature worktree " + designCwd);
           }
           designProgress("Run started.");

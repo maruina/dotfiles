@@ -1,4 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { mapBounded } from "../_shared/async.ts";
 import { execRexJson, isRexId } from "../_shared/rex.ts";
 
 const TERMINAL_CREATOR = "com.superlogical.terminal";
@@ -173,19 +174,6 @@ export function sortRexPanes(panes: RexPane[]): RexPane[] {
     .map((pane, index) => ({ pane, index }))
     .sort((a, b) => rank(a.pane) - rank(b.pane) || a.index - b.index)
     .map((entry) => entry.pane);
-}
-
-async function mapBounded<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
-  const results = new Array<R>(items.length);
-  let next = 0;
-  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (next < items.length) {
-      const idx = next++;
-      results[idx] = await fn(items[idx]);
-    }
-  });
-  await Promise.all(workers);
-  return results;
 }
 
 export function createRexExecJson(

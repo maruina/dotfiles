@@ -3,6 +3,8 @@ export async function mapBounded<T, R>(
   limit: number,
   fn: (item: T) => Promise<R>,
 ): Promise<R[]> {
+  if (items.length === 0) return [];
+  const concurrency = Math.max(1, Math.floor(limit));
   const results = new Array<R>(items.length);
   let next = 0;
   const worker = async () => {
@@ -11,7 +13,7 @@ export async function mapBounded<T, R>(
       results[index] = await fn(items[index]!);
     }
   };
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
   return results;
 }
 

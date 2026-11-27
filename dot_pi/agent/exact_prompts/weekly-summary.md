@@ -9,6 +9,8 @@ Arguments: $ARGUMENTS
 
 Create a weekly work summary for Matteo Ruina (`@maruina` in `DataDog/*`, `@matteo-ruina_ddog` in `ddoghq/*`, `matteo.ruina@datadoghq.com`).
 
+Load the `obsidian-cli` and `write` skills before drafting and writing the note.
+
 The goal is to produce an Obsidian weekly page at `Datadog/Snippets/Week of <YYYY-MM-DD>.md`, where `<YYYY-MM-DD>` is the Monday date. Matteo will manually edit and publish it to Confluence later.
 
 Use concrete evidence. Do not fabricate links, tickets, PRs, or outcomes.
@@ -94,15 +96,9 @@ Style rules:
 
 ## Phase 7: Save to Obsidian
 
-Write the final draft to:
+Write the final draft via `obsidian-cli` (`obsidian create path="Datadog/Snippets/Week of <YYYY-MM-DD>.md" content="..." overwrite`) where `<YYYY-MM-DD>` is the Monday date for the selected week.
 
-```text
-~/Documents/main/Datadog/Snippets/Week of <YYYY-MM-DD>.md
-```
-
-where `<YYYY-MM-DD>` is the Monday date for the selected week.
-
-If the file already exists, replace it with the polished weekly summary while preserving useful details from the previous content. Do not blindly append a second summary.
+If the note already exists, replace it with the polished weekly summary while preserving useful details from the previous content. Do not blindly append a second summary.
 
 After writing, report:
 

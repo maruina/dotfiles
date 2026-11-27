@@ -9,6 +9,7 @@ import { qualifiedId } from "../_shared/model.ts";
 import stageRunnerHandoff from "./_handoff.ts";
 import { parseArpReviewArgs, runArpReview } from "./_arp-review.ts";
 import { buildDesignBrief, createDesignWorktree, deriveDesignBranch, inspectDesignBranch } from "./_design.ts";
+import { formatDoctorReport, runDoctor } from "./_doctor.ts";
 import { handoff, run, runDesign, type Choice, type Phase, type RunnerEvent } from "./_runner.ts";
 
 export function trackPublishedPr(pi: ExtensionAPI, event: RunnerEvent) {
@@ -228,6 +229,23 @@ export default function stageRunner(pi: ExtensionAPI) {
     handler: async (_, ctx) => {
       if (active) active.abort();
       else ctx.ui.notify("No active stage runner", "info");
+    },
+  });
+  pi.registerCommand("stage-runner-doctor", {
+    description: "Check Pi, Rex, models, worktree, signing, and GitHub readiness for stage-runner",
+    handler: async (_, ctx) => {
+      if (process.env.PI_STAGE_RUNNER_CHILD === "1" || !ctx.hasUI) {
+        ctx.ui.notify("Use /stage-runner-doctor in an interactive parent session", "error");
+        return;
+      }
+      const report = await runDoctor({
+        cwd: ctx.cwd,
+        root: path.join(os.homedir(), ".pi/agent/lifecycle-runs"),
+        piVersion: VERSION,
+        scopedModels: ctx.scopedModels.map((entry) => entry.model),
+        checkRex: () => checkRex(pi),
+      });
+      ctx.ui.notify(formatDoctorReport(report), report.ok ? "info" : "warning");
     },
   });
   const command = (kind: "plan" | "design" | "arp"): Parameters<ExtensionAPI["registerCommand"]>[1] => ({

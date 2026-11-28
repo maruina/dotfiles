@@ -15,11 +15,6 @@ const INTEGRATION_TESTS = new Set([
   path.join(extDir, "worktrunk", "activity.test.ts"),
 ]);
 
-// Opt-in live-server smoke tests are excluded from automatic discovery.
-const EXCLUDED_TESTS = new Set([
-  path.join(extDir, "rex-recovery", "smoke.test.mjs"),
-]);
-
 function walkTests(dir, results = []) {
   const abs = path.join(agentRoot, dir);
   if (!existsSync(abs)) return results;
@@ -29,7 +24,7 @@ function walkTests(dir, results = []) {
     if (entry.isDirectory()) {
       walkTests(rel, results);
     } else if (/(\.test\.(ts|mjs)|^test\.ts)$/.test(entry.name)) {
-      if (!EXCLUDED_TESTS.has(rel)) results.push(rel);
+      results.push(rel);
     }
   }
   return results;
